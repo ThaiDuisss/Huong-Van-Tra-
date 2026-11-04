@@ -21,6 +21,10 @@ import org.hvtra.orderservice.repository.OrderReturnRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.NullAndEmptySource;
+import org.junit.jupiter.params.provider.ValueSource;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -36,7 +40,10 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 @ExtendWith(MockitoExtension.class)
 class OrderReturnRefundTransactionServiceImplTest {
@@ -184,5 +191,87 @@ class OrderReturnRefundTransactionServiceImplTest {
                 InvalidOrderReturnException.class,
                 () -> service.applyRefundSuccess(returnId, invalidRefund, null)
         );
+    }
+
+    @Test
+    void serializedRepeatedSuccessPublishesCompletionOnlyOnce() {
+        when(orderReturnRepository.findByIdAndIsDeletedFalseForUpdate(returnId)).thenReturn(Optional.of(orderReturn));
+        when(orderRepository.findByIdAndIsDeletedFalseWithItemsForUpdate(orderId)).thenReturn(Optional.of(order));
+        when(orderReturnRepository.findByOrderIdAndIsDeletedFalseOrderByCreatedAtDesc(orderId))
+                .thenReturn(List.of(orderReturn));
+        PaymentClient.PaymentRefundResponse paymentRefund = new PaymentClient.PaymentRefundResponse(
+                paymentId, orderId, transactionId, returnId, new BigDecimal("300000"),
+                new BigDecimal("300000"), "REFUNDED", "CASH", null);
+        var first = service.applyRefundSuccess(returnId, paymentRefund, null);
+        var second = service.applyRefundSuccess(returnId, paymentRefund, null);
+        assertEquals(first.getRefundTransactionId(), second.getRefundTransactionId());
+        assertEquals(first.getTotalAmountRefunded(), second.getTotalAmountRefunded());
+        verify(orderReturnRepository, times(1)).save(orderReturn);
+        verify(orderOutboxPublisher, times(1)).publishReturnRefundCompletedNotification(
+                eq(orderReturn), eq(ReturnStatus.COMPLETED), isNull(), eq(paymentRefund));
+        verify(orderOutboxPublisher, times(1)).publishReturnCompletedNotification(
+                eq(orderReturn), eq(ReturnStatus.RECEIVED), isNull());
+        verify(orderOutboxPublisher, never()).publishReturnCompletedNotification(
+                eq(orderReturn), eq(ReturnStatus.COMPLETED), isNull());
+    }
+
+    @Test
+    void latePartialResponseCannotDowngradeAlreadyFullyRefundedOrder() {
+        order.setPaymentStatus(PaymentStatus.REFUNDED);
+        when(orderReturnRepository.findByIdAndIsDeletedFalseForUpdate(returnId)).thenReturn(Optional.of(orderReturn));
+        when(orderRepository.findByIdAndIsDeletedFalseWithItemsForUpdate(orderId)).thenReturn(Optional.of(order));
+        when(orderReturnRepository.findByOrderIdAndIsDeletedFalseOrderByCreatedAtDesc(orderId))
+                .thenReturn(List.of(orderReturn));
+        var response = service.applyRefundSuccess(returnId, new PaymentClient.PaymentRefundResponse(
+                paymentId, orderId, transactionId, returnId, new BigDecimal("100000"),
+                new BigDecimal("100000"), "PARTIALLY_REFUNDED", "CASH", null), null);
+        assertEquals(PaymentStatus.REFUNDED, order.getPaymentStatus());
+        assertEquals(PaymentStatus.REFUNDED, response.getOrderPaymentStatus());
+    }
+
+    @ParameterizedTest
+    @NullAndEmptySource
+    @ValueSource(strings = {" ", "PAID", "UNPAID", "WAITING_PAYMENT", "NOT_A_STATUS", "refunded"})
+    void rejectsUnsettledOrMalformedPaymentStatusBeforeLockingOrder(String status) {
+        when(orderReturnRepository.findByIdAndIsDeletedFalseForUpdate(returnId)).thenReturn(Optional.of(orderReturn));
+        var refund = refund(paymentId, orderId, transactionId, returnId, status);
+        assertThrows(InvalidOrderReturnException.class, () -> service.applyRefundSuccess(returnId, refund, null));
+        assertEquals(ReturnStatus.RECEIVED, orderReturn.getStatus());
+        assertEquals(PaymentStatus.PAID, order.getPaymentStatus());
+        verifyNoInteractions(orderRepository, orderReturnHistoryWriter, orderOutboxPublisher);
+        verify(orderReturnRepository, never()).save(any());
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"payment", "transaction", "order", "return"})
+    void rejectsRefundWithMissingOrMismatchedIdentityWithoutWriting(String mismatch) {
+        when(orderReturnRepository.findByIdAndIsDeletedFalseForUpdate(returnId)).thenReturn(Optional.of(orderReturn));
+        var refund = refund("payment".equals(mismatch) ? null : paymentId,
+                "order".equals(mismatch) ? UUID.randomUUID() : orderId,
+                "transaction".equals(mismatch) ? null : transactionId,
+                "return".equals(mismatch) ? UUID.randomUUID() : returnId, "REFUNDED");
+        InvalidOrderReturnException failure = assertThrows(InvalidOrderReturnException.class,
+                () -> service.applyRefundSuccess(returnId, refund, null));
+        assertEquals("Payment refund record does not match this return", failure.getMessage());
+        assertEquals(ReturnStatus.RECEIVED, orderReturn.getStatus());
+        verifyNoInteractions(orderRepository, orderReturnHistoryWriter, orderOutboxPublisher);
+        verify(orderReturnRepository, never()).save(any());
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = ReturnStatus.class, names = {"CREATED", "CANCELLED"})
+    void refusesSettlementForReturnThatHasNotBeenReceived(ReturnStatus status) {
+        orderReturn.setStatus(status);
+        when(orderReturnRepository.findByIdAndIsDeletedFalseForUpdate(returnId)).thenReturn(Optional.of(orderReturn));
+        assertThrows(InvalidOrderReturnException.class, () -> service.applyRefundSuccess(returnId,
+                refund(paymentId, orderId, transactionId, returnId, "REFUNDED"), null));
+        assertEquals(status, orderReturn.getStatus());
+        verifyNoInteractions(orderRepository, orderReturnHistoryWriter, orderOutboxPublisher);
+    }
+
+    private PaymentClient.PaymentRefundResponse refund(UUID payment, UUID refundOrder, UUID transaction, UUID refundReturn, String status) {
+        return new PaymentClient.PaymentRefundResponse(payment, refundOrder, transaction, refundReturn,
+                new BigDecimal("300000"), new BigDecimal("300000"), status, "CASH",
+                LocalDateTime.of(2026, 11, 3, 7, 0));
     }
 }

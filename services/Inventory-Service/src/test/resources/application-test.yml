@@ -1,14 +1,28 @@
+# ===== Profile test =====
+# Mặc định H2 in-memory: test KHÔNG BAO GIỜ fallback về DB dùng chung,
+# và cũng không đòi biến môi trường nên `mvn test` trên Jenkins chạy xanh ngay.
+#
+# Vẫn giữ đường chạy với MySQL thật cho integration test khi cần:
+#   INVENTORY_TEST_DB_URL=jdbc:mysql://... INVENTORY_TEST_DB_USERNAME=... INVENTORY_TEST_DB_PASSWORD=... \
+#   INVENTORY_TEST_FLYWAY=true INVENTORY_TEST_DDL_AUTO=validate
+# Flyway mặc định tắt vì migration viết cho MySQL, không chạy được trên H2.
+
 spring:
   datasource:
-    # Fail-fast: Must be provided via environment variables.
-    # Absolutely NO fallback to dev DB (100.99.2.30)!
-    url: ${INVENTORY_TEST_DB_URL}
-    username: ${INVENTORY_TEST_DB_USERNAME}
-    password: ${INVENTORY_TEST_DB_PASSWORD}
+    url: ${INVENTORY_TEST_DB_URL:jdbc:h2:mem:inventory;MODE=MySQL;DB_CLOSE_DELAY=-1}
+    username: ${INVENTORY_TEST_DB_USERNAME:sa}
+    password: ${INVENTORY_TEST_DB_PASSWORD:}
+  jpa:
+    hibernate:
+      ddl-auto: ${INVENTORY_TEST_DDL_AUTO:create-drop}
+    show-sql: false
   flyway:
-    enabled: true
+    enabled: ${INVENTORY_TEST_FLYWAY:false}
     baseline-on-migrate: true
     baseline-version: 0
+  sql:
+    init:
+      mode: never
   cloud:
     discovery:
       enabled: false

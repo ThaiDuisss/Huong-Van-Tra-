@@ -27,9 +27,14 @@ public class InventoryTakeMapper {
                 count.getStatus(),
                 count.getLockMode(),
                 count.getBlindCount(),
-                count.getSnapshotAt(),
-                count.getCountingStartedAt(),
-                count.getCountingCompletedAt(),
+                count.getStartedAt(),
+                count.getSubmittedAt(),
+                count.getCompletedAt(),
+                count.getCompletedBy(),
+                count.getReturnReason(),
+                count.getCancelledAt(),
+                count.getCancelledBy(),
+                count.getCancelReason(),
                 count.getNote(),
                 count.getCreatedAt(),
                 count.getCreatedBy(),
@@ -72,6 +77,7 @@ public class InventoryTakeMapper {
                 line.getMovementQuantity(),
                 hideExpected ? null : line.getExpectedQuantity(),
                 hideExpected ? null : line.getSnapshotUnitCost(),
+                line.hasBeenCounted(),
                 line.getCountedQuantity(),
                 line.getVarianceQuantity(),
                 line.getVarianceValue(),
@@ -84,7 +90,7 @@ public class InventoryTakeMapper {
                 line.getAttempts().stream()
                         .map(attempt -> new InventoryTakeLineResponse.AttemptSummary(
                                 attempt.getId(), attempt.getAttemptNo(), attempt.getCounterId(),
-                                attempt.getCountedQuantity(), attempt.getStatus(), attempt.getNote(),
+                                attempt.getCountedQuantity(), attempt.getNote(),
                                 attempt.getSubmittedAt()))
                         .toList()
         );

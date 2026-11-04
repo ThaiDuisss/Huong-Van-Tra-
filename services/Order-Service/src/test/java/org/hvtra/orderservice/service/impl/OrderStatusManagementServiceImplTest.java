@@ -8,6 +8,8 @@ import org.hvtra.orderservice.client.CatalogClient;
 import org.hvtra.orderservice.client.InventoryClient;
 import org.hvtra.orderservice.domain.enums.OrderStatus;
 import org.hvtra.orderservice.domain.enums.PaymentStatus;
+import org.hvtra.orderservice.domain.enums.OrderItemType;
+import org.hvtra.orderservice.exception.InvalidOrderStatusException;
 import org.hvtra.orderservice.dto.request.UpdateOrderStatusRequest;
 import org.hvtra.orderservice.dto.response.OrderResponse;
 import org.hvtra.orderservice.exception.OrderNotFoundException;
@@ -18,12 +20,17 @@ import org.hvtra.orderservice.service.support.OrderStatusHistoryWriter;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.lang.reflect.Method;
+import java.math.BigDecimal;
+import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -37,6 +44,8 @@ import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.any;
 
 @ExtendWith(MockitoExtension.class)
@@ -254,6 +263,116 @@ class OrderStatusManagementServiceImplTest {
         );
 
         assertNotNull(method.getAnnotation(Transactional.class));
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = OrderInventoryProcessingStatus.class, mode = EnumSource.Mode.EXCLUDE, names = {"RESERVED"})
+    void onlineCompletionRejectsEveryInventoryStateWithoutMaterialReservation(OrderInventoryProcessingStatus stock) {
+        Order order = lockedPaidOnlineOrder(stock);
+        assertThrows(IllegalStateException.class, () -> service.updateOrderStatus(order.getId(), statusRequest(OrderStatus.COMPLETED)));
+        assertEquals(OrderStatus.PAYMENT_CONFIRMED, order.getStatus());
+        verifyNoInteractions(inventoryClient, catalogClient, orderOutboxPublisher, orderStatusHistoryWriter);
+        verify(orderRepository, never()).save(any());
+    }
+
+    @Test
+    void consumedMaterialsCannotBeCancelledAndCompensatedFailureDoesNotRestoreSellableTwice() {
+        Order order = lockedPaidOnlineOrder(OrderInventoryProcessingStatus.CONSUMED);
+        assertThrows(IllegalStateException.class, () -> service.updateOrderStatus(order.getId(), statusRequest(OrderStatus.CANCELLED)));
+        assertEquals(OrderStatus.PAYMENT_CONFIRMED, order.getStatus());
+        order.setInventoryProcessingStatus(OrderInventoryProcessingStatus.FAILED);
+        order.setSellableCompensatedAt(Instant.parse("2026-11-03T00:00:00Z"));
+        when(orderRepository.save(order)).thenReturn(order);
+        service.updateOrderStatus(order.getId(), statusRequest(OrderStatus.CANCELLED));
+        assertEquals(OrderStatus.CANCELLED, order.getStatus());
+        assertEquals(OrderInventoryProcessingStatus.RELEASED, order.getInventoryProcessingStatus());
+        verifyNoInteractions(inventoryClient, catalogClient, orderOutboxPublisher);
+    }
+
+    @Test
+    void inventoryConfirmedReservationPreventsCancellationAndCatalogCompensation() {
+        Order order = lockedPaidOnlineOrder(OrderInventoryProcessingStatus.RESERVED);
+        when(inventoryClient.releaseMaterials(new InventoryClient.ReleaseInventoryReservationOrderRequest(order.getId())))
+                .thenReturn(List.of(new InventoryClient.MaterialReservationResponse("RELEASED"),
+                        new InventoryClient.MaterialReservationResponse("CONFIRMED")));
+        assertThrows(IllegalStateException.class, () -> service.updateOrderStatus(order.getId(), statusRequest(OrderStatus.CANCELLED)));
+        assertEquals(OrderStatus.PAYMENT_CONFIRMED, order.getStatus());
+        assertEquals(OrderInventoryProcessingStatus.RESERVED, order.getInventoryProcessingStatus());
+        verify(orderRepository, never()).save(any());
+        verifyNoInteractions(catalogClient, orderOutboxPublisher, orderStatusHistoryWriter);
+    }
+
+    @Test
+    void cancellationMergesVariantQuantitiesAndExcludesBundleContainerFromCatalogRestore() {
+        Order order = lockedPaidOnlineOrder(OrderInventoryProcessingStatus.RESERVED);
+        UUID variantId = UUID.randomUUID();
+        OrderItem first = OrderItem.builder().productVariantId(variantId).quantity(new BigDecimal("2")).build();
+        OrderItem second = OrderItem.builder().productVariantId(variantId).quantity(new BigDecimal("3")).build();
+        OrderItem bundle = OrderItem.builder().productVariantId(UUID.randomUUID()).itemType(OrderItemType.CUSTOM_BUNDLE).quantity(BigDecimal.ONE).build();
+        order.setItems(List.of(first, second, bundle));
+        when(orderRepository.save(order)).thenReturn(order);
+        service.updateOrderStatus(order.getId(), statusRequest(OrderStatus.CANCELLED));
+        verify(catalogClient).restoreSellableQuantity(variantId, new CatalogClient.SellableQuantityAdjustmentRequest(
+                new BigDecimal("5"), null, "ORDER_CANCEL", "ORDER_CANCEL:" + order.getId()));
+        verify(catalogClient, never()).restoreSellableQuantity(eq(bundle.getProductVariantId()), any());
+        assertEquals(OrderInventoryProcessingStatus.RELEASED, order.getInventoryProcessingStatus());
+    }
+
+    @Test
+    void waitingStockBackorderCannotBypassDedicatedFulfillmentAction() {
+        UUID id = UUID.randomUUID();
+        Order order = order(id, OrderStatus.PAYMENT_CONFIRMED);
+        order.setBackorder(true);
+        order.setInventoryProcessingStatus(OrderInventoryProcessingStatus.WAITING_STOCK);
+        when(orderRepository.findByIdAndIsDeletedFalse(id)).thenReturn(Optional.of(order));
+        assertThrows(InvalidOrderStatusException.class, () -> service.updateOrderStatus(id, statusRequest(OrderStatus.COMPLETED)));
+        assertEquals(OrderStatus.PAYMENT_CONFIRMED, order.getStatus());
+        verifyNoInteractions(inventoryClient, catalogClient, orderBackorderSupport, orderStatusHistoryWriter, orderOutboxPublisher);
+    }
+
+    @Test
+    void missingLockedOrderStopsTransitionAfterInitialRead() {
+        UUID id = UUID.randomUUID();
+        Order order = order(id, OrderStatus.PAYMENT_CONFIRMED);
+        order.setOrderType("ONLINE");
+        order.setPaymentStatus(PaymentStatus.PAID);
+        when(orderRepository.findByIdAndIsDeletedFalse(id)).thenReturn(Optional.of(order));
+        assertThrows(OrderNotFoundException.class, () -> service.updateOrderStatus(id, statusRequest(OrderStatus.COMPLETED)));
+        verify(orderRepository, never()).save(any());
+        verifyNoInteractions(inventoryClient, catalogClient, orderOutboxPublisher);
+    }
+
+    @Test
+    void bundleCompletionChecksPackingBeforeChangingStatusAndCancellationUsesPackingAction() {
+        UUID id = UUID.randomUUID();
+        Order order = order(id, OrderStatus.PAYMENT_CONFIRMED);
+        when(orderRepository.findByIdAndIsDeletedFalse(id)).thenReturn(Optional.of(order));
+        when(orderBackorderSupport.hasBundle(order)).thenReturn(true);
+        doThrow(new InvalidOrderStatusException("not packed")).when(orderBackorderSupport).requireBundlesPacked(order);
+        assertThrows(InvalidOrderStatusException.class, () -> service.updateOrderStatus(id, statusRequest(OrderStatus.COMPLETED)));
+        verify(orderBackorderSupport).refreshBundles(order);
+        assertEquals(OrderStatus.PAYMENT_CONFIRMED, order.getStatus());
+        when(orderRepository.save(order)).thenReturn(order);
+        service.updateOrderStatus(id, statusRequest(OrderStatus.CANCELLED));
+        verify(orderBackorderSupport).cancelBundlePacking(order, null);
+        assertEquals(OrderStatus.CANCELLED, order.getStatus());
+    }
+
+    private Order lockedPaidOnlineOrder(OrderInventoryProcessingStatus stock) {
+        UUID id = UUID.randomUUID();
+        Order order = order(id, OrderStatus.PAYMENT_CONFIRMED);
+        order.setOrderType("ONLINE");
+        order.setPaymentStatus(PaymentStatus.PAID);
+        order.setInventoryProcessingStatus(stock);
+        when(orderRepository.findByIdAndIsDeletedFalse(id)).thenReturn(Optional.of(order));
+        when(orderRepository.findByIdAndIsDeletedFalseWithItemsForUpdate(id)).thenReturn(Optional.of(order));
+        return order;
+    }
+
+    private UpdateOrderStatusRequest statusRequest(OrderStatus status) {
+        UpdateOrderStatusRequest request = new UpdateOrderStatusRequest();
+        request.setStatus(status);
+        return request;
     }
 
     private Order order(UUID orderId, OrderStatus status) {

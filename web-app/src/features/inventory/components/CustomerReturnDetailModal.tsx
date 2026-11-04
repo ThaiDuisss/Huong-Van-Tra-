@@ -1,5 +1,5 @@
 import { ExternalLink, PackageCheck, Plus, RefreshCw, X } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { CUSTOMER_RETURN_QC_ROLES, useAuthorization } from "../../../auth/role-utils";
 
@@ -23,12 +23,14 @@ import {
     getReturnConditionLabel,
     getReturnErrorMessage,
     getReturnReasonLabel,
-    resolveCustomerReturnQuantities
+    resolveCustomerReturnQuantities,
+    toReturnNumber
 } from "../../order/utils/order-return.utils";
 import { formatVietnamDateTime, formatVietnamNumber } from "../utils/inventory-format";
 import { customerReturnApi } from "../services/customerReturn.api";
 import type { CustomerReturnInspection } from "../types/customer-return-inspection.types";
 import { InspectionStatusBadge } from "./CustomerReturnInspectionComponents";
+import { CustomerReturnWarehouseInspectionModal } from "./CustomerReturnWarehouseInspectionModal";
 import styles from "./CustomerReturnDetailModal.module.css";
 
 interface CustomerReturnDetailModalProps {
@@ -57,6 +59,8 @@ export function CustomerReturnDetailModal({
     const [receiveMessage, setReceiveMessage] = useState("");
     const [showReceiveConfirm, setShowReceiveConfirm] = useState(false);
     const [receiveConfirmError, setReceiveConfirmError] = useState("");
+    const dialogRef = useRef<HTMLElement>(null);
+    const [selectedInspection, setSelectedInspection] = useState<CustomerReturnInspection | null>(null);
 
     const [reloadKey, setReloadKey] = useState(0);
 
@@ -83,7 +87,7 @@ export function CustomerReturnDetailModal({
                 .then(([returnDetail, inspectionRes, qcRes]) => {
                     if (!active) return;
                     setDetail(returnDetail);
-                    setInspections(inspectionRes?.content ?? []);
+                    setInspections((inspectionRes?.content ?? []).filter((inspection) => inspection.returnId === returnItem.id));
                     setQcSummary(qcRes);
                 })
                 .catch((loadError: unknown) => {
@@ -99,6 +103,15 @@ export function CustomerReturnDetailModal({
         };
     }, [isOpen, returnItem.id, returnItem.returnCode, reloadKey]);
 
+    useEffect(() => {
+        if (!isOpen) return;
+        const previous = document.activeElement;
+        dialogRef.current?.focus({ preventScroll: true });
+        return () => {
+            if (previous instanceof HTMLElement && previous.isConnected) previous.focus({ preventScroll: true });
+        };
+    }, [isOpen]);
+
     if (!isOpen) return null;
 
     const currentReturn = detail ?? returnItem;
@@ -107,19 +120,39 @@ export function CustomerReturnDetailModal({
     const isReceived = currentReturn.status === "RECEIVED";
     const isCompleted = currentReturn.status === "COMPLETED";
 
+    const postedFromQc = qcSummary?.lines
+        ? qcSummary.lines.reduce((s, l) => s + toReturnNumber(l.postedQcQuantity), 0)
+        : (qcSummary ? 0 : undefined);
+    const remainingFromQc = qcSummary?.lines
+        ? qcSummary.lines.reduce((s, l) => s + toReturnNumber(l.remainingQcQuantity), 0)
+        : (qcSummary ? 0 : undefined);
+
+    const effQcStatus = qcSummary?.qcStatus ?? returnItem.qcStatus ?? null;
+    const effPostedQcQuantity = postedFromQc ?? returnItem.postedQcQuantity ?? undefined;
+    const effRemainingQcQuantity = remainingFromQc ?? returnItem.remainingQcQuantity ?? undefined;
+
     const quantities = resolveCustomerReturnQuantities({
         ...currentReturn,
+        postedQcQuantity: effPostedQcQuantity,
+        remainingQcQuantity: effRemainingQcQuantity,
+        qcStatus: effQcStatus,
         items
     });
 
-    const canInspect = canExecuteQc && canInspectCustomerReturn({
+    const canInspect = !isLoading && !error && detail != null && canExecuteQc && canInspectCustomerReturn({
         ...currentReturn,
+        postedQcQuantity: effPostedQcQuantity,
+        remainingQcQuantity: effRemainingQcQuantity,
+        qcStatus: effQcStatus,
         items
     });
 
     const overallUiStatus = getCustomerReturnUiStatus(currentReturn);
     const qcProgressStatus = getCustomerReturnQcProgressStatus({
         ...currentReturn,
+        postedQcQuantity: effPostedQcQuantity,
+        remainingQcQuantity: effRemainingQcQuantity,
+        qcStatus: effQcStatus,
         items
     });
 
@@ -144,20 +177,20 @@ export function CustomerReturnDetailModal({
     };
 
     const handleStartInspection = () => {
-        if (!qcSummary && detail) {
-            getCustomerReturnQcSummary(returnItem.id)
-                .then((summary) => {
-                    setQcSummary(summary);
-                    onOpenInspection({ ...returnItem, ...detail }, summary);
-                })
-                .catch((err: unknown) => {
-                    setError(getReturnErrorMessage(err));
-                });
-            return;
-        }
-        if (qcSummary) {
-            onOpenInspection({ ...returnItem, ...detail }, qcSummary);
-        }
+        if (!canInspect) return;
+        setIsLoading(true);
+        Promise.all([getOrderReturnDetail(returnItem.id), getCustomerReturnQcSummary(returnItem.id)])
+            .then(([latest, summary]) => {
+                setDetail(latest);
+                setQcSummary(summary);
+                if (!canInspectCustomerReturn({ ...latest, qcStatus: summary.qcStatus })) {
+                    setError("Phiếu chưa sẵn sàng cho yêu cầu kiểm định mới. Vui lòng kiểm tra tiến độ xử lý hoặc liên hệ quản lý để đối soát.");
+                    return;
+                }
+                onOpenInspection(latest, summary);
+            })
+            .catch((err: unknown) => setError(getReturnErrorMessage(err)))
+            .finally(() => setIsLoading(false));
     };
 
     return (
@@ -167,7 +200,9 @@ export function CustomerReturnDetailModal({
                 aria-modal="true"
                 className={styles.modalCard}
                 onClick={(e) => e.stopPropagation()}
+                ref={dialogRef}
                 role="dialog"
+                tabIndex={-1}
             >
                 <div className={styles.modalHeader}>
                     <div className={styles.headerTitleGroup}>
@@ -300,17 +335,101 @@ export function CustomerReturnDetailModal({
                             <h3 className={styles.sectionTitle}>
                                 Kiểm định kho ({inspections.length} phiếu)
                             </h3>
-                            {canInspect ? (
-                                <button
-                                    className={styles.primaryButton}
-                                    onClick={handleStartInspection}
-                                    type="button"
-                                >
-                                    <Plus aria-hidden="true" size={16} />
-                                    {qcProgressStatus.status === "PARTIAL" ? "Tiếp tục kiểm định" : "Kiểm định hàng"}
-                                </button>
-                            ) : null}
+                            {(() => {
+                                const createdInspection = inspections.find((insp) => insp.status === "CREATED");
+                                const processingInspection = inspections.find((insp) => insp.status === "PROCESSING");
+                                const postedInspection = inspections.find((insp) => insp.status === "POSTED");
+
+                                if (createdInspection && canExecuteQc) {
+                                    return (
+                                        <button
+                                            className={styles.primaryButton}
+                                            onClick={() => setSelectedInspection(createdInspection)}
+                                            type="button"
+                                        >
+                                            <Plus aria-hidden="true" size={16} />
+                                            Mở phiếu kiểm định
+                                        </button>
+                                    );
+                                }
+                                if (processingInspection && canExecuteQc) {
+                                    return (
+                                        <button
+                                            className={styles.primaryButton}
+                                            onClick={() => setSelectedInspection(processingInspection)}
+                                            type="button"
+                                        >
+                                            <Plus aria-hidden="true" size={16} />
+                                            Tiếp tục kiểm định
+                                        </button>
+                                    );
+                                }
+                                if (canInspect) {
+                                    return (
+                                        <button
+                                            className={styles.primaryButton}
+                                            onClick={handleStartInspection}
+                                            type="button"
+                                        >
+                                            <Plus aria-hidden="true" size={16} />
+                                            Bắt đầu kiểm định
+                                        </button>
+                                    );
+                                }
+                                if (postedInspection) {
+                                    return (
+                                        <button
+                                            className={styles.secondaryButton}
+                                            onClick={() => setSelectedInspection(postedInspection)}
+                                            type="button"
+                                        >
+                                            Xem kết quả kiểm định
+                                        </button>
+                                    );
+                                }
+                                return null;
+                            })()}
                         </div>
+
+                        {quantities.hasDiscrepancy ? (
+                            <div className={styles.noteBox} style={{ background: "#fffbeb", borderColor: "#fde68a", color: "#92400e", marginBottom: 12 }}>
+                                <strong>Cảnh báo chênh lệch dữ liệu kiểm định giữa Đơn hàng và Kho</strong>
+                                <p>
+                                    Số lượng xử lý ghi nhận tại Đơn hàng ({quantities.orderProcessedQuantity ?? 0}) khác với số lượng đã kiểm định tại Kho ({quantities.inventoryPostedQuantity ?? 0}). Tiến độ đang hiển thị theo số liệu thực tế từ Kho ({quantities.processed} / {quantities.required}). Cần kiểm tra đối soát.
+                                </p>
+                            </div>
+                        ) : null}
+
+                        {!isLoading && qcSummary == null && !error ? (
+                            <div className={styles.noteBox} style={{ background: "#f8fafc", borderColor: "#e2e8f0", color: "#475569", marginBottom: 12 }}>
+                                <strong>Chưa tải được QC Summary từ Kho</strong>
+                                <p>Tiến độ kiểm định đang hiển thị theo nguồn dự phòng từ Đơn hàng ({quantities.source === "ORDER_FALLBACK" ? "Order Fallback" : "Chưa xác định"}).</p>
+                            </div>
+                        ) : null}
+
+                        {inspections.length === 0 &&
+                        !qcSummary?.inspectionId &&
+                        effQcStatus !== "COMPLETED" &&
+                        !currentReturn.physicalDone &&
+                        (currentReturn.isPendingDisposition ||
+                         currentReturn.inventoryProcessingStatus === "PROCESSING" ||
+                         currentReturn.displayStatus === "PROCESSING") ? (
+                            <div className={styles.noteBox} style={{ background: "#eff6ff", borderColor: "#bfdbfe", color: "#1e40af", marginBottom: 12 }}>
+                                <strong>Đang tạo phiếu kiểm định</strong>
+                                <p>Yêu cầu đã được ghi nhận. Hệ thống đang tạo phiếu kiểm định kho.</p>
+                            </div>
+                        ) : null}
+
+                        {effQcStatus !== "COMPLETED" &&
+                        !currentReturn.physicalDone &&
+                        (currentReturn.hasFailedDisposition ||
+                         currentReturn.inventoryProcessingStatus === "FAILED" ||
+                         currentReturn.displayStatus === "PROCESSING_FAILED") ? (
+                            <div className={styles.noteBox} style={{ background: "#fff7ed", borderColor: "#fed7aa", color: "#9a3412", marginBottom: 12 }}>
+                                <strong>Lệnh xử lý kho trước đó không thành công</strong>
+                                <p>Cần đối soát yêu cầu với kho trước khi gửi lại để tránh xử lý trùng số lượng. Vui lòng liên hệ quản lý.</p>
+                            </div>
+                        ) : null}
 
                         {/* QC Summary Block */}
                         <div className={styles.qcSummaryCard}>
@@ -349,14 +468,16 @@ export function CustomerReturnDetailModal({
                                     return (
                                         <div className={styles.inspectionCard} key={insp.id}>
                                             <div className={styles.inspectionCardHeader}>
-                                                <Link
+                                                <button
+                                                    type="button"
                                                     className={styles.inspectionCodeLink}
+                                                    style={{ background: "none", border: "none", padding: 0, cursor: "pointer", font: "inherit" }}
                                                     title="Mở chi tiết phiếu kiểm định kho"
-                                                    to={`/management/inventory/customer-returns/${insp.id}`}
+                                                    onClick={() => setSelectedInspection(insp)}
                                                 >
                                                     {insp.inspectionCode}
                                                     <ExternalLink size={14} />
-                                                </Link>
+                                                </button>
                                                 <InspectionStatusBadge status={insp.status} />
                                             </div>
 
@@ -375,13 +496,18 @@ export function CustomerReturnDetailModal({
                                                         Xử lý kho lúc: <strong>{formatVietnamDateTime(insp.postedAt)}</strong>
                                                     </span>
                                                 ) : null}
-                                                <Link
+                                                <button
+                                                    type="button"
                                                     className={styles.externalLink}
-                                                    style={{ marginLeft: "auto" }}
-                                                    to={`/management/inventory/customer-returns/${insp.id}`}
+                                                    style={{ marginLeft: "auto", background: "none", border: "none", cursor: "pointer", font: "inherit" }}
+                                                    onClick={() => setSelectedInspection(insp)}
                                                 >
-                                                    {insp.status === "CREATED" ? "Xử lý phân bổ kho" : "Xem chi tiết kho"}
-                                                </Link>
+                                                    {insp.status === "CREATED"
+                                                        ? "Mở phiếu kiểm định"
+                                                        : insp.status === "PROCESSING"
+                                                            ? "Tiếp tục kiểm định"
+                                                            : "Xem kết quả kiểm định"}
+                                                </button>
                                             </div>
                                         </div>
                                     );
@@ -394,22 +520,11 @@ export function CustomerReturnDetailModal({
                                     {isCreated
                                         ? "Phiếu hoàn đang chờ nhận hàng tại cửa hàng. Sau khi nhận hàng, nhân viên có thể tiến hành kiểm định chất lượng."
                                         : isReceived
-                                            ? "Phiếu hoàn chưa có phiếu kiểm định nào được ghi nhận. Bạn có thể bấm 'Kiểm định hàng' để bắt đầu."
+                                            ? "Phiếu hoàn chưa có phiếu kiểm định nào được ghi nhận. Bạn có thể bấm 'Bắt đầu kiểm định' ở đầu phần này."
                                             : isCompleted
                                                 ? "Phiếu hoàn đã hoàn tất quy trình."
                                                 : "Phiếu hoàn không phát sinh kiểm định."}
                                 </p>
-                                {canInspect ? (
-                                    <button
-                                        className={styles.primaryButton}
-                                        onClick={handleStartInspection}
-                                        style={{ marginTop: "6px" }}
-                                        type="button"
-                                    >
-                                        <Plus aria-hidden="true" size={16} />
-                                        Bắt đầu kiểm định
-                                    </button>
-                                ) : null}
                             </div>
                         )}
                     </section>
@@ -443,6 +558,21 @@ export function CustomerReturnDetailModal({
                     onConfirm={handleConfirmReceive}
                     submitting={isReceiving}
                     title="Xác nhận nhận hàng"
+                />
+            ) : null}
+
+            {selectedInspection ? (
+                <CustomerReturnWarehouseInspectionModal
+                    isOpen
+                    onClose={() => setSelectedInspection(null)}
+                    returnId={currentReturn.id}
+                    returnCode={currentReturn.returnCode}
+                    returnItem={currentReturn}
+                    inspectionId={selectedInspection.id}
+                    onSuccess={() => {
+                        onRefreshList();
+                        setReloadKey((k) => k + 1);
+                    }}
                 />
             ) : null}
         </div>

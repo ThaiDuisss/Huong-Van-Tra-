@@ -206,23 +206,33 @@
 
 .returnTable th:nth-child(1),
 .returnTable td:nth-child(1) {
-  width: 29%;
+  width: 24%;
 }
 
 .returnTable th:nth-child(2),
 .returnTable td:nth-child(2) {
-  width: 25%;
+  width: 19%;
   text-align: left;
 }
 
 .returnTable th:nth-child(3),
 .returnTable td:nth-child(3) {
-  width: 26%;
+  width: 25%;
 }
 
 .returnTable th:nth-child(4),
 .returnTable td:nth-child(4) {
-  width: 20%;
+  width: 24%;
+}
+
+.returnTable th:nth-child(5),
+.returnTable td:nth-child(5) {
+  width: 8%;
+  text-align: center;
+}
+
+.returnCreatedAt {
+  white-space: nowrap;
 }
 
 .inspectionTable {
@@ -297,6 +307,13 @@
 .actionButtonSecondary:hover {
   background: #f1f5f9;
   border-color: #94a3b8;
+}
+
+.returnCodeText {
+  color: #07883a;
+  font-weight: 800;
+  font-size: 13px;
+  font-family: inherit;
 }
 
 .codeButton {

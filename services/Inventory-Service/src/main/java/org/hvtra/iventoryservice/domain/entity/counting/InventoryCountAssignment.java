@@ -46,21 +46,16 @@ public class InventoryCountAssignment extends BaseEntity {
     @Column(name = "assigned_at", nullable = false)
     private Instant assignedAt = Instant.now();
 
-    @Column(name = "accepted_at")
-    private Instant acceptedAt;
-
     @Column(name = "completed_at")
     private Instant completedAt;
 
-    public void markInProgress() {
-        if (status == InventoryCountAssignmentStatus.ASSIGNED) {
-            acceptedAt = Instant.now();
-        }
-        status = InventoryCountAssignmentStatus.IN_PROGRESS;
+    public void markDone() {
+        status = InventoryCountAssignmentStatus.DONE;
+        completedAt = Instant.now();
     }
 
-    public void markCompleted() {
-        status = InventoryCountAssignmentStatus.COMPLETED;
-        completedAt = Instant.now();
+    public void reopen() {
+        status = InventoryCountAssignmentStatus.ASSIGNED;
+        completedAt = null;
     }
 }

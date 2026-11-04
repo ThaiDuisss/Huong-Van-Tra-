@@ -17,8 +17,10 @@ spring:
       client:
         config:
           order-service:
-            connectTimeout: 300
-            readTimeout: 700
+            # Reading an order loads its items, discounts and history and measures 2-3 s on the
+            # development database; the previous 700 ms made every loyalty update fail.
+            connectTimeout: 2000
+            readTimeout: 6000
             loggerLevel: basic
 
 springdoc:

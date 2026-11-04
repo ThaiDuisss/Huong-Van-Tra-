@@ -1,0 +1,78 @@
+# ===== Profile prod — AWS box 1 "app" =====
+# Kích hoạt bằng SPRING_PROFILES_ACTIVE=prod.
+
+spring:
+  datasource:
+    url: ${SPRING_DATASOURCE_URL}
+    username: ${SPRING_DATASOURCE_USERNAME}
+    password: ${SPRING_DATASOURCE_PASSWORD}
+    hikari:
+      maximum-pool-size: ${DB_POOL_MAX:8}
+      minimum-idle: 2
+      connection-timeout: 10000
+      max-lifetime: 900000
+  jpa:
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: false
+  sql:
+    init:
+      mode: never
+  flyway:
+    enabled: ${FLYWAY_ENABLED:true}
+  cloud:
+    discovery:
+      client:
+        simple:
+          instances:
+            file-service:
+              - host: file-service
+                port: 8101
+                secure: false
+
+eureka:
+  client:
+    enabled: false
+    register-with-eureka: false
+    fetch-registry: false
+
+minio:
+  # QUAN TRỌNG: MinIO nằm ở box 2 (private subnet) nhưng presigned URL của bucket private
+  # được MỞ BẰNG TRÌNH DUYỆT của người dùng, và chữ ký presign gắn với host trong URL.
+  # Vì vậy endpoint ở prod phải là URL CÔNG KHAI (ví dụ https://files.hvtra.id.vn), do Caddy
+  # trên box 1 proxy xuống MinIO box 2 và giữ nguyên header Host.
+  # Container file-service phải phân giải được host đó về IP private của box 1
+  # (extra_hosts trong docker-compose), đừng để nó đi vòng ra Elastic IP rồi quay lại.
+  endpoint: ${MINIO_ENDPOINT}
+  # URL public (bucket public) được ghép thẳng: <public-endpoint>/<bucket>/<object>.
+  public-endpoint: ${MINIO_PUBLIC_ENDPOINT:${MINIO_ENDPOINT}}
+  access-key: ${MINIO_ACCESS_KEY}
+  secret-key: ${MINIO_SECRET_KEY}
+
+file:
+  storage:
+    # AGENTS.md: ghi vào storage phải được bật/tắt tường minh. Lần khởi động đầu để true
+    # cho MinIO tạo bucket, sau đó đặt FILE_STORAGE_INITIALIZE_BUCKETS=false.
+    initialize-buckets: ${FILE_STORAGE_INITIALIZE_BUCKETS:true}
+
+security:
+  internal:
+    header-secret: ${INTERNAL_HEADER_SECRET}
+
+hvtra:
+  logging:
+    action-log:
+      bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS}
+
+springdoc:
+  api-docs:
+    enabled: ${SPRINGDOC_ENABLED:false}
+  swagger-ui:
+    enabled: ${SPRINGDOC_ENABLED:false}
+
+logging:
+  level:
+    root: INFO
+    org.hvtra: INFO
+    org.hibernate.SQL: WARN

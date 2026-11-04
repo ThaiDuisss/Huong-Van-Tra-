@@ -204,15 +204,17 @@ export const qualityApi: QualityApi = {
             .then(mapBackendDisposal);
     },
 
-    getDisposalStatusCounts(keyword?: string) {
+    getDisposalStatusCounts(keyword?: string, fromDate?: string, toDate?: string) {
         return apiClient.get<DisposalStatusCounts>("/inventory/disposal-requests/status-counts", {
-            query: { keyword: keyword || undefined }
+            query: { keyword: keyword || undefined, fromDate, toDate }
         });
     },
 
     listDisposalRequests(query: DisposalListQuery) {
         return apiClient.get<BackendDisposalPage>("/inventory/disposal-requests", {
             query: {
+                fromDate: query.fromDate,
+                toDate: query.toDate,
                 keyword: query.keyword || undefined,
                 page: query.page,
                 size: query.size,

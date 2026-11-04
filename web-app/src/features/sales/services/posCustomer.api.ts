@@ -27,6 +27,13 @@ function getCustomers(
 }
 
 export const posCustomerApi = {
+    async searchCustomerInfo(q: string, page = 0, signal?: AbortSignal) {
+        const response = await apiClient.get<PageResponse<CustomerResponse>>("/customer", {
+            query: { q: q.trim() || undefined, status: "ACTIVE", page, size: 20 }, signal,
+            retryOnUnauthorized: false, retry: false
+        });
+        return { ...response, content: response.content.map(toSaleCustomer) };
+    },
     async listCustomerInfo() {
         const response = await apiClient.get<
             CustomerResponse[] | PageResponse<CustomerResponse>

@@ -10,6 +10,7 @@ interface TimeSidebarProps {
     enableCalendar?: boolean;
     selectedNode?: TimeNode | null;
     title?: string;
+    timeZone?: string;
     onClear?: () => void;
     onSelect?: (node: TimeNode) => void;
     onToggleCollapse: () => void;
@@ -25,7 +26,8 @@ export function TimeSidebar({
     onToggleCollapse,
     onYearChange,
     selectedNode,
-    title
+    title,
+    timeZone
 }: TimeSidebarProps) {
     return (
         <div className={styles.pane}>
@@ -57,6 +59,7 @@ export function TimeSidebar({
                         onYearChange={onYearChange}
                         selectedNode={selectedNode}
                         title={title}
+                        timeZone={timeZone}
                     />
                 </>
             )}

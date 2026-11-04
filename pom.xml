@@ -46,13 +46,6 @@
         <module>services/Delivery-service</module>
     </modules>
 
-    <repositories>
-        <repository>
-            <id>confluent</id>
-            <url>https://packages.confluent.io/maven/</url>
-        </repository>
-    </repositories>
-
     <dependencyManagement>
         <dependencies>
             <dependency>
@@ -120,6 +113,16 @@
                 <type>pom</type>
                 <scope>import</scope>
             </dependency>
+            <!-- Avro / Confluent chi khai o dependencyManagement, HIEN TAI KHONG module nao
+                 dung va khong file Java nao import. dependencyManagement khong tai gi ca,
+                 nen bo <repositories> confluent di: Maven phai thu packages.confluent.io
+                 TRUOC cho MOI artifact roi moi fallback sang Central, tang gap doi so
+                 request metadata (thay ro trong log build Docker).
+                 Khi nao thuc su dung kafka-avro-serializer thi phai them lai:
+                   <repositories><repository><id>confluent</id>
+                     <url>https://packages.confluent.io/maven/</url>
+                   </repository></repositories>
+                 vi artifact cua Confluent khong co tren Maven Central. -->
             <dependency>
                 <groupId>org.apache.avro</groupId>
                 <artifactId>avro</artifactId>
@@ -143,11 +146,40 @@
     </dependencies>
 
     <build>
+        <pluginManagement>
+            <plugins>
+                <!-- Moi module khai spring-boot-maven-plugin nhung KHONG co version va
+                     KHONG co execution. Root pom nay khong phai spring-boot-starter-parent,
+                     no chi import spring-boot-dependencies lam BOM - ma BOM khong quan
+                     version plugin va khong bind goal 'repackage'. Ket qua: `mvn package`
+                     chi ra thin jar ~22KB, khong chay duoc bang `java -jar`.
+                     Khoi nay bo sung version + execution repackage cho ca reactor.
+                     Common-Service khong khai plugin nay nen van la library, dung nhu can. -->
+                <plugin>
+                    <groupId>org.springframework.boot</groupId>
+                    <artifactId>spring-boot-maven-plugin</artifactId>
+                    <version>${spring-boot.version}</version>
+                    <executions>
+                        <execution>
+                            <id>repackage</id>
+                            <goals>
+                                <goal>repackage</goal>
+                            </goals>
+                        </execution>
+                    </executions>
+                </plugin>
+            </plugins>
+        </pluginManagement>
+
         <plugins>
 
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
+                <!-- Pin lai: khong co version thi Maven tu chon ban moi nhat, nen local
+                     dung 3.13.0 con Maven trong container thu 3.16.0 roi truot
+                     'failed compatibility check'. Trung voi version Common-Service dang pin. -->
+                <version>3.13.0</version>
 
                 <configuration>
                     <source>${java.version}</source>

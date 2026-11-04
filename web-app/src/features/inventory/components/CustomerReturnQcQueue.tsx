@@ -22,6 +22,7 @@ import {
     getReturnErrorMessage,
     toReturnNumber
 } from "../../order/utils/order-return.utils";
+import { formatDateTime } from "../../order/utils/order-formatters";
 import { useDebouncedValue } from "../hooks/useDebouncedValue";
 import styles from "../pages/CustomerReturnListPage.module.css";
 import {
@@ -31,6 +32,8 @@ import {
     ListPagination
 } from "./CustomerReturnListUi";
 import { CustomerReturnDetailModal } from "./CustomerReturnDetailModal";
+import { CustomerReturnActionMenu } from "./CustomerReturnActionMenu";
+import { CustomerReturnWarehouseInspectionModal } from "./CustomerReturnWarehouseInspectionModal";
 
 const PAGE_SIZE = 10;
 const CUSTOMER_RETURN_STATUS_TABS: CustomerReturnStatusTab[] = [
@@ -84,6 +87,8 @@ export function CustomerReturnQcQueue({
 
     // Detail modal state
     const [detailModalItem, setDetailModalItem] = useState<OrderReturnListRow | null>(null);
+    const [warehouseInspectionItem, setWarehouseInspectionItem] = useState<OrderReturnListRow | null>(null);
+    const [openActionId, setOpenActionId] = useState<string | null>(null);
     const [receivingId, setReceivingId] = useState<string | null>(null);
     const [confirmReceiveRow, setConfirmReceiveRow] = useState<OrderReturnListRow | null>(null);
     const [receiveConfirmError, setReceiveConfirmError] = useState("");
@@ -141,6 +146,7 @@ export function CustomerReturnQcQueue({
             })
                 .then((response) => {
                     if (!active) return;
+                    setOpenActionId(null);
                     setRows(response.content ?? []);
                     setTotalPages(response.totalPages ?? 0);
                     setTotalElements(response.totalElements ?? 0);
@@ -175,6 +181,16 @@ export function CustomerReturnQcQueue({
                         setSelectionError("Phiếu hoàn không còn ở trạng thái đã nhận hàng. Vui lòng tải lại danh sách.");
                         return;
                     }
+                    if (!canInspectCustomerReturn({ ...detail, qcStatus: summary.qcStatus })) {
+                        setSelectionError(detail.hasFailedDisposition || detail.inventoryProcessingStatus === "FAILED"
+                            ? "Yêu cầu xử lý kho có lỗi và cần đối soát trước khi kiểm định lại. Vui lòng liên hệ quản lý."
+                            : "Phiếu chưa sẵn sàng cho yêu cầu kiểm định mới. Vui lòng làm mới để xem tiến độ tại kho.");
+                        return;
+                    }
+                    if (detail.remainingQuantity != null && toReturnNumber(detail.remainingQuantity) <= 0) {
+                        setSelectionError("Phiếu hoàn không còn số lượng khả dụng để xử lý kho. Vui lòng tải lại danh sách.");
+                        return;
+                    }
                     if (!(summary.lines ?? []).some((line) => toReturnNumber(line.remainingQcQuantity) > 0)) {
                         setSelectionError("Phiếu hoàn không còn số lượng cần xử lý kho. Vui lòng tải lại danh sách.");
                         return;
@@ -195,6 +211,13 @@ export function CustomerReturnQcQueue({
     const reload = () => {
         setReloadKey((key) => key + 1);
         onInspectionCreated?.();
+    };
+
+    const handleActionMenuChange = (rowId: string, open: boolean) => {
+        setOpenActionId((current) => {
+            if (open) return rowId;
+            return current === rowId ? null : current;
+        });
     };
 
     const closeSelection = () => {
@@ -226,10 +249,12 @@ export function CustomerReturnQcQueue({
             <ListFilterBar
                 activeStatus={status}
                 onSearchChange={(value) => {
+                    setOpenActionId(null);
                     setSearchTerm(value);
                     onPageChange(0);
                 }}
                 onStatusChange={(value) => {
+                    setOpenActionId(null);
                     setStatus(value);
                     onPageChange(0);
                 }}
@@ -247,29 +272,27 @@ export function CustomerReturnQcQueue({
                         <thead>
                             <tr>
                                 <th>Phiếu hoàn</th>
+                                <th>Thời gian</th>
                                 <th>Trạng thái</th>
                                 <th>Đơn hàng</th>
                                 <th>Thao tác</th>
                             </tr>
                         </thead>
                         <tbody>
-                            {loading ? <ListMessage colSpan={4} message="Đang tải danh sách phiếu hoàn..." /> : null}
-                            {!loading && error ? <ListMessage colSpan={4} message="Không thể hiển thị phiếu hoàn hàng" /> : null}
+                            {loading ? <ListMessage colSpan={5} message="Đang tải danh sách phiếu hoàn..." /> : null}
+                            {!loading && error ? <ListMessage colSpan={5} message="Không thể hiển thị phiếu hoàn hàng" /> : null}
                             {!loading && !error && rows.map((row, index) => {
-                                const canInspect = canInspectCustomerReturn(row);
                                 const statusInfo = getCustomerReturnUiStatus(row);
 
                                 return (
                                     <tr className={index % 2 === 0 ? orderStyles.zebraFirstRow : orderStyles.zebraSecondRow} key={row.id}>
                                         <td>
-                                            <button
-                                                className={styles.codeButton}
-                                                onClick={() => setDetailModalItem(row)}
-                                                title="Nhấn để xem chi tiết phiếu hoàn"
-                                                type="button"
-                                            >
+                                            <span className={styles.returnCodeText}>
                                                 {row.returnCode ?? "Chưa có mã phiếu"}
-                                            </button>
+                                            </span>
+                                        </td>
+                                        <td className={styles.returnCreatedAt}>
+                                            {formatDateTime(row.createdAt)}
                                         </td>
                                         <td>
                                             <OrderStatusBadge
@@ -283,42 +306,27 @@ export function CustomerReturnQcQueue({
                                             </span>
                                         </td>
                                         <td>
-                                            {row.status === "CREATED" ? (
-                                                <button
-                                                    className={styles.actionButtonPrimary}
-                                                    disabled={receivingId === row.id}
-                                                    onClick={() => {
-                                                        setReceiveConfirmError("");
-                                                        setConfirmReceiveRow(row);
-                                                    }}
-                                                    type="button"
-                                                >
-                                                    {receivingId === row.id ? "Đang nhận..." : "Nhận hàng"}
-                                                </button>
-                                            ) : canInspect ? (
-                                                <button
-                                                    className={styles.actionButtonPrimary}
-                                                    onClick={() => setSelectedId(row.id)}
-                                                    type="button"
-                                                >
-                                                    {row.qcStatus === "PARTIAL" ? "Tiếp tục kiểm định" : "Kiểm định"}
-                                                </button>
-                                            ) : row.isPendingDisposition ? (
-                                                <span className={styles.mutedText}>Đang xử lý...</span>
-                                            ) : (
-                                                <button
-                                                    className={styles.actionButtonSecondary}
-                                                    onClick={() => setDetailModalItem(row)}
-                                                    type="button"
-                                                >
-                                                    Xem chi tiết
-                                                </button>
-                                            )}
+                                            <CustomerReturnActionMenu
+                                                isOpen={openActionId === row.id}
+                                                isReceiving={receivingId === row.id}
+                                                onInspect={() => setSelectedId(row.id)}
+                                                onOpenChange={(open) => handleActionMenuChange(row.id, open)}
+                                                onReceive={() => {
+                                                    setReceiveConfirmError("");
+                                                    setConfirmReceiveRow(row);
+                                                }}
+                                                onViewDetail={() => setDetailModalItem(row)}
+                                                onViewInspection={() => {
+                                                    setOpenActionId(null);
+                                                    setWarehouseInspectionItem(row);
+                                                }}
+                                                row={row}
+                                            />
                                         </td>
                                     </tr>
                                 );
                             })}
-                            {!loading && !error && rows.length === 0 ? <ListMessage colSpan={4} message="Không có phiếu hoàn hàng phù hợp" /> : null}
+                            {!loading && !error && rows.length === 0 ? <ListMessage colSpan={5} message="Không có phiếu hoàn hàng phù hợp" /> : null}
                         </tbody>
                     </table>
                 </div>
@@ -326,7 +334,10 @@ export function CustomerReturnQcQueue({
                 {!loading && !error ? (
                     <ListPagination
                         itemLabel="phiếu hoàn"
-                        onPageChange={onPageChange}
+                        onPageChange={(nextPage) => {
+                            setOpenActionId(null);
+                            onPageChange(nextPage);
+                        }}
                         page={page}
                         pageSize={PAGE_SIZE}
                         totalItems={totalElements}
@@ -366,7 +377,23 @@ export function CustomerReturnQcQueue({
                         setQcSummary(summary);
                     }}
                     onRefreshList={reload}
+                    key={detailModalItem.id}
                     returnItem={detailModalItem}
+                />
+            ) : null}
+
+            {warehouseInspectionItem ? (
+                <CustomerReturnWarehouseInspectionModal
+                    isOpen
+                    onClose={() => setWarehouseInspectionItem(null)}
+                    returnCode={warehouseInspectionItem.returnCode}
+                    returnId={warehouseInspectionItem.id}
+                    returnItem={warehouseInspectionItem}
+                    key={warehouseInspectionItem.id}
+                    onSuccess={() => {
+                        setReloadKey((k) => k + 1);
+                        onInspectionCreated?.();
+                    }}
                 />
             ) : null}
 

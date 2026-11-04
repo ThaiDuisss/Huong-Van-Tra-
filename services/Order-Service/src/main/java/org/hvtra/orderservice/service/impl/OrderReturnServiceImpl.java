@@ -73,6 +73,7 @@ import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.annotation.Isolation;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -517,8 +518,11 @@ public class OrderReturnServiceImpl implements OrderReturnService {
         }
 
         PaymentClient.PaymentRefundSummaryResponse existingRefund = lookupPaymentRefundSummary(orderReturn);
-        if (existingRefund != null && "REFUNDED".equals(existingRefund.refundStatus())) {
-            return existingCompletedRefundResponse(orderReturn);
+        if (existingRefund != null && ("REFUNDED".equals(existingRefund.refundStatus())
+                || (orderReturn.getStatus() == ReturnStatus.RECEIVED
+                && existingRefund.refundTransactionId() != null
+                && "PARTIALLY_REFUNDED".equals(existingRefund.refundStatus())))) {
+            return existingCompletedRefundResponse(orderReturn, existingRefund);
         }
 
         if (ReturnStatus.RECEIVED != orderReturn.getStatus()) {
@@ -587,7 +591,7 @@ public class OrderReturnServiceImpl implements OrderReturnService {
     }
 
     @Override
-    @Transactional
+    @Transactional(isolation = Isolation.READ_COMMITTED)
     public OrderReturnInventoryDispositionResponse submitInventoryDisposition(
             UUID returnId,
             SubmitReturnInventoryDispositionRequest request
@@ -612,6 +616,13 @@ public class OrderReturnServiceImpl implements OrderReturnService {
         // A new commandId is a new action, even when all business fields match an earlier action.
         if (ReturnStatus.RECEIVED != orderReturn.getStatus()) {
             throw new InvalidOrderReturnException("Only received returns can request inventory disposition");
+        }
+        // A FAILED command can still have an outbox event or an unacknowledged
+        // inspection. Do not release its quantity by choosing a new commandId.
+        if (orderReturnInventoryCommandRepository.existsByOrderReturnIdAndStatusAndIsDeletedFalse(
+                returnId, OrderReturnInventoryCommandStatus.FAILED)) {
+            throw new InvalidOrderReturnException(
+                    "Failed inventory disposition requires reconciliation before a new command");
         }
 
         Map<UUID, OrderReturnItem> returnItemsById = activeReturnItemsById(orderReturn);
@@ -807,6 +818,10 @@ public class OrderReturnServiceImpl implements OrderReturnService {
                 .returnId(orderReturn == null ? null : orderReturn.getId())
                 .returnCode(orderReturn == null ? null : orderReturn.getReturnCode())
                 .status(command.getStatus())
+                .executionAllowed(command.getStatus() == OrderReturnInventoryCommandStatus.PENDING
+                        && orderReturn != null && orderReturn.getStatus() == ReturnStatus.RECEIVED
+                        && !orderReturnInventoryCommandRepository.existsByOrderReturnIdAndStatusAndIsDeletedFalse(
+                                orderReturn.getId(), OrderReturnInventoryCommandStatus.FAILED))
                 .createdAt(command.getCreatedAt())
                 .processedAt(command.getProcessedAt())
                 .failedAt(command.getFailedAt())
@@ -834,39 +849,35 @@ public class OrderReturnServiceImpl implements OrderReturnService {
                 .build();
     }
 
-    private OrderReturnRefundResponse existingCompletedRefundResponse(OrderReturn orderReturn) {
-        PaymentClient.PaymentRefundSummaryResponse paymentSummary = lookupPaymentRefundSummary(orderReturn);
-        if (paymentSummary == null || !"REFUNDED".equals(paymentSummary.refundStatus())) {
+    private OrderReturnRefundResponse existingCompletedRefundResponse(
+            OrderReturn orderReturn,
+            PaymentClient.PaymentRefundSummaryResponse paymentSummary
+    ) {
+        if (paymentSummary == null
+                || (!"REFUNDED".equals(paymentSummary.refundStatus())
+                && !"PARTIALLY_REFUNDED".equals(paymentSummary.refundStatus()))
+                || paymentSummary.paymentId() == null || paymentSummary.refundTransactionId() == null
+                || !orderReturn.getId().equals(paymentSummary.returnId())
+                || !orderReturn.getOrder().getId().equals(paymentSummary.orderId())) {
             throw new InvalidOrderReturnException("Return already completed without a refund record");
         }
-        Order lockedOrder = orderRepository.findByIdAndIsDeletedFalseWithItemsForUpdate(
-                        orderReturn.getOrder().getId()
-                )
-                .orElseThrow(() -> new OrderNotFoundException("Order not found: " + orderReturn.getOrder().getId()));
-        lockedOrder.setReturnStatus(resolveOrderReturnStatus(
-                lockedOrder,
-                orderReturnRepository.findByOrderIdAndIsDeletedFalseOrderByCreatedAtDesc(lockedOrder.getId())
-        ));
-        PaymentStatus paymentStatus = parsePaymentStatus(paymentSummary.paymentStatus());
-        if (paymentStatus == PaymentStatus.PARTIALLY_REFUNDED || paymentStatus == PaymentStatus.REFUNDED) {
-            lockedOrder.setPaymentStatus(paymentStatus);
+        if (orderReturn.getStatus() != ReturnStatus.COMPLETED) {
+            if (orderReturn.getStatus() != ReturnStatus.RECEIVED || !isPhysicalDispositionCompleted(orderReturn.getId())) {
+                throw new InvalidOrderReturnException("Return inventory inspection is not completed");
+            }
         }
-        orderRepository.save(lockedOrder);
 
-        return OrderReturnRefundResponse.builder()
-                .returnId(orderReturn.getId())
-                .orderId(lockedOrder.getId())
-                .paymentId(paymentSummary.paymentId())
-                .refundTransactionId(paymentSummary.refundTransactionId())
-                .refundAmount(paymentSummary.refundAmount())
-                .totalAmountRefunded(paymentSummary.totalAmountRefunded())
-                .paymentStatus(paymentSummary.paymentStatus())
-                .returnStatus(orderReturn.getStatus())
-                .orderPaymentStatus(lockedOrder.getPaymentStatus())
-                .orderReturnStatus(lockedOrder.getReturnStatus())
-                .method(paymentSummary.method())
-                .refundedAt(paymentSummary.refundedAt())
-                .build();
+        // Payment lookup is complete before entering the short, proxied write transaction.
+        // Reuse the same writer to reconcile a Payment success whose earlier Order write rolled back.
+        return orderReturnRefundTransactionService.applyRefundSuccess(
+                orderReturn.getId(),
+                new PaymentClient.PaymentRefundResponse(
+                        paymentSummary.paymentId(), paymentSummary.orderId(), paymentSummary.refundTransactionId(),
+                        paymentSummary.returnId(), paymentSummary.refundAmount(), paymentSummary.totalAmountRefunded(),
+                        paymentSummary.paymentStatus(), paymentSummary.method(), paymentSummary.refundedAt()
+                ),
+                currentActorUserIdOrNull()
+        );
     }
 
     @Override

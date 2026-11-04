@@ -2,9 +2,9 @@ spring:
   application:
     name: Inventory-Service
   datasource:
-    url: ${SPRING_DATASOURCE_URL:jdbc:mysql://100.99.2.30:3306/inventory_db?allowPublicKeyRetrieval=true&useSSL=false&serverTimezone=UTC}
-    username: ${SPRING_DATASOURCE_USERNAME:inventory_app}
-    password: ${SPRING_DATASOURCE_PASSWORD:Hvt@2006}
+    url: ${SPRING_DATASOURCE_URL}
+    username: ${SPRING_DATASOURCE_USERNAME}
+    password: ${SPRING_DATASOURCE_PASSWORD}
   jpa:
       hibernate:
         ddl-auto: validate
@@ -69,12 +69,6 @@ kafka-consumer-config:
   poll-timeout-ms: 150
 
 inventory:
-  catalog:
-    events:
-      item-sync:
-        group-id: inventory-catalog-item-sync
-        topics:
-          item-sync: catalog.event.ITEM_SYNC
   order:
     events:
       return-disposition:
@@ -85,4 +79,4 @@ inventory:
 
 security:
   internal:
-      header-secret: ${INTERNAL_HEADER_SECRET:kEV4x5IAXOxEnoEqPptGSYqS6Ujqly27dBhfjYp2pNc=}
+      header-secret: ${INTERNAL_HEADER_SECRET}

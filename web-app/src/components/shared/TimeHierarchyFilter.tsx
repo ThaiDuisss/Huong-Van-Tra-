@@ -3,6 +3,7 @@ import { CalendarDays, ChevronRight, Funnel } from "lucide-react";
 
 import { CalendarMonthPicker } from "./CalendarMonthPicker";
 import {
+    buildTodayTimeNode,
     formatLegacyDate,
     getDaysInMonth,
     getQuarterFromMonth,
@@ -17,6 +18,7 @@ interface TimeHierarchyFilterProps {
     enableCalendar?: boolean;
     selectedNode?: TimeNode | null;
     title?: string;
+    timeZone?: string;
     onClear?: () => void;
     onSelect?: (node: TimeNode) => void;
     onYearChange?: (year: number) => void;
@@ -46,10 +48,10 @@ interface ActiveOpenPath {
 const visibleYearCount = 5;
 const monthsPerQuarter = 3;
 
-function buildTimeTree(today: Date): YearNode[] {
-    const currentYear = today.getFullYear();
-    const currentMonth = today.getMonth() + 1;
-    const currentDay = today.getDate();
+function buildTimeTree(today: Extract<TimeNode, { type: "day" }>): YearNode[] {
+    const currentYear = today.year;
+    const currentMonth = today.month;
+    const currentDay = Number(today.date.slice(-2));
 
     return Array.from({ length: visibleYearCount }, (_, yearIndex) => {
         const year = currentYear - yearIndex;
@@ -113,7 +115,8 @@ export function TimeHierarchyFilter({
     onSelect,
     onYearChange,
     selectedNode,
-    title = "Thời gian"
+    title = "Thời gian",
+    timeZone
 }: TimeHierarchyFilterProps) {
     const [openYears, setOpenYears] = useState<Set<number>>(new Set());
     const [openQuarters, setOpenQuarters] = useState<Set<string>>(new Set());
@@ -123,7 +126,7 @@ export function TimeHierarchyFilter({
         new Set()
     );
     const [closedMonths, setClosedMonths] = useState<Set<string>>(new Set());
-    const today = useMemo(() => new Date(), []);
+    const today = useMemo(() => buildTodayTimeNode(timeZone), [timeZone]);
     const timeTree = useMemo(() => buildTimeTree(today), [today]);
     const selectedDate =
         activeDate ?? (selectedNode?.type === "day" ? selectedNode.date : null);
@@ -594,6 +597,7 @@ export function TimeHierarchyFilter({
                                                                     {monthOpen &&
                                                                     enableCalendar ? (
                                                                         <CalendarMonthPicker
+                                                                            timeZone={timeZone}
                                                                             month={
                                                                                 monthNode.month
                                                                             }

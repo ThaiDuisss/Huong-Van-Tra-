@@ -1,0 +1,21 @@
+# ===== Profile test (Api-Gateway) =====
+# Gateway không có DB. Test chỉ cần tắt Eureka và không trỏ Redis về VPS
+# (application.yml trỏ Redis của hạ tầng). Lettuce kết nối lazy nên
+# context vẫn load dù không có Redis ở localhost.
+#
+# Lưu ý: spring.security.oauth2.resourceserver.jwt.issuer-uri vẫn trỏ Keycloak thật;
+# test này đang pass nên không đổi, nhưng nghĩa là máy chạy test cần ra được internet.
+
+spring:
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      password: ""
+  cloud:
+    discovery:
+      enabled: false
+
+eureka:
+  client:
+    enabled: false

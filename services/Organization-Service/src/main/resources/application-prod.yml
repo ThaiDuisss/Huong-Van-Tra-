@@ -1,0 +1,56 @@
+# ===== Profile prod — AWS box 1 "app" =====
+# Kích hoạt bằng SPRING_PROFILES_ACTIVE=prod.
+#
+# HIỆN KHÔNG DEPLOY. Service này chỉ có Application + SecurityConfig + GlobalException,
+# không controller/entity/migration nào, nên đã bị bỏ khỏi docker-compose.prod.yml và
+# route /api/organizations/** cũng đã bỏ khỏi gateway. File này giữ lại để khi nào
+# service có tính năng thì thêm vào compose là chạy được ngay.
+
+spring:
+  datasource:
+    url: ${SPRING_DATASOURCE_URL}
+    username: ${SPRING_DATASOURCE_USERNAME}
+    password: ${SPRING_DATASOURCE_PASSWORD}
+    hikari:
+      maximum-pool-size: ${DB_POOL_MAX:8}
+      minimum-idle: 2
+      connection-timeout: 10000
+      max-lifetime: 900000
+  jpa:
+    show-sql: false
+  sql:
+    init:
+      mode: never
+  flyway:
+    enabled: ${FLYWAY_ENABLED:true}
+  cloud:
+    discovery:
+      client:
+        simple:
+          instances:
+            file-service:
+              - host: file-service
+                port: 8101
+                secure: false
+
+eureka:
+  client:
+    enabled: false
+    register-with-eureka: false
+    fetch-registry: false
+
+security:
+  internal:
+    header-secret: ${INTERNAL_HEADER_SECRET}
+
+springdoc:
+  api-docs:
+    enabled: ${SPRINGDOC_ENABLED:false}
+  swagger-ui:
+    enabled: ${SPRINGDOC_ENABLED:false}
+
+logging:
+  level:
+    root: INFO
+    org.hvtra: INFO
+    org.hibernate.SQL: WARN

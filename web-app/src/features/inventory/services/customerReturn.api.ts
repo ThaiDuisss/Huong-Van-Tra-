@@ -8,6 +8,7 @@ import type {
 import type { CustomerReturnActualCondition, CustomerReturnQcResult, CustomerReturnQcLocation } from "../types/customer-return-inspection.types";
 import { INVENTORY_LOCATION_TYPES } from "../types/inventory.types";
 import { inventoryLocationApi } from "./inventoryLocation.api";
+import type { CustomerReturnQcSummaryResponse } from "@/features/order/types/order-return.types.ts";
 
 export interface PostCustomerReturnInspectionRequest {
     lines?: Array<{
@@ -41,6 +42,12 @@ export const customerReturnApi = {
                     toDate: query.toDate
                 }
             }
+        );
+    },
+
+    getQcSummary(returnId: string) {
+        return apiClient.get<CustomerReturnQcSummaryResponse>(
+            `/inventory/customer-returns/${encodeURIComponent(returnId)}/qc-summary`
         );
     },
 

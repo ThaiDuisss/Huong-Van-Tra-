@@ -1,0 +1,265 @@
+# Box 1 "app": Api-Gateway + 9 service Java + web POS.
+#
+# KHONG deploy:
+#   - Organization-Service: module chi co Application + SecurityConfig + GlobalException,
+#     khong controller/entity/migration nao. Route /api/organizations/** cung da bo khoi
+#     gateway. Code van o trong repo va van build/test binh thuong.
+#   - Recommendation-Service: de sau. Co Dockerfile rieng, se them ~700MB.
+#     Route /api/recommendation/** se tra 503 cho den khi deploy.
+# Ha tang (MySQL, Kafka, Redis, MinIO, Keycloak) chay o box 2, khong khai o day.
+#
+# Chay tu thu muc deploy/ de compose tu doc file .env:
+#   cd deploy && cp .env.example .env && chmod 600 .env   # dien gia tri thuc
+#   docker compose -f docker-compose.prod.yml up -d --build
+#
+# TLS do nginx O HOST lo (giong box 2), khong phai container:
+# xem deploy/nginx/pos.hvtra.id.vn.conf. pos-web chi publish 127.0.0.1:3000.
+#
+# .env vua dung de compose noi suy ${...} vua duoc nap vao trong container qua env_file.
+
+name: hvtra-box1
+
+# mem_limit duoi day da DO bang `docker stats` tren stack that (arm64/macOS, idle,
+# 2026-11-04), khong phai uoc luong. Luc idle tong cong ~3.4GB; tran cap ~5.7GB tren
+# may 8GB. Do lai tren box 1 (amd64) khi co tai thuc roi chinh neu can.
+x-java: &java
+  build:
+    context: ..
+    dockerfile: deploy/Dockerfile
+  env_file:
+    - .env
+  restart: unless-stopped
+  # LOG_FILE_ENABLED cua repo khong hoat dong (xem logback-spring.xml), nen file appender
+  # luon duoc tao. Cho chung mot volume, moi service ghi vao thu muc con theo
+  # spring.application.name. Dung luong bi chan boi LOG_TOTAL_SIZE_CAP trong .env.
+  volumes:
+    - hvtra-logs:/app/logs
+  # Health dung chinh SERVER_PORT cua service. $$ de compose khong noi suy, bien nay
+  # duoc shell trong container doc. Alpine co busybox wget nen khong can cai curl.
+  healthcheck:
+    test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1:$$SERVER_PORT/actuator/health || exit 1"]
+    interval: 15s
+    timeout: 5s
+    retries: 10
+    start_period: 90s
+  # Khong gioi han thi log day 30GB disk cua box 1 trong vai tuan.
+  logging:
+    driver: json-file
+    options:
+      max-size: "10m"
+      max-file: "3"
+
+services:
+  # ---------- Tier 1: khong goi service nghiep vu nao khac ----------
+  identity-service:
+    <<: *java
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+      args:
+        SERVICE_PATH: services/Identity-Service
+        SERVICE_PORT: "8183"
+    image: hvtra/identity-service:latest
+    mem_limit: 512m
+    mem_reservation: 320m
+    environment:
+      SERVER_PORT: "8183"
+      SPRING_DATASOURCE_URL: "jdbc:mysql://${MYSQL_HOST}:3306/identity_db?allowPublicKeyRetrieval=true&useSSL=false&serverTimezone=UTC"
+      SPRING_DATASOURCE_USERNAME: "${IDENTITY_DB_USER}"
+      SPRING_DATASOURCE_PASSWORD: "${IDENTITY_DB_PASSWORD}"
+
+  file-service:
+    <<: *java
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+      args:
+        SERVICE_PATH: services/File-Service
+        SERVICE_PORT: "8101"
+    image: hvtra/file-service:latest
+    mem_limit: 512m
+    mem_reservation: 320m
+    environment:
+      SERVER_PORT: "8101"
+      SPRING_DATASOURCE_URL: "jdbc:mysql://${MYSQL_HOST}:3306/file_db?allowPublicKeyRetrieval=true&useSSL=false&serverTimezone=UTC"
+      SPRING_DATASOURCE_USERNAME: "${FILE_DB_USER}"
+      SPRING_DATASOURCE_PASSWORD: "${FILE_DB_PASSWORD}"
+
+  catalog-service:
+    <<: *java
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+      args:
+        SERVICE_PATH: services/Catalog-Service
+        SERVICE_PORT: "8081"
+    image: hvtra/catalog-service:latest
+    mem_limit: 576m
+    mem_reservation: 384m
+    environment:
+      SERVER_PORT: "8081"
+      SPRING_DATASOURCE_URL: "jdbc:mysql://${MYSQL_HOST}:3306/catalog_db?allowPublicKeyRetrieval=true&useSSL=false&serverTimezone=UTC"
+      SPRING_DATASOURCE_USERNAME: "${CATALOG_DB_USER}"
+      SPRING_DATASOURCE_PASSWORD: "${CATALOG_DB_PASSWORD}"
+
+  # ---------- Tier 2 ----------
+  inventory-service:
+    <<: *java
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+      args:
+        SERVICE_PATH: services/Inventory-Service
+        SERVICE_PORT: "8084"
+    image: hvtra/inventory-service:latest
+    # 39 bang, nhieu entity nhat -> cap cao hon cac service khac.
+    mem_limit: 704m
+    mem_reservation: 448m
+    environment:
+      SERVER_PORT: "8084"
+      SPRING_DATASOURCE_URL: "jdbc:mysql://${MYSQL_HOST}:3306/inventory_db?allowPublicKeyRetrieval=true&useSSL=false&serverTimezone=UTC"
+      SPRING_DATASOURCE_USERNAME: "${INVENTORY_DB_USER}"
+      SPRING_DATASOURCE_PASSWORD: "${INVENTORY_DB_PASSWORD}"
+
+  customer-service:
+    <<: *java
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+      args:
+        SERVICE_PATH: services/Customer-Service
+        SERVICE_PORT: "8082"
+    image: hvtra/customer-service:latest
+    # Do thuc te: 425MiB luc idle. Voi 512m la 83% - qua sat, de bi OOM-kill khi co tai.
+    mem_limit: 640m
+    mem_reservation: 384m
+    environment:
+      SERVER_PORT: "8082"
+      SPRING_DATASOURCE_URL: "jdbc:mysql://${MYSQL_HOST}:3306/customer_db?allowPublicKeyRetrieval=true&useSSL=false&serverTimezone=UTC"
+      SPRING_DATASOURCE_USERNAME: "${CUSTOMER_DB_USER}"
+      SPRING_DATASOURCE_PASSWORD: "${CUSTOMER_DB_PASSWORD}"
+
+  promotion-service:
+    <<: *java
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+      args:
+        SERVICE_PATH: services/Promotion-Service
+        SERVICE_PORT: "8088"
+    image: hvtra/promotion-service:latest
+    # Do thuc te: 367MiB luc idle (72% cua 512m).
+    mem_limit: 576m
+    mem_reservation: 352m
+    environment:
+      SERVER_PORT: "8088"
+      SPRING_DATASOURCE_URL: "jdbc:mysql://${MYSQL_HOST}:3306/promotion_db?allowPublicKeyRetrieval=true&useSSL=false&serverTimezone=UTC"
+      SPRING_DATASOURCE_USERNAME: "${PROMOTION_DB_USER}"
+      SPRING_DATASOURCE_PASSWORD: "${PROMOTION_DB_PASSWORD}"
+
+  payment-service:
+    <<: *java
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+      args:
+        SERVICE_PATH: services/Payment-Service
+        SERVICE_PORT: "8087"
+    image: hvtra/payment-service:latest
+    mem_limit: 512m
+    mem_reservation: 320m
+    environment:
+      SERVER_PORT: "8087"
+      SPRING_DATASOURCE_URL: "jdbc:mysql://${MYSQL_HOST}:3306/payment_db?allowPublicKeyRetrieval=true&useSSL=false&serverTimezone=UTC"
+      SPRING_DATASOURCE_USERNAME: "${PAYMENT_DB_USER}"
+      SPRING_DATASOURCE_PASSWORD: "${PAYMENT_DB_PASSWORD}"
+
+  notification-service:
+    <<: *java
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+      args:
+        SERVICE_PATH: services/Notification-Service
+        SERVICE_PORT: "8085"
+    image: hvtra/notification-service:latest
+    mem_limit: 512m
+    mem_reservation: 320m
+    environment:
+      SERVER_PORT: "8085"
+      SPRING_DATASOURCE_URL: "jdbc:mysql://${MYSQL_HOST}:3306/notification_db?allowPublicKeyRetrieval=true&useSSL=false&serverTimezone=UTC"
+      SPRING_DATASOURCE_USERNAME: "${NOTIFICATION_DB_USER}"
+      SPRING_DATASOURCE_PASSWORD: "${NOTIFICATION_DB_PASSWORD}"
+
+  # ---------- Tier 3: goi catalog + inventory + payment + customer ----------
+  order-service:
+    <<: *java
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+      args:
+        SERVICE_PATH: services/Order-Service
+        SERVICE_PORT: "8086"
+    image: hvtra/order-service:latest
+    mem_limit: 704m
+    mem_reservation: 448m
+    environment:
+      SERVER_PORT: "8086"
+      SPRING_DATASOURCE_URL: "jdbc:mysql://${MYSQL_HOST}:3306/order_db?allowPublicKeyRetrieval=true&useSSL=false&serverTimezone=UTC"
+      SPRING_DATASOURCE_USERNAME: "${ORDER_DB_USER}"
+      SPRING_DATASOURCE_PASSWORD: "${ORDER_DB_PASSWORD}"
+    depends_on:
+      catalog-service:
+        condition: service_healthy
+      inventory-service:
+        condition: service_healthy
+
+  # ---------- Tier 4: cua ngo ----------
+  api-gateway:
+    <<: *java
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+      args:
+        SERVICE_PATH: infra/Api-Gateway
+        SERVICE_PORT: "8080"
+    image: hvtra/api-gateway:latest
+    # Reactive, khong JPA -> nhe hon cac service khac.
+    mem_limit: 448m
+    mem_reservation: 256m
+    environment:
+      SERVER_PORT: "8080"
+    depends_on:
+      identity-service:
+        condition: service_healthy
+      order-service:
+        condition: service_healthy
+
+  pos-web:
+    build:
+      context: ../web-app
+      args:
+        VITE_API_BASE_URL: /api
+        VITE_KEYCLOAK_URL: "${VITE_KEYCLOAK_URL}"
+        VITE_KEYCLOAK_REALM: "${VITE_KEYCLOAK_REALM}"
+        VITE_KEYCLOAK_CLIENT_ID: "${VITE_KEYCLOAK_CLIENT_ID}"
+    image: hvtra/pos-web:latest
+    restart: unless-stopped
+    mem_limit: 96m
+    environment:
+      API_GATEWAY_URL: http://api-gateway:8080
+    # Chi mo tren loopback: Caddy o profile tls moi la cua ra internet.
+    # Chua co DNS thi SSH port-forward vao cong nay de kiem tra.
+    ports:
+      - "127.0.0.1:${POS_WEB_PORT:-3000}:80"
+    depends_on:
+      api-gateway:
+        condition: service_healthy
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  hvtra-logs:

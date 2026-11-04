@@ -3,6 +3,7 @@ package org.hvtra.iventoryservice.customerreturn.service.impl;
 import org.hvtra.commonservice.common_core.domain.constants.Role;
 import feign.FeignException;
 import jakarta.persistence.criteria.Predicate;
+import jakarta.persistence.EntityManager;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.hvtra.commonservice.common_core.kafka.inbox.InboxStatus;
@@ -50,6 +51,7 @@ import org.hvtra.iventoryservice.domain.support.InventoryLocationSaleability;
 import org.hvtra.iventoryservice.integration.order.client.OrderReturnClient;
 import org.hvtra.iventoryservice.integration.order.dto.OrderReturnItemResponse;
 import org.hvtra.iventoryservice.integration.order.dto.OrderReturnResponse;
+import org.hvtra.iventoryservice.integration.order.dto.OrderReturnInventoryCommandResponse;
 import org.hvtra.iventoryservice.integration.order.dto.OrderReturnStatus;
 import org.hvtra.iventoryservice.integration.order.repository.InventoryInboxRepository;
 import org.hvtra.iventoryservice.item.repository.InventoryItemRepository;
@@ -67,6 +69,7 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.annotation.Isolation;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -108,12 +111,13 @@ public class CustomerReturnInspectionServiceImpl implements CustomerReturnInspec
     private final DisposalRequestRepository disposalRequestRepository;
     private final InventoryInboxRepository inboxRepository;
     private final InventoryOutboxPublisher inventoryOutboxPublisher;
+    private final EntityManager entityManager;
 
     @Value("${inventory.order.events.return-disposition.group-id:inventory-return-disposition}")
     private String consumerGroup;
 
     @Override
-    @Transactional
+    @Transactional(isolation = Isolation.READ_COMMITTED)
     public CustomerReturnInspectionResponse createInspection(
             UUID returnId,
             CreateCustomerReturnInspectionRequest request) {
@@ -122,14 +126,34 @@ public class CustomerReturnInspectionServiceImpl implements CustomerReturnInspec
     }
 
     @Override
-    @Transactional
+    @Transactional(isolation = Isolation.READ_COMMITTED)
     public CustomerReturnInspectionResponse createInspection(
             UUID returnId,
             UUID commandId,
             CreateCustomerReturnInspectionRequest request) {
         OrderReturnResponse orderReturn = verifiedReceivedReturn(returnId);
         Map<UUID, OrderReturnItemResponse> returnItems = returnItemsById(orderReturn);
-        Map<UUID, BigDecimal> allocatedQuantities = allocatedQuantities(returnId);
+        verifyCommand(returnId, commandId, request.lines(), returnItems, true);
+        // Validate observations before acquiring stock locks or issuing any writes.
+        for (CreateCustomerReturnInspectionLineRequest line : request.lines()) {
+            if (!returnItems.containsKey(line.returnItemId())) {
+                throw new BadRequestException("Return item does not belong to return: " + line.returnItemId());
+            }
+            validatePositive(line.quantity(), "quantity");
+            validateConditionResult(line.actualCondition(), line.result(), commandId != null, false);
+        }
+        lockReturnItems(request.lines().stream().map(line -> returnItems.get(line.returnItemId())).toList());
+        // Locking only existing inspections cannot serialize two first inspections.
+        // Item rows exist before any return and give every command the same mutex.
+        List<CustomerReturnInspection> lockedInspections = inspectionRepository.findByReturnIdForUpdate(returnId);
+        if (commandId != null) {
+            Optional<CustomerReturnInspection> existing = lockedInspections.stream()
+                    .filter(candidate -> commandId.equals(candidate.getCommandId())).findFirst();
+            if (existing.isPresent()) {
+                return toEnrichedResponse(existing.get(), orderReturn);
+            }
+        }
+        Map<UUID, BigDecimal> allocatedQuantities = allocatedQuantities(lockedInspections);
         Set<UUID> requestedReturnItems = new HashSet<>();
 
         CustomerReturnInspection inspection = new CustomerReturnInspection();
@@ -179,13 +203,13 @@ public class CustomerReturnInspectionServiceImpl implements CustomerReturnInspec
     }
 
     @Override
-    @Transactional
+    @Transactional(isolation = Isolation.READ_COMMITTED)
     public CustomerReturnInspectionResponse postInspection(UUID inspectionId) {
         return postInspection(inspectionId, null);
     }
 
     @Override
-    @Transactional
+    @Transactional(isolation = Isolation.READ_COMMITTED)
     public CustomerReturnInspectionResponse postInspection(UUID inspectionId, PostCustomerReturnInspectionRequest request) {
         requireQcRole();
         CustomerReturnInspection inspectionSnapshot = inspectionRepository
@@ -204,6 +228,11 @@ public class CustomerReturnInspectionServiceImpl implements CustomerReturnInspec
 
         OrderReturnResponse orderReturn = verifiedReceivedReturn(inspectionSnapshot.getReturnId());
         Map<UUID, OrderReturnItemResponse> returnItems = returnItemsById(orderReturn);
+        lockReturnItems(inspectionSnapshot.getLines().stream()
+                .map(line -> returnItems.get(line.getReturnItemId())).filter(Objects::nonNull).toList());
+        // Refresh BEFORE Hibernate applies follow-on pessimistic locks. Locking
+        // an already-managed stale @Version entity can fail before a later refresh.
+        entityManager.refresh(inspectionSnapshot);
 
         List<CustomerReturnInspection> lockedInspections = inspectionRepository
                 .findByReturnIdForUpdate(inspectionSnapshot.getReturnId());
@@ -221,6 +250,12 @@ public class CustomerReturnInspectionServiceImpl implements CustomerReturnInspec
         if (inspection.getStatus() == CustomerReturnInspectionStatus.CANCELLED) {
             throw new BadRequestException("Cancelled customer return inspection cannot be posted: " + inspectionId);
         }
+
+        verifyCommand(inspection.getReturnId(), inspection.getCommandId(),
+                inspection.getLines().stream().map(line -> new CreateCustomerReturnInspectionLineRequest(
+                        line.getReturnItemId(), line.getQuantity(), line.getResult(),
+                        line.getDestinationLocation() == null ? null : line.getDestinationLocation().getId(),
+                        line.getNote())).toList(), returnItems, false);
 
         applyQcOverrides(inspection, request);
 
@@ -665,9 +700,9 @@ public class CustomerReturnInspectionServiceImpl implements CustomerReturnInspec
         return postedQuantities(inspectionRepository.findQcProgressByReturnId(returnId));
     }
 
-    private Map<UUID, BigDecimal> allocatedQuantities(UUID returnId) {
+    private Map<UUID, BigDecimal> allocatedQuantities(List<CustomerReturnInspection> inspections) {
         Map<UUID, BigDecimal> totals = new HashMap<>();
-        inspectionRepository.findQcProgressByReturnId(returnId).stream()
+        inspections.stream()
                 .filter(inspection -> inspection.getStatus() != CustomerReturnInspectionStatus.CANCELLED)
                 .flatMap(inspection -> inspection.getLines().stream())
                 .filter(line -> !Boolean.TRUE.equals(line.getIsDeleted()))
@@ -677,6 +712,54 @@ public class CustomerReturnInspectionServiceImpl implements CustomerReturnInspec
                         BigDecimal::add
                 ));
         return totals;
+    }
+
+    private void lockReturnItems(List<OrderReturnItemResponse> returnItems) {
+        returnItems.stream().map(OrderReturnItemResponse::productVariantId).distinct().sorted()
+                .forEach(variantId -> itemRepository.findByReferenceIdAndItemTypeForUpdate(
+                        variantId, InventoryItemType.PRODUCT_VARIANT)
+                        .orElseThrow(() -> new ResourceNotFoundException("Inventory item for product variant", variantId)));
+    }
+
+    private void verifyCommand(UUID returnId, UUID commandId,
+                               List<CreateCustomerReturnInspectionLineRequest> lines,
+                               Map<UUID, OrderReturnItemResponse> returnItems, boolean creating) {
+        if (commandId == null) {
+            return;
+        }
+        // A transport failure or an older Order deployment is unverified, never
+        // authorization to move stock. Let the consumer retry without a FAILED ACK.
+        OrderReturnInventoryCommandResponse command = orderReturnClient.getInventoryDisposition(returnId, commandId);
+        if (command == null || command.executionAllowed() == null || command.lines() == null) {
+            throw new IllegalStateException("Order inventory command authorization is unavailable");
+        }
+        if (!commandId.equals(command.commandId()) || !returnId.equals(command.returnId())
+                || !"PENDING".equals(command.status()) || !Boolean.TRUE.equals(command.executionAllowed())) {
+            throw new BadRequestException("Order inventory command is not executable; reconciliation required");
+        }
+        Map<UUID, OrderReturnInventoryCommandResponse.Line> authorized = new HashMap<>();
+        for (OrderReturnInventoryCommandResponse.Line line : command.lines()) {
+            if (line == null || line.returnItemId() == null || authorized.put(line.returnItemId(), line) != null) {
+                throw new IllegalStateException("Order inventory command contains ambiguous lines");
+            }
+        }
+        if (lines.size() != authorized.size()) {
+            throw new BadRequestException("Inspection lines do not match Order inventory command");
+        }
+        Set<UUID> seen = new HashSet<>();
+        for (CreateCustomerReturnInspectionLineRequest line : lines) {
+            OrderReturnInventoryCommandResponse.Line expected = authorized.get(line.returnItemId());
+            OrderReturnItemResponse item = returnItems.get(line.returnItemId());
+            if (!seen.add(line.returnItemId()) || expected == null || item == null
+                    || expected.quantity() == null || line.quantity() == null
+                    || expected.quantity().compareTo(line.quantity()) != 0
+                    || !Objects.equals(expected.orderItemId(), item.orderItemId())
+                    || !Objects.equals(expected.productVariantId(), item.productVariantId())
+                    || (creating && (!Objects.equals(expected.result(), line.result() == null ? null : line.result().name())
+                    || !Objects.equals(expected.destinationLocationId(), line.destinationLocationId())))) {
+                throw new BadRequestException("Inspection payload does not match Order inventory command");
+            }
+        }
     }
 
     private Map<UUID, BigDecimal> postedQuantities(List<CustomerReturnInspection> inspections) {

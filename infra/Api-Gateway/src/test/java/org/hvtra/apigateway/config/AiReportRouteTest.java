@@ -46,11 +46,16 @@ class AiReportRouteTest {
         assertFalse(properties.stringPropertyNames().stream().anyMatch(key -> key.startsWith(routePrefix + ".filters")));
     }
 
-    @Test void existingReportingRouteIsUnchanged() {
-        String prefix = properties.stringPropertyNames().stream()
-                .filter(key -> key.endsWith(".id") && "reporting-service".equals(properties.getProperty(key)))
-                .findFirst().orElseThrow().replace(".id", "");
-        assertEquals("lb://reporting-service", properties.getProperty(prefix + ".uri"));
-        assertEquals("Path=/api/reports/**", properties.getProperty(prefix + ".predicates[0]"));
+    /**
+     * reporting-service va employee-service da bi xoa khoi gateway: khong module nao trong repo
+     * phuc vu /api/reports/** hay /api/employee/**, va frontend cung khong goi hai path nay
+     * (bao cao thuc te nam duoi /api/inventory/reports/... va /api/orders/reports/...).
+     * Giu lai route tro vao hu khong chi lam moi request do tra 503.
+     */
+    @Test void hasNoRouteWithoutAnUpstream() {
+        assertTrue(properties.stringPropertyNames().stream()
+                .filter(key -> key.endsWith(".id"))
+                .map(properties::getProperty)
+                .noneMatch(id -> "reporting-service".equals(id) || "employee-service".equals(id)));
     }
 }

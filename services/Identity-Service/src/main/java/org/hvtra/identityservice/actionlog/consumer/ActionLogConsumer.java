@@ -34,7 +34,7 @@ public class ActionLogConsumer {
 
     @KafkaListener(
             topics = "${hvtra.logging.action-log.topic:action.log}",
-            groupId = "${spring.application.name:identity-service}-action-log",
+            groupId = "${hvtra.action-log.group-id:${spring.application.name:identity-service}-action-log}",
             containerFactory = "actionLogListenerContainerFactory"
     )
     public void handle(List<ConsumerRecord<String, String>> records, Acknowledgment ack) {

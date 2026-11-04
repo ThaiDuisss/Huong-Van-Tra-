@@ -17,6 +17,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.MockedStatic;
+import org.mockito.ArgumentCaptor;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.Pageable;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -35,6 +37,10 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.mockStatic;
+import static org.mockito.Mockito.CALLS_REAL_METHODS;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 @ExtendWith(MockitoExtension.class)
 class OrderReturnInventoryReconciliationServiceImplTest {
@@ -83,6 +89,15 @@ class OrderReturnInventoryReconciliationServiceImplTest {
 
         verify(inventoryClient, never()).getReturnDispositionStatus(any());
         verify(transactionService, never()).applyReconciledStatus(any(), any());
+    }
+
+    @Test
+    void mismatchedCommandEvidenceCannotResetOrRepublishTheRequestedCommand() {
+        when(commandRepository.findByCommandIdAndIsDeletedFalse(commandId)).thenReturn(Optional.of(command));
+        when(inventoryClient.getReturnDispositionStatus(commandId)).thenReturn(ReturnDispositionStatusResponse.builder()
+                .commandId(UUID.randomUUID()).status(ReturnDispositionReconciliationStatus.NOT_FOUND).build());
+        reconciliationService.reconcileSingleCommand(commandId);
+        verifyNoInteractions(transactionService);
     }
 
     @Test
@@ -195,5 +210,40 @@ class OrderReturnInventoryReconciliationServiceImplTest {
 
         // command 2 is still processed despite command 1 failure
         verify(transactionService).applyReconciledStatus(commandId2, response2);
+    }
+
+    @Test
+    void emptyReconciliationUsesFixedAgeCutoffAndConfiguredBatchWithoutNetworkCalls() {
+        Instant now = Instant.parse("2026-11-03T00:00:00Z");
+        try (MockedStatic<Instant> clock = mockStatic(Instant.class, CALLS_REAL_METHODS)) {
+            clock.when(Instant::now).thenReturn(now);
+            reconciliationService.reconcileStalePendingCommands();
+        }
+        ArgumentCaptor<Pageable> page = ArgumentCaptor.forClass(Pageable.class);
+        verify(commandRepository).findStaleCommandIds(eq(OrderReturnInventoryCommandStatus.PENDING), eq(now.minusSeconds(300)), page.capture());
+        assertEquals(0, page.getValue().getPageNumber());
+        assertEquals(50, page.getValue().getPageSize());
+        verifyNoInteractions(inventoryClient, transactionService);
+    }
+
+    @Test
+    void missingLocalIdentityNeverAsksInventoryAndNullStatusNeverTriggersRecovery() {
+        reconciliationService.reconcileSingleCommand(null);
+        reconciliationService.reconcileSingleCommand(UUID.randomUUID());
+        verifyNoInteractions(inventoryClient, transactionService);
+        when(commandRepository.findByCommandIdAndIsDeletedFalse(commandId)).thenReturn(Optional.of(command));
+        reconciliationService.reconcileSingleCommand(commandId); // null Inventory response
+        when(inventoryClient.getReturnDispositionStatus(commandId)).thenReturn(ReturnDispositionStatusResponse.builder().commandId(commandId).build());
+        reconciliationService.reconcileSingleCommand(commandId); // response with no status
+        verifyNoInteractions(transactionService);
+    }
+
+    @Test
+    void unexpectedInventoryErrorIsLeftPendingForNextCycleWithoutWriting() {
+        when(commandRepository.findByCommandIdAndIsDeletedFalse(commandId)).thenReturn(Optional.of(command));
+        when(inventoryClient.getReturnDispositionStatus(commandId)).thenThrow(new IllegalStateException("invalid transport response"));
+        reconciliationService.reconcileSingleCommand(commandId);
+        assertEquals(OrderReturnInventoryCommandStatus.PENDING, command.getStatus());
+        verifyNoInteractions(transactionService);
     }
 }

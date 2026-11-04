@@ -33,6 +33,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -49,6 +50,8 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.ArgumentMatchers.eq;
 
 @ExtendWith(MockitoExtension.class)
 class OrderPaymentServiceImplTest {
@@ -105,7 +108,6 @@ class OrderPaymentServiceImplTest {
     void markOrderPaidKeepsAmountsStatusesAndSideEffectOrder() {
         UUID orderId = UUID.randomUUID();
         UUID changedBy = UUID.randomUUID();
-        UUID sagaId = UUID.randomUUID();
         Order order = order(orderId, OrderStatus.PENDING_PAYMENT, PaymentStatus.WAITING_PAYMENT);
         MarkOrderPaidRequest request = request(new BigDecimal("120.00"), "PAY-001", changedBy);
         OrderResponse expected = OrderResponse.builder().id(orderId).build();
@@ -142,11 +144,11 @@ class OrderPaymentServiceImplTest {
                 "Thanh toán thành công, mã thanh toán: PAY-001",
                 changedBy
         );
-        inOrder.verify(paymentClient).confirmManualPayment(org.mockito.ArgumentMatchers.eq(orderId), any());
+        inOrder.verify(paymentClient).confirmManualPayment(orderId,
+                new PaymentClient.ManualPaymentConfirmRequest("PAY-001", "Xác nhận thủ công"));
         inOrder.verify(orderPaymentEventService).finalizePaidOrder(order, null, OrderStatus.PENDING_PAYMENT, changedBy, "PAY-001");
         inOrder.verify(orderResponseAssembler).toResponse(order);
         verifyNoInteractions(orderCustomerService, orderOutboxPublisher, orderPaymentSagaService);
-        assertEquals(sagaId, sagaId);
     }
 
     @Test
@@ -271,6 +273,55 @@ class OrderPaymentServiceImplTest {
             assertFalse(OrderService.class.isAssignableFrom(field.getType()));
             assertFalse(OrderServiceImpl.class.isAssignableFrom(field.getType()));
         }
+    }
+
+    @Test
+    void reviewedManualPaymentClearsExpiryAndFinalizesEvenWhenPaymentConfirmationIsUnavailable() {
+        UUID id = UUID.randomUUID();
+        UUID actor = UUID.randomUUID();
+        Order order = order(id, OrderStatus.PENDING_PAYMENT, PaymentStatus.NEED_REVIEW);
+        order.setExpiresAt(Instant.parse("2026-11-03T00:00:00Z"));
+        when(orderRepository.findByIdAndIsDeletedFalse(id)).thenReturn(Optional.of(order));
+        when(orderRepository.save(order)).thenReturn(order);
+        doThrow(new IllegalStateException("payment unavailable")).when(paymentClient).confirmManualPayment(eq(id), any());
+        service.markOrderPaid(id, request(new BigDecimal("120.00"), "MANUAL-REVIEW", actor));
+        assertEquals(PaymentStatus.PAID, order.getPaymentStatus());
+        assertEquals(OrderStatus.PAYMENT_CONFIRMED, order.getStatus());
+        assertEquals(new BigDecimal("100.00"), order.getPaidAmount());
+        assertEquals(BigDecimal.ZERO, order.getDebtAmount());
+        assertNull(order.getExpiresAt());
+        verify(orderPaymentEventService).finalizePaidOrder(order, null, OrderStatus.PENDING_PAYMENT, actor, "MANUAL-REVIEW");
+        verify(orderStatusHistoryWriter).write(order, OrderStatus.PENDING_PAYMENT, OrderStatus.PAYMENT_CONFIRMED,
+                "Đã đối soát và xác nhận thanh toán, mã thanh toán: MANUAL-REVIEW", actor);
+    }
+
+    @Test
+    void cancelPaymentFailureLeavesOrderWaitingAndDoesNotReturnDraftOrFailSaga() {
+        UUID id = UUID.randomUUID();
+        Order order = order(id, OrderStatus.PENDING_PAYMENT, PaymentStatus.WAITING_PAYMENT);
+        when(orderRepository.findByIdAndIsDeletedFalse(id)).thenReturn(Optional.of(order));
+        RuntimeException failure = new IllegalStateException("payment timeout");
+        doThrow(failure).when(paymentClient).cancelPendingPayment(id);
+        assertSame(failure, assertThrows(RuntimeException.class, () -> service.cancelPosPayment(id)));
+        assertEquals(OrderStatus.PENDING_PAYMENT, order.getStatus());
+        assertEquals(PaymentStatus.WAITING_PAYMENT, order.getPaymentStatus());
+        verifyNoInteractions(orderPaymentEventService, orderPaymentSagaService, orderStatusHistoryWriter, orderResponseAssembler);
+        verify(orderRepository, never()).save(any());
+    }
+
+    @Test
+    void paidOrderCannotCancelPaymentAndWaitingStatusOnWrongOrderStateIsRejected() {
+        UUID id = UUID.randomUUID();
+        Order order = order(id, OrderStatus.COMPLETED, PaymentStatus.PAID);
+        when(orderRepository.findByIdAndIsDeletedFalse(id)).thenReturn(Optional.of(order));
+        assertThrows(OrderAlreadyPaidException.class, () -> service.cancelPosPayment(id));
+        order.setStatus(OrderStatus.DRAFT);
+        order.setPaymentStatus(PaymentStatus.WAITING_PAYMENT);
+        assertThrows(InvalidOrderStatusException.class, () -> service.cancelPosPayment(id));
+        order.setStatus(OrderStatus.PENDING_PAYMENT);
+        order.setPaymentStatus(PaymentStatus.UNPAID);
+        assertThrows(InvalidOrderStatusException.class, () -> service.cancelPosPayment(id));
+        verifyNoInteractions(paymentClient, orderPaymentEventService, orderPaymentSagaService);
     }
 
     private Order order(UUID orderId, OrderStatus status, PaymentStatus paymentStatus) {

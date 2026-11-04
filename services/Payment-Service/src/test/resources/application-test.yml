@@ -1,14 +1,28 @@
+# ===== Profile test =====
+# Mặc định H2 in-memory: test KHÔNG BAO GIỜ fallback về DB dùng chung,
+# và cũng không đòi biến môi trường nên `mvn test` trên Jenkins chạy xanh ngay.
+#
+# Vẫn giữ đường chạy với MySQL thật cho integration test khi cần:
+#   PAYMENT_TEST_DB_URL=jdbc:mysql://... PAYMENT_TEST_DB_USERNAME=... PAYMENT_TEST_DB_PASSWORD=... \
+#   PAYMENT_TEST_FLYWAY=true PAYMENT_TEST_DDL_AUTO=validate
+# Flyway mặc định tắt vì migration viết cho MySQL, không chạy được trên H2.
+
 spring:
   datasource:
-    # Fail-fast: Must be provided via environment variables.
-    # Absolutely NO fallback to dev DB (100.99.2.30)!
-    url: ${PAYMENT_TEST_DB_URL}
-    username: ${PAYMENT_TEST_DB_USERNAME}
-    password: ${PAYMENT_TEST_DB_PASSWORD}
+    url: ${PAYMENT_TEST_DB_URL:jdbc:h2:mem:payment;MODE=MySQL;DB_CLOSE_DELAY=-1}
+    username: ${PAYMENT_TEST_DB_USERNAME:sa}
+    password: ${PAYMENT_TEST_DB_PASSWORD:}
+  jpa:
+    hibernate:
+      ddl-auto: ${PAYMENT_TEST_DDL_AUTO:create-drop}
+    show-sql: false
   flyway:
-    enabled: true
+    enabled: ${PAYMENT_TEST_FLYWAY:false}
     baseline-on-migrate: true
     baseline-version: 0
+  sql:
+    init:
+      mode: never
   cloud:
     discovery:
       enabled: false
@@ -19,3 +33,9 @@ eureka:
 
 kafka-config:
   enabled: false
+
+payment:
+  sepay:
+    account-number: "0000000000"
+    account-name: TEST ACCOUNT
+    secret: test-secret

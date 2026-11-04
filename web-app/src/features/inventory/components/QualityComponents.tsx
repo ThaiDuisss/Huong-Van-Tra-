@@ -1,7 +1,10 @@
 import { Clock3 } from "lucide-react";
-import { Link } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
+
+import { RowActionMenu, type RowAction } from "@/components/shared/RowActionMenu";
 
 import orderStyles from "../../order/pages/OrderListPage.module.css";
+import { formatDateTime } from "../../order/utils/order-formatters";
 import {
     disposalStatusLabels
 } from "../constants/quality.constants";
@@ -32,17 +35,35 @@ export function DisposalStatusBadge({ status, customerReturn = false }: { status
 export function DisposalTable({
     canApprove,
     disposals,
-    onApprove
+    onApprove,
+    openActionId,
+    onOpenActionChange
 }: {
     canApprove: boolean;
     disposals: DisposalRequest[];
     onApprove(request: DisposalRequest): void;
+    openActionId: string | null;
+    onOpenActionChange(requestId: string, open: boolean): void;
 }) {
+    const navigate = useNavigate();
+
+    function getDisposalActions(request: DisposalRequest): RowAction[] {
+        const actions: RowAction[] = [{
+            label: "Xem chi tiết",
+            onSelect: () => navigate(`/management/inventory/disposals/${request.id}`)
+        }];
+        if (request.status === "PENDING_APPROVAL" && !isCustomerReturnDisposal(request) && canApprove) {
+            actions.push({ label: "Phê duyệt", onSelect: () => onApprove(request) });
+        }
+        return actions;
+    }
+
     return (
         <table className={`${orderStyles.orderTable} ${styles.dataTable} ${disposalStyles.table}`}>
             <thead>
                 <tr>
                     <th>Mã yêu cầu</th>
+                    <th>Thời gian</th>
                     <th>Trạng thái</th>
                     <th>Phiếu trả</th>
                     <th>Phiếu kiểm định</th>
@@ -56,32 +77,22 @@ export function DisposalTable({
                         key={request.id}
                     >
                         <td>
-                            <Link className={styles.codeButton} to={`/management/inventory/disposals/${request.id}`}>
+                            <span className={styles.returnCodeText}>
                                 {request.code}
-                            </Link>
+                            </span>
                         </td>
+                        <td className={disposalStyles.createdAt}>{formatDateTime(request.requestedAt)}</td>
                         <td><DisposalStatusBadge customerReturn={isCustomerReturnDisposal(request)} status={request.status} /></td>
                         <td className={disposalStyles.reference}>{request.returnCode ?? "–"}</td>
                         <td className={disposalStyles.reference}>{request.inspectionCode ?? "–"}</td>
                         <td>
-                            {request.status === "PENDING_APPROVAL" && !isCustomerReturnDisposal(request) ? (
-                                <button
-                                    className={styles.actionButtonPrimary}
-                                    disabled={!canApprove}
-                                    onClick={() => onApprove(request)}
-                                    title={canApprove ? undefined : "Bạn không có quyền phê duyệt tiêu hủy"}
-                                    type="button"
-                                >
-                                    Phê duyệt
-                                </button>
-                            ) : (
-                                <Link
-                                    className={`${styles.actionButtonSecondary} ${disposalStyles.detailAction}`}
-                                    to={`/management/inventory/disposals/${request.id}`}
-                                >
-                                    Xem chi tiết
-                                </Link>
-                            )}
+                            <RowActionMenu
+                                actions={getDisposalActions(request)}
+                                isOpen={openActionId === request.id}
+                                menuLabel={`Thao tác yêu cầu ${request.code}`}
+                                onOpenChange={(open) => onOpenActionChange(request.id, open)}
+                                triggerLabel={`Mở thao tác cho yêu cầu ${request.code}`}
+                            />
                         </td>
                     </tr>
                 ))}

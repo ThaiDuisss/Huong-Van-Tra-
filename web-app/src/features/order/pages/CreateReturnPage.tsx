@@ -3,18 +3,22 @@ import {
     CalendarDays,
     ChevronLeft,
     ChevronRight,
+    Info,
+    LoaderCircle,
     Search
 } from "lucide-react";
 import { useEffect, useMemo, useState, type KeyboardEvent } from "react";
-
 import { useNavigate, useParams } from "react-router-dom";
 
 import { getOrderById, getOrders } from "../services/order.api";
 import { checkOrderReturnEligibility, createOrderReturn, getOrderReturns } from "../services/order-return.api";
-import { ReturnEligibilityDetails, ReturnPolicy } from "../components/ReturnEligibilityDetails";
+import { ReturnProductSelectionTable } from "../components/ReturnProductSelectionTable";
+import { ReturnProductReasonCard } from "../components/ReturnProductReasonCard";
+import { ReturnConfirmationSummary } from "../components/ReturnConfirmationSummary";
+import { ReturnEligibilityStatus } from "../components/ReturnEligibilityStatus";
+import { ReturnPolicyModal } from "../components/ReturnPolicyModal";
 import type {
     OrderDetailResponse,
-    OrderItemResponse,
     OrderPageResponse,
     OrderQueryParams,
     OrderSummaryResponse
@@ -23,20 +27,10 @@ import type {
     CreateOrderReturnPayload,
     CheckOrderReturnEligibilityPayload,
     OrderReturnEligibilityResponse,
-    OrderReturnResponse,
-    ReturnCondition,
-    ReturnReason
+    OrderReturnResponse
 } from "../types/order-return.types";
 import {
-    RETURN_CONDITION_LABELS,
-    RETURN_CONDITIONS,
-    RETURN_REASON_LABELS,
-    RETURN_REASONS,
-    calculateAvailableReturnQuantity,
-    formatReturnQuantity,
-    getReturnConditionLabel,
-    getReturnErrorMessage,
-    getReturnReasonLabel
+    getReturnErrorMessage
 } from "../utils/order-return.utils";
 import {
     formatCurrency,
@@ -45,6 +39,12 @@ import {
     getOrderCode
 } from "../utils/order-formatters";
 import styles from "./CreateReturnPage.module.css";
+import {
+    buildReturnPayloadItems,
+    getReturnItemKey as getItemKey,
+    validateReturnDraftQuantities,
+    type ReturnDraftItem
+} from "../utils/return-quantity.validation";
 
 type WizardStep = 1 | 2 | 3 | 4;
 type OrderSearchTimeFilter =
@@ -54,14 +54,6 @@ type OrderSearchTimeFilter =
     | "LAST_7_DAYS"
     | "LAST_30_DAYS"
     | "CUSTOM";
-
-interface ReturnDraftItem {
-    selected: boolean;
-    quantity: string;
-    reason: ReturnReason | "";
-    condition: ReturnCondition;
-    note: string;
-}
 
 const ORDER_SEARCH_PAGE_SIZE = 6;
 const ORDER_SEARCH_DEFAULT_SORT: OrderQueryParams["sort"] = "createdAt,desc";
@@ -105,18 +97,6 @@ function useDebouncedValue<T>(value: T, delayMs: number) {
     }, [delayMs, value]);
 
     return debouncedValue;
-}
-
-function getItemKey(item: OrderItemResponse, index: number) {
-    return item.id ?? item.productVariantId ?? `item-${index}`;
-}
-
-function getItemName(item: OrderItemResponse) {
-    return item.productNameSnapshot?.trim() || "Sản phẩm";
-}
-
-function getItemVariant(item: OrderItemResponse) {
-    return item.variantNameSnapshot?.trim() || "Không có phân loại";
 }
 
 function padDatePart(value: number) {
@@ -195,16 +175,6 @@ function createDefaultDraftItem(): ReturnDraftItem {
     };
 }
 
-function getDraftQuantity(draft?: ReturnDraftItem) {
-    if (!draft?.quantity.trim()) {
-        return 0;
-    }
-
-    const quantity = Number(draft.quantity);
-
-    return Number.isFinite(quantity) ? quantity : 0;
-}
-
 function buildDraftItems(order: OrderDetailResponse) {
     return Object.fromEntries(
         (order.items ?? []).map((item, index) => [
@@ -240,6 +210,9 @@ function getDraftValidationError(
         const draft = draftItems[itemKey];
         if (!draft.reason) {
             return "Vui lòng chọn lý do trả hàng cho từng sản phẩm.";
+        }
+        if (draft.reason === "OTHER" && !draft.note.trim()) {
+            return "Vui lòng nhập ghi chú khi chọn lý do khác.";
         }
     }
 
@@ -278,10 +251,17 @@ export function CreateReturnPage() {
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [eligibilityRevision, setEligibilityRevision] = useState(0);
     const [eligibilityState, setEligibilityState] = useState<{
+        orderId: string;
         key: string;
         response: OrderReturnEligibilityResponse | null;
         error: string | null;
     } | null>(null);
+
+    // Modal state for viewing return policies
+    const [isPolicyModalOpen, setIsPolicyModalOpen] = useState(false);
+    // Track open state of reason accordion cards
+    const [openReasonCards, setOpenReasonCards] = useState<Record<string, boolean>>({});
+
     const orderSearchDateRange = useMemo(
         () =>
             getOrderSearchDateRange(
@@ -373,6 +353,7 @@ export function CreateReturnPage() {
                     setSelectedOrderSummary(orderDetail);
                     setSelectedOrder(orderDetail);
                     setSelectedOrderReturns(returns ?? []);
+                    setEligibilityState(null);
                     setDraftItems(buildDraftItems(orderDetail));
                     setWizardStep(2);
                 })
@@ -399,34 +380,42 @@ export function CreateReturnPage() {
     }, [orderId]);
 
     const selectedOrderItems = selectedOrder?.items ?? [];
-    const selectedDraftEntries = selectedOrderItems.filter((item, index) => {
-        const key = getItemKey(item, index);
-
-        return draftItems[key]?.selected;
-    });
-    const draftValidationError = getDraftValidationError(
-        selectedOrder,
-        draftItems
-    );
+    const localQuantityValidation = useMemo(() => validateReturnDraftQuantities(
+        selectedOrder?.items ?? [], draftItems, selectedOrderReturns
+    ), [selectedOrder, draftItems, selectedOrderReturns]);
     const eligibilityRequest = useMemo<CheckOrderReturnEligibilityPayload>(() => ({
-        items: (selectedOrder?.items ?? []).flatMap((item, index) => {
-            const draft = draftItems[getItemKey(item, index)];
-            return item.id && draft?.selected ? [{
-                orderItemId: item.id,
-                quantity: getDraftQuantity(draft),
-                reason: draft.reason || null,
-                condition: draft.condition,
-                note: draft.note.trim() || null
-            }] : [];
-        })
-    }), [draftItems, selectedOrder]);
+        items: localQuantityValidation.items.map(({ orderItemId, quantity, draft }) => ({
+            orderItemId,
+            quantity,
+            reason: draft.reason || null,
+            condition: draft.condition,
+            note: draft.note.trim() || null
+        }))
+    }), [localQuantityValidation]);
     const eligibilityOrderId = selectedOrder?.id;
-    const eligibilityKey = JSON.stringify({ orderId: eligibilityOrderId, ...eligibilityRequest, revision: eligibilityRevision });
+    const eligibilityKey = JSON.stringify({ orderId: eligibilityOrderId, ...eligibilityRequest,
+        remaining: localQuantityValidation.remainingQuantities, revision: eligibilityRevision });
     const hasReasonSelection = eligibilityRequest.items.some(item => item.reason !== null);
     const shouldCheckEligibility = wizardStep >= 3 && Boolean(eligibilityOrderId) && hasReasonSelection;
     const eligibility = eligibilityState?.key === eligibilityKey ? eligibilityState.response : null;
+    const quantityValidation = validateReturnDraftQuantities(
+        selectedOrderItems, draftItems, selectedOrderReturns,
+        eligibilityState?.orderId === eligibilityOrderId ? eligibilityState?.response?.items : undefined
+    );
+    const draftValidationError = quantityValidation.error ?? getDraftValidationError(selectedOrder, draftItems);
     const eligibilityError = eligibilityState?.key === eligibilityKey ? eligibilityState.error : null;
     const isCheckingEligibility = shouldCheckEligibility && eligibilityState?.key !== eligibilityKey;
+
+    // Deduplicate return policy statements from eligibility preview
+    const policyList = useMemo(() => {
+        const list: string[] = [];
+        (eligibility?.items ?? []).forEach(it => {
+            (it.policy ?? []).forEach(p => {
+                if (p && !list.includes(p)) list.push(p);
+            });
+        });
+        return list;
+    }, [eligibility]);
 
     useEffect(() => {
         if (!shouldCheckEligibility || !eligibilityOrderId) return;
@@ -434,10 +423,10 @@ export function CreateReturnPage() {
         const timerId = window.setTimeout(() => {
             checkOrderReturnEligibility(eligibilityOrderId, eligibilityRequest)
                 .then(response => {
-                    if (!ignore) setEligibilityState({ key: eligibilityKey, response, error: null });
+                    if (!ignore) setEligibilityState({ orderId: eligibilityOrderId, key: eligibilityKey, response, error: null });
                 })
                 .catch(() => {
-                    if (!ignore) setEligibilityState({ key: eligibilityKey, response: null, error: "Không thể kiểm tra điều kiện hoàn. Vui lòng thử lại." });
+                    if (!ignore) setEligibilityState({ orderId: eligibilityOrderId, key: eligibilityKey, response: null, error: "Không thể kiểm tra điều kiện hoàn. Vui lòng thử lại." });
                 });
         }, 350);
         return () => {
@@ -451,7 +440,7 @@ export function CreateReturnPage() {
         isSubmitting ||
         (wizardStep === 1 &&
             (!selectedOrder || isSelectedOrderLoading)) ||
-        (wizardStep === 2 && selectedDraftEntries.length === 0) ||
+        (wizardStep === 2 && Boolean(quantityValidation.error)) ||
         (wizardStep === 3 && isCreateDisabled);
 
     const handleBackToList = () => {
@@ -482,7 +471,9 @@ export function CreateReturnPage() {
         setSelectedOrderSummary(order);
         setSelectedOrder(null);
         setSelectedOrderReturns([]);
+        setEligibilityState(null);
         setDraftItems({});
+        setOpenReasonCards({});
         setWizardStep(1);
         setIsSelectedOrderLoading(true);
 
@@ -514,32 +505,85 @@ export function CreateReturnPage() {
         });
     };
 
+    const handleDeselectAll = () => {
+        setDraftItems((current) => {
+            const next: Record<string, ReturnDraftItem> = {};
+            for (const [key, val] of Object.entries(current)) {
+                next[key] = { ...val, selected: false };
+            }
+            return next;
+        });
+    };
+
+    const toggleReasonCard = (itemKey: string) => {
+        setOpenReasonCards((prev) => ({
+            ...prev,
+            [itemKey]: prev[itemKey] === false ? true : false
+        }));
+    };
+
+    const selectedEntries = useMemo(() => {
+        return (selectedOrder?.items ?? [])
+            .map((item, index) => ({
+                item,
+                index,
+                itemKey: getItemKey(item, index)
+            }))
+            .filter(({ itemKey }) => draftItems[itemKey]?.selected);
+    }, [selectedOrder, draftItems]);
+
     const moveToNextStep = () => {
-        if (wizardStep === 1 && !selectedOrder) {
+        if (isSubmitting) return;
+
+        if (wizardStep === 1 && (!selectedOrder || isSelectedOrderLoading)) {
             setToast("Vui lòng chọn đơn hàng trước khi tiếp tục.");
             return;
         }
 
-        if (wizardStep === 2 && selectedDraftEntries.length === 0) {
-            setToast("Vui lòng chọn ít nhất một sản phẩm cần hoàn.");
+        if ((wizardStep === 2 || wizardStep === 3) && quantityValidation.error) {
+            setToast(quantityValidation.error);
             return;
         }
 
-        if (wizardStep === 3 && draftValidationError) {
-            setToast(draftValidationError);
-            return;
-        }
+        if (wizardStep === 3) {
+            // Check if any selected item is missing a return reason
+            for (const { itemKey, item } of selectedEntries) {
+                const draft = draftItems[itemKey];
+                const itemName = item.productNameSnapshot?.trim() || "Sản phẩm";
 
-        if (wizardStep === 3 && (isCheckingEligibility || !eligibility?.eligible)) {
-            setToast("Vui lòng hoàn tất kiểm tra điều kiện và xử lý các điều kiện không đạt trước khi tiếp tục.");
-            return;
+                if (!draft?.reason) {
+                    setOpenReasonCards((prev) => ({ ...prev, [itemKey]: true }));
+                    setToast(`Vui lòng chọn lý do trả hàng cho: ${itemName}.`);
+                    const cardElement = document.getElementById(`reason-card-${itemKey}`);
+                    cardElement?.scrollIntoView({ behavior: "smooth", block: "center" });
+                    return;
+                }
+
+                if (draft.reason === "OTHER" && !draft.note?.trim()) {
+                    setOpenReasonCards((prev) => ({ ...prev, [itemKey]: true }));
+                    setToast(`Vui lòng nhập ghi chú khi chọn lý do khác cho: ${itemName}.`);
+                    const cardElement = document.getElementById(`reason-card-${itemKey}`);
+                    cardElement?.scrollIntoView({ behavior: "smooth", block: "center" });
+                    return;
+                }
+            }
+
+            if (draftValidationError) {
+                setToast(draftValidationError);
+                return;
+            }
+
+            if (isCheckingEligibility || !eligibility?.eligible) {
+                setToast("Vui lòng hoàn tất kiểm tra điều kiện và xử lý các điều kiện không đạt trước khi tiếp tục.");
+                return;
+            }
         }
 
         setWizardStep((step) => Math.min(4, step + 1) as WizardStep);
     };
 
-    const submitReturn = () => {
-        if (isSubmitting) {
+    const submitReturn = async () => {
+        if (isSubmitting || wizardStep !== 4) {
             return;
         }
 
@@ -551,46 +595,45 @@ export function CreateReturnPage() {
             return;
         }
 
-        const payloadItems: CreateOrderReturnPayload["items"] = [];
-
-        selectedOrderItems.forEach((item, index) => {
-            const itemKey = getItemKey(item, index);
-            const draft = draftItems[itemKey];
-
-            if (!item.id || !draft?.selected || !draft.reason) {
-                return;
-            }
-
-            payloadItems.push({
-                orderItemId: item.id,
-                quantity: getDraftQuantity(draft),
-                reason: draft.reason,
-                condition: draft.condition,
-                note: draft.note.trim() || null
-            });
-        });
-
-        const payload: CreateOrderReturnPayload = {
-            note: returnNote.trim() || null,
-            refundRequired: refundRequired,
-            items: payloadItems
-        };
-
         setIsSubmitting(true);
-        createOrderReturn(selectedOrder.id, payload)
-            .then((createdReturn) => {
-                setToast("Tạo phiếu hoàn hàng thành công");
-                window.setTimeout(() => {
-                    navigate(`/system/orders/returns/${createdReturn.id}`);
-                }, 350);
-            })
-            .catch((error: unknown) => {
-                setToast(getReturnErrorMessage(error));
-                setEligibilityRevision(current => current + 1);
-            })
-            .finally(() => {
-                setIsSubmitting(false);
-            });
+        try {
+            const [freshOrder, freshReturns] = await Promise.all([
+                getOrderById(selectedOrder.id), getOrderReturns(selectedOrder.id)
+            ]);
+            setSelectedOrder(freshOrder);
+            setSelectedOrderReturns(freshReturns);
+            const freshValidation = validateReturnDraftQuantities(freshOrder.items ?? [], draftItems, freshReturns);
+            if (freshValidation.error) {
+                setWizardStep(2);
+                throw new Error(freshValidation.error);
+            }
+            const payload: CreateOrderReturnPayload = {
+                note: returnNote.trim() || null,
+                refundRequired,
+                items: buildReturnPayloadItems(freshOrder.items ?? [], draftItems, freshReturns)
+            };
+            const latestEligibility = await checkOrderReturnEligibility(freshOrder.id, payload);
+            setEligibilityState({ orderId: freshOrder.id, key: eligibilityKey, response: latestEligibility, error: null });
+            const latestValidation = validateReturnDraftQuantities(
+                freshOrder.items ?? [], draftItems, freshReturns, latestEligibility.items
+            );
+            if (latestValidation.error) {
+                setWizardStep(2);
+                throw new Error(latestValidation.error);
+            }
+            if (!latestEligibility.eligible) {
+                throw new Error("Điều kiện hoàn hàng đã thay đổi. Vui lòng kiểm tra lại trước khi tạo phiếu.");
+            }
+            payload.items = buildReturnPayloadItems(freshOrder.items ?? [], draftItems, freshReturns, latestEligibility.items);
+            const createdReturn = await createOrderReturn(freshOrder.id, payload);
+            setToast("Tạo phiếu hoàn hàng thành công");
+            window.setTimeout(() => navigate(`/system/orders/returns/${createdReturn.id}`), 350);
+        } catch (error: unknown) {
+            setToast(getReturnErrorMessage(error));
+            setEligibilityRevision(current => current + 1);
+        } finally {
+            setIsSubmitting(false);
+        }
     };
 
     const renderStepContent = () => {
@@ -618,47 +661,105 @@ export function CreateReturnPage() {
 
         if (wizardStep === 2 && selectedOrder) {
             return (
-                <ReturnItemPicker
+                <ReturnProductSelectionTable
                     draftItems={draftItems}
                     items={selectedOrderItems}
+                    onDeselectAll={handleDeselectAll}
                     onUpdateDraftItem={updateDraftItem}
-                    returns={selectedOrderReturns}
+                    validation={quantityValidation}
                 />
             );
         }
 
         if (wizardStep === 3 && selectedOrder) {
             return (
-                <>
-                <ReturnReasonForm
-                    draftItems={draftItems}
-                    eligibility={eligibility}
-                    items={selectedOrderItems}
-                    onNoteChange={setReturnNote}
-                    onRefundRequiredChange={setRefundRequired}
-                    onUpdateDraftItem={updateDraftItem}
-                    refundRequired={refundRequired}
-                    returnNote={returnNote}
-                />
-                <ReturnEligibilityDetails response={eligibility} checking={isCheckingEligibility} error={eligibilityError}
-                    items={selectedOrderItems} ready={hasReasonSelection} onRetry={() => setEligibilityRevision(current => current + 1)} />
-                </>
+                <div className={styles.reasonForm}>
+                    {/* Subtle Policy Helper Line (No Heavy Banner) */}
+                    <div className={styles.policySubtleBar}>
+                        <div className={styles.policySubtleLeft}>
+                            <Info size={15} className={styles.policySubtleIcon} aria-hidden="true" />
+                            <span>
+                                Hàng hoàn sẽ được kiểm tra tình trạng trước khi xử lý nhập kho và hoàn tiền (nếu có).
+                            </span>
+                        </div>
+                        <button
+                            type="button"
+                            className={styles.policySubtleLink}
+                            onClick={() => setIsPolicyModalOpen(true)}
+                        >
+                            Xem chính sách chi tiết
+                        </button>
+                    </div>
+
+                    {/* Accordion List for each selected item */}
+                    <div className={styles.reasonCardList}>
+                        {selectedEntries.map(({ item, itemKey }) => (
+                            <ReturnProductReasonCard
+                                key={itemKey}
+                                item={item}
+                                itemKey={itemKey}
+                                draft={draftItems[itemKey] ?? createDefaultDraftItem()}
+                                isOpen={openReasonCards[itemKey] !== false}
+                                onToggle={() => toggleReasonCard(itemKey)}
+                                onUpdateDraft={(update) => updateDraftItem(itemKey, update)}
+                            />
+                        ))}
+                    </div>
+
+                    {/* Refund Required Toggle */}
+                    <div style={{ padding: "1rem", background: "#f8fafc", borderRadius: "8px", border: "1px solid #e2e8f0" }}>
+                        <label style={{ display: "flex", alignItems: "center", gap: "0.75rem", cursor: "pointer", fontWeight: 600, fontSize: "0.95rem" }}>
+                            <input
+                                checked={refundRequired}
+                                onChange={(event) => setRefundRequired(event.target.checked)}
+                                style={{ width: "18px", height: "18px", cursor: "pointer" }}
+                                type="checkbox"
+                            />
+                            <span>Yêu cầu hoàn tiền cho khách hàng</span>
+                        </label>
+                        <p style={{ margin: "0.5rem 0 0 2rem", fontSize: "0.85rem", color: "#64748b", lineHeight: 1.4 }}>
+                            {refundRequired
+                                ? "Phiếu hoàn sẽ chuyển sang luồng hoàn tiền sau khi nhận hàng và kiểm kho hoàn tất."
+                                : "Phiếu hoàn KHÔNG phát sinh hoàn tiền (ví dụ: đổi ngang, tặng phẩm, bảo hành). Phiếu sẽ tự động hoàn tất khi kiểm kho 100%."}
+                        </p>
+                    </div>
+
+                    {/* General Return Note */}
+                    <label className={styles.fullField}>
+                        <span>Ghi chú phiếu hoàn</span>
+                        <textarea
+                            onChange={(event) => setReturnNote(event.target.value)}
+                            placeholder="Ghi chú chung nếu có"
+                            value={returnNote}
+                        />
+                    </label>
+
+                    {/* Consolidated Eligibility Verification */}
+                    <ReturnEligibilityStatus
+                        response={eligibility}
+                        checking={isCheckingEligibility}
+                        error={eligibilityError}
+                        items={selectedOrderItems}
+                        ready={hasReasonSelection}
+                        onRetry={() => setEligibilityRevision((current) => current + 1)}
+                    />
+                </div>
             );
         }
 
         if (wizardStep === 4 && selectedOrder) {
             return (
-                <>
-                <ReturnConfirmation
-                    draftItems={draftItems}
-                    items={selectedOrderItems}
+                <ReturnConfirmationSummary
                     order={selectedOrder}
+                    items={selectedOrderItems}
+                    draftItems={draftItems}
                     refundRequired={refundRequired}
                     returnNote={returnNote}
+                    eligibility={eligibility}
+                    isCheckingEligibility={isCheckingEligibility}
+                    eligibilityError={eligibilityError}
+                    onRetryEligibility={() => setEligibilityRevision((current) => current + 1)}
                 />
-                <ReturnEligibilityDetails response={eligibility} checking={isCheckingEligibility} error={eligibilityError}
-                    items={selectedOrderItems} ready={hasReasonSelection} showPolicies onRetry={() => setEligibilityRevision(current => current + 1)} />
-                </>
             );
         }
 
@@ -706,6 +807,11 @@ export function CreateReturnPage() {
 
             <section className={styles.card}>
                 {renderStepContent()}
+                {wizardStep >= 3 && quantityValidation.error ? (
+                    <p className={styles.quantityError} role="alert">
+                        {quantityValidation.error} Vui lòng quay lại bước chọn sản phẩm để kiểm tra.
+                    </p>
+                ) : null}
             </section>
 
             <footer className={styles.footer}>
@@ -738,10 +844,24 @@ export function CreateReturnPage() {
                         onClick={submitReturn}
                         type="button"
                     >
-                        {isSubmitting ? "Đang tạo..." : "Tạo phiếu hoàn hàng"}
+                        {isSubmitting ? (
+                            <>
+                                <LoaderCircle className={styles.spinner} size={18} aria-hidden="true" />
+                                Đang tạo...
+                            </>
+                        ) : (
+                            "Tạo phiếu hoàn hàng"
+                        )}
                     </button>
                 )}
             </footer>
+
+            {/* Detailed Policy Modal */}
+            <ReturnPolicyModal
+                isOpen={isPolicyModalOpen}
+                onClose={() => setIsPolicyModalOpen(false)}
+                policies={policyList}
+            />
 
             {toast ? <div className={styles.toast}>{toast}</div> : null}
         </section>
@@ -976,279 +1096,6 @@ function OrderPicker({
                         </button>
                     </div>
                 ) : null}
-            </div>
-        </div>
-    );
-}
-
-function ReturnItemPicker({
-    draftItems,
-    items,
-    onUpdateDraftItem,
-    returns
-}: {
-    draftItems: Record<string, ReturnDraftItem>;
-    items: OrderItemResponse[];
-    onUpdateDraftItem: (
-        itemKey: string,
-        update: Partial<ReturnDraftItem>
-    ) => void;
-    returns: OrderReturnResponse[];
-}) {
-    return (
-        <div className={styles.itemTableWrap}>
-            <table className={styles.itemTable}>
-                <thead>
-                    <tr>
-                        <th>Sản phẩm</th>
-                        <th>Đã mua</th>
-                        <th>Còn được hoàn</th>
-                        <th>Số lượng hoàn</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {items.map((item, index) => {
-                        const itemKey = getItemKey(item, index);
-                        const draft = draftItems[itemKey];
-                        const availableQuantity = calculateAvailableReturnQuantity(
-                            item,
-                            returns
-                        );
-
-                        return (
-                            <tr key={itemKey}>
-                                <td>
-                                    <label className={styles.itemSelector}>
-                                        <input
-                                            checked={Boolean(draft?.selected)}
-                                            disabled={availableQuantity <= 0}
-                                            onChange={(event) =>
-                                                onUpdateDraftItem(itemKey, {
-                                                    selected: event.target.checked
-                                                })
-                                            }
-                                            type="checkbox"
-                                        />
-                                        <span>
-                                            <strong>{getItemName(item)}</strong>
-                                            <small>
-                                                {item.skuSnapshot || "--"} ·{" "}
-                                                {getItemVariant(item)}
-                                            </small>
-                                        </span>
-                                    </label>
-                                </td>
-                                <td>{formatReturnQuantity(item.quantity)}</td>
-                                <td>{formatReturnQuantity(availableQuantity)}</td>
-                                <td>
-                                    <input
-                                        className={styles.quantityInput}
-                                        disabled={!draft?.selected || availableQuantity <= 0}
-                                        max={availableQuantity}
-                                        min="0"
-                                        onChange={(event) =>
-                                            onUpdateDraftItem(itemKey, {
-                                                quantity: event.target.value
-                                            })
-                                        }
-                                        type="number"
-                                        value={draft?.quantity ?? "1"}
-                                    />
-                                </td>
-                            </tr>
-                        );
-                    })}
-                </tbody>
-            </table>
-        </div>
-    );
-}
-
-function ReturnReasonForm({
-    draftItems,
-    eligibility,
-    items,
-    onNoteChange,
-    onRefundRequiredChange,
-    onUpdateDraftItem,
-    refundRequired,
-    returnNote
-}: {
-    draftItems: Record<string, ReturnDraftItem>;
-    eligibility: OrderReturnEligibilityResponse | null;
-    items: OrderItemResponse[];
-    onNoteChange: (value: string) => void;
-    onRefundRequiredChange: (value: boolean) => void;
-    onUpdateDraftItem: (
-        itemKey: string,
-        update: Partial<ReturnDraftItem>
-    ) => void;
-    refundRequired: boolean;
-    returnNote: string;
-}) {
-    const selectedEntries = items
-        .map((item, index) => ({
-            index,
-            item
-        }))
-        .filter(({ index, item }) => {
-            return draftItems[getItemKey(item, index)]?.selected;
-        });
-
-    return (
-        <div className={styles.reasonForm}>
-            {selectedEntries.map(({ index, item }) => {
-                const itemKey = getItemKey(item, index);
-                const draft = draftItems[itemKey] ?? createDefaultDraftItem();
-
-                return (
-                    <div className={styles.reasonRow} key={itemKey}>
-                        <div className={styles.reasonTitle}>
-                            <strong>{getItemName(item)}</strong>
-                            <span>
-                                {formatReturnQuantity(getDraftQuantity(draft))} sản phẩm
-                            </span>
-                        </div>
-                        <div className={styles.reasonGrid}>
-                            <label>
-                                <span>Lý do</span>
-                                <select
-                                    onChange={(event) =>
-                                        onUpdateDraftItem(itemKey, {
-                                            reason: event.target.value as ReturnDraftItem["reason"]
-                                        })
-                                    }
-                                    value={draft.reason}
-                                >
-                                    <option value="">Chọn lý do trả hàng</option>
-                                    {RETURN_REASONS.map((reason) => (
-                                        <option key={reason} value={reason}>
-                                            {RETURN_REASON_LABELS[reason]}
-                                        </option>
-                                    ))}
-                                </select>
-                            </label>
-                            <label>
-                                <span>Tình trạng khai báo</span>
-                                <select
-                                    onChange={(event) =>
-                                        onUpdateDraftItem(itemKey, {
-                                            condition: event.target.value as ReturnCondition
-                                        })
-                                    }
-                                    value={draft.condition}
-                                >
-                                    {RETURN_CONDITIONS.map((condition) => (
-                                        <option key={condition} value={condition}>
-                                            {RETURN_CONDITION_LABELS[condition]}
-                                        </option>
-                                    ))}
-                                </select>
-                            </label>
-                            <label className={styles.fullField}>
-                                <span>Ghi chú sản phẩm</span>
-                                <textarea
-                                    onChange={(event) =>
-                                        onUpdateDraftItem(itemKey, {
-                                            note: event.target.value
-                                        })
-                                    }
-                                    placeholder={
-                                        draft.reason === "OTHER"
-                                            ? "Bắt buộc khi chọn lý do khác"
-                                             : "Ghi chú thêm nếu có"
-                                    }
-                                    value={draft.note}
-                                />
-                            </label>
-                        </div>
-                        {draft.reason ? <ReturnPolicy policy={eligibility?.items.find(result => result.orderItemId === item.id && result.reason === draft.reason)?.policy} /> : null}
-                    </div>
-                );
-            })}
-
-            <div style={{ padding: "1rem", background: "#f8fafc", borderRadius: "8px", border: "1px solid #e2e8f0" }}>
-                <label style={{ display: "flex", alignItems: "center", gap: "0.75rem", cursor: "pointer", fontWeight: 600, fontSize: "0.95rem" }}>
-                    <input
-                        checked={refundRequired}
-                        onChange={(event) => onRefundRequiredChange(event.target.checked)}
-                        style={{ width: "18px", height: "18px", cursor: "pointer" }}
-                        type="checkbox"
-                    />
-                    <span>Yêu cầu hoàn tiền cho khách hàng</span>
-                </label>
-                <p style={{ margin: "0.5rem 0 0 2rem", fontSize: "0.85rem", color: "#64748b", lineHeight: 1.4 }}>
-                    {refundRequired
-                        ? "Phiếu hoàn sẽ chuyển sang luồng hoàn tiền sau khi nhận hàng và kiểm kho hoàn tất."
-                        : "Phiếu hoàn KHÔNG phát sinh hoàn tiền (ví dụ: đổi ngang, tặng phẩm, bảo hành). Phiếu sẽ tự động hoàn tất khi kiểm kho 100%."}
-                </p>
-            </div>
-
-            <label className={styles.fullField}>
-                <span>Ghi chú phiếu hoàn</span>
-                <textarea
-                    onChange={(event) => onNoteChange(event.target.value)}
-                    placeholder="Ghi chú chung nếu có"
-                    value={returnNote}
-                />
-            </label>
-        </div>
-    );
-}
-
-function ReturnConfirmation({
-    draftItems,
-    items,
-    order,
-    refundRequired,
-    returnNote
-}: {
-    draftItems: Record<string, ReturnDraftItem>;
-    items: OrderItemResponse[];
-    order: OrderDetailResponse;
-    refundRequired: boolean;
-    returnNote: string;
-}) {
-    const selectedEntries = items
-        .map((item, index) => ({
-            index,
-            item
-        }))
-        .filter(({ index, item }) => {
-            return draftItems[getItemKey(item, index)]?.selected;
-        });
-
-    return (
-        <div className={styles.confirmation}>
-            <div className={styles.summaryPanel}>
-                <h3>{getOrderCode(order)}</h3>
-                <p>{getCustomerName(order)}</p>
-                <div style={{ marginTop: "0.5rem", fontSize: "0.9rem", color: refundRequired ? "#166534" : "#b45309", fontWeight: 600 }}>
-                    Chính sách hoàn tiền: {refundRequired ? "Có hoàn tiền" : "Không hoàn tiền (tự động hoàn tất khi kiểm kho)"}
-                </div>
-                {returnNote.trim() ? <span>{returnNote.trim()}</span> : null}
-            </div>
-
-            <div className={styles.confirmItems}>
-                {selectedEntries.map(({ index, item }) => {
-                    const itemKey = getItemKey(item, index);
-                    const draft = draftItems[itemKey] ?? createDefaultDraftItem();
-
-                    return (
-                        <div className={styles.confirmItem} key={itemKey}>
-                            <strong>{getItemName(item)}</strong>
-                            <span>
-                                SL {formatReturnQuantity(getDraftQuantity(draft))}
-                            </span>
-                            <small>
-                                {item.skuSnapshot || "--"} ·{" "}
-                                {getReturnReasonLabel(draft.reason || null)} ·{" "}
-                                {getReturnConditionLabel(draft.condition)}
-                            </small>
-                            {draft.note.trim() ? <p>{draft.note.trim()}</p> : null}
-                        </div>
-                    );
-                })}
             </div>
         </div>
     );

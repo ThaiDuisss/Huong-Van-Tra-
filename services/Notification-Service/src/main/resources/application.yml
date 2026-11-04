@@ -2,9 +2,9 @@ spring:
   application:
     name: Notification-Service
   datasource:
-    url: ${SPRING_DATASOURCE_URL:jdbc:mysql://100.99.2.30:3306/notification_db?allowPublicKeyRetrieval=true&useSSL=false&serverTimezone=UTC}
-    username: ${SPRING_DATASOURCE_USERNAME:notification_app}
-    password: ${SPRING_DATASOURCE_PASSWORD:Hvt@2006}
+    url: ${SPRING_DATASOURCE_URL}
+    username: ${SPRING_DATASOURCE_USERNAME}
+    password: ${SPRING_DATASOURCE_PASSWORD}
   jpa:
     hibernate:
       ddl-auto: validate

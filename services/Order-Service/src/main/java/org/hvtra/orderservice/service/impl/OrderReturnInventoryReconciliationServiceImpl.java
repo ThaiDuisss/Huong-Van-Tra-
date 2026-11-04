@@ -102,6 +102,12 @@ public class OrderReturnInventoryReconciliationServiceImpl implements OrderRetur
             log.warn("Null status response from Inventory-Service for commandId {}. Will retry next cycle.", commandId);
             return;
         }
+        if (!commandId.equals(statusResponse.commandId())
+                || (statusResponse.returnId() != null && (command.getOrderReturn() == null
+                || !statusResponse.returnId().equals(command.getOrderReturn().getId())))) {
+            log.error("Ignoring Inventory reconciliation response with mismatched identity: commandId={}", commandId);
+            return;
+        }
 
         if (statusResponse.status() == ReturnDispositionReconciliationStatus.PROCESSING) {
             log.debug("Command {} is still PROCESSING in Inventory-Service. Leaving as PENDING and resetting consecutive NOT_FOUND counter.", commandId);

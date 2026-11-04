@@ -52,6 +52,14 @@ public class OrderReturnRefundTransactionServiceImpl implements OrderReturnRefun
         if (paymentStatus != PaymentStatus.PARTIALLY_REFUNDED && paymentStatus != PaymentStatus.REFUNDED) {
             throw new InvalidOrderReturnException("Payment refund is not completed");
         }
+        if (paymentRefund.paymentId() == null || paymentRefund.refundTransactionId() == null
+                || !returnId.equals(paymentRefund.returnId())
+                || !orderReturn.getOrder().getId().equals(paymentRefund.orderId())) {
+            throw new InvalidOrderReturnException("Payment refund record does not match this return");
+        }
+        if (orderReturn.getStatus() != ReturnStatus.RECEIVED && orderReturn.getStatus() != ReturnStatus.COMPLETED) {
+            throw new InvalidOrderReturnException("Return inventory inspection is not completed");
+        }
 
         Order lockedOrder = orderRepository.findByIdAndIsDeletedFalseWithItemsForUpdate(
                 orderReturn.getOrder().getId()
@@ -64,39 +72,40 @@ public class OrderReturnRefundTransactionServiceImpl implements OrderReturnRefun
         // Transition returnStatus to COMPLETED upon successful refund
         ReturnStatus previousStatus = orderReturn.getStatus();
         orderReturn.setStatus(ReturnStatus.COMPLETED);
-        lockedOrder.setPaymentStatus(paymentStatus);
+        // Different returns on one order can finish their network calls out of order.
+        if (lockedOrder.getPaymentStatus() != PaymentStatus.REFUNDED) {
+            lockedOrder.setPaymentStatus(paymentStatus);
+        }
         lockedOrder.setReturnStatus(resolveOrderReturnStatus(lockedOrder, orderReturns));
 
-        orderReturnRepository.save(orderReturn);
         orderRepository.save(lockedOrder);
 
-        String refundTransactionId = paymentRefund.refundTransactionId() == null
-                ? null
-                : paymentRefund.refundTransactionId().toString();
+        if (previousStatus != ReturnStatus.COMPLETED) {
+            orderReturnRepository.save(orderReturn);
+            orderReturnHistoryWriter.writeIfAbsent(
+                    orderReturn,
+                    OrderReturnHistoryAction.REFUND_COMPLETED,
+                    previousStatus,
+                    ReturnStatus.COMPLETED,
+                    actorUserId,
+                    "Refund completed",
+                    "PAYMENT_TRANSACTION",
+                    paymentRefund.refundTransactionId().toString()
+            );
 
-        orderReturnHistoryWriter.writeIfAbsent(
-                orderReturn,
-                OrderReturnHistoryAction.REFUND_COMPLETED,
-                previousStatus,
-                ReturnStatus.COMPLETED,
-                actorUserId,
-                "Refund completed",
-                "PAYMENT_TRANSACTION",
-                refundTransactionId
-        );
+            orderOutboxPublisher.publishReturnRefundCompletedNotification(
+                    orderReturn,
+                    ReturnStatus.COMPLETED,
+                    actorUserId,
+                    paymentRefund
+            );
 
-        orderOutboxPublisher.publishReturnRefundCompletedNotification(
-                orderReturn,
-                ReturnStatus.COMPLETED,
-                actorUserId,
-                paymentRefund
-        );
-
-        orderOutboxPublisher.publishReturnCompletedNotification(
-                orderReturn,
-                previousStatus,
-                actorUserId
-        );
+            orderOutboxPublisher.publishReturnCompletedNotification(
+                    orderReturn,
+                    previousStatus,
+                    actorUserId
+            );
+        }
 
         return OrderReturnRefundResponse.builder()
                 .returnId(orderReturn.getId())

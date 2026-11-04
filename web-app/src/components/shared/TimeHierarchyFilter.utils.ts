@@ -55,16 +55,30 @@ export function legacyDateToIsoDate(date: string) {
     return `${year}-${month}-${day}`;
 }
 
-export function buildTodayTimeNode(): TimeNode {
+export function buildTodayTimeNode(timeZone?: string): Extract<TimeNode, { type: "day" }> {
     const today = new Date();
-    const month = today.getMonth() + 1;
+    let year = today.getFullYear();
+    let month = today.getMonth() + 1;
+    let day = today.getDate();
+
+    if (timeZone) {
+        const parts = new Intl.DateTimeFormat("en-CA", {
+            timeZone,
+            year: "numeric",
+            month: "2-digit",
+            day: "2-digit"
+        }).formatToParts(today);
+        year = Number(parts.find((part) => part.type === "year")!.value);
+        month = Number(parts.find((part) => part.type === "month")!.value);
+        day = Number(parts.find((part) => part.type === "day")!.value);
+    }
 
     return {
-        date: formatLocalDate(today),
+        date: toIsoDate(year, month, day),
         month,
         quarter: getQuarterFromMonth(month),
         type: "day",
-        year: today.getFullYear()
+        year
     };
 }
 

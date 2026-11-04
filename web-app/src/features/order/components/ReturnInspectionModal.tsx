@@ -12,6 +12,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { inventoryLocationApi } from "../../inventory/services/inventoryLocation.api";
 import type { InventoryLocationResponse } from "../../inventory/types/inventory.types";
 import { submitReturnInventoryDisposition } from "../services/order-return.api";
+import { submitVerifiedReturnInventoryDisposition } from "../services/return-inventory-disposition.service";
 import type {
     CustomerReturnDisposition,
     CustomerReturnQcSummaryLine,
@@ -110,6 +111,7 @@ export function ReturnInspectionModal({
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [formError, setFormError] = useState<string | null>(null);
     const submissionRef = useRef<SubmitReturnInventoryDispositionPayload | null>(null);
+    const submissionInFlightRef = useRef(false);
     const [hasUnresolvedSubmission, setHasUnresolvedSubmission] = useState(false);
 
     const summaryLines = useMemo(
@@ -423,7 +425,7 @@ export function ReturnInspectionModal({
 
     // Final Submission
     const handleConfirmSubmit = () => {
-        if (isSubmitting) return;
+        if (submissionInFlightRef.current) return;
         if (!submissionRef.current && !validateBeforeReview()) {
             setStep(1);
             return;
@@ -447,9 +449,15 @@ export function ReturnInspectionModal({
         submissionRef.current = request;
         setHasUnresolvedSubmission(true);
         setIsSubmitting(true);
+        submissionInFlightRef.current = true;
         setFormError(null);
 
-        submitReturnInventoryDisposition(returnItem.id, request)
+        // An uncertain network response is resolved with the same commandId.
+        // A new command must recheck both sources immediately before submission.
+        const submit = hasUnresolvedSubmission
+            ? submitReturnInventoryDisposition(returnItem.id, request)
+            : submitVerifiedReturnInventoryDisposition(returnItem.id, request);
+        submit
             .then((response) => {
                 submissionRef.current = null;
                 setHasUnresolvedSubmission(false);
@@ -461,11 +469,11 @@ export function ReturnInspectionModal({
                     const failureMsg = response.failureReason
                         ? getReturnErrorMessage(new Error(response.failureReason))
                         : "Không thể cập nhật kho.";
-                    setFormError(failureMsg);
-                    setStep(1);
+                    onToast(`${failureMsg} Cần đối soát trước khi gửi yêu cầu mới.`);
                     onRefresh?.();
+                    onClose();
                 } else {
-                    onToast("Đã tạo phiếu kiểm định. Vào Kho > Hàng khách trả để nhập tình trạng thực tế và xác nhận xử lý.");
+                    onToast("Đã gửi yêu cầu xử lý kho. Làm mới Hàng khách trả để theo dõi phiếu kiểm định.");
                     onSuccess();
                     onClose();
                 }
@@ -485,6 +493,7 @@ export function ReturnInspectionModal({
                 }
             })
             .finally(() => {
+                submissionInFlightRef.current = false;
                 setIsSubmitting(false);
             });
     };

@@ -178,6 +178,8 @@ export interface DisposalRequest {
 }
 
 export interface DisposalListQuery {
+    fromDate?: string;
+    toDate?: string;
     page: number;
     size: number;
     status: "ALL" | "PENDING_APPROVAL" | "APPROVED";
@@ -241,7 +243,7 @@ export interface QualityApi {
     unblockBatch(input: QualityActionInput): Promise<BatchQualityDetail>;
     createDisposalRequest(input: DisposalCreateInput): Promise<DisposalRequest>;
     listDisposalRequests(query: DisposalListQuery): Promise<DisposalListResult>;
-    getDisposalStatusCounts(keyword?: string): Promise<DisposalStatusCounts>;
+    getDisposalStatusCounts(keyword?: string, fromDate?: string, toDate?: string): Promise<DisposalStatusCounts>;
     getDisposalRequest(disposalId: string): Promise<DisposalRequest>;
     approveDisposalRequest(input: DisposalActionInput): Promise<DisposalRequest>;
     rejectDisposalRequest(input: DisposalActionInput): Promise<DisposalRequest>;

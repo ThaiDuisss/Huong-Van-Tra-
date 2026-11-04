@@ -34,12 +34,42 @@ export function CustomerReturnDetailPage() {
             setDetail(null);
             setDrafts({});
             setLocations([]);
-            void customerReturnApi.getInspection(inspectionId)
-                .then(async (response) => {
+
+            void (async () => {
+                try {
+                    let inspection: CustomerReturnInspection;
+                    try {
+                        inspection = await customerReturnApi.getInspection(inspectionId);
+                    } catch {
+                        // Fallback 1: Attempt to check if inspectionId is an OrderReturn ID (UUID)
+                        const qcSummary = await customerReturnApi.getQcSummary(inspectionId).catch(() => null);
+                        if (qcSummary?.inspectionId) {
+                            inspection = await customerReturnApi.getInspection(qcSummary.inspectionId);
+                        } else if (qcSummary) {
+                            // HTTP 200 from qc-summary with inspectionId: null means return has no inspection created yet
+                            if (!active) return;
+                            setDetail(null);
+                            setLoading(false);
+                            return;
+                        } else {
+                            // Fallback 2: Attempt to search inspections by returnCode
+                            const searchResult = await customerReturnApi.listInspections({
+                                returnCode: inspectionId,
+                                size: 1,
+                                page: 0
+                            }).catch(() => null);
+                            if (searchResult && searchResult.content.length > 0) {
+                                inspection = searchResult.content[0];
+                            } else {
+                                throw new Error("NOT_FOUND");
+                            }
+                        }
+                    }
+
                     if (!active) return;
-                    setDetail(response);
-                    setDrafts(Object.fromEntries(response.lines.map((line) => [line.id, createCustomerReturnQcDraft(line)])));
-                    if (canPost && ["CREATED", "PROCESSING"].includes(response.status)) {
+                    setDetail(inspection);
+                    setDrafts(Object.fromEntries(inspection.lines.map((line) => [line.id, createCustomerReturnQcDraft(line)])));
+                    if (canPost && ["CREATED", "PROCESSING"].includes(inspection.status)) {
                         try {
                             const options = await loadCustomerReturnQcLocations();
                             if (active) setLocations(options);
@@ -47,9 +77,12 @@ export function CustomerReturnDetailPage() {
                             if (active) setLocationError("Không thể tải vị trí kho. Vui lòng tải lại trang để chọn vị trí trước khi nhập kho.");
                         }
                     }
-                })
-                .catch(() => { if (active) setError("Không thể tải phiếu kiểm định. Vui lòng thử lại."); })
-                .finally(() => { if (active) setLoading(false); });
+                } catch {
+                    if (active) setError("Không thể tải phiếu kiểm định. Vui lòng thử lại hoặc kiểm tra mã phiếu.");
+                } finally {
+                    if (active) setLoading(false);
+                }
+            })();
         }, 0);
         return () => { active = false; window.clearTimeout(timerId); };
     }, [canPost, inspectionId]);
@@ -112,6 +145,15 @@ export function CustomerReturnDetailPage() {
         {error ? <div role="alert" className="flex items-center gap-2 rounded-xl bg-red-50 p-4 text-sm font-bold text-red-700"><ShieldAlert size={18} /> {error}</div> : null}
         {locationError ? <div role="alert" className="rounded-xl bg-amber-50 p-4 text-sm text-amber-800">{locationError}</div> : null}
         {successMessage ? <div role="status" className="flex items-center gap-2 rounded-xl bg-green-50 p-4 text-sm font-bold text-green-800"><CheckCircle2 size={18} /> {successMessage}</div> : null}
+        {!loading && !error && !detail ? (
+            <div className="rounded-xl border border-[#e8eef0] bg-white p-8 text-center shadow-pos-card">
+                <p className="font-bold text-[#172317]">Không tìm thấy phiếu kiểm định</p>
+                <p className="mt-1 text-sm text-[#697684]">Phiếu hoàn chưa có phiếu kiểm định kho hoặc mã phiếu không tồn tại.</p>
+                <Link className="mt-4 inline-flex items-center gap-2 rounded-lg bg-[#159734] px-4 py-2 text-sm font-black text-white hover:bg-[#12822c]" to="/management/inventory/customer-returns">
+                    Quay lại danh sách khách trả hàng
+                </Link>
+            </div>
+        ) : null}
         {detail ? <>
             <section className="grid gap-4 rounded-xl border border-[#e8eef0] bg-white p-5 shadow-pos-card md:grid-cols-2 lg:grid-cols-4">
                 <div><span className="text-xs font-black uppercase text-[#697684]">Trạng thái phiếu</span><div className="mt-1"><InspectionStatusBadge status={detail.status} /></div></div>
@@ -132,8 +174,6 @@ export function CustomerReturnDetailPage() {
                     </tr>)}</tbody>
                 </table>
             </section>}
-            {detail.status === "POSTED" ? <div className="rounded-xl border border-green-200 bg-green-50 p-4 text-sm text-green-900">Phiếu đã được hạch toán. Kết quả kiểm định được giữ nguyên. Dòng lịch sử chưa có tình trạng thực tế được hiển thị là chưa ghi nhận.</div> : null}
-            {detail.status === "PROCESSING" ? <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">QC có thể xác nhận các dòng chưa xử lý. Kết quả trên các dòng đã xử lý được giữ nguyên.</div> : null}
         </> : null}
     </section>;
 }

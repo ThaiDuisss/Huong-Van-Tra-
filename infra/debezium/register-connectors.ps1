@@ -1,6 +1,11 @@
 # Script to register/update all Debezium Outbox Connectors to Kafka Connect
 param(
-    [string]$ConnectUrl = "http://100.99.2.30:8083"
+    [string]$ConnectUrl = "http://100.99.2.30:8083",
+    # Dia chi MySQL nhin tu ben trong container Kafka Connect tren box 2 (thuong la
+    # ten container, vi du "mysql"). Bat buoc: dien sai thi connector khong doc binlog.
+    [Parameter(Mandatory = $true)][string]$DbHost,
+    # Password user debezium; giu gia tri cu lam default, nhung nen rotate.
+    [string]$DbPassword = "debezium"
 )
 
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
@@ -9,6 +14,8 @@ $connectorFiles = Get-ChildItem -Path $scriptDir -Filter "*-connector.json"
 foreach ($file in $connectorFiles) {
     $json = Get-Content $file.FullName -Raw | ConvertFrom-Json
     $name = $json.name
+    $json.config."database.hostname" = $DbHost
+    $json.config."database.password" = $DbPassword
     $configJson = $json.config | ConvertTo-Json -Depth 10 -Compress
     $url = "$ConnectUrl/connectors/$name/config"
 

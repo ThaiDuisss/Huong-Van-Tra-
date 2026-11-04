@@ -2,9 +2,9 @@ spring:
   application:
     name: Order-Service
   datasource:
-    url: ${SPRING_DATASOURCE_URL:jdbc:mysql://100.99.2.30:3306/order_db?allowPublicKeyRetrieval=true&useSSL=false&serverTimezone=UTC}
-    username: ${SPRING_DATASOURCE_USERNAME:order_app}
-    password: ${SPRING_DATASOURCE_PASSWORD:Hvt@2006}
+    url: ${SPRING_DATASOURCE_URL}
+    username: ${SPRING_DATASOURCE_USERNAME}
+    password: ${SPRING_DATASOURCE_PASSWORD}
   cloud:
     openfeign:
       client:
@@ -12,6 +12,12 @@ spring:
           default:
             connectTimeout: 1000
             readTimeout: 5000
+
+          # Fulfilling a sale walks the FEFO batches and writes several rows; on a remote
+          # development database it passes 5 s and the order was left inventory FAILED.
+          inventory-service:
+            connectTimeout: 2000
+            readTimeout: 20000
 
 server:
   port: 8086
@@ -190,4 +196,4 @@ order:
 
 security:
   internal:
-      header-secret: ${INTERNAL_HEADER_SECRET:kEV4x5IAXOxEnoEqPptGSYqS6Ujqly27dBhfjYp2pNc=}
+      header-secret: ${INTERNAL_HEADER_SECRET}

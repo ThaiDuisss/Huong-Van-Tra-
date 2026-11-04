@@ -138,6 +138,11 @@
                 <artifactId>spring-boot-maven-plugin</artifactId>
 
                 <configuration>
+                    <!-- Common-Service la LIBRARY, cac module khac dung no lam dependency.
+                         Root pom bind goal 'repackage' cho ca reactor, nhung module nay
+                         khong co main class (va fat jar thi khong dung lam dependency
+                         duoc), nen phai skip. -->
+                    <skip>true</skip>
                     <excludes>
                         <exclude>
                             <groupId>org.projectlombok</groupId>

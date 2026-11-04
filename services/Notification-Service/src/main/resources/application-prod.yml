@@ -1,0 +1,69 @@
+# ===== Profile prod — AWS box 1 "app" =====
+# Kích hoạt bằng SPRING_PROFILES_ACTIVE=prod.
+
+spring:
+  datasource:
+    url: ${SPRING_DATASOURCE_URL}
+    username: ${SPRING_DATASOURCE_USERNAME}
+    password: ${SPRING_DATASOURCE_PASSWORD}
+    hikari:
+      maximum-pool-size: ${DB_POOL_MAX:8}
+      minimum-idle: 2
+      connection-timeout: 10000
+      max-lifetime: 900000
+  jpa:
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: false
+  sql:
+    init:
+      mode: never
+  flyway:
+    enabled: ${FLYWAY_ENABLED:true}
+  mail:
+    # Co default: day la tinh nang tuy chon (notification.invoice-email.enabled mac dinh
+    # false), khong phai endpoint ha tang. Bat buoc co SMTP moi boot duoc la sai -
+    # service se chet luc khoi dong du khong ai bat gui hoa don.
+    host: ${MAIL_HOST:smtp.gmail.com}
+    port: ${MAIL_PORT:587}
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
+  cloud:
+    discovery:
+      client:
+        simple:
+          instances:
+            file-service:
+              - host: file-service
+                port: 8101
+                secure: false
+
+eureka:
+  client:
+    enabled: false
+    register-with-eureka: false
+    fetch-registry: false
+
+kafka-config:
+  bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS}
+  replication-factor: 1
+
+kafka-consumer-config:
+  group-id: ${KAFKA_GROUP_PREFIX:prod-}Notification-Service-order-events
+
+security:
+  internal:
+    header-secret: ${INTERNAL_HEADER_SECRET}
+
+springdoc:
+  api-docs:
+    enabled: ${SPRINGDOC_ENABLED:false}
+  swagger-ui:
+    enabled: ${SPRINGDOC_ENABLED:false}
+
+logging:
+  level:
+    root: INFO
+    org.hvtra: INFO
+    org.hibernate.SQL: WARN

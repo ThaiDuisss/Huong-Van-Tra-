@@ -43,7 +43,7 @@ build/
 
 ### Logs ###
 *.log
-
+.codex
 ### Mac OS ###
 .DS_Store
 
@@ -72,3 +72,6 @@ CLAUDE.md
 # Python bytecode
 __pycache__/
 *.py[cod]
+
+# Diagrams (local only)
+/Diagram/
