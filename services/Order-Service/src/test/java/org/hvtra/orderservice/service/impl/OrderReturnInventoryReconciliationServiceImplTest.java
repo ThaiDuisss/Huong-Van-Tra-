@@ -92,6 +92,15 @@ class OrderReturnInventoryReconciliationServiceImplTest {
     }
 
     @Test
+    void mismatchedCommandEvidenceCannotResetOrRepublishTheRequestedCommand() {
+        when(commandRepository.findByCommandIdAndIsDeletedFalse(commandId)).thenReturn(Optional.of(command));
+        when(inventoryClient.getReturnDispositionStatus(commandId)).thenReturn(ReturnDispositionStatusResponse.builder()
+                .commandId(UUID.randomUUID()).status(ReturnDispositionReconciliationStatus.NOT_FOUND).build());
+        reconciliationService.reconcileSingleCommand(commandId);
+        verifyNoInteractions(transactionService);
+    }
+
+    @Test
     @DisplayName("Network failure / 503 fails gracefully without modifying local state")
     void testInventoryUnavailableFailsGracefully() {
         when(commandRepository.findByCommandIdAndIsDeletedFalse(commandId)).thenReturn(Optional.of(command));

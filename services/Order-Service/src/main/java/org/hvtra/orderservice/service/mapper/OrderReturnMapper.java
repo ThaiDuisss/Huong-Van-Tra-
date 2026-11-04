@@ -26,6 +26,10 @@ public class OrderReturnMapper {
             OrderReturnPhysicalProgress progress,
             String displayStatus
     ) {
+        boolean physicalDone = progress != null && progress.physicalDone();
+        boolean isPendingDisposition = progress != null && !physicalDone && progress.hasPendingCommand();
+        boolean hasFailedDisposition = progress != null && !physicalDone && progress.hasFailedCommand();
+
         return OrderReturnResponse.builder()
                 .id(orderReturn.getId())
                 .returnCode(orderReturn.getReturnCode())
@@ -48,6 +52,8 @@ public class OrderReturnMapper {
                 .remainingQuantity(progress != null ? progress.remainingQuantity() : null)
                 .inventoryProcessingStatus(progress != null ? progress.inventoryProcessingStatus() : null)
                 .displayStatus(displayStatus)
+                .isPendingDisposition(isPendingDisposition)
+                .hasFailedDisposition(hasFailedDisposition)
                 .build();
     }
 

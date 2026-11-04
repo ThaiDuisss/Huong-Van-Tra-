@@ -44,7 +44,8 @@ public interface OrderReturnInventoryCommandRepository
               and inventoryCommand.isDeleted = false
               and inventoryCommand.status in (
                   org.hvtra.orderservice.domain.enums.OrderReturnInventoryCommandStatus.PENDING,
-                  org.hvtra.orderservice.domain.enums.OrderReturnInventoryCommandStatus.PROCESSED
+                  org.hvtra.orderservice.domain.enums.OrderReturnInventoryCommandStatus.PROCESSED,
+                  org.hvtra.orderservice.domain.enums.OrderReturnInventoryCommandStatus.FAILED
               )
             """)
     BigDecimal sumCommandedQuantityByReturnItemId(@Param("returnItemId") UUID returnItemId);

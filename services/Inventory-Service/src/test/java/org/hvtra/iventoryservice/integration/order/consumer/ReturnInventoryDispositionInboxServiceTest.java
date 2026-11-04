@@ -23,6 +23,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.support.SimpleTransactionStatus;
 
 import java.time.Instant;
@@ -33,6 +34,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
@@ -60,7 +62,11 @@ class ReturnInventoryDispositionInboxServiceTest {
         returnId = UUID.randomUUID();
         service = new ReturnInventoryDispositionInboxService(inspections, inboxes, parser, metadata, transactions, mapper, outbox);
         ReflectionTestUtils.setField(service, "consumerGroup", "test-group");
-        when(transactions.getTransaction(any())).thenReturn(new SimpleTransactionStatus());
+        when(transactions.getTransaction(any())).thenAnswer(call -> {
+            TransactionDefinition definition = call.getArgument(0);
+            assertThat(definition.getIsolationLevel()).isEqualTo(TransactionDefinition.ISOLATION_READ_COMMITTED);
+            return new SimpleTransactionStatus();
+        });
         when(parser.parseCreateEvent(anyString())).thenAnswer(call -> Optional.of(
                 mapper.readValue((String) call.getArgument(0), ReturnInventoryDispositionRequestedEvent.class)));
         when(metadata.resolveEventId(any(), any(), anyString())).thenAnswer(call ->
@@ -96,6 +102,15 @@ class ReturnInventoryDispositionInboxServiceTest {
     private void deliver(ReturnInventoryDispositionRequestedEvent event) throws Exception {
         service.handle(new ConsumerRecord<>("order.event.RETURN_INVENTORY_DISPOSITION_REQUESTED", 0, 1L,
                 event.getCommandId(), mapper.writeValueAsString(event)));
+    }
+
+    @Test
+    void unknownOrderAuthorizationRemainsRetryableWithoutFailureAckOrStockMutation() throws Exception {
+        when(inspections.createInspection(eq(returnId), any(UUID.class), any()))
+                .thenThrow(new IllegalStateException("Order inventory command authorization is unavailable"));
+        assertThatThrownBy(() -> deliver(event(UUID.randomUUID())))
+                .isInstanceOf(IllegalStateException.class).hasMessageContaining("authorization is unavailable");
+        verifyNoInteractions(outbox);
     }
 
     @Test

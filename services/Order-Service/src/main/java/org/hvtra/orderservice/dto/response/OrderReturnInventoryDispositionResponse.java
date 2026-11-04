@@ -15,6 +15,7 @@ public class OrderReturnInventoryDispositionResponse {
     private UUID returnId;
     private String returnCode;
     private OrderReturnInventoryCommandStatus status;
+    private boolean executionAllowed;
     private Instant createdAt;
     private Instant processedAt;
     private Instant failedAt;
