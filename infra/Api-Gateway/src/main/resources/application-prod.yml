@@ -77,6 +77,13 @@ spring:
       port: ${REDIS_PORT:6379}
       password: ${REDIS_PASSWORD}
 
+server:
+  # Gateway đứng sau hai lớp nginx (host -> pos-web) và chỉ nhận HTTP. Tin X-Forwarded-Proto/Host
+  # để request URI thành https://pos.hvtra.id.vn, trùng Origin của web -> Spring coi là same-origin
+  # và bỏ qua CORS cho request từ POS. X-Forwarded-For được chuyển vào remoteAddress nên
+  # RateLimitKeyResolverConfig.getIp() vẫn lấy đúng IP client.
+  forward-headers-strategy: framework
+
 eureka:
   client:
     enabled: false
