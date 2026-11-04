@@ -8,7 +8,17 @@
     LOG_LEVEL  mức log root (code của org.hvtra và thư viện chưa liệt kê), mặc định INFO.
     LOG_LEVEL_FRAMEWORK  mức log của Spring/Hibernate/Tomcat/Kafka/Eureka..., mặc định WARN.
                          Đặt INFO khi cần soi quá trình khởi động.
-    LOG_FILE_ENABLED  true/false, tắt ghi file khi chạy local nếu muốn.
+    LOG_FILE_ENABLED  KHÔNG CÓ TÁC DỤNG. Các <if> dưới đây không bao giờ chạy, vì (1) Logback
+                      đòi thư viện Janino cho <if> mà project không có nó trên classpath, và
+                      (2) Logback 1.5 không cho lồng <if> trong <logger>/<root> — nó chỉ in
+                      WARN "IfNestedWithinSecondPhaseElementSC" rồi bỏ qua điều kiện.
+                      Hệ quả: file appender LUÔN được tạo. Muốn tắt hẳn thì phải thêm
+                      janino VÀ đưa <if> ra ngoài <root>/<logger>, hoặc dùng <springProfile>.
+                      Trong lúc chưa làm việc đó, dùng LOG_TOTAL_SIZE_CAP để chặn dung lượng.
+    LOG_MAX_FILE_SIZE    dung lượng mỗi file trước khi xoay, mặc định 50MB.
+    LOG_MAX_HISTORY      số ngày giữ file nén, mặc định 14 (action log 30).
+    LOG_TOTAL_SIZE_CAP   tổng dung lượng mỗi loại log, mặc định 1GB. Container nên hạ xuống:
+                         3 appender x 1GB x 9 service = tối đa 27GB.
     LOG_ACCESS_CONSOLE  true/false, in access log ra console (mặc định true, production nên tắt).
 
   File sinh ra trong ${LOG_PATH}/${service}/ :
@@ -23,6 +33,10 @@
     <property name="LOG_LEVEL" value="${LOG_LEVEL:-INFO}"/>
     <property name="LOG_LEVEL_FRAMEWORK" value="${LOG_LEVEL_FRAMEWORK:-WARN}"/>
     <property name="LOG_FILE_ENABLED" value="${LOG_FILE_ENABLED:-true}"/>
+    <property name="LOG_MAX_FILE_SIZE" value="${LOG_MAX_FILE_SIZE:-50MB}"/>
+    <property name="LOG_MAX_HISTORY" value="${LOG_MAX_HISTORY:-14}"/>
+    <property name="LOG_MAX_HISTORY_ACTION" value="${LOG_MAX_HISTORY_ACTION:-30}"/>
+    <property name="LOG_TOTAL_SIZE_CAP" value="${LOG_TOTAL_SIZE_CAP:-1GB}"/>
     <property name="LOG_ACCESS_CONSOLE" value="${LOG_ACCESS_CONSOLE:-true}"/>
 
     <!-- requestId và userId lấy từ MDC do RequestLoggingFilter đặt -->
@@ -41,9 +55,9 @@
         <file>${LOG_DIR}/app.log</file>
         <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
             <fileNamePattern>${LOG_DIR}/archive/app-%d{yyyy-MM-dd}.%i.log.gz</fileNamePattern>
-            <maxFileSize>50MB</maxFileSize>
-            <maxHistory>14</maxHistory>
-            <totalSizeCap>1GB</totalSizeCap>
+            <maxFileSize>${LOG_MAX_FILE_SIZE}</maxFileSize>
+            <maxHistory>${LOG_MAX_HISTORY}</maxHistory>
+            <totalSizeCap>${LOG_TOTAL_SIZE_CAP}</totalSizeCap>
         </rollingPolicy>
         <encoder>
             <pattern>${PATTERN}</pattern>
@@ -54,9 +68,9 @@
         <file>${LOG_DIR}/access.log</file>
         <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
             <fileNamePattern>${LOG_DIR}/archive/access-%d{yyyy-MM-dd}.%i.log.gz</fileNamePattern>
-            <maxFileSize>50MB</maxFileSize>
-            <maxHistory>14</maxHistory>
-            <totalSizeCap>1GB</totalSizeCap>
+            <maxFileSize>${LOG_MAX_FILE_SIZE}</maxFileSize>
+            <maxHistory>${LOG_MAX_HISTORY}</maxHistory>
+            <totalSizeCap>${LOG_TOTAL_SIZE_CAP}</totalSizeCap>
         </rollingPolicy>
         <encoder>
             <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} [req=%X{requestId:-}] [user=%X{userId:-}] %msg%n</pattern>
@@ -67,9 +81,9 @@
         <file>${LOG_DIR}/action-log.log</file>
         <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
             <fileNamePattern>${LOG_DIR}/archive/action-log-%d{yyyy-MM-dd}.%i.log.gz</fileNamePattern>
-            <maxFileSize>50MB</maxFileSize>
-            <maxHistory>30</maxHistory>
-            <totalSizeCap>1GB</totalSizeCap>
+            <maxFileSize>${LOG_MAX_FILE_SIZE}</maxFileSize>
+            <maxHistory>${LOG_MAX_HISTORY_ACTION}</maxHistory>
+            <totalSizeCap>${LOG_TOTAL_SIZE_CAP}</totalSizeCap>
         </rollingPolicy>
         <encoder>
             <!-- mỗi dòng là một JSON, sau này nạp lại bằng script hoặc Filebeat được -->

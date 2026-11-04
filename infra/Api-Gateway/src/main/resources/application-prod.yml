@@ -46,10 +46,6 @@ spring:
               - host: promotion-service
                 port: 8088
                 secure: false
-            organization-service:
-              - host: organization-service
-                port: 8090
-                secure: false
             file-service:
               - host: file-service
                 port: 8101

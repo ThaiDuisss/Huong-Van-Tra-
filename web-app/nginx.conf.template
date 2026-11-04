@@ -5,6 +5,10 @@ server {
     root /usr/share/nginx/html;
     index index.html;
 
+    # Mac dinh nginx chi nhan body 1MB. Upload file di bang presigned URL truc tiep
+    # len MinIO nen khong qua day, nhung payload import san pham/JSON lon thi co.
+    client_max_body_size 12m;
+
     gzip on;
     gzip_types text/plain text/css application/javascript application/json image/svg+xml;
 

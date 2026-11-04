@@ -76,15 +76,6 @@ spring:
             predicates:
               - Path=/api/file/**
 
-          - id: organization-service
-            uri: lb://organization-service
-            predicates:
-              - Path=/api/organizations/**
-            filters:
-              - name: RequestRateLimiter
-                args:
-                  rate-limiter: "#{@customerRateLimiter}"
-                  key-resolver: "#{@keycloakUserOrGuestKeyResolver}"
           - id: order-service-pos
             uri: lb://order-service
             predicates:
@@ -152,8 +143,6 @@ springdoc:
         url: /api/promotions/v3/api-docs
       - name: file-service
         url: /api/file/v3/api-docs
-      - name: organization-service
-        url: /api/organizations/v3/api-docs
       - name: inventory-service
         url: /api/inventory/v3/api-docs
     enabled: true

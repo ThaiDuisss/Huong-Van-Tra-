@@ -1,5 +1,10 @@
 # ===== Profile prod — AWS box 1 "app" =====
 # Kích hoạt bằng SPRING_PROFILES_ACTIVE=prod.
+#
+# HIỆN KHÔNG DEPLOY. Service này chỉ có Application + SecurityConfig + GlobalException,
+# không controller/entity/migration nào, nên đã bị bỏ khỏi docker-compose.prod.yml và
+# route /api/organizations/** cũng đã bỏ khỏi gateway. File này giữ lại để khi nào
+# service có tính năng thì thêm vào compose là chạy được ngay.
 
 spring:
   datasource:
