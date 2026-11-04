@@ -78,4 +78,4 @@ security:
 hvtra:
   logging:
     action-log:
-      bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:100.93.252.63:19092}
+      bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:100.99.2.30:19092}

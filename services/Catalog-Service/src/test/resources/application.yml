@@ -1,3 +1,11 @@
+# ===== Config test (shadow application.yml cua main) =====
+# File này nằm trên classpath test nên THAY THẾ hoàn toàn application.yml của main,
+# nhờ đó test không bao giờ đọc được default trỏ về DB dùng chung.
+#
+# Flyway tắt: migration của Catalog có DROP PROCEDURE / stored procedure, H2 không
+# parse được (V260916110000__replace_boms_with_variant_bom_items.sql). Schema test
+# do Hibernate sinh từ entity.
+
 spring:
   datasource:
     url: jdbc:h2:mem:catalog;MODE=MySQL;DB_CLOSE_DELAY=-1
@@ -8,6 +16,11 @@ spring:
     hibernate:
       ddl-auto: create-drop
     show-sql: false
+  flyway:
+    enabled: false
+  sql:
+    init:
+      mode: never
 
 clients:
   inventory:
@@ -16,3 +29,12 @@ clients:
 eureka:
   client:
     enabled: false
+
+kafka-config:
+  enabled: false
+
+security:
+  internal:
+    # File này thay thế application.yml của main nên phải khai lại các property
+    # mà context cần; CatalogSecurityConfig đọc giá trị này qua @Value.
+    header-secret: test-internal-header-secret

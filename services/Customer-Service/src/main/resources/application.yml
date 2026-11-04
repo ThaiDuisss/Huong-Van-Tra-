@@ -17,8 +17,10 @@ spring:
       client:
         config:
           order-service:
-            connectTimeout: 300
-            readTimeout: 700
+            # Reading an order loads its items, discounts and history and measures 2-3 s on the
+            # development database; the previous 700 ms made every loyalty update fail.
+            connectTimeout: 2000
+            readTimeout: 6000
             loggerLevel: basic
 
 springdoc:
@@ -120,7 +122,7 @@ management:
 
 kafka-config:
   enabled: false
-  bootstrap-servers: 100.93.252.63:9092
+  bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:100.99.2.30:19092}
   num-of-partitions: 3
   replication-factor: 3
 
@@ -172,4 +174,4 @@ security:
 hvtra:
   logging:
     action-log:
-      bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:100.93.252.63:19092}
+      bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:100.99.2.30:19092}

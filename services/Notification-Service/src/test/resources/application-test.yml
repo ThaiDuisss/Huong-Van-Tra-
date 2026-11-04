@@ -1,0 +1,32 @@
+# ===== Profile test =====
+# Test boot Spring context phải TỰ CHỨA: H2 in-memory, không Flyway, không Kafka,
+# không Eureka/discovery, không MinIO/Keycloak/SMTP thật. Nhờ vậy `mvn test` trên
+# Jenkins (box 3) không chạm vào bất kỳ hạ tầng nào, đặc biệt là MySQL dùng chung.
+#
+# Flyway tắt: migration viết cho MySQL (DROP PROCEDURE, DELIMITER...) không chạy được
+# trên H2. Schema cho test do Hibernate sinh từ entity (ddl-auto: create-drop).
+
+spring:
+  datasource:
+    url: jdbc:h2:mem:notification;MODE=MySQL;DB_CLOSE_DELAY=-1
+    username: sa
+    password: ""
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    show-sql: false
+  flyway:
+    enabled: false
+  sql:
+    init:
+      mode: never
+  cloud:
+    discovery:
+      enabled: false
+
+eureka:
+  client:
+    enabled: false
+
+kafka-config:
+  enabled: false

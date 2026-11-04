@@ -2,9 +2,9 @@ spring:
   application:
     name: identity-Service
   datasource:
-    url: ${SPRING_DATASOURCE_URL:jdbc:mysql://100.93.252.63:3306/identity_db?allowPublicKeyRetrieval=true&useSSL=false&serverTimezone=UTC}
-    username: ${SPRING_DATASOURCE_USERNAME:identity_app}
-    password: ${SPRING_DATASOURCE_PASSWORD:Hvt@2026}
+    url: ${SPRING_DATASOURCE_URL}
+    username: ${SPRING_DATASOURCE_USERNAME}
+    password: ${SPRING_DATASOURCE_PASSWORD}
   jpa:
     hibernate:
       ddl-auto: validate
@@ -61,7 +61,7 @@ idp:
 # Bật Kafka bằng KAFKA_ENABLED=true; mặc định tắt để chạy local không cần Kafka.
 kafka-config:
   enabled: ${KAFKA_ENABLED:true}
-  bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:100.93.252.63:19092}
+  bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:100.99.2.30:19092}
   num-of-partitions: 3
   replication-factor: 1
 
