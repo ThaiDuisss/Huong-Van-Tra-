@@ -226,13 +226,6 @@ export const systemNavigationItems: SystemNavigationItem[] = [
         icon: Warehouse,
         roles: INVENTORY_ROLES,
         children: [
-          // {
-          //   key: "inventory-balances",
-          //   label: "Tồn kho hiện tại",
-          //   icon: Warehouse,
-          //   to: routePaths.inventoryBalances,
-          //   roles: INVENTORY_ROLES,
-          // },
           {
             key: "warehouse-inventory",
             label: "Tồn kho kho tổng",

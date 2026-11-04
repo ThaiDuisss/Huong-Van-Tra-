@@ -64,13 +64,13 @@ describe("getDefaultRouteForRoles", () => {
         expect(getDefaultRouteForRoles(["SUPER_ADMIN"])).toBe("/system/dashboard");
         expect(getDefaultRouteForRoles(["MANAGER"])).toBe("/system/orders");
         expect(getDefaultRouteForRoles(["QC"])).toBe("/system/inventory/quality");
-        expect(getDefaultRouteForRoles(["INVENTORY_STAFF"])).toBe("/system/inventory/balances");
+        expect(getDefaultRouteForRoles(["INVENTORY_STAFF"])).toBe("/system/inventory/warehouse");
         expect(getDefaultRouteForRoles(["SALE_STAFF"])).toBe("/pos/sales");
     });
 
     it("uses the highest-priority role when a user has several", () => {
         expect(getDefaultRouteForRoles(["SALE_STAFF", "MANAGER"])).toBe("/system/orders");
-        expect(getDefaultRouteForRoles(["ROLE_SUPER_ADMIN", "ROLE_ADMIN"])).toBe("/system/inventory/balances");
+        expect(getDefaultRouteForRoles(["ROLE_SUPER_ADMIN", "ROLE_ADMIN"])).toBe("/system/dashboard");
         expect(getDefaultRouteForRoles(["sale_staff", "qc_staff"])).toBe("/system/inventory/quality");
     });
 

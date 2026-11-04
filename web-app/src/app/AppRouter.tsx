@@ -32,7 +32,6 @@ import { CustomBundleHandoverPage } from "../features/order/pages/CustomBundleHa
 import { PosCustomBundlePage } from "../features/sales/pages/PosCustomBundlePage";
 import { PosShelfReplenishmentPage } from "../features/sales/pages/PosShelfReplenishmentPage";
 import { SalesHistoryPage } from "../features/order/pages/SalesHistoryPage";
-import { InventoryBalancePage } from "../features/inventory/pages/InventoryBalancePage";
 import { GoodsReceiptCreatePage } from "../features/inventory/pages/GoodsReceiptCreatePage";
 import { GoodsReceiptDetailPage } from "../features/inventory/pages/GoodsReceiptDetailPage";
 import { GoodsReceiptListPage } from "../features/inventory/pages/GoodsReceiptListPage";
@@ -334,7 +333,7 @@ export function AppRouter() {
           <Route path="inventory/locations" element={<InventoryLocationPage />} />
           <Route path="inventory/transactions" element={<InventoryTransactionPage />} />
           <Route path="inventory/shelves" element={<ShelfManagementPage />} />
-          <Route path="inventory/balances" element={<InventoryBalancePage />} />
+          <Route path="inventory/balances" element={<Navigate to={routePaths.warehouseInventory} replace />} />
           <Route path="inventory/warehouse" element={<WarehouseInventoryPage />} />
           <Route
             path="inventory/raw-material-receipts"

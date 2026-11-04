@@ -151,7 +151,7 @@ class InventoryLocationServiceImplTest {
     @DisplayName("create - Success with generated code and no parent")
     void create_Success() {
         InventoryLocationRequest request = new InventoryLocationRequest(
-                null, "Kho Lưu Trữ", InventoryLocationType.STORAGE, InventoryStatus.ACTIVE);
+                null, "Kho Lưu Trữ", InventoryLocationType.WAREHOUSE, InventoryStatus.ACTIVE);
 
         when(repository.existsByCode(anyString())).thenReturn(false);
         when(repository.save(any(InventoryLocation.class))).thenAnswer(invocation -> {
@@ -164,7 +164,7 @@ class InventoryLocationServiceImplTest {
 
         assertThat(response).isNotNull();
         assertThat(response.name()).isEqualTo("Kho Lưu Trữ");
-        assertThat(response.type()).isEqualTo(InventoryLocationType.STORAGE);
+        assertThat(response.type()).isEqualTo(InventoryLocationType.WAREHOUSE);
         assertThat(response.code()).contains("KLT-");
         verify(repository).save(any(InventoryLocation.class));
     }
@@ -175,7 +175,7 @@ class InventoryLocationServiceImplTest {
         // Resolve parent directly check
         UUID sameId = UUID.randomUUID();
         InventoryLocationRequest request = new InventoryLocationRequest(
-                sameId, "Kho Con", InventoryLocationType.STORAGE, InventoryStatus.ACTIVE);
+                sameId, "Kho Con", InventoryLocationType.WAREHOUSE, InventoryStatus.ACTIVE);
         when(repository.findById(sameId)).thenReturn(Optional.of(location));
 
         // When parent is location, and current location is also sameId in resolveParent

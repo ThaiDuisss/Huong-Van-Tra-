@@ -52,7 +52,7 @@ export const routePaths = {
   priceLists: "/system/price-lists",
   priceListDetail: "/system/price-lists/:id",
   inventoryLocations: "/system/inventory/locations",
-  inventoryBalances: "/system/inventory/balances",
+  inventoryBalances: "/system/inventory/warehouse",
   inventoryTransactions: "/system/inventory/transactions",
   inventoryShelves: "/system/inventory/shelves",
   inventoryRoles: "/system/inventory/roles",
