@@ -23,6 +23,12 @@ import org.hvtra.orderservice.service.support.OrderReturnPhysicalProgressResolve
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
+import org.junit.jupiter.params.provider.EnumSource;
+import org.junit.jupiter.params.provider.CsvSource;
+import org.mockito.ArgumentCaptor;
+import org.mockito.MockedStatic;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -46,6 +52,8 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.*;
+import static org.junit.jupiter.api.Assertions.*;
 
 @ExtendWith(MockitoExtension.class)
 class ReturnInventoryDispositionAckInboxServiceTest {
@@ -414,6 +422,91 @@ class ReturnInventoryDispositionAckInboxServiceTest {
         assertNull(command.getInspectionId());
         verify(orderReturnInventoryCommandRepository, never()).saveAndFlush(command);
         verify(orderReturnService, never()).recordPhysicalCompletion(any(), any(), any());
+    }
+
+    @ParameterizedTest @ValueSource(strings = {"invalid-command", "missing-command", "invalid-return", "missing-return", "no-parent"})
+    void failedAckInvalidIdentityIsRecordedFailedWithoutChangingCommand(String invalid) {
+        ConsumerRecord<String, String> failed = new ConsumerRecord<>("inventory.event.RETURN_INVENTORY_DISPOSITION_FAILED",
+                0, 2L, commandId.toString(), "{}");
+        ReturnInventoryDispositionFailedEvent event = new ReturnInventoryDispositionFailedEvent();
+        event.setCommandId(invalid.equals("invalid-command") ? "not-a-uuid" : commandId.toString());
+        event.setReturnId(invalid.equals("invalid-return") ? "not-a-uuid" : invalid.equals("missing-return") ? null : returnId.toString());
+        if (invalid.equals("no-parent")) command.setOrderReturn(null);
+        when(eventParser.parseFailedCreateEvent("{}")).thenReturn(Optional.of(event));
+        when(metadataResolver.resolveEventId(any(), any(), any())).thenReturn("evt-bad");
+        when(orderInboxRepository.saveAndFlush(any())).thenAnswer(call -> call.getArgument(0));
+        if (!invalid.equals("invalid-command")) when(orderReturnInventoryCommandRepository.findByCommandIdForUpdate(commandId))
+                .thenReturn(invalid.equals("missing-command") ? Optional.empty() : Optional.of(command));
+        ackInboxService.handle(failed);
+        ArgumentCaptor<OrderInbox> inbox = ArgumentCaptor.forClass(OrderInbox.class);
+        verify(orderInboxRepository, times(2)).saveAndFlush(inbox.capture());
+        assertEquals(InboxStatus.FAILED, inbox.getValue().getStatus());
+        assertNotNull(inbox.getValue().getLastError());
+        assertEquals(OrderReturnInventoryCommandStatus.PENDING, command.getStatus());
+        verify(orderReturnInventoryCommandRepository, never()).saveAndFlush(any());
+        verifyNoInteractions(orderReturnService);
+    }
+
+    @ParameterizedTest @EnumSource(value = InboxStatus.class, names = {"PROCESSED", "FAILED", "DEAD", "IGNORED"})
+    void terminalInboxReplayDoesNotTouchCommandOrCompletion(InboxStatus status) {
+        when(eventParser.parseProcessedCreateEvent(record.value())).thenReturn(Optional.of(processedEvent));
+        when(metadataResolver.resolveEventId(any(), any(), any())).thenReturn("evt-1");
+        OrderInbox stored = new OrderInbox();
+        stored.setStatus(status);
+        stored.setLastError("original");
+        when(orderInboxRepository.findByEventIdAndConsumerGroup("evt-1", "test-consumer-group")).thenReturn(Optional.of(stored));
+        ackInboxService.handle(record);
+        assertEquals(status, stored.getStatus());
+        assertEquals("original", stored.getLastError());
+        verify(orderInboxRepository, never()).saveAndFlush(any());
+        verifyNoInteractions(orderReturnInventoryCommandRepository, orderReturnService);
+    }
+
+    @ParameterizedTest @ValueSource(strings = {"", " ", "bad-timestamp"})
+    void failedAckUsesFixedClockWhenTimestampIsAbsentOrMalformed(String timestamp) {
+        ConsumerRecord<String, String> failed = new ConsumerRecord<>("inventory.event.RETURN_INVENTORY_DISPOSITION_FAILED",
+                0, 2L, commandId.toString(), "{}");
+        ReturnInventoryDispositionFailedEvent event = new ReturnInventoryDispositionFailedEvent();
+        event.setCommandId(commandId.toString());
+        event.setReturnId(returnId.toString());
+        event.setFailedAt(timestamp);
+        event.setFailureCode("REJECTED");
+        when(eventParser.parseFailedCreateEvent("{}")).thenReturn(Optional.of(event));
+        when(metadataResolver.resolveEventId(any(), any(), any())).thenReturn("evt-failed-time");
+        when(orderInboxRepository.saveAndFlush(any())).thenAnswer(call -> call.getArgument(0));
+        when(orderReturnInventoryCommandRepository.findByCommandIdForUpdate(commandId)).thenReturn(Optional.of(command));
+        Instant now = Instant.parse("2026-11-03T00:00:00Z");
+        try (MockedStatic<Instant> clock = mockStatic(Instant.class, CALLS_REAL_METHODS)) {
+            clock.when(Instant::now).thenReturn(now);
+            ackInboxService.handle(failed);
+        }
+        assertEquals(now, command.getFailedAt());
+        assertEquals(OrderReturnInventoryCommandStatus.FAILED, command.getStatus());
+        assertEquals("REJECTED", command.getFailureCode());
+        verifyNoInteractions(orderReturnService);
+    }
+
+    @ParameterizedTest
+    @CsvSource(value = {"<null>|<null>", " |<null>", "plain-key|plain-key", "prefix-11111111-1111-1111-1111-111111111111-suffix|11111111-1111-1111-1111-111111111111",
+            "0123456789012345678901234567890123456789|012345678901234567890123456789012345"}, delimiter = '|', nullValues = "<null>")
+    void missingCommandIdentityKeepsSanitizedTransportReferenceButNeverProcessesCommand(String key, String expectedEntityId) {
+        processedEvent.setCommandId(null);
+        ConsumerRecord<String, String> bad = new ConsumerRecord<>(record.topic(), 0, 4L, key, "{}");
+        when(eventParser.parseProcessedCreateEvent("{}")).thenReturn(Optional.of(processedEvent));
+        when(metadataResolver.resolveEventId(any(), any(), any())).thenReturn("evt-missing-command");
+        when(orderInboxRepository.saveAndFlush(any())).thenAnswer(call -> call.getArgument(0));
+        ackInboxService.handle(bad);
+        ArgumentCaptor<OrderInbox> inbox = ArgumentCaptor.forClass(OrderInbox.class);
+        verify(orderInboxRepository, times(2)).saveAndFlush(inbox.capture());
+        assertEquals(InboxStatus.FAILED, inbox.getValue().getStatus());
+        assertEquals(expectedEntityId, inbox.getValue().getEntityId());
+        verifyNoInteractions(orderReturnInventoryCommandRepository, orderReturnService);
+    }
+
+    @Test void unexpectedTopicDoesNotInvokeParserOrClaimInbox() {
+        ackInboxService.handle(new ConsumerRecord<>("unrelated-topic", 0, 0, "key", "{}"));
+        verifyNoInteractions(eventParser, metadataResolver, orderInboxRepository,
+                orderReturnInventoryCommandRepository, orderReturnService);
     }
 
     @Test

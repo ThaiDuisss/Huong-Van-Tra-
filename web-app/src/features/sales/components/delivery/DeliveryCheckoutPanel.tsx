@@ -58,6 +58,11 @@ interface DeliveryCheckoutPanelProps {
   discounts: SaleDiscountOption[];
   selectedDiscountId: string;
   selectedCustomer: SaleCustomer | null;
+  customerLocked?: boolean;
+  customerHasMore?: boolean;
+  onCustomerSearch?(query: string): void;
+  onCustomerLoadMore?(): void;
+  recommendationEntry?: ReactNode;
   state: DeliveryCheckoutState;
   totals: SaleTotals;
   onCustomerChange(customerId: string): void;
@@ -79,6 +84,11 @@ export function DeliveryCheckoutPanel({
   discounts,
   selectedDiscountId,
   selectedCustomer,
+  customerLocked,
+  customerHasMore,
+  onCustomerSearch,
+  onCustomerLoadMore,
+  recommendationEntry,
   state,
   totals,
   onCustomerChange,
@@ -130,6 +140,7 @@ export function DeliveryCheckoutPanel({
   );
   const quoteExpired = isQuoteExpired(selectedOption);
   const disabled =
+    customerLocked ||
     Object.keys(errors).length > 0 ||
     quoteExpired ||
     state.submitPending ||
@@ -179,6 +190,10 @@ export function DeliveryCheckoutPanel({
       <div className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)_auto] rounded-xl bg-white shadow-pos-panel">
         <div className="border-b border-[#edf0f4] p-4">
           <CustomerSelector
+            disabled={customerLocked}
+            hasMore={customerHasMore}
+            onSearch={onCustomerSearch}
+            onLoadMore={onCustomerLoadMore}
             customers={customers}
             selectedCustomer={selectedCustomer}
             loading={customersLoading}
@@ -188,6 +203,7 @@ export function DeliveryCheckoutPanel({
             onCreated={onCustomerCreated}
             onClear={onCustomerClear}
           />
+          <div className="mt-3">{recommendationEntry}</div>
           <label className="mt-3 flex items-center justify-between rounded-lg border border-[#dbe4ee] bg-[#f8fafc] px-3 py-2 text-sm font-bold text-[#172317]">
             <span>
               Đơn ngoại tỉnh hoặc cần ship gấp

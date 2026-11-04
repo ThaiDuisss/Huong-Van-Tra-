@@ -44,7 +44,9 @@ import {
 } from "../services/posBackorder.api";
 import { posCustomBundleApi } from "../services/posCustomBundle.api";
 import { formatCurrency } from "../services/money";
-import { posCustomerApi } from "../services/posCustomer.api";
+import { usePosCustomerSearch } from "../hooks/usePosCustomerSearch";
+import { ProductRecommendationLauncher } from "../../product-recommendation/components/ProductRecommendationLauncher";
+import { WorkspaceMutationLock } from "../../product-recommendation/services/recommendationLifecycle";
 import {
     buildLocalPosSale,
     getLocalPosSaleValidationMessage,
@@ -59,6 +61,7 @@ import { getOfflineOrderSync } from "../offline/offline-order-sync.instance";
 import type { SalesOrderDetail } from "../../order/types/sales-history.types";
 import { useProductSearch } from "../hooks/useProductSearch";
 import { posProductApi } from "../services/posProduct.api";
+import { posVariantSelectionError } from "../services/posProductSelection";
 import {
     loadPersistedSale,
     savePersistedSale,
@@ -535,10 +538,13 @@ export function PosSalePage() {
         useState<PaymentStatusValue>("WAITING");
     const [bankTransferPayment, setBankTransferPayment] =
         useState<PosCheckoutPaymentResult | null>(null);
-    const [customers, setCustomers] = useState<SaleCustomer[]>([]);
-    const [customersLoading, setCustomersLoading] = useState(false);
-    const [customersLoaded, setCustomersLoaded] = useState(false);
-    const [customersError, setCustomersError] = useState("");
+    const { customers, setCustomers, loading: customersLoading, error: customersError,
+        hasMore: customerHasMore, search: searchCustomers, loadMore: loadMoreCustomers } = usePosCustomerSearch();
+    const workspaceMutation = useRef(new WorkspaceMutationLock());
+    const [closingInvoice, setClosingInvoice] = useState(false);
+    const [quantityUpdating, setQuantityUpdating] = useState(false);
+    const [recommendationGeneration, setRecommendationGeneration] = useState(0);
+    const recommendationVersion = useRef(0);
     const [selectedCustomersByInvoice, setSelectedCustomersByInvoice] =
         useState<Record<string, SaleCustomer | null>>({
             [currentInvoiceId]: persistedSale?.selectedCustomer ?? null
@@ -768,6 +774,9 @@ export function PosSalePage() {
     ]);
 
     const clearCustomer = useCallback(() => {
+        if (workspaceMutation.current.isLocked()) return;
+        recommendationVersion.current += 1;
+        setRecommendationGeneration(value => value + 1);
         setSelectedCustomersByInvoice((currentCustomers) => ({
             ...currentCustomers,
             [currentInvoiceId]: null
@@ -891,6 +900,7 @@ export function PosSalePage() {
     }, [clearCustomer]);
 
     async function prepareBankTransferPayment() {
+        if (workspaceMutation.current.isLocked()) return;
         if (checkoutLoading) {
             return;
         }
@@ -951,6 +961,7 @@ export function PosSalePage() {
      * mang clientOrderId nên gửi lại không tạo đơn trùng.
      */
     async function completeLocalSale() {
+        if (workspaceMutation.current.isLocked()) return;
         const validationMessage = getLocalPosSaleValidationMessage({
             cartItems,
             orderType,
@@ -1032,6 +1043,7 @@ export function PosSalePage() {
     }
 
     async function completePayment() {
+        if (workspaceMutation.current.isLocked()) return;
         if (!online || hasLocalLines) {
             await completeLocalSale();
             return;
@@ -1227,27 +1239,7 @@ export function PosSalePage() {
     }
 
     function loadCustomers() {
-        if (customersLoading || customersLoaded) {
-            return;
-        }
-
-        setCustomersLoading(true);
-        setCustomersError("");
-
-        void posCustomerApi
-            .listCustomerInfo()
-            .then((nextCustomers) => {
-                setCustomers(nextCustomers);
-                setCustomersLoaded(true);
-            })
-            .catch((error: unknown) => {
-                logApiError(error);
-                setCustomers([]);
-                setCustomersError("Không thể tải danh sách khách hàng");
-            })
-            .finally(() => {
-                setCustomersLoading(false);
-            });
+        searchCustomers("");
     }
 
     function selectCustomer(customerId: string) {
@@ -1267,6 +1259,9 @@ export function PosSalePage() {
     }
 
     function applySelectedCustomer(nextCustomer: SaleCustomer | null) {
+        if (workspaceMutation.current.isLocked()) return;
+        recommendationVersion.current += 1;
+        setRecommendationGeneration(value => value + 1);
         setSelectedCustomersByInvoice((currentCustomers) => ({
             ...currentCustomers,
             [currentInvoiceId]: nextCustomer
@@ -1313,6 +1308,7 @@ export function PosSalePage() {
      * Nhân viên đã bấm "Để sau" thì chỉ hỏi lại khi số thiếu tăng thêm.
      */
     async function checkShelfShortage(order: PosOrderDto, variantId: string) {
+        const contextVersion = recommendationVersion.current;
         const lines = (order.items ?? []).filter(
             (item) => item.productVariantId === variantId
         );
@@ -1331,6 +1327,7 @@ export function PosSalePage() {
         if (!stock) {
             try {
                 stock = await posProductApi.getPosView(variantId);
+                if (contextVersion !== recommendationVersion.current) return;
                 stockByVariantIdRef.current[variantId] = stock;
             } catch (error) {
                 logApiError(error);
@@ -1468,6 +1465,7 @@ export function PosSalePage() {
 
     /** Cập nhật ngày dự kiến có hàng của cả đơn sau mỗi lần giỏ thay đổi. */
     async function refreshBackorderEstimate(order: PosOrderDto) {
+        const contextVersion = recommendationVersion.current;
         // Trà đóng theo yêu cầu: tồn tính theo nguyên liệu, không theo variant hệ thống của dòng bundle.
         const bundleItems = (order.items ?? []).filter((item) => item.itemType === "CUSTOM_BUNDLE");
 
@@ -1529,6 +1527,7 @@ export function PosSalePage() {
                     })
                 }))
             );
+            if (contextVersion !== recommendationVersion.current) return;
             const waitingBundles = bundleAvailabilities.filter(({ availability }) => !availability.enough);
             const productBackorder = productEstimate?.backorder === true;
 
@@ -1567,6 +1566,7 @@ export function PosSalePage() {
     }
 
     async function addCustomBundle(input: CustomBundleInput) {
+        if (workspaceMutation.current.isLocked()) return;
         if (customBundleSubmitting) {
             return;
         }
@@ -1576,6 +1576,8 @@ export function PosSalePage() {
             return;
         }
 
+        const release = workspaceMutation.current.acquire();
+        if (!release) return;
         setCustomBundleSubmitting(true);
 
         try {
@@ -1597,6 +1599,7 @@ export function PosSalePage() {
                 `Không thể thêm trà đóng theo yêu cầu: ${getErrorMessage(error)}`
             );
         } finally {
+            release();
             setCustomBundleSubmitting(false);
         }
     }
@@ -1733,71 +1736,37 @@ export function PosSalePage() {
     async function addProduct(product: SaleProductPreview, allowBackorder = false) {
         const variantId = product.productVariantId ?? product.id;
 
-        if (addingProductId) {
+        if (addingProductId || checkoutLoading || bankTransferPayment || deliveryState.submitPending) {
             return false;
         }
 
-        if (!variantId) {
-            setCheckoutError("Không xác định được mã Mặt hàng.");
+        const selectionError = posVariantSelectionError(product);
+        if (selectionError) {
+            setCheckoutError(selectionError);
             return false;
         }
 
-        const waitAccepted =
-            allowBackorder || backorderVariantIdsRef.current.has(variantId);
-
-        if (!online) {
-            // Mất mạng không ước tính được ngày có hàng nên không nhận đơn chờ hàng, kể cả mặt hàng đã từng đồng ý chờ.
-            if (product.sellableQuantity <= 0) {
-                setCheckoutError(
-                    `${product.name} đã hết hàng theo dữ liệu đã tải; không đặt chờ hàng được khi mất mạng.`
-                );
-                return false;
-            }
-
-            upsertLocalCartItem(product, 1);
-            return true;
-        }
-
-        if (product.sellableQuantity <= 0 && !waitAccepted) {
-            setAddingProductId(product.id);
-            await offerBackorder(
-                { kind: "add", product },
-                variantId,
-                product.name,
-                product.sku,
-                getCartQuantity(variantId) + 1
-            );
-            setAddingProductId(null);
-            return false;
-        }
-
+        const release = workspaceMutation.current.acquire();
+        if (!release) return false;
         setAddingProductId(product.id);
-
         try {
-            const order = await posOrderApi.addDraftItem({
-                orderId: draftOrder?.id ?? null,
-                branchId: currentBranchId,
-                customerId: selectedCustomerId,
-                orderType,
-                productVariantId: variantId,
-                inventoryLocationId: product.inventoryLocationId,
-                allowBackorder: waitAccepted
-            });
-            applyDraftOrder(order);
-            setCheckoutError("");
-            setCheckoutSuccess("");
-            stockByVariantIdRef.current[variantId] = product;
+            const waitAccepted =
+                allowBackorder || backorderVariantIdsRef.current.has(variantId);
 
-            if (waitAccepted) {
-                backorderVariantIdsRef.current.add(variantId);
-            } else {
-                void checkShelfShortage(order, variantId);
+            if (!online) {
+                // Mất mạng không ước tính được ngày có hàng nên không nhận đơn chờ hàng, kể cả mặt hàng đã từng đồng ý chờ.
+                if (product.sellableQuantity <= 0) {
+                    setCheckoutError(
+                        `${product.name} đã hết hàng theo dữ liệu đã tải; không đặt chờ hàng được khi mất mạng.`
+                    );
+                    return false;
+                }
+
+                upsertLocalCartItem(product, 1);
+                return true;
             }
 
-            void refreshBackorderEstimate(order);
-            return true;
-        } catch (error) {
-            if (!waitAccepted && isOutOfStockError(error)) {
+            if (product.sellableQuantity <= 0 && !waitAccepted) {
                 await offerBackorder(
                     { kind: "add", product },
                     variantId,
@@ -1808,12 +1777,50 @@ export function PosSalePage() {
                 return false;
             }
 
-            logApiError(error);
-            setCheckoutError(
-                `Không thể thêm sản phẩm: ${getErrorMessage(error)}`
-            );
-            return false;
+
+            try {
+                const order = await posOrderApi.addDraftItem({
+                    orderId: draftOrder?.id ?? null,
+                    branchId: currentBranchId,
+                    customerId: selectedCustomerId,
+                    orderType,
+                    productVariantId: variantId,
+                    inventoryLocationId: product.inventoryLocationId,
+                    allowBackorder: waitAccepted
+                });
+                applyDraftOrder(order);
+                setCheckoutError("");
+                setCheckoutSuccess("");
+                stockByVariantIdRef.current[variantId] = product;
+
+                if (waitAccepted) {
+                    backorderVariantIdsRef.current.add(variantId);
+                } else {
+                    void checkShelfShortage(order, variantId);
+                }
+
+                void refreshBackorderEstimate(order);
+                return true;
+            } catch (error) {
+                if (!waitAccepted && isOutOfStockError(error)) {
+                    await offerBackorder(
+                        { kind: "add", product },
+                        variantId,
+                        product.name,
+                        product.sku,
+                        getCartQuantity(variantId) + 1
+                    );
+                    return false;
+                }
+
+                logApiError(error);
+                setCheckoutError(
+                    `Không thể thêm sản phẩm: ${getErrorMessage(error)}`
+                );
+                return false;
+            }
         } finally {
+            release();
             setAddingProductId(null);
         }
     }
@@ -1866,6 +1873,7 @@ export function PosSalePage() {
         quantity: number,
         allowBackorder = false
     ) {
+        if (workspaceMutation.current.isLocked()) return false;
         const currentItem = cartItemsById[productId];
 
         if (!currentItem) {
@@ -1883,6 +1891,9 @@ export function PosSalePage() {
         }
 
         const variantId = currentItem.productVariantId ?? currentItem.productId;
+        const release = workspaceMutation.current.acquire();
+        if (!release) return false;
+        setQuantityUpdating(true);
         const waitAccepted =
             allowBackorder || backorderVariantIdsRef.current.has(variantId);
 
@@ -1926,6 +1937,9 @@ export function PosSalePage() {
             logApiError(error);
             setCheckoutError(getErrorMessage(error));
             return false;
+        } finally {
+            release();
+            setQuantityUpdating(false);
         }
     }
 
@@ -1962,6 +1976,7 @@ export function PosSalePage() {
      * số lượng nhân viên chọn rồi bỏ dòng cũ. Giảm giá riêng của dòng cũ không chuyển sang.
      */
     async function switchProductUnit(target: SaleProductPreview, quantity: number) {
+        if (workspaceMutation.current.isLocked()) return;
         const currentItem = unitSwitchProductId ? cartItemsById[unitSwitchProductId] : null;
         const targetVariantId = target.productVariantId ?? target.id;
 
@@ -1969,6 +1984,8 @@ export function PosSalePage() {
             return;
         }
 
+        const release = workspaceMutation.current.acquire();
+        if (!release) return;
         setUnitSwitchSubmitting(true);
         setUnitSwitchError("");
 
@@ -2001,6 +2018,7 @@ export function PosSalePage() {
                 logApiError(reloadError);
             }
         } finally {
+            release();
             setUnitSwitchSubmitting(false);
         }
     }
@@ -2118,6 +2136,10 @@ export function PosSalePage() {
 
     /** Nạp đơn của hoá đơn được chọn vào màn bán hàng; null = hoá đơn trống. */
     function loadSaleIntoWorkspace(sale: PersistedSaleInput | null) {
+        setShelfShortage(null);
+        setShelfShortageError("");
+        recommendationVersion.current += 1;
+        setRecommendationGeneration(value => value + 1);
         setDraftOrder(sale?.draftOrder ?? null);
         setCartItemsById(sale?.cartItemsById ?? {});
         setNote(sale?.note ?? "");
@@ -2145,6 +2167,10 @@ export function PosSalePage() {
 
     /** Đang thu tiền (chờ chuyển khoản, đang gửi thanh toán) thì không cho rời hoá đơn kẻo mất phiên thanh toán. */
     function canLeaveCurrentInvoice() {
+        if (workspaceMutation.current.isLocked()) {
+            setCheckoutError("Đang cập nhật hóa đơn. Vui lòng chờ trước khi chuyển hoặc đóng hóa đơn.");
+            return false;
+        }
         if (checkoutLoading || bankTransferPayment) {
             setCheckoutError("Hoá đơn này đang thanh toán. Hoàn tất hoặc huỷ thanh toán trước khi chuyển hoá đơn.");
             return false;
@@ -2192,6 +2218,7 @@ export function PosSalePage() {
 
     /** Đóng hoá đơn: huỷ đơn nháp trên máy chủ rồi bỏ tab; đóng hoá đơn đang mở thì chuyển sang hoá đơn khác. */
     async function closeInvoice(id: string) {
+        if (workspaceMutation.current.isLocked()) return;
         const target = invoiceTabs.tabs.find((tab) => tab.id === id);
 
         if (!target) {
@@ -2213,25 +2240,33 @@ export function PosSalePage() {
             return;
         }
 
-        if (!canLeaveCurrentInvoice() || !(await closeCurrentInvoice())) {
+        if (!canLeaveCurrentInvoice()) {
             return;
         }
+        const release = workspaceMutation.current.acquire();
+        if (!release) return;
+        setClosingInvoice(true);
+        try {
+            if (!(await closeCurrentInvoice())) return;
+            const others = invoiceTabs.tabs.filter((tab) => tab.id !== id);
+            const next = others[others.length - 1];
 
-        const others = invoiceTabs.tabs.filter((tab) => tab.id !== id);
-        const next = others[others.length - 1];
+            if (!next) {
+                setInvoiceTabs({ activeId: id, tabs: [{ id, label: 1, sale: null }] });
+                return;
+            }
 
-        if (!next) {
-            setInvoiceTabs({ activeId: id, tabs: [{ id, label: 1, sale: null }] });
-            return;
+            setInvoiceTabs({
+                activeId: next.id,
+                tabs: others.map((tab) => (tab.id === next.id ? { ...tab, sale: null } : tab))
+            });
+            activeInvoiceIdRef.current = next.id;
+            loadSaleIntoWorkspace(next.sale);
+            void reviveExpiredDraft(next.id, next.sale);
+        } finally {
+            release();
+            setClosingInvoice(false);
         }
-
-        setInvoiceTabs({
-            activeId: next.id,
-            tabs: others.map((tab) => (tab.id === next.id ? { ...tab, sale: null } : tab))
-        });
-        activeInvoiceIdRef.current = next.id;
-        loadSaleIntoWorkspace(next.sale);
-        void reviveExpiredDraft(next.id, next.sale);
     }
 
     /**
@@ -2337,6 +2372,9 @@ export function PosSalePage() {
             setBankTransferStatus("WAITING");
             setBankTransferEventMessage("");
             patchCurrentDeliveryState(initialDeliveryState);
+            setSelectedCustomersByInvoice({ [currentInvoiceId]: null });
+            recommendationVersion.current += 1;
+            setRecommendationGeneration(value => value + 1);
             return true;
         } catch (error) {
             logApiError(error);
@@ -2694,6 +2732,7 @@ export function PosSalePage() {
     }
 
     async function createDeliveryOrder() {
+        if (workspaceMutation.current.isLocked()) return;
         if (deliveryState.submitPending) {
             return;
         }
@@ -2923,12 +2962,28 @@ export function PosSalePage() {
         reservedCouponUsage
     ]);
 
+    const recommendationContext = `${saleOwnerId ?? "signed-out"}:${invoiceTabs.activeId}:${selectedCustomerId ?? "guest"}:${recommendationGeneration}:DISCOVERY:${orderType}`;
+    const customerLocked = addingProductId !== null || closingInvoice || quantityUpdating
+        || customBundleSubmitting || unitSwitchSubmitting || checkoutLoading || Boolean(bankTransferPayment);
+    const recommendationEntry = <ProductRecommendationLauncher key={recommendationContext}
+        customerId={selectedCustomerId} disabled={customerLocked || !online}
+        onAdd={async (product) => {
+            if (recommendationVersion.current !== recommendationGeneration
+                || activeInvoiceIdRef.current !== invoiceTabs.activeId) return false;
+            return addProduct(product);
+        }} />;
+
     return (
         <PosShell
             checkoutVariant={orderType === "DELIVERY" ? "delivery" : "default"}
             checkout={
                 orderType === "DELIVERY" ? (
                     <DeliveryCheckoutPanel
+                        recommendationEntry={recommendationEntry}
+                        customerLocked={customerLocked}
+                        customerHasMore={customerHasMore}
+                        onCustomerSearch={searchCustomers}
+                        onCustomerLoadMore={loadMoreCustomers}
                         branchLocation={currentBranchLocation}
                         cartItems={cartItems}
                         customers={customers}
@@ -2952,6 +3007,11 @@ export function PosSalePage() {
                     />
                 ) : (
                     <CheckoutPanel
+                        recommendationEntry={recommendationEntry}
+                        customerLocked={customerLocked}
+                        customerHasMore={customerHasMore}
+                        onCustomerSearch={searchCustomers}
+                        onCustomerLoadMore={loadMoreCustomers}
                         discounts={discounts}
                         selectedDiscountId={selectedDiscount.id}
                         totals={totals}
@@ -2974,7 +3034,7 @@ export function PosSalePage() {
                         customersError={customersError}
                         selectedCustomer={selectedCustomer}
                         amountDue={amountDue}
-                        paymentBlocked={depositInvalid}
+                        paymentBlocked={depositInvalid || customerLocked}
                         offline={!online}
                         backorderNotice={
                             backorderEstimate ? (
@@ -3056,7 +3116,12 @@ export function PosSalePage() {
                     void closeInvoice(id);
                 }}
                 onNoteChange={setNote}
-                onOrderTypeChange={setOrderType}
+                onOrderTypeChange={(value) => {
+                    if (workspaceMutation.current.isLocked()) return;
+                    recommendationVersion.current += 1;
+                    setRecommendationGeneration(generation => generation + 1);
+                    setOrderType(value);
+                }}
             />
             {shelfShortage ? (
                 <ShelfShortageDialog

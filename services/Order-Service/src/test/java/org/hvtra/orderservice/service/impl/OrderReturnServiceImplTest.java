@@ -392,6 +392,18 @@ class OrderReturnServiceImplTest {
     }
 
     @Test
+    void createReturnRejectsNegativeQuantityEvenWithoutBeanValidation() {
+        stubEligibleOrderOnly();
+        stubCompletedAt(Instant.parse("2026-01-01T00:00:00Z"));
+        InvalidOrderReturnException failure = assertThrows(InvalidOrderReturnException.class,
+                () -> service.createReturn(orderId,
+                        request(orderItemId, "-1", ReturnReason.CHANGE_OF_MIND, ReturnCondition.SEALED, null)));
+        assertEquals("Return quantity must be greater than 0", failure.getMessage());
+        verify(orderReturnRepository, never()).save(any());
+        verify(orderOutboxPublisher, never()).publishReturnCreatedNotification(any(), any());
+    }
+
+    @Test
     void createReturnRejectsQuantityGreaterThanPurchasedQuantity() {
         stubEligibleOrder(BigDecimal.ZERO);
 

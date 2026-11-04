@@ -9,9 +9,9 @@
  * health ping hay bất kỳ request ghi nào.
  */
 
-/** Danh mục POS: /api/pos/products, /api/orders/pos/products và chi tiết mặt hàng. */
+/** POS catalog; explicit _fresh=1 reads must reach the network (AI price/stock recheck). */
 export const POS_PRODUCT_PATTERN =
-    /\/api\/(?:orders\/)?pos\/products(?:\/[^/?]+)?(?:\/pos-view|\/search-view-pos)?(?:\?.*)?$/;
+    /\/api\/(?:orders\/)?pos\/products(?![^#]*[?&]_fresh=1(?:&|$))(?:\/[^/?]+)?(?:\/pos-view|\/search-view-pos)?(?:\?.*)?$/;
 
 /** Catalog service, trừ export/import/template là file tải về. */
 export const CATALOG_READ_PATTERN =

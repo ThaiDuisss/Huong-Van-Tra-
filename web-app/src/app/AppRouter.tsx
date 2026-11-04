@@ -15,7 +15,7 @@ import {
   TopSellingProductsReportPage,
 } from "../features/report";
 import { AiReportsPage } from "../features/ai/pages/AiReportsPage";
-import { IngredientDemoPage } from "../features/ingredient-demo/pages/IngredientDemoPage";
+import { ProductRecommendationPage } from "../features/product-recommendation/pages/ProductRecommendationPage";
 import { CustomerListPage } from "../features/customer/pages/CustomerListPage";
 import { CustomerTierManagementPage } from "../features/customer/pages/CustomerTierManagementPage";
 import { DashboardOverviewPage } from "../features/dashboard/pages/DashboardOverviewPage";
@@ -252,7 +252,8 @@ export function AppRouter() {
         }
       >
         <Route path={routePaths.aiReports} element={<AiReportsPage />} />
-        <Route path={routePaths.ingredientDemo} element={<IngredientDemoPage />} />
+        <Route path={routePaths.ingredientDemo} element={<Navigate to={routePaths.productRecommendations} replace />} />
+        <Route path={routePaths.productRecommendations} element={<ProtectedRoute roles={POS_WORKSPACE_ROLES}><ProductRecommendationPage /></ProtectedRoute>} />
       </Route>
 
       <Route

@@ -25,6 +25,10 @@ import org.hvtra.orderservice.service.support.OrderStatusHistoryWriter;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
+import org.junit.jupiter.params.provider.CsvSource;
+import org.mockito.Mockito;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
 import org.mockito.Mock;
@@ -52,6 +56,8 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
+import static org.junit.jupiter.api.Assertions.*;
 
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
@@ -221,6 +227,63 @@ class OrderBackorderServiceImplTest {
 
         assertTrue(response.ready());
         assertNull(response.estimatedAvailableAt());
+    }
+
+    @ParameterizedTest @ValueSource(strings = {"null-response", "missing-status", "WAITING_PAYMENT", "FAILED"})
+    void incompleteSettlementNeverCompletesDepositedBackorderOrNotifiesCustomer(String failure) {
+        deposited("30000");
+        PaymentResponse result = failure.equals("null-response") ? null : PaymentResponse.builder()
+                .status(failure.equals("missing-status") ? null : failure).build();
+        when(paymentClient.checkout(any())).thenReturn(result);
+        FulfillBackorderRequest request = new FulfillBackorderRequest();
+        request.setReceivedAmount(new BigDecimal("70000"));
+        assertThrows(InvalidPaymentAmountException.class, () -> service.fulfill(orderId, request));
+        assertEquals(OrderStatus.PAYMENT_CONFIRMED, order.getStatus());
+        assertEquals(PaymentStatus.PARTIALLY_PAID, order.getPaymentStatus());
+        assertEquals(new BigDecimal("30000"), order.getPaidAmount());
+        assertEquals(new BigDecimal("70000"), order.getDebtAmount());
+        verify(paymentClient, times(1)).checkout(any());
+        verify(orderRepository, never()).save(any());
+        verifyNoInteractions(orderCustomerService, orderOutboxPublisher, orderStatusHistoryWriter, orderResponseAssembler);
+        verify(orderPaymentSagaService, never()).markResourceConfirmationRequested(any(), any());
+    }
+
+    @ParameterizedTest
+    @CsvSource({"false,false,false", "false,true,true", "true,false,false", "true,true,true"})
+    void availabilityKeepsBundlePackingSeparateFromProductReadiness(boolean productMissing, boolean bundlePending, boolean expectedPending) {
+        Instant eta = Instant.parse("2026-11-04T00:00:00Z");
+        order.setExpectedAvailableAt(eta);
+        when(orderBackorderSupport.prepare(order)).thenReturn(new InventoryClient.AvailabilityEstimateResponse(productMissing, eta, null));
+        when(orderBackorderSupport.hasBundle(order)).thenReturn(true);
+        when(orderBackorderSupport.hasUnpackedBundle(order)).thenReturn(bundlePending);
+        var result = service.checkAvailability(orderId);
+        assertEquals(!productMissing && !expectedPending, result.ready());
+        assertEquals(result.ready() ? null : eta, result.estimatedAvailableAt());
+        assertTrue(result.lines().isEmpty());
+        verify(orderBackorderSupport).refreshBundles(order);
+        verifyNoInteractions(paymentClient, orderCustomerService, orderOutboxPublisher);
+    }
+
+    @Test void nullAvailabilityIsUnknownAndDoesNotEraseStoredEtaOrCollectMoney() {
+        Instant eta = Instant.parse("2026-11-04T00:00:00Z");
+        order.setExpectedAvailableAt(eta);
+        when(orderBackorderSupport.prepare(order)).thenReturn(null);
+        var result = service.checkAvailability(orderId);
+        assertFalse(result.ready());
+        assertNull(result.estimatedAvailableAt());
+        assertEquals(eta, order.getExpectedAvailableAt());
+        verify(orderRepository, never()).save(any());
+        verifyNoInteractions(paymentClient, orderOutboxPublisher);
+    }
+
+    @ParameterizedTest @ValueSource(strings = {"UNPAID", "PARTIALLY_PAID", "WAITING_PAYMENT"})
+    void absentOrZeroDebtDoesNotAllowUnsettledOrderToBeHandedOver(String payment) {
+        order.setPaymentStatus(PaymentStatus.valueOf(payment));
+        order.setDebtAmount(null);
+        assertThrows(InvalidOrderStatusException.class, () -> service.fulfill(orderId, null));
+        verifyNoInteractions(paymentClient, orderCustomerService, orderOutboxPublisher);
+        verify(orderPaymentEventService, never()).processPaidOrderInventory(any(), any(), anyBoolean());
+        verify(orderRepository, never()).save(any());
     }
 
     private void deposited(String deposit) {

@@ -19,6 +19,9 @@ import org.hvtra.orderservice.service.validator.OrderValidator;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
+import org.junit.jupiter.params.provider.NullSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
 import org.mockito.Mock;
@@ -36,6 +39,9 @@ import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
+import static org.mockito.ArgumentMatchers.*;
+import static org.junit.jupiter.api.Assertions.*;
 
 @ExtendWith(MockitoExtension.class)
 class OrderCheckoutPaymentProcessorTest {
@@ -357,6 +363,71 @@ class OrderCheckoutPaymentProcessorTest {
         assertThrows(InvalidPaymentAmountException.class,
                 () -> processor.checkoutPayment(order, "BANK_TRANSFER", null, null, new BigDecimal("30000")));
         verifyNoInteractions(paymentClient);
+    }
+
+    @ParameterizedTest @ValueSource(strings = {"FAILED", "DECLINED", "UNKNOWN", " "})
+    void failedOrUnknownPaymentResultCannotCompleteOrderOrConfirmResources(String status) {
+        Order order = order(UUID.randomUUID(), null);
+        UUID saga = UUID.randomUUID();
+        when(orderResponseAssembler.normalizePaymentMethod("CASH")).thenReturn("CASH");
+        when(orderPaymentSagaService.startPaymentSaga(order, "CASH")).thenReturn(saga);
+        PaymentResponse failed = PaymentResponse.builder().status(status).method("CASH").paymentCode("PAY-FAILED").build();
+        when(paymentClient.checkout(any())).thenReturn(failed);
+        assertSame(failed, processor.checkoutPayment(order, "CASH", order.getFinalAmount(), null));
+        assertEquals(OrderStatus.PAYMENT_FAILED, order.getStatus());
+        assertEquals(PaymentStatus.FAILED, order.getPaymentStatus());
+        assertEquals(BigDecimal.ZERO, order.getPaidAmount());
+        assertEquals(new BigDecimal("80000.00"), order.getDebtAmount());
+        ArgumentCaptor<PaymentOrderEventPayload> event = ArgumentCaptor.forClass(PaymentOrderEventPayload.class);
+        verify(orderPaymentSagaService).failPaymentSaga(eq(order), event.capture(), contains(status.trim()));
+        assertEquals(saga.toString(), event.getValue().getSagaId());
+        assertEquals(order.getId().toString(), event.getValue().getOrderId());
+        assertEquals("PAYMENT_FAILED", event.getValue().getEventType());
+        verifyNoInteractions(orderPaymentEventService, orderOutboxPublisher, orderCustomerService);
+        verify(orderPaymentSagaService, never()).markResourceConfirmationRequested(any(), any());
+    }
+
+    @ParameterizedTest @ValueSource(booleans = {true, false})
+    void absentPaymentOrStatusIsRejectedByRealValidatorWithoutCompletion(boolean absent) {
+        Order order = order(UUID.randomUUID(), null);
+        UUID saga = UUID.randomUUID();
+        OrderCheckoutPaymentProcessor realGuard = new OrderCheckoutPaymentProcessor(paymentClient, new OrderValidator(),
+                orderPaymentSagaService, orderCustomerService, orderOutboxPublisher, orderStatusHistoryWriter,
+                orderResponseAssembler, orderPaymentEventService, orderBackorderSupport);
+        when(orderResponseAssembler.normalizePaymentMethod("CASH")).thenReturn("CASH");
+        when(orderPaymentSagaService.startPaymentSaga(order, "CASH")).thenReturn(saga);
+        when(paymentClient.checkout(any())).thenReturn(absent ? null : PaymentResponse.builder().build());
+        assertThrows(InvalidPaymentAmountException.class, () -> realGuard.checkoutPayment(order, "CASH", order.getFinalAmount(), null));
+        assertEquals(OrderStatus.DRAFT, order.getStatus());
+        assertEquals(PaymentStatus.WAITING_PAYMENT, order.getPaymentStatus());
+        assertEquals(BigDecimal.ZERO, order.getPaidAmount());
+        verifyNoInteractions(orderStatusHistoryWriter, orderCustomerService, orderOutboxPublisher, orderPaymentEventService);
+        verify(orderPaymentSagaService, never()).completePaymentSaga(any(), any(), any());
+    }
+
+    @ParameterizedTest @NullSource @ValueSource(strings = {"0", "-1", "80000", "80000.01"})
+    void invalidDepositOrMissingCashCannotStartSagaOrCallPayment(String value) {
+        Order order = order(UUID.randomUUID(), null);
+        when(orderResponseAssembler.normalizePaymentMethod("CASH")).thenReturn("CASH");
+        BigDecimal deposit = value == null ? new BigDecimal("30000") : new BigDecimal(value);
+        BigDecimal received = value == null ? null : order.getFinalAmount();
+        assertThrows(InvalidPaymentAmountException.class, () -> processor.checkoutPayment(order, "CASH", received, null, deposit));
+        verifyNoInteractions(paymentClient, orderPaymentSagaService, orderStatusHistoryWriter, orderOutboxPublisher, orderPaymentEventService);
+        assertEquals(OrderStatus.DRAFT, order.getStatus());
+    }
+
+    @Test
+    void downstreamCheckoutTimeoutIsNotRetriedOrReportedAsPaid() {
+        Order order = order(UUID.randomUUID(), null);
+        UUID saga = UUID.randomUUID();
+        when(orderResponseAssembler.normalizePaymentMethod("CASH")).thenReturn("CASH");
+        when(orderPaymentSagaService.startPaymentSaga(order, "CASH")).thenReturn(saga);
+        IllegalStateException timeout = new IllegalStateException("unknown payment outcome");
+        when(paymentClient.checkout(any())).thenThrow(timeout);
+        assertSame(timeout, assertThrows(IllegalStateException.class, () -> processor.checkoutPayment(order, "CASH", order.getFinalAmount(), null)));
+        verify(paymentClient, times(1)).checkout(any());
+        assertEquals(PaymentStatus.WAITING_PAYMENT, order.getPaymentStatus());
+        verifyNoInteractions(orderPaymentEventService, orderCustomerService, orderOutboxPublisher, orderStatusHistoryWriter);
     }
 
     private Order order(UUID orderId, UUID customerId) {

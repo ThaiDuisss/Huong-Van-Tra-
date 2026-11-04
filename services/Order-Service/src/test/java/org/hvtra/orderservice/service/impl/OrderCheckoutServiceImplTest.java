@@ -9,6 +9,7 @@ import org.hvtra.orderservice.dto.request.CreateDiscountRequest;
 import org.hvtra.orderservice.dto.request.CreateOrderItemRequest;
 import org.hvtra.orderservice.dto.request.CreateOrderRequest;
 import org.hvtra.orderservice.dto.response.OrderResponse;
+import org.hvtra.orderservice.dto.response.PaymentResponse;
 import org.hvtra.orderservice.repository.OrderDiscountRepository;
 import org.hvtra.orderservice.repository.OrderRepository;
 import org.hvtra.orderservice.service.helper.OrderAmountCalculator;
@@ -33,12 +34,17 @@ import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.inOrder;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 
 @ExtendWith(MockitoExtension.class)
 class OrderCheckoutServiceImplTest {
@@ -140,6 +146,45 @@ class OrderCheckoutServiceImplTest {
         assertSame(expected, result);
         verify(orderDiscountRepository, never()).saveAll(anyList());
         verifyNoInteractions(orderCheckoutPaymentProcessor);
+    }
+
+    @Test
+    void checkoutDelegatesPaymentWithNormalizedMethodAndPersistsAfterProcessorReturns() {
+        CreateOrderItemRequest item = itemRequest(BigDecimal.ONE);
+        CreateOrderRequest request = request(List.of(item), " cash ");
+        request.setOrderType(" online ");
+        request.setPaidAmount(new BigDecimal("10000"));
+        when(productSnapshotResolver.resolvePosView(item.getProductVariantId())).thenReturn(variant(item.getProductVariantId(), new BigDecimal("10000")));
+        when(orderRepository.save(any())).thenAnswer(call -> call.getArgument(0));
+        when(orderResponseAssembler.normalizePaymentMethod(" cash ")).thenReturn("CASH");
+        PaymentResponse payment = PaymentResponse.builder().status("PAID").build();
+        when(orderCheckoutPaymentProcessor.checkoutPayment(any(), eq("CASH"), eq(request.getPaidAmount()), isNull())).thenReturn(payment);
+        service.createOrder(request);
+        ArgumentCaptor<Order> saved = ArgumentCaptor.forClass(Order.class);
+        verify(orderRepository, times(2)).save(saved.capture());
+        Order order = saved.getValue();
+        assertEquals("ONLINE", order.getOrderType());
+        assertEquals(new BigDecimal("10000.00"), order.getFinalAmount());
+        var sequence = inOrder(orderRepository, orderCheckoutPaymentProcessor, orderResponseAssembler);
+        sequence.verify(orderRepository).save(order);
+        sequence.verify(orderCheckoutPaymentProcessor).checkoutPayment(order, "CASH", request.getPaidAmount(), null);
+        sequence.verify(orderRepository).save(order);
+        sequence.verify(orderResponseAssembler).toResponse(order, payment);
+    }
+
+    @Test
+    void processorFailurePropagatesAndDoesNotPersistPostPaymentStateOrBuildSuccessResponse() {
+        CreateOrderItemRequest item = itemRequest(BigDecimal.ONE);
+        CreateOrderRequest request = request(List.of(item), "CASH");
+        when(productSnapshotResolver.resolvePosView(item.getProductVariantId())).thenReturn(variant(item.getProductVariantId(), BigDecimal.TEN));
+        when(orderRepository.save(any())).thenAnswer(call -> call.getArgument(0));
+        when(orderResponseAssembler.normalizePaymentMethod("CASH")).thenReturn("CASH");
+        RuntimeException failure = new IllegalStateException("payment failed");
+        when(orderCheckoutPaymentProcessor.checkoutPayment(any(), eq("CASH"), isNull(), isNull())).thenThrow(failure);
+        RuntimeException propagated = assertThrows(RuntimeException.class, () -> service.createOrder(request));
+        assertSame(failure, propagated.getCause());
+        verify(orderRepository).save(any());
+        verify(orderResponseAssembler, never()).toResponse(any(), any());
     }
 
     private CreateOrderRequest request(List<CreateOrderItemRequest> items, String paymentMethod) {

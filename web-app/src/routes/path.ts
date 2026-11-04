@@ -12,6 +12,7 @@ export const routePaths = {
   system: "/system",
   aiReports: "/system/ai/reports",
   ingredientDemo: "/system/ai/ingredient-demo",
+  productRecommendations: "/system/ai/product-recommendations",
   systemDashboard: "/system/dashboard",
   systemDashboardOverview: "/system/dashboard/overview",
   systemDashboardPos: "/system/dashboard/pos",

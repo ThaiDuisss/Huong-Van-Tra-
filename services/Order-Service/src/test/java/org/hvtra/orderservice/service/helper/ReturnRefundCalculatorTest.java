@@ -8,6 +8,13 @@ import org.hvtra.orderservice.domain.enums.ReturnCondition;
 import org.hvtra.orderservice.domain.enums.ReturnReason;
 import org.hvtra.orderservice.domain.enums.ReturnStatus;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.NullSource;
+import org.junit.jupiter.params.provider.ValueSource;
+import org.junit.jupiter.params.provider.CsvSource;
+import org.hvtra.orderservice.exception.InvalidOrderReturnException;
+import java.util.Arrays;
+import java.util.ArrayList;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -15,6 +22,7 @@ import java.util.List;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.*;
 
 class ReturnRefundCalculatorTest {
 
@@ -61,6 +69,62 @@ class ReturnRefundCalculatorTest {
         assertEquals(new BigDecimal("33334"), secondRefund);
         assertEquals(new BigDecimal("33333"), thirdRefund);
         assertEquals(new BigDecimal("100000"), firstRefund.add(secondRefund).add(thirdRefund));
+    }
+
+    @ParameterizedTest @NullSource @ValueSource(strings = {"0", "-1"})
+    void invalidPurchasedOrReturnedQuantityCannotGenerateRefund(String value) {
+        Order order = order(BigDecimal.ZERO);
+        OrderItem item = orderItem(order, "3", "100", "0");
+        order.setItems(List.of(item));
+        OrderReturn current = orderReturn(ReturnStatus.RECEIVED, Instant.parse("2026-11-03T00:00:00Z"));
+        OrderReturnItem returned = returnItem(item, "1");
+        current.addItem(returned);
+        BigDecimal invalid = value == null ? null : new BigDecimal(value);
+        returned.setQuantity(invalid);
+        assertThrows(InvalidOrderReturnException.class, () -> calculator.calculate(order, current, null));
+        returned.setQuantity(BigDecimal.ONE);
+        item.setQuantity(invalid);
+        assertThrows(InvalidOrderReturnException.class, () -> calculator.calculate(order, current, null));
+    }
+
+    @ParameterizedTest
+    @CsvSource({"earlier,33334", "later,33333", "same-time-low-id,33334", "same-time-high-id,33333",
+            "missing-time-low-id,33334", "cancelled,33333", "same-id,33333"})
+    void cumulativeRoundingUsesChronologicalReturnThenStableIdAndIgnoresCancelledOrSelf(String priorKind, String expected) {
+        Instant now = Instant.parse("2026-11-03T00:00:00Z");
+        Order order = order(BigDecimal.ZERO);
+        OrderItem sold = orderItem(order, "3", "100000", "0");
+        order.setItems(List.of(sold));
+        OrderReturn current = orderReturn(ReturnStatus.RECEIVED, now);
+        current.setId(UUID.fromString("22222222-2222-2222-2222-222222222222"));
+        current.addItem(returnItem(sold, "1"));
+        OrderReturn earlier = orderReturn(priorKind.equals("cancelled") ? ReturnStatus.CANCELLED : ReturnStatus.CREATED,
+                priorKind.equals("earlier") || priorKind.equals("cancelled") ? now.minusSeconds(1)
+                        : priorKind.equals("later") ? now.plusSeconds(1) : priorKind.equals("missing-time-low-id") ? null : now);
+        earlier.setId(UUID.fromString(priorKind.equals("same-time-high-id") ? "33333333-3333-3333-3333-333333333333"
+                : priorKind.equals("same-id") ? current.getId().toString() : "11111111-1111-1111-1111-111111111111"));
+        earlier.addItem(returnItem(sold, "1"));
+        OrderReturn noIdentity = new OrderReturn();
+        assertEquals(new BigDecimal(expected), calculator.calculate(order, current,
+                Arrays.asList(null, noIdentity, earlier, current)).refundAmount());
+    }
+
+    @Test void missingMoneyOrEmptyReturnLinesNeverInventRefundAndInvalidIdentityFails() {
+        Order order = order(null);
+        OrderItem sold = orderItem(order, "1", "0", "0");
+        sold.setLineTotal(null);
+        sold.setDiscountAmount(null);
+        order.setItems(List.of(sold));
+        OrderReturn current = orderReturn(ReturnStatus.RECEIVED, null);
+        current.setItems(null);
+        assertEquals(BigDecimal.ZERO, calculator.calculate(order, current, null).refundAmount());
+        current.setItems(new ArrayList<>());
+        current.addItem(returnItem(null, "1"));
+        assertThrows(InvalidOrderReturnException.class, () -> calculator.calculate(order, current, null));
+        assertThrows(InvalidOrderReturnException.class, () -> calculator.calculate(null, current, null));
+        assertThrows(InvalidOrderReturnException.class, () -> calculator.calculate(order, null, null));
+        order.setItems(null);
+        assertThrows(InvalidOrderReturnException.class, () -> calculator.calculate(order, current, null));
     }
 
     private Order order(BigDecimal discountAmount) {

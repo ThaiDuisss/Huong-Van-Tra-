@@ -24,6 +24,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Stream;
+import java.util.Collections;
+import org.junit.jupiter.params.provider.CsvSource;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -137,5 +139,35 @@ class OrderReturnCreationEligibilityResolverTest {
         var draft = request("2", ReturnReason.DAMAGED, ReturnCondition.DAMAGED, null);
         draft.setItems(List.of(draft.getItems().getFirst(), draft.getItems().getFirst()));
         assertFailed(resolve(draft, "0"), "ITEMS_UNIQUE");
+    }
+
+    @ParameterizedTest
+    @CsvSource({"null-request,ITEMS_REQUIRED", "null-items,ITEMS_REQUIRED", "empty-items,ITEMS_REQUIRED",
+            "null-line,ITEM_IDENTIFIED", "missing-id,ITEM_IDENTIFIED", "missing-quantity,QUANTITY_POSITIVE",
+            "missing-condition,CONDITION_REQUIRED", "fully-returned,ORDER_NOT_FULLY_RETURNED"})
+    void bypassedBeanValidationStillProducesStructuredFailureAndCannotBeRequiredEligible(String invalid, String check) {
+        var draft = request("1", ReturnReason.QUALITY_ISSUE, ReturnCondition.OPENED, null);
+        switch (invalid) {
+            case "null-request" -> draft = null;
+            case "null-items" -> draft.setItems(null);
+            case "empty-items" -> draft.setItems(List.of());
+            case "null-line" -> draft.setItems(Collections.singletonList(null));
+            case "missing-id" -> draft.getItems().getFirst().setOrderItemId(null);
+            case "missing-quantity" -> draft.getItems().getFirst().setQuantity(null);
+            case "missing-condition" -> draft.getItems().getFirst().setCondition(null);
+            case "fully-returned" -> order.setReturnStatus(OrderReturnStatus.FULLY_RETURNED);
+            default -> throw new AssertionError(invalid);
+        }
+        assertFailed(resolver.resolve(order, draft, Map.of(itemId, orderItem), Map.of()), check);
+    }
+
+    @Test void minimumDecimalQuantityAndExactRemainingBoundaryRemainAllowed() {
+        orderItem.setQuantity(new BigDecimal("0.003"));
+        var result = resolve(request("0.001", ReturnReason.QUALITY_ISSUE, ReturnCondition.OPENED, null), "0.002");
+        assertThat(result.eligible()).isTrue();
+        assertThat(result.items().getFirst().remainingQuantity()).isEqualByComparingTo("0.001");
+        resolver.requireEligible(result);
+        orderItem.setQuantity(null);
+        assertFailed(resolve(request("0.001", ReturnReason.QUALITY_ISSUE, ReturnCondition.OPENED, null), "0"), "QUANTITY_REMAINING");
     }
 }

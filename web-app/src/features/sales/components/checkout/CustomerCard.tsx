@@ -14,6 +14,10 @@ interface CustomerSelectorProps {
   selectedCustomer: SaleCustomer | null;
   loading: boolean;
   error: string;
+  disabled?: boolean;
+  onSearch?(query: string): void;
+  onLoadMore?(): void;
+  hasMore?: boolean;
   onOpen(): void;
   onSelect(customerId: string): void;
   onCreated(customer: SaleCustomer): void;
@@ -25,6 +29,10 @@ export function CustomerSelector({
   selectedCustomer,
   loading,
   error,
+  disabled,
+  onSearch,
+  onLoadMore,
+  hasMore,
   onOpen,
   onSelect,
   onCreated,
@@ -56,7 +64,7 @@ export function CustomerSelector({
   }
 
   return (
-    <section className="relative grid gap-3 border-b border-pos-border pb-3">
+    <section className="relative grid shrink-0 gap-3 border-b border-pos-border pb-3">
       <h2 className="text-base font-bold text-gray-500">
         Khách hàng
       </h2>
@@ -69,6 +77,7 @@ export function CustomerSelector({
       >
         <button
           ref={triggerRef}
+          disabled={disabled}
           type="button"
           className="flex min-w-0 flex-1 items-center gap-3 text-left"
           aria-haspopup="dialog"
@@ -97,6 +106,7 @@ export function CustomerSelector({
           <button
             type="button"
             onClick={onClear}
+            disabled={disabled}
             className="grid size-9 shrink-0 place-items-center rounded-full text-gray-500 hover:bg-neutral-100"
             aria-label="Bỏ chọn khách hàng"
           >
@@ -112,11 +122,14 @@ export function CustomerSelector({
       </div>
 
       <CustomerSearchDialog
-        open={open}
+        open={open && !disabled}
         customers={customers}
         selectedCustomerId={selectedCustomer?.id ?? ""}
         loading={loading}
         error={error}
+        onSearch={onSearch}
+        onLoadMore={onLoadMore}
+        hasMore={hasMore}
         onSelect={onSelect}
         onCreate={openCreateDialog}
         onClose={closeDialog}
