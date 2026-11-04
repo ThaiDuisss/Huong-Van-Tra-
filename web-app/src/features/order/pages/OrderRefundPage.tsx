@@ -13,6 +13,7 @@ import {
   X,
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 
 import { TimeSidebar } from "../../../components/shared/TimeSidebar";
 import {
@@ -42,6 +43,12 @@ import {
   formatQuantity,
   getPaymentStatusLabel,
 } from "../utils/order-formatters";
+import {
+  getBlockReasonLabel,
+  getReturnConditionLabel,
+  getReturnReasonLabel,
+  getReturnStatusLabel,
+} from "../utils/order-return.utils";
 import styles from "./OrderRefundPage.module.css";
 
 type RefundFilterKey = "ALL" | Exclude<RefundProgressStatus, "OTHER">;
@@ -116,24 +123,6 @@ const ERROR_MESSAGES: Record<string, string> = {
   "Payment is not eligible for refund": "Thanh toán không đủ điều kiện hoàn tiền.",
   "Refund amount must be greater than 0": "Số tiền hoàn phải lớn hơn 0.",
 };
-
-const BLOCK_REASON_LABELS: Record<string, string> = {
-  RETURN_NOT_RECEIVED: "Chưa nhận hàng trả lại",
-  PHYSICAL_DISPOSITION_NOT_COMPLETED: "Chưa hoàn tất kiểm hàng/nhập kho",
-  REFUND_NOT_REQUIRED: "Phiếu không yêu cầu hoàn tiền",
-  ALREADY_REFUNDED: "Đã hoàn tiền đầy đủ",
-  REFUND_FAILED: "Lần hoàn tiền trước đó thất bại",
-  PAYMENT_SERVICE_UNAVAILABLE: "Dịch vụ thanh toán tạm thời gián đoạn",
-  PAYMENT_NOT_FOUND: "Không tìm thấy giao dịch thanh toán",
-  PAYMENT_NOT_REFUNDABLE: "Thanh toán chưa ở trạng thái hợp lệ để hoàn",
-  UNSUPPORTED_PAYMENT_METHOD: "Phương thức thanh toán chưa hỗ trợ hoàn tự động",
-  NO_REFUND_AMOUNT: "Số tiền hoàn bằng 0",
-  REFUND_AMOUNT_EXCEEDS_REMAINING: "Số tiền hoàn vượt quá số tiền còn lại của thanh toán",
-};
-
-function getBlockReasonLabel(reason?: string | null) {
-  return reason ? (BLOCK_REASON_LABELS[reason] ?? reason) : "--";
-}
 
 function getErrorMessage(error: unknown) {
   if (
@@ -328,9 +317,15 @@ function canRefund(row: OrderRefundSummaryResponse | OrderRefundDetailResponse) 
 }
 
 export function OrderRefundPage() {
-  const [selectedTimeNode, setSelectedTimeNode] = useState<TimeNode | null>(buildTodayTimeNode);
+  // Hỗ trợ mở thẳng phiếu từ màn Hoàn hàng: ?returnId=<id>&keyword=<mã phiếu hoàn>
+  const [searchParams] = useSearchParams();
+  const linkedReturnId = searchParams.get("returnId");
+  const linkedKeyword = searchParams.get("keyword") ?? "";
+  const [selectedTimeNode, setSelectedTimeNode] = useState<TimeNode | null>(() =>
+    linkedReturnId ? null : buildTodayTimeNode(),
+  );
   const [isTimeCollapsed, setIsTimeCollapsed] = useState(true);
-  const [searchTerm, setSearchTerm] = useState("");
+  const [searchTerm, setSearchTerm] = useState(linkedKeyword);
   const debouncedKeyword = useDebouncedValue(searchTerm.trim(), 400);
   const [activeFilter, setActiveFilter] = useState<RefundFilterKey>("ALL");
   const [currentPage, setCurrentPage] = useState(0);
@@ -338,7 +333,7 @@ export function OrderRefundPage() {
   const [stats, setStats] = useState<OrderRefundStatsResponse>({});
   const [isListLoading, setIsListLoading] = useState(false);
   const [listError, setListError] = useState<string | null>(null);
-  const [selectedReturnId, setSelectedReturnId] = useState<string | null>(null);
+  const [selectedReturnId, setSelectedReturnId] = useState<string | null>(linkedReturnId);
   const [selectedDetail, setSelectedDetail] = useState<OrderRefundDetailResponse | null>(null);
   const [isDetailLoading, setIsDetailLoading] = useState(false);
   const [detailError, setDetailError] = useState<string | null>(null);
@@ -834,12 +829,12 @@ function RefundDetailModal({
                   ["Mã đơn", displayText(detail.orderCode)],
                   ["Khách hàng", displayText(detail.customerName, "Khách lẻ")],
                   ["Số điện thoại", displayText(detail.customerPhone)],
-                  ["Trạng thái Return", displayText(detail.returnStatus)],
+                  ["Trạng thái phiếu hoàn", getReturnStatusLabel(detail.returnStatus)],
                   [
                     "Chính sách hoàn tiền",
                     detail.refundRequired === false ? "Không hoàn tiền" : "Có hoàn tiền",
                   ],
-                  ["QC", getQcStatusLabel(detail.qcStatus)],
+                  ["Kiểm hàng", getQcStatusLabel(detail.qcStatus)],
                   [
                     "Xử lý kho",
                     detail.physicalDone
@@ -855,7 +850,7 @@ function RefundDetailModal({
             </section>
 
             <section>
-              <h3>Thông tin Refund</h3>
+              <h3>Thông tin hoàn tiền</h3>
               <InfoGrid
                 items={[
                   [
@@ -867,7 +862,7 @@ function RefundDetailModal({
                     detail.totalAmountRefunded ? formatCurrency(detail.totalAmountRefunded) : "--",
                   ],
                   ["Phương thức", getMethodLabel(detail.method)],
-                  ["Payment status", getPaymentStatusLabel(detail.paymentStatus)],
+                  ["Trạng thái thanh toán", getPaymentStatusLabel(detail.paymentStatus)],
                   ["Trạng thái hoàn tiền", getRefundProgress(detail).label],
                   ...(detail.refundBlockReason && detail.refundBlockReason !== "NONE"
                     ? [
@@ -896,7 +891,7 @@ function RefundDetailModal({
                     <div>
                       <strong>{formatQuantity(item.quantity)}</strong>
                       <span>
-                        {displayText(item.reason)} · {displayText(item.condition)}
+                        {getReturnReasonLabel(item.reason)} · {getReturnConditionLabel(item.condition)}
                       </span>
                     </div>
                   </div>

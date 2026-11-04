@@ -76,8 +76,8 @@ describe("CustomerReturnWarehouseInspectionModal - QC Execution & Contract Verif
         expect(html).toContain("RET20261104194138642");
         expect(html).toContain("ORD-001");
         expect(html).toContain("Tổng SL hàng trả");
-        expect(html).toContain("Đã kiểm định");
-        expect(html).toContain("Còn cần kiểm định");
+        expect(html).toContain("Đã kiểm hàng");
+        expect(html).toContain("Còn cần kiểm hàng");
     });
 
     it("Scenario 2: Displays pending command banner when inspectionId is null and isPendingDisposition is true", () => {
@@ -252,7 +252,7 @@ describe("CustomerReturnWarehouseInspectionModal - QC Execution & Contract Verif
         expect(customerReturnApi.postInspection).not.toHaveBeenCalled();
     });
 
-    it("Regression Test: RET20261104221655799 renders 1/1 QC done, 0 remaining, 'Đã kiểm định', and no pending banner", () => {
+    it("Regression Test: RET20261104221655799 renders 1/1 QC done, 0 remaining, 'Đã kiểm hàng', and no pending banner", () => {
         const completedRow: OrderReturnListRow = {
             id: "a189202e-5a97-429d-9685-32c35bf80baf",
             returnCode: "RET20261104221655799",
@@ -283,7 +283,7 @@ describe("CustomerReturnWarehouseInspectionModal - QC Execution & Contract Verif
 
         expect(html).toContain("Phiếu kiểm định kho");
         expect(html).toContain("RET20261104221655799");
-        expect(html).toContain("Đã kiểm định");
+        expect(html).toContain("Đã kiểm hàng");
         expect(html).not.toContain("Yêu cầu đã được ghi nhận. Hệ thống đang tạo phiếu kiểm định kho.");
     });
 
@@ -315,8 +315,8 @@ describe("CustomerReturnWarehouseInspectionModal - QC Execution & Contract Verif
         );
 
         expect(html).toContain("Phiếu kiểm định kho");
-        expect(html).toContain("Đang kiểm định");
-        expect(html).not.toContain('<span class="truncate">Đã kiểm định</span>');
+        expect(html).toContain("Đang kiểm hàng");
+        expect(html).not.toContain('<span class="truncate">Đã kiểm hàng</span>');
     });
 
     it("does NOT treat entire return as QC_COMPLETED when an inspection is POSTED but qcStatus is PARTIAL", () => {
@@ -343,7 +343,7 @@ describe("CustomerReturnWarehouseInspectionModal - QC Execution & Contract Verif
             })
         );
 
-        expect(html).toContain("Đang kiểm định");
-        expect(html).not.toContain('<span class="truncate">Đã kiểm định</span>');
+        expect(html).toContain("Đang kiểm hàng");
+        expect(html).not.toContain('<span class="truncate">Đã kiểm hàng</span>');
     });
 });

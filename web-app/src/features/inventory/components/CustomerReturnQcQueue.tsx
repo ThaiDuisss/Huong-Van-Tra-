@@ -1,8 +1,13 @@
 import { useEffect, useState } from "react";
 
-import type { TimeRange } from "../../../components/shared/TimeHierarchyFilter.utils";
+import { DataTable } from "../../../components/shared/list/DataTable";
+import { ListFilterToolbar } from "../../../components/shared/list/ListFilterToolbar";
+import { LIST_CODE_TEXT, LIST_MUTED_TEXT } from "../../../components/shared/list/list-ui.constants";
+import { TablePagination } from "../../../components/shared/list/TablePagination";
+import { TimeRangeSelect } from "../../../components/shared/list/TimeRangeSelect";
+import type { useListUrlState } from "../../../components/shared/list/useListUrlState";
 import { ConfirmDialog } from "../../product/components/ConfirmDialog";
-import orderStyles from "../../order/pages/OrderListPage.module.css";
+import { ReturnDetailModal } from "../../order/components/return-detail/ReturnDetailModal";
 import { ReturnInspectionModal } from "../../order/components/ReturnInspectionModal";
 import { OrderStatusBadge } from "../../order/components/OrderStatusBadge";
 import {
@@ -23,55 +28,37 @@ import {
     toReturnNumber
 } from "../../order/utils/order-return.utils";
 import { formatDateTime } from "../../order/utils/order-formatters";
-import { useDebouncedValue } from "../hooks/useDebouncedValue";
 import styles from "../pages/CustomerReturnListPage.module.css";
-import {
-    type CustomerReturnStatusTab,
-    ListFilterBar,
-    ListMessage,
-    ListPagination
-} from "./CustomerReturnListUi";
-import { CustomerReturnDetailModal } from "./CustomerReturnDetailModal";
 import { CustomerReturnActionMenu } from "./CustomerReturnActionMenu";
 import { CustomerReturnWarehouseInspectionModal } from "./CustomerReturnWarehouseInspectionModal";
 
 const PAGE_SIZE = 10;
-const CUSTOMER_RETURN_STATUS_TABS: CustomerReturnStatusTab[] = [
+const CUSTOMER_RETURN_STATUS_TABS: { key: string; label: string; isError?: boolean }[] = [
     { key: "ALL", label: "Tất cả" },
     { key: "CREATED", label: "Chờ nhận hàng" },
-    { key: "RECEIVED", label: "Chờ kiểm định" },
+    { key: "RECEIVED", label: "Chờ kiểm hàng" },
     { key: "PROCESSING", label: "Đang xử lý" },
     { key: "COMPLETED", label: "Hoàn thành" },
     { key: "CANCELLED", label: "Đã hủy" },
     { key: "PROCESSING_FAILED", label: "Có lỗi", isError: true }
 ];
 
-const INITIAL_STATUS_COUNTS: Record<string, number> = {
-    ALL: 0,
-    CREATED: 0,
-    RECEIVED: 0,
-    PROCESSING: 0,
-    COMPLETED: 0,
-    CANCELLED: 0,
-    PROCESSING_FAILED: 0
-};
-
 export function CustomerReturnQcQueue({
+    listState,
     onInspectionCreated,
-    onPageChange,
-    page,
-    timeRange
+    reloadSignal = 0
 }: {
+    listState: ReturnType<typeof useListUrlState>;
     onInspectionCreated?: () => void;
-    onPageChange: (page: number) => void;
-    page: number;
-    timeRange?: TimeRange | null;
+    /** Tăng giá trị để tải lại danh sách (nút Làm mới ở header). */
+    reloadSignal?: number;
 }) {
-    const [searchTerm, setSearchTerm] = useState("");
-    const [status, setStatus] = useState("ALL");
-    const [statusCounts, setStatusCounts] = useState<Record<string, number>>(INITIAL_STATUS_COUNTS);
-    const debouncedSearchTerm = useDebouncedValue(searchTerm.trim(), 300);
-    const [reloadKey, setReloadKey] = useState(0);
+    const { page, setPage: onPageChange, timeRange } = listState;
+    const debouncedSearchTerm = listState.keyword;
+    const status = CUSTOMER_RETURN_STATUS_TABS.some((tab) => tab.key === listState.status) ? listState.status : "ALL";
+    const [statusCounts, setStatusCounts] = useState<Record<string, number> | null>(null);
+    const [localReloadKey, setReloadKey] = useState(0);
+    const reloadKey = localReloadKey + reloadSignal;
     const [rows, setRows] = useState<OrderReturnListRow[]>([]);
     const [totalPages, setTotalPages] = useState(0);
     const [totalElements, setTotalElements] = useState(0);
@@ -126,7 +113,6 @@ export function CustomerReturnQcQueue({
     }, [debouncedSearchTerm, reloadKey, timeRange?.fromDate, timeRange?.toDate]);
 
     useEffect(() => {
-        if (searchTerm.trim() !== debouncedSearchTerm) return;
         let active = true;
         queueMicrotask(() => {
             if (!active) return;
@@ -159,7 +145,7 @@ export function CustomerReturnQcQueue({
                 });
         });
         return () => { active = false; };
-    }, [page, reloadKey, status, searchTerm, debouncedSearchTerm, timeRange?.fromDate, timeRange?.toDate]);
+    }, [page, reloadKey, status, debouncedSearchTerm, timeRange?.fromDate, timeRange?.toDate]);
 
 
     useEffect(() => {
@@ -245,94 +231,87 @@ export function CustomerReturnQcQueue({
     };
 
     return (
-        <section className={styles.section}>
-            <ListFilterBar
-                activeStatus={status}
-                onSearchChange={(value) => {
+        <>
+            <ListFilterToolbar
+                activeChip={status}
+                chips={CUSTOMER_RETURN_STATUS_TABS.map((tab) => ({
+                    key: tab.key,
+                    label: tab.label,
+                    count: statusCounts ? (statusCounts[tab.key] ?? 0) : null,
+                    tone: tab.isError ? "danger" : "default"
+                }))}
+                onChipChange={(value) => {
                     setOpenActionId(null);
-                    setSearchTerm(value);
-                    onPageChange(0);
+                    listState.setStatus(value);
                 }}
-                onStatusChange={(value) => {
-                    setOpenActionId(null);
-                    setStatus(value);
-                    onPageChange(0);
+                search={{
+                    value: listState.searchDraft,
+                    placeholder: "Tìm mã phiếu hoàn, mã đơn hàng, khách hàng...",
+                    onChange: listState.setSearchDraft
                 }}
-                searchTerm={searchTerm}
-                statusCounts={statusCounts}
-                statusTabs={CUSTOMER_RETURN_STATUS_TABS}
-            />
+            >
+                <TimeRangeSelect onChange={listState.setTime} value={listState.time} />
+            </ListFilterToolbar>
 
-            {notice ? <div className={styles.notice}>{notice}</div> : null}
-            {error ? <div className={styles.error}>{error}</div> : null}
+            {notice ? <div className={styles.notice} role="status">{notice}</div> : null}
 
-            <div className={orderStyles.tableCard}>
-                <div className={orderStyles.tableWrap}>
-                    <table className={`${orderStyles.orderTable} ${styles.dataTable} ${styles.returnTable}`}>
-                        <thead>
-                            <tr>
-                                <th>Phiếu hoàn</th>
-                                <th>Thời gian</th>
-                                <th>Trạng thái</th>
-                                <th>Đơn hàng</th>
-                                <th>Thao tác</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {loading ? <ListMessage colSpan={5} message="Đang tải danh sách phiếu hoàn..." /> : null}
-                            {!loading && error ? <ListMessage colSpan={5} message="Không thể hiển thị phiếu hoàn hàng" /> : null}
-                            {!loading && !error && rows.map((row, index) => {
-                                const statusInfo = getCustomerReturnUiStatus(row);
-
-                                return (
-                                    <tr className={index % 2 === 0 ? orderStyles.zebraFirstRow : orderStyles.zebraSecondRow} key={row.id}>
-                                        <td>
-                                            <span className={styles.returnCodeText}>
-                                                {row.returnCode ?? "Chưa có mã phiếu"}
-                                            </span>
-                                        </td>
-                                        <td className={styles.returnCreatedAt}>
-                                            {formatDateTime(row.createdAt)}
-                                        </td>
-                                        <td>
-                                            <OrderStatusBadge
-                                                label={statusInfo.label}
-                                                status={statusInfo.status}
-                                            />
-                                        </td>
-                                        <td>
-                                            <span className={styles.orderCodeText}>
-                                                {row.orderCode ?? "--"}
-                                            </span>
-                                        </td>
-                                        <td>
-                                            <CustomerReturnActionMenu
-                                                isOpen={openActionId === row.id}
-                                                isReceiving={receivingId === row.id}
-                                                onInspect={() => setSelectedId(row.id)}
-                                                onOpenChange={(open) => handleActionMenuChange(row.id, open)}
-                                                onReceive={() => {
-                                                    setReceiveConfirmError("");
-                                                    setConfirmReceiveRow(row);
-                                                }}
-                                                onViewDetail={() => setDetailModalItem(row)}
-                                                onViewInspection={() => {
-                                                    setOpenActionId(null);
-                                                    setWarehouseInspectionItem(row);
-                                                }}
-                                                row={row}
-                                            />
-                                        </td>
-                                    </tr>
-                                );
-                            })}
-                            {!loading && !error && rows.length === 0 ? <ListMessage colSpan={5} message="Không có phiếu hoàn hàng phù hợp" /> : null}
-                        </tbody>
-                    </table>
-                </div>
-
-                {!loading && !error ? (
-                    <ListPagination
+            <DataTable
+                caption="Danh sách phiếu khách trả hàng"
+                columns={[
+                    {
+                        key: "code",
+                        header: "Phiếu hoàn",
+                        className: LIST_CODE_TEXT,
+                        render: (row) => row.returnCode ?? "Chưa có mã phiếu"
+                    },
+                    {
+                        key: "customer",
+                        header: "Khách hàng",
+                        render: (row) => (
+                            <div className="grid">
+                                <span className="font-bold">{row.customerName?.trim() || "Khách lẻ"}</span>
+                                {row.customerPhone ? <span className={LIST_MUTED_TEXT}>{row.customerPhone}</span> : null}
+                            </div>
+                        )
+                    },
+                    {
+                        key: "order",
+                        header: "Đơn hàng",
+                        className: LIST_CODE_TEXT,
+                        render: (row) => row.orderCode ?? "--"
+                    },
+                    {
+                        key: "quantity",
+                        header: "Số lượng",
+                        align: "right",
+                        render: (row) => <ReturnQuantityCell row={row} />
+                    },
+                    {
+                        key: "status",
+                        header: "Trạng thái",
+                        render: (row) => {
+                            const statusInfo = getCustomerReturnUiStatus(row);
+                            return <OrderStatusBadge label={statusInfo.label} status={statusInfo.status} />;
+                        }
+                    },
+                    {
+                        key: "createdAt",
+                        header: "Thời gian",
+                        render: (row) => formatDateTime(row.createdAt)
+                    }
+                ]}
+                emptyDescription={listState.hasFilter
+                    ? "Thử đổi từ khóa, trạng thái hoặc khoảng thời gian."
+                    : "Phiếu hoàn sẽ xuất hiện ở đây khi cửa hàng tiếp nhận hàng khách trả."}
+                emptyTitle="Không có phiếu hoàn hàng phù hợp"
+                error={error || null}
+                getRowKey={(row) => row.id}
+                loading={loading}
+                onRetry={() => setReloadKey((key) => key + 1)}
+                onRowClick={(row) => setDetailModalItem(row)}
+                pagination={(
+                    <TablePagination
+                        disabled={loading}
                         itemLabel="phiếu hoàn"
                         onPageChange={(nextPage) => {
                             setOpenActionId(null);
@@ -343,8 +322,27 @@ export function CustomerReturnQcQueue({
                         totalItems={totalElements}
                         totalPages={totalPages}
                     />
-                ) : null}
-            </div>
+                )}
+                rowActions={(row) => (
+                    <CustomerReturnActionMenu
+                        isOpen={openActionId === row.id}
+                        isReceiving={receivingId === row.id}
+                        onInspect={() => setSelectedId(row.id)}
+                        onOpenChange={(open) => handleActionMenuChange(row.id, open)}
+                        onReceive={() => {
+                            setReceiveConfirmError("");
+                            setConfirmReceiveRow(row);
+                        }}
+                        onViewDetail={() => setDetailModalItem(row)}
+                        onViewInspection={() => {
+                            setOpenActionId(null);
+                            setWarehouseInspectionItem(row);
+                        }}
+                        row={row}
+                    />
+                )}
+                rows={rows}
+            />
 
             {selectedId && (selectionLoading || selectionError) ? (
                 <div className="rounded-xl border border-[#e8eef0] bg-white p-4 text-sm font-semibold">
@@ -366,18 +364,13 @@ export function CustomerReturnQcQueue({
                 />
             ) : null}
 
-            {/* Detail Drawer/Modal */}
+            {/* Chi tiết phiếu hoàn */}
             {detailModalItem ? (
-                <CustomerReturnDetailModal
-                    isOpen={Boolean(detailModalItem)}
-                    onClose={() => setDetailModalItem(null)}
-                    onOpenInspection={(returnDetail, summary) => {
-                        setDetailModalItem(null);
-                        setSelectedReturn(returnDetail);
-                        setQcSummary(summary);
-                    }}
-                    onRefreshList={reload}
+                <ReturnDetailModal
                     key={detailModalItem.id}
+                    onChanged={() => setReloadKey((key) => key + 1)}
+                    onClose={() => setDetailModalItem(null)}
+                    onToast={setNotice}
                     returnItem={detailModalItem}
                 />
             ) : null}
@@ -413,6 +406,22 @@ export function CustomerReturnQcQueue({
                     title="Xác nhận nhận hàng"
                 />
             ) : null}
-        </section>
+        </>
+    );
+}
+
+function ReturnQuantityCell({ row }: { row: OrderReturnListRow }) {
+    const required = toReturnNumber(row.requiredQuantity ?? row.itemCount ?? 0);
+    const hasProgress = row.processedQuantity !== null && row.processedQuantity !== undefined && required > 0;
+
+    return (
+        <div className="grid justify-items-end">
+            <span className="font-bold">{required.toLocaleString("vi-VN")}</span>
+            {hasProgress ? (
+                <span className={LIST_MUTED_TEXT}>
+                    Đã kiểm {toReturnNumber(row.processedQuantity).toLocaleString("vi-VN")}/{required.toLocaleString("vi-VN")}
+                </span>
+            ) : null}
+        </div>
     );
 }

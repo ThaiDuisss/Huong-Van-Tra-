@@ -31,7 +31,7 @@ import { createCustomerReturnQcDraft, getCustomerReturnQcError } from "../utils/
 import { formatVietnamDateTime, formatVietnamNumber } from "../utils/inventory-format";
 import { InspectionStatusBadge } from "./CustomerReturnInspectionComponents";
 import { CustomerReturnQcFields } from "./CustomerReturnQcFields";
-import styles from "./CustomerReturnDetailModal.module.css";
+import styles from "./CustomerReturnWarehouseInspectionModal.module.css";
 
 export interface CustomerReturnWarehouseInspectionModalProps {
     isOpen: boolean;
@@ -59,15 +59,15 @@ function resolveQcStatusDisplay(
         return { label: "Chờ nhận hàng", status: "PENDING" };
     }
     if (qcStatus === "COMPLETED") {
-        return { label: "Đã kiểm định", status: "QC_COMPLETED" };
+        return { label: "Đã kiểm hàng", status: "QC_COMPLETED" };
     }
     if (qcStatus === "PARTIAL") {
-        return { label: "Đang kiểm định", status: "PROCESSING" };
+        return { label: "Đang kiểm hàng", status: "PROCESSING" };
     }
     if (qcStatus === "PENDING" || !hasInspection) {
-        return { label: "Chờ kiểm định", status: "PENDING" };
+        return { label: "Chờ kiểm hàng", status: "PENDING" };
     }
-    return { label: "Chờ kiểm định", status: "PENDING" };
+    return { label: "Chờ kiểm hàng", status: "PENDING" };
 }
 
 export function CustomerReturnWarehouseInspectionModal({
@@ -349,13 +349,13 @@ export function CustomerReturnWarehouseInspectionModal({
                             </span>
                         </div>
                         <div className={styles.qcSummaryItem}>
-                            <span className={styles.qcSummaryLabel}>Đã kiểm định</span>
+                            <span className={styles.qcSummaryLabel}>Đã kiểm hàng</span>
                             <span className={styles.qcSummaryValue}>
                                 <strong>{formatReturnQuantity(totalPosted)}</strong>
                             </span>
                         </div>
                         <div className={styles.qcSummaryItem}>
-                            <span className={styles.qcSummaryLabel}>Còn cần kiểm định</span>
+                            <span className={styles.qcSummaryLabel}>Còn cần kiểm hàng</span>
                             <span className={styles.qcSummaryValue}>
                                 <strong>{formatReturnQuantity(totalRemaining)}</strong>
                             </span>
@@ -471,7 +471,7 @@ export function CustomerReturnWarehouseInspectionModal({
                                                             <td>{getReturnConditionLabel(line.condition)}</td>
                                                             <td>{getReturnReasonLabel(line.reason as ReturnReason) || "--"}</td>
                                                             <td>
-                                                                <OrderStatusBadge label="Chờ kiểm định" status="PENDING" />
+                                                                <OrderStatusBadge label="Chờ kiểm hàng" status="PENDING" />
                                                             </td>
                                                         </tr>
                                                     );
@@ -488,7 +488,7 @@ export function CustomerReturnWarehouseInspectionModal({
                                                     <td>{getReturnConditionLabel(item.condition)}</td>
                                                     <td>{getReturnReasonLabel(item.reason) || "--"}</td>
                                                     <td>
-                                                        <OrderStatusBadge label="Chờ kiểm định" status="PENDING" />
+                                                        <OrderStatusBadge label="Chờ kiểm hàng" status="PENDING" />
                                                     </td>
                                                 </tr>
                                             ))}

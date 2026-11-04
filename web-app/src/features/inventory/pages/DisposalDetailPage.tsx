@@ -1,6 +1,8 @@
-import { CheckCircle2, ShieldAlert } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ArrowLeft, CheckCircle2, ClipboardCheck, ShieldAlert } from "lucide-react";
+import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, Navigate, useParams } from "react-router-dom";
+
+import { LIST_PRIMARY_BUTTON } from "@/components/shared/list/list-ui.constants";
 
 import { useAuthorization } from "../../../auth/useAuthorization";
 import { ConfirmDialog } from "../../product/components/ConfirmDialog";
@@ -10,8 +12,6 @@ import type { DisposalRequest } from "../types/quality.types";
 import { formatVietnamDateTime, formatVietnamNumber } from "../utils/inventory-format";
 import { isCustomerReturnDisposal } from "../utils/inventory-labels";
 import { ROLES } from "../../../auth/roles";
-import listStyles from "./CustomerReturnListPage.module.css";
-import styles from "./DisposalDetailPage.module.css";
 
 export function DisposalDetailPage() {
     const { disposalId } = useParams();
@@ -88,110 +88,41 @@ export function DisposalDetailPage() {
         }
     }
 
+    const inspectionLink = disposal?.sourceInspectionId
+        ? `/management/inventory/customer-returns/${disposal.sourceInspectionId}`
+        : null;
+    const returnLink = disposal?.returnCode
+        ? `/management/inventory/customer-returns?q=${encodeURIComponent(disposal.returnCode)}`
+        : null;
+    const isPending = disposal?.status === "PENDING_APPROVAL";
+
     return (
-        <section className={styles.page}>
-            <header className={styles.header}>
-                <Link className={styles.backLink} to="/management/inventory/disposals">
-                    Quay lại danh sách
-                </Link>
-                <div className={styles.heading}>
-                    <h1 ref={titleRef} tabIndex={-1}>{disposal?.code ?? "Chi tiết tiêu hủy"}</h1>
-                    {disposal ? <DisposalStatusBadge customerReturn={isCustomerReturn} status={disposal.status} /> : null}
+        <section className="flex min-h-full flex-col gap-4 text-[#172317]">
+            <header className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+                <div className="min-w-0">
+                    <Link className="inline-flex items-center gap-1.5 text-sm font-black text-[#159734] hover:underline" to="/management/inventory/disposals">
+                        <ArrowLeft size={16} aria-hidden="true" /> Yêu cầu tiêu hủy
+                    </Link>
+                    <div className="mt-1 flex flex-wrap items-center gap-2">
+                        <h1 className="text-2xl font-black outline-none" ref={titleRef} tabIndex={-1}>{disposal?.code ?? "Chi tiết tiêu hủy"}</h1>
+                        {disposal ? <DisposalStatusBadge customerReturn={isCustomerReturn} status={disposal.status} /> : null}
+                    </div>
+                    {disposal ? (
+                        <p className="text-sm font-semibold text-[#697684]">
+                            {isCustomerReturn ? "Nguồn: Khách trả hàng" : "Nguồn: Hàng hỏng / hết hạn"} · Tạo lúc {formatVietnamDateTime(disposal.requestedAt)}
+                        </p>
+                    ) : null}
                 </div>
-            </header>
-
-            {loading ? <div className={listStyles.notice} role="status">Đang tải yêu cầu tiêu hủy...</div> : null}
-            {error && !confirmOpen ? (
-                <div className={`${listStyles.error} flex items-center gap-2`} role="alert">
-                    <ShieldAlert size={16} />{error}
-                </div>
-            ) : null}
-            {success ? (
-                <div className={`${listStyles.notice} flex items-center gap-2`} role="status">
-                    <CheckCircle2 size={16} />{success}
-                </div>
-            ) : null}
-
-            {disposal ? (
-                <>
-                    <section className="grid gap-3 rounded-xl border border-[#e8eef0] bg-white p-4 shadow-pos-card">
-                        <h2 className="text-sm font-black uppercase text-[#315f3c]">Thông tin yêu cầu</h2>
-                        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                            <Info label="Mã yêu cầu" value={disposal.code} />
-                            <div className="grid gap-1 rounded-lg bg-[#f7f8fb] px-3 py-2">
-                                <span className="text-xs font-black text-[#697684]">Trạng thái</span>
-                                <div><DisposalStatusBadge customerReturn={isCustomerReturn} status={disposal.status} /></div>
-                            </div>
-                            <Info label="Ngày tạo" value={formatVietnamDateTime(disposal.requestedAt)} />
-                            {disposal.approvedAt ? (
-                                <Info label={isCustomerReturn ? "Ngày xử lý" : "Ngày duyệt"} value={formatVietnamDateTime(disposal.approvedAt)} />
-                            ) : null}
-                        </div>
-                        {disposal.note ? <Info label="Ghi chú" value={disposal.note} /> : null}
-                    </section>
-
-                    <section className="grid gap-3 rounded-xl border border-[#e8eef0] bg-white p-4 shadow-pos-card">
-                        <h2 className="text-sm font-black uppercase text-[#315f3c]">Tham chiếu</h2>
-                        <div className="grid gap-3 sm:grid-cols-2">
-                            <Info label="Phiếu trả" value={disposal.returnCode ?? "–"} />
-                            <div className="grid gap-1 rounded-lg bg-[#f7f8fb] px-3 py-2">
-                                <span className="text-xs font-black text-[#697684]">Phiếu kiểm định</span>
-                                {disposal.sourceInspectionId ? (
-                                    <Link
-                                        className="text-sm font-black text-[#159734] hover:underline"
-                                        to={`/management/inventory/customer-returns/${disposal.sourceInspectionId}`}
-                                    >
-                                        {disposal.inspectionCode ?? "Xem phiếu kiểm định"}
-                                    </Link>
-                                ) : <strong className="text-sm text-[#172317]">{disposal.inspectionCode ?? "–"}</strong>}
-                            </div>
-                        </div>
-                    </section>
-
-                    <section className="grid gap-3 rounded-xl border border-[#e8eef0] bg-white p-4 shadow-pos-card">
-                        <h2 className="text-sm font-black uppercase text-[#315f3c]">Hàng tiêu hủy</h2>
-                        <div className="grid gap-3 sm:grid-cols-2">
-                            <Info label="Số dòng" value={formatVietnamNumber(disposal.lines.length)} />
-                            <Info label="Tổng số lượng" value={formatVietnamNumber(totalQuantity)} />
-                        </div>
-                        <div className="overflow-x-auto">
-                            <table className="w-full min-w-[580px] text-left text-sm">
-                                <thead className="bg-[#eaf7ec] text-xs font-black uppercase text-[#172317]">
-                                    <tr>
-                                        <th className="px-4 py-3">Sản phẩm</th>
-                                        <th className="px-4 py-3">SKU</th>
-                                        <th className="px-4 py-3 text-right">Số lượng</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {disposal.lines.map((line) => (
-                                        <tr key={line.id}>
-                                            <td className="border-t border-[#edf0f4] px-4 py-3 font-bold">{line.skuName}</td>
-                                            <td className="border-t border-[#edf0f4] px-4 py-3">{line.skuCode}</td>
-                                            <td className="border-t border-[#edf0f4] px-4 py-3 text-right">
-                                                {formatVietnamNumber(line.quantity)}
-                                            </td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
-                    </section>
-
-                    <section className="grid gap-3 rounded-xl border border-[#e8eef0] bg-white p-4 shadow-pos-card">
-                        <h2 className="text-sm font-black uppercase text-[#315f3c]">{isCustomerReturn ? "Xử lý hàng trả" : "Phê duyệt"}</h2>
-                        <div><DisposalStatusBadge customerReturn={isCustomerReturn} status={disposal.status} /></div>
-                        {isCustomerReturn && disposal.status === "PENDING_APPROVAL" && disposal.sourceInspectionId ? (
-                            <Link
-                                className="text-sm font-black text-[#159734] hover:underline"
-                                to={`/management/inventory/customer-returns/${disposal.sourceInspectionId}`}
-                            >
-                                Mở phiếu kiểm định để QC hoặc quản lý xác nhận xử lý
+                {disposal && isPending ? (
+                    <div className="flex flex-wrap items-center gap-2">
+                        {isCustomerReturn && inspectionLink ? (
+                            <Link className={LIST_PRIMARY_BUTTON} to={inspectionLink}>
+                                <ClipboardCheck size={17} aria-hidden="true" /> Mở phiếu kiểm định để xác nhận
                             </Link>
                         ) : null}
-                        {disposal.status === "PENDING_APPROVAL" && canApprove && !isCustomerReturn ? (
+                        {!isCustomerReturn && canApprove ? (
                             <button
-                                className="w-fit rounded-lg bg-[#159734] px-4 py-2 text-sm font-black text-white disabled:opacity-60"
+                                className={LIST_PRIMARY_BUTTON}
                                 disabled={submitting}
                                 onClick={() => {
                                     setError("");
@@ -199,28 +130,102 @@ export function DisposalDetailPage() {
                                 }}
                                 type="button"
                             >
-                                Phê duyệt
+                                <CheckCircle2 size={17} aria-hidden="true" /> Phê duyệt
                             </button>
                         ) : null}
-                        {disposal.status === "PENDING_APPROVAL" && !canApprove && !isCustomerReturn ? (
-                            <p className="text-sm font-semibold text-amber-900">
-                                Yêu cầu đang chờ quản lý chi nhánh hoặc quản lý kho phê duyệt.
-                            </p>
-                        ) : null}
-                        {disposal.approvedAt ? (
-                            <p className="text-sm text-[#536078]">
-                                {isCustomerReturn ? "Đã tiêu hủy lúc" : "Đã duyệt lúc"} {formatVietnamDateTime(disposal.approvedAt)}.
-                            </p>
-                        ) : null}
-                    </section>
-                </>
+                    </div>
+                ) : null}
+            </header>
+
+            {loading ? <div className="rounded-xl bg-white p-4 text-sm font-bold text-[#697684]" role="status">Đang tải yêu cầu tiêu hủy...</div> : null}
+            {error && !confirmOpen ? (
+                <div className="flex items-center gap-2 rounded-xl bg-red-50 p-4 text-sm font-bold text-red-700" role="alert">
+                    <ShieldAlert size={16} aria-hidden="true" />{error}
+                </div>
+            ) : null}
+            {success ? (
+                <div className="flex items-center gap-2 rounded-xl bg-green-50 p-4 text-sm font-bold text-green-800" role="status">
+                    <CheckCircle2 size={16} aria-hidden="true" />{success}
+                </div>
             ) : null}
 
-            <footer className={styles.footer}>
-                <Link className={styles.closeLink} to="/management/inventory/disposals">
-                    Đóng chi tiết
-                </Link>
-            </footer>
+            {disposal ? (
+                <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_340px]">
+                    <section className="grid content-start gap-3 rounded-xl border border-[#e8eef0] bg-white p-4 shadow-pos-card">
+                        <div className="flex flex-wrap items-baseline justify-between gap-2">
+                            <h2 className="text-sm font-black uppercase text-[#315f3c]">Hàng tiêu hủy</h2>
+                            <span className="text-xs font-semibold text-[#697684]">
+                                {formatVietnamNumber(disposal.lines.length)} dòng · tổng {formatVietnamNumber(totalQuantity)}
+                            </span>
+                        </div>
+                        <div className="overflow-x-auto">
+                            <table className="w-full min-w-[480px] text-left text-sm">
+                                <thead className="bg-[#f8faf9] text-[11px] font-black uppercase text-[#556477]">
+                                    <tr>
+                                        <th className="px-4 py-2.5">Sản phẩm</th>
+                                        <th className="px-4 py-2.5">SKU</th>
+                                        <th className="px-4 py-2.5 text-right">Số lượng</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {disposal.lines.map((line) => (
+                                        <tr key={line.id}>
+                                            <td className="border-t border-[#edf0f4] px-4 py-3 font-bold">{line.skuName}</td>
+                                            <td className="border-t border-[#edf0f4] px-4 py-3 text-[#536078]">{line.skuCode}</td>
+                                            <td className="border-t border-[#edf0f4] px-4 py-3 text-right font-black">
+                                                {formatVietnamNumber(line.quantity)}
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                                <tfoot>
+                                    <tr className="bg-[#f8faf9]">
+                                        <td className="border-t border-[#e4ece8] px-4 py-3 font-black" colSpan={2}>Tổng cộng</td>
+                                        <td className="border-t border-[#e4ece8] px-4 py-3 text-right font-black">{formatVietnamNumber(totalQuantity)}</td>
+                                    </tr>
+                                </tfoot>
+                            </table>
+                        </div>
+                        {disposal.note ? (
+                            <div className="rounded-lg bg-[#f7f8fb] p-3 text-sm">
+                                <span className="block text-xs font-black uppercase text-[#697684]">Ghi chú</span>
+                                <p className="mt-1">{disposal.note}</p>
+                            </div>
+                        ) : null}
+                    </section>
+
+                    <aside className="grid content-start gap-4">
+                        <SideCard title="Thông tin">
+                            <SideRow label="Trạng thái"><DisposalStatusBadge customerReturn={isCustomerReturn} status={disposal.status} /></SideRow>
+                            <SideRow label="Ngày tạo">{formatVietnamDateTime(disposal.requestedAt)}</SideRow>
+                            {disposal.approvedAt ? (
+                                <SideRow label={isCustomerReturn ? "Ngày tiêu hủy" : "Ngày duyệt"}>{formatVietnamDateTime(disposal.approvedAt)}</SideRow>
+                            ) : null}
+                        </SideCard>
+                        <SideCard title="Tham chiếu">
+                            <SideRow label="Phiếu trả">
+                                {returnLink ? <Link className="font-black text-[#159734] hover:underline" to={returnLink}>{disposal.returnCode}</Link> : "–"}
+                            </SideRow>
+                            <SideRow label="Phiếu kiểm định">
+                                {inspectionLink
+                                    ? <Link className="font-black text-[#159734] hover:underline" to={inspectionLink}>{disposal.inspectionCode ?? "Xem phiếu kiểm định"}</Link>
+                                    : disposal.inspectionCode ?? "–"}
+                            </SideRow>
+                        </SideCard>
+                        <SideCard title={isCustomerReturn ? "Xử lý hàng trả" : "Phê duyệt"}>
+                            <p className="text-sm font-semibold text-[#536078]">
+                                {!isPending
+                                    ? `${isCustomerReturn ? "Đã tiêu hủy" : "Đã duyệt"}${disposal.approvedAt ? ` lúc ${formatVietnamDateTime(disposal.approvedAt)}` : ""}.`
+                                    : isCustomerReturn
+                                        ? "QC hoặc quản lý xác nhận xử lý trên phiếu kiểm định; yêu cầu sẽ tự hoàn tất."
+                                        : canApprove
+                                            ? "Kiểm tra hàng tiêu hủy rồi bấm Phê duyệt để ghi nhận xuất hủy."
+                                            : "Yêu cầu đang chờ quản lý chi nhánh hoặc quản lý kho phê duyệt."}
+                            </p>
+                        </SideCard>
+                    </aside>
+                </div>
+            ) : null}
 
             {confirmOpen && disposal && !isCustomerReturn ? (
                 <ConfirmDialog
@@ -237,11 +242,20 @@ export function DisposalDetailPage() {
     );
 }
 
-function Info({ label, value }: { label: string; value: string }) {
+function SideCard({ title, children }: { title: string; children: ReactNode }) {
     return (
-        <div className="grid gap-1 rounded-lg bg-[#f7f8fb] px-3 py-2">
-            <span className="text-xs font-black text-[#697684]">{label}</span>
-            <strong className="text-sm font-black text-[#172317]">{value}</strong>
+        <section className="grid gap-3 rounded-xl border border-[#e8eef0] bg-white p-4 shadow-pos-card">
+            <h2 className="text-sm font-black uppercase text-[#315f3c]">{title}</h2>
+            {children}
+        </section>
+    );
+}
+
+function SideRow({ label, children }: { label: string; children: ReactNode }) {
+    return (
+        <div className="flex items-center justify-between gap-3 text-sm">
+            <span className="font-semibold text-[#697684]">{label}</span>
+            <span className="min-w-0 break-all text-right font-black text-[#172317]">{children}</span>
         </div>
     );
 }

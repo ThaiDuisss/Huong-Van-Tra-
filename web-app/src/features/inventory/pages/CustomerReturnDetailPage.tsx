@@ -5,7 +5,7 @@ import { CUSTOMER_RETURN_QC_ROLES, useAuthorization } from "../../../auth/role-u
 import { getReturnErrorMessage, getReturnReasonLabel } from "../../order/utils/order-return.utils";
 import type { ReturnReason } from "../../order/types/order-return.types";
 import { InspectionStatusBadge } from "../components/CustomerReturnInspectionComponents";
-import { CustomerReturnQcFields } from "../components/CustomerReturnQcFields";
+import { CustomerReturnQcForm } from "../components/CustomerReturnQcForm";
 import { customerReturnApi, loadCustomerReturnQcLocations } from "../services/customerReturn.api";
 import type { CustomerReturnInspection, CustomerReturnQcDraft, CustomerReturnQcLocation } from "../types/customer-return-inspection.types";
 import { createCustomerReturnQcDraft, getCustomerReturnQcError } from "../utils/customer-return-qc";
@@ -23,6 +23,7 @@ export function CustomerReturnDetailPage() {
     const [error, setError] = useState("");
     const [locationError, setLocationError] = useState("");
     const [successMessage, setSuccessMessage] = useState("");
+    const [selectedLineId, setSelectedLineId] = useState<string | null>(null);
 
     useEffect(() => {
         if (!inspectionId) return;
@@ -132,52 +133,129 @@ export function CustomerReturnDetailPage() {
         }
     }
 
-    return <section className="grid gap-4">
-        <header className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-            <div>
-                <Link className="inline-flex items-center gap-1.5 text-sm font-black text-[#159734] hover:underline" to="/management/inventory/customer-returns"><ArrowLeft size={16} /> Quay lại danh sách</Link>
-                <h1 className="mt-1 text-2xl font-black text-[#172317]">{detail?.inspectionCode ?? "Phiếu kiểm định trả hàng"}</h1>
-                {detail ? <p className="text-sm font-semibold text-[#697684]">Mã phiếu hoàn: {detail.returnCode} · Mã đơn hàng: {detail.orderCode ?? "Không có mã đơn hàng"}</p> : null}
+    const lines = detail?.lines ?? [];
+    const selectedLine = lines.find((line) => line.id === selectedLineId) ?? lines.find((line) => !line.posted) ?? lines[0];
+    const postedCount = lines.filter((line) => line.posted).length;
+    const readyCount = pendingLines.filter((line) => !getCustomerReturnQcError(line, drafts[line.id] ?? createCustomerReturnQcDraft(line), locations)).length;
+
+    return <section className="flex min-h-full flex-col gap-4 text-[#172317]">
+        <header className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+            <div className="min-w-0">
+                <Link className="inline-flex items-center gap-1.5 text-sm font-black text-[#159734] hover:underline" to="/management/inventory/customer-returns"><ArrowLeft size={16} /> Khách trả hàng</Link>
+                <div className="mt-1 flex flex-wrap items-center gap-2">
+                    <h1 className="text-2xl font-black">{detail?.inspectionCode ?? "Phiếu kiểm định trả hàng"}</h1>
+                    {detail ? <InspectionStatusBadge status={detail.status} /> : null}
+                </div>
+                {detail ? <p className="text-sm font-semibold text-[#697684]">Phiếu hoàn {detail.returnCode} · Đơn {detail.orderCode ?? "--"}</p> : null}
             </div>
-            {editable ? <button className="h-10 rounded-lg bg-[#159734] px-5 text-sm font-black text-white shadow-sm hover:bg-[#12822c] disabled:opacity-60" disabled={cannotPost} onClick={() => void handlePostInspection()} type="button">{submitting ? "Đang xử lý..." : "Xác nhận xử lý"}</button> : null}
         </header>
+
         {loading ? <div className="rounded-xl bg-white p-6 text-sm font-bold text-[#697684]">Đang tải dữ liệu phiếu...</div> : null}
         {error ? <div role="alert" className="flex items-center gap-2 rounded-xl bg-red-50 p-4 text-sm font-bold text-red-700"><ShieldAlert size={18} /> {error}</div> : null}
         {locationError ? <div role="alert" className="rounded-xl bg-amber-50 p-4 text-sm text-amber-800">{locationError}</div> : null}
         {successMessage ? <div role="status" className="flex items-center gap-2 rounded-xl bg-green-50 p-4 text-sm font-bold text-green-800"><CheckCircle2 size={18} /> {successMessage}</div> : null}
         {!loading && !error && !detail ? (
             <div className="rounded-xl border border-[#e8eef0] bg-white p-8 text-center shadow-pos-card">
-                <p className="font-bold text-[#172317]">Không tìm thấy phiếu kiểm định</p>
+                <p className="font-bold">Không tìm thấy phiếu kiểm định</p>
                 <p className="mt-1 text-sm text-[#697684]">Phiếu hoàn chưa có phiếu kiểm định kho hoặc mã phiếu không tồn tại.</p>
                 <Link className="mt-4 inline-flex items-center gap-2 rounded-lg bg-[#159734] px-4 py-2 text-sm font-black text-white hover:bg-[#12822c]" to="/management/inventory/customer-returns">
                     Quay lại danh sách khách trả hàng
                 </Link>
             </div>
         ) : null}
+
         {detail ? <>
-            <section className="grid gap-4 rounded-xl border border-[#e8eef0] bg-white p-5 shadow-pos-card md:grid-cols-2 lg:grid-cols-4">
-                <div><span className="text-xs font-black uppercase text-[#697684]">Trạng thái phiếu</span><div className="mt-1"><InspectionStatusBadge status={detail.status} /></div></div>
+            <section className="grid gap-4 rounded-xl border border-[#e8eef0] bg-white p-4 shadow-pos-card sm:grid-cols-2 lg:grid-cols-4">
                 <Info label="Khách hàng" value={detail.customerName || "Khách lẻ"} />
                 <Info label="Thời gian tạo phiếu" value={formatVietnamDateTime(detail.createdAt)} />
                 <Info label="Thời gian xử lý kho" value={detail.postedAt ? formatVietnamDateTime(detail.postedAt) : "Chờ xử lý"} />
+                <Info label="Tiến độ" value={`${formatVietnamNumber(postedCount)}/${formatVietnamNumber(lines.length)} dòng đã xử lý`} />
             </section>
-            {editable ? <p className="rounded-xl bg-[#eaf7ec] p-4 text-sm text-[#172317]">QC chọn tình trạng thực tế sau khi kiểm tra hàng. Tình trạng thực tế có thể khác khai báo ban đầu. Chỉ hàng thực tế còn nguyên seal mới được nhập lại kho.</p> : null}
-            {editable && !loading && validationErrors.length > 0 ? <ul aria-live="polite" className="grid gap-1 rounded-xl bg-amber-50 p-4 text-sm text-amber-800">{validationErrors.map((message) => <li key={message}>{message}</li>)}</ul> : null}
-            {detail.lines.length === 0 ? <div className="rounded-xl bg-white p-6 text-sm text-[#697684]">Phiếu chưa có sản phẩm kiểm định.</div> : <section className="overflow-x-auto rounded-xl border border-[#e8eef0] bg-white shadow-pos-card">
-                <table className="w-full min-w-[1200px] text-left text-sm">
-                    <thead className="bg-[#eaf7ec] text-xs font-black uppercase text-[#172317]"><tr><th className="px-4 py-3">Sản phẩm / Lý do trả</th><th>Số lượng kiểm định</th><th>Tình trạng khai báo</th><th>Tình trạng thực tế</th><th>Phân loại xử lý</th><th>Vị trí đích</th><th>Ghi chú kiểm định</th><th>Giao dịch kho</th></tr></thead>
-                    <tbody>{detail.lines.map((line) => <tr className="hover:bg-[#f8fbf8]" key={line.id}>
-                        <td className="border-t border-[#edf0f4] px-4 py-3"><strong>{line.itemName ?? "Sản phẩm"}</strong><p className="text-xs text-[#697684]">{line.itemCode ?? "Chưa có SKU"}</p><p className="text-xs text-[#697684]">{getReturnReasonLabel(line.returnReason as ReturnReason) || "Khách yêu cầu trả"}</p></td>
-                        <td className="border-t border-[#edf0f4] font-bold">{formatVietnamNumber(Number(line.quantity))}</td>
-                        <CustomerReturnQcFields line={line} draft={drafts[line.id] ?? createCustomerReturnQcDraft(line)} editable={editable && !line.posted && !submitting && !loading} locations={locations} onChange={(update) => updateDraft(line.id, update)} />
-                        <td className="border-t border-[#edf0f4] px-3 py-3">{line.posted ? <div className="grid gap-1"><span className="text-green-700">Đã xử lý</span><span className="text-xs">{line.result === "WRITE_OFF" ? "Giao dịch tiêu hủy" : "Giao dịch nhận hàng trả"}</span>{line.disposalRequestId ? <Link className="text-xs text-[#159734] hover:underline" to={`/management/inventory/disposals/${line.disposalRequestId}`}>{line.disposalRequestCode ?? "Xem phiếu tiêu hủy"}</Link> : null}</div> : <span className="text-amber-700">Chưa xử lý</span>}</td>
-                    </tr>)}</tbody>
-                </table>
-            </section>}
+
+            {editable ? <p className="rounded-xl bg-[#eaf7ec] p-3 text-sm text-[#172317]">Chọn tình trạng thực tế sau khi kiểm tra hàng (có thể khác khai báo ban đầu). Chỉ hàng thực tế còn nguyên seal mới được nhập lại kho.</p> : null}
+
+            {lines.length === 0 ? <div className="rounded-xl bg-white p-6 text-sm text-[#697684]">Phiếu chưa có sản phẩm kiểm định.</div> : (
+                <div className="grid min-h-0 flex-1 gap-4 lg:grid-cols-[320px_minmax(0,1fr)]">
+                    <nav aria-label="Dòng hàng cần kiểm" className="grid content-start gap-2 rounded-xl border border-[#e8eef0] bg-white p-2 shadow-pos-card">
+                        {lines.map((line) => {
+                            const draft = drafts[line.id] ?? createCustomerReturnQcDraft(line);
+                            const lineError = line.posted ? null : getCustomerReturnQcError(line, draft, locations);
+                            const active = line.id === selectedLine?.id;
+                            return <button
+                                aria-current={active ? "true" : undefined}
+                                className={`grid gap-1 rounded-lg border p-3 text-left transition-colors ${active ? "border-[#159734] bg-[#f4faf5]" : "border-transparent hover:bg-[#f7fbf8]"}`}
+                                key={line.id}
+                                onClick={() => setSelectedLineId(line.id)}
+                                type="button"
+                            >
+                                <span className="flex items-start justify-between gap-2">
+                                    <strong className="min-w-0 truncate text-sm font-black">{line.itemName ?? "Sản phẩm"}</strong>
+                                    <span className="shrink-0 text-sm font-black">×{formatVietnamNumber(Number(line.quantity))}</span>
+                                </span>
+                                <span className="text-xs font-semibold text-[#697684]">{line.itemCode ?? "Chưa có SKU"}</span>
+                                <LineState editable={editable} hasError={Boolean(lineError)} posted={line.posted} />
+                            </button>;
+                        })}
+                    </nav>
+
+                    {selectedLine ? <article className="grid content-start gap-4 rounded-xl border border-[#e8eef0] bg-white p-5 shadow-pos-card">
+                        <header className="flex flex-wrap items-start justify-between gap-3 border-b border-[#edf0f4] pb-4">
+                            <div className="min-w-0">
+                                <h2 className="text-lg font-black">{selectedLine.itemName ?? "Sản phẩm"}</h2>
+                                <p className="text-sm font-semibold text-[#697684]">
+                                    {selectedLine.itemCode ?? "Chưa có SKU"} · SL kiểm {formatVietnamNumber(Number(selectedLine.quantity))}
+                                    {" · "}Lý do trả: {getReturnReasonLabel(selectedLine.returnReason as ReturnReason) || "Khách yêu cầu trả"}
+                                </p>
+                            </div>
+                            {selectedLine.posted ? <div className="grid justify-items-end gap-1 text-xs">
+                                <span className="rounded-full bg-green-50 px-2.5 py-1 font-black text-green-700">Đã xử lý</span>
+                                <span className="font-semibold text-[#697684]">{selectedLine.result === "WRITE_OFF" ? "Giao dịch tiêu hủy" : "Giao dịch nhận hàng trả"}</span>
+                                {selectedLine.disposalRequestId ? <Link className="font-black text-[#159734] hover:underline" to={`/management/inventory/disposals/${selectedLine.disposalRequestId}`}>{selectedLine.disposalRequestCode ?? "Xem phiếu tiêu hủy"}</Link> : null}
+                            </div> : null}
+                        </header>
+                        <CustomerReturnQcForm
+                            draft={drafts[selectedLine.id] ?? createCustomerReturnQcDraft(selectedLine)}
+                            editable={editable && !selectedLine.posted && !submitting && !loading}
+                            error={selectedLine.posted ? null : getCustomerReturnQcError(selectedLine, drafts[selectedLine.id] ?? createCustomerReturnQcDraft(selectedLine), locations)}
+                            key={selectedLine.id}
+                            line={selectedLine}
+                            locations={locations}
+                            onChange={(update) => updateDraft(selectedLine.id, update)}
+                        />
+                    </article> : null}
+                </div>
+            )}
+
+            {editable && pendingLines.length > 0 ? (
+                <footer className="sticky bottom-0 z-[2] flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[#e8eef0] bg-white px-4 py-3 shadow-[0_-8px_24px_rgba(31,53,43,0.08)]">
+                    <div className="min-w-0 text-sm">
+                        <strong className="font-black">Đã điền {formatVietnamNumber(readyCount)}/{formatVietnamNumber(pendingLines.length)} dòng chờ xử lý</strong>
+                        {validationErrors.length > 0 ? (
+                            <p aria-live="polite" className="truncate text-xs font-semibold text-amber-700" title={validationErrors.join("\n")}>
+                                {validationErrors[0]}{validationErrors.length > 1 ? ` (+${validationErrors.length - 1} dòng khác)` : ""}
+                            </p>
+                        ) : <p className="text-xs font-semibold text-[#697684]">Sẵn sàng xác nhận và hạch toán kho.</p>}
+                    </div>
+                    <button className="h-11 rounded-xl bg-[#159734] px-5 text-sm font-black text-white shadow-sm hover:bg-[#12822c] disabled:opacity-60" disabled={cannotPost} onClick={() => void handlePostInspection()} type="button">
+                        {submitting ? "Đang xử lý..." : "Xác nhận xử lý"}
+                    </button>
+                </footer>
+            ) : null}
         </> : null}
     </section>;
 }
 
+function LineState({ editable, hasError, posted }: { editable: boolean; hasError: boolean; posted: boolean }) {
+    if (posted) return <span className="text-xs font-black text-green-700">✓ Đã xử lý</span>;
+    if (!editable) return <span className="text-xs font-black text-amber-700">Chưa xử lý</span>;
+    return hasError
+        ? <span className="text-xs font-black text-amber-700">Cần điền thông tin</span>
+        : <span className="text-xs font-black text-[#159734]">Sẵn sàng</span>;
+}
+
 function Info({ label, value }: { label: string; value: string }) {
-    return <div><span className="text-xs font-black uppercase text-[#697684]">{label}</span><p className="mt-1 text-sm font-black text-[#172317]">{value}</p></div>;
+    return <div>
+        <span className="text-xs font-black uppercase text-[#697684]">{label}</span>
+        <p className="mt-1 text-sm font-black text-[#172317]">{value}</p>
+    </div>;
 }

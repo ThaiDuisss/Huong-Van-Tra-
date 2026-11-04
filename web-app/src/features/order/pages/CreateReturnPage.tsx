@@ -1,6 +1,7 @@
 import {
     ArrowLeft,
     CalendarDays,
+    Check,
     ChevronLeft,
     ChevronRight,
     Info,
@@ -9,6 +10,7 @@ import {
 } from "lucide-react";
 import { useEffect, useMemo, useState, type KeyboardEvent } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import { routePaths } from "../../../routes/path";
 
 import { getOrderById, getOrders } from "../services/order.api";
 import { checkOrderReturnEligibility, createOrderReturn, getOrderReturns } from "../services/order-return.api";
@@ -19,6 +21,7 @@ import { ReturnEligibilityStatus } from "../components/ReturnEligibilityStatus";
 import { ReturnPolicyModal } from "../components/ReturnPolicyModal";
 import type {
     OrderDetailResponse,
+    OrderItemResponse,
     OrderPageResponse,
     OrderQueryParams,
     OrderSummaryResponse
@@ -443,6 +446,10 @@ export function CreateReturnPage() {
         (wizardStep === 2 && Boolean(quantityValidation.error)) ||
         (wizardStep === 3 && isCreateDisabled);
 
+    const isNextLoading =
+        (wizardStep === 1 && isSelectedOrderLoading) ||
+        (wizardStep === 3 && isCheckingEligibility);
+
     const handleBackToList = () => {
         navigate(orderId ? "/system/orders" : "/system/orders/returns");
     };
@@ -627,7 +634,7 @@ export function CreateReturnPage() {
             payload.items = buildReturnPayloadItems(freshOrder.items ?? [], draftItems, freshReturns, latestEligibility.items);
             const createdReturn = await createOrderReturn(freshOrder.id, payload);
             setToast("Tạo phiếu hoàn hàng thành công");
-            window.setTimeout(() => navigate(`/system/orders/returns/${createdReturn.id}`), 350);
+            window.setTimeout(() => navigate(`${routePaths.returns}?detail=${encodeURIComponent(createdReturn.id)}`), 350);
         } catch (error: unknown) {
             setToast(getReturnErrorMessage(error));
             setEligibilityRevision(current => current + 1);
@@ -784,7 +791,7 @@ export function CreateReturnPage() {
                 </div>
             </header>
 
-            <div className={styles.stepper}>
+            <ol aria-label="Các bước tạo phiếu hoàn" className={styles.stepper}>
                 {WIZARD_STEPS.map((item) => {
                     const state =
                         item.step < wizardStep
@@ -792,18 +799,28 @@ export function CreateReturnPage() {
                             : item.step === wizardStep
                                 ? "active"
                                 : "upcoming";
+                    // Chỉ quay lại được bước đã xong; bước sau phải đi qua nút Tiếp tục để được kiểm tra.
+                    const canJump = state === "completed" && !isSubmitting && !(orderId && item.step === 1);
 
                     return (
-                        <div
-                            className={`${styles.step} ${styles[state]}`}
-                            key={item.step}
-                        >
-                            <span>{item.step}</span>
-                            <strong>{item.label}</strong>
-                        </div>
+                        <li key={item.step}>
+                            <button
+                                aria-current={state === "active" ? "step" : undefined}
+                                className={`${styles.step} ${styles[state]}`}
+                                disabled={!canJump}
+                                onClick={() => setWizardStep(item.step)}
+                                title={canJump ? `Quay lại bước ${item.label}` : undefined}
+                                type="button"
+                            >
+                                <span>
+                                    {state === "completed" ? <Check size={14} aria-hidden="true" /> : item.step}
+                                </span>
+                                <strong>{item.label}</strong>
+                            </button>
+                        </li>
                     );
                 })}
-            </div>
+            </ol>
 
             <section className={styles.card}>
                 {renderStepContent()}
@@ -815,6 +832,15 @@ export function CreateReturnPage() {
             </section>
 
             <footer className={styles.footer}>
+                <WizardSummary
+                    customer={selectedOrderSummary ? getCustomerDisplay(selectedOrderSummary) : null}
+                    entries={selectedEntries.map(({ item, itemKey }) => ({
+                        item,
+                        quantity: Number(draftItems[itemKey]?.quantity) || 0
+                    }))}
+                    orderCode={selectedOrder?.orderCode ?? selectedOrderSummary?.orderCode ?? null}
+                    refundRequired={refundRequired}
+                />
                 <button
                     className={styles.secondaryButton}
                     disabled={wizardStep === 1 || isSubmitting}
@@ -830,12 +856,22 @@ export function CreateReturnPage() {
                 {wizardStep < 4 ? (
                     <button
                         className={styles.primaryButton}
+                        aria-busy={isNextLoading || undefined}
                         disabled={isNextDisabled}
                         onClick={moveToNextStep}
                         type="button"
                     >
-                        Tiếp tục
-                        <ChevronRight size={18} aria-hidden="true" />
+                        {isNextLoading ? (
+                            <>
+                                <LoaderCircle className={styles.spinner} size={18} aria-hidden="true" />
+                                {wizardStep === 1 ? "Đang tải đơn..." : "Đang kiểm tra..."}
+                            </>
+                        ) : (
+                            <>
+                                Tiếp tục
+                                <ChevronRight size={18} aria-hidden="true" />
+                            </>
+                        )}
                     </button>
                 ) : (
                     <button
@@ -985,23 +1021,25 @@ function OrderPicker({
                 <div className={styles.orderTableWrap}>
                     <table className={styles.orderTable}>
                         <colgroup>
-                            <col style={{ width: "24%" }} />
-                            <col style={{ width: "34%" }} />
-                            <col style={{ width: "20%" }} />
                             <col style={{ width: "22%" }} />
+                            <col style={{ width: "28%" }} />
+                            <col style={{ width: "18%" }} />
+                            <col style={{ width: "14%" }} />
+                            <col style={{ width: "18%" }} />
                         </colgroup>
                         <thead>
                             <tr>
                                 <th>Mã đơn hàng</th>
                                 <th>Khách hàng</th>
                                 <th>Thời gian</th>
+                                <th>Tình trạng hoàn</th>
                                 <th>Giá trị đơn hàng</th>
                             </tr>
                         </thead>
                         <tbody>
                             {isLoading ? (
                                 <tr>
-                                    <td className={styles.emptyCell} colSpan={4}>
+                                    <td className={styles.emptyCell} colSpan={5}>
                                         <strong>Đang tìm kiếm</strong>
                                         <span>Đang tải danh sách đơn hàng</span>
                                     </td>
@@ -1009,7 +1047,7 @@ function OrderPicker({
                             ) : null}
                             {!isLoading && searchError ? (
                                 <tr>
-                                    <td className={styles.emptyCell} colSpan={4}>
+                                    <td className={styles.emptyCell} colSpan={5}>
                                         <strong>Không tải được đơn hàng</strong>
                                         <span>{searchError}</span>
                                     </td>
@@ -1044,6 +1082,9 @@ function OrderPicker({
                                           <td className={styles.orderDateCell}>
                                               {formatDateTime(order.createdAt)}
                                           </td>
+                                          <td>
+                                              <OrderReturnStatusTag order={order} />
+                                          </td>
                                           <td className={styles.orderAmountCell}>
                                               {formatCurrency(order.finalAmount)}
                                           </td>
@@ -1052,7 +1093,7 @@ function OrderPicker({
                                 : null}
                             {!isLoading && !searchError && orderResults.length === 0 ? (
                                 <tr>
-                                    <td className={styles.emptyCell} colSpan={4}>
+                                    <td className={styles.emptyCell} colSpan={5}>
                                         <strong>
                                             {hasSearchTerm || hasTimeFilter
                                                 ? "Không tìm thấy đơn hàng"
@@ -1098,6 +1139,66 @@ function OrderPicker({
                 ) : null}
             </div>
         </div>
+    );
+}
+
+const ORDER_RETURN_STATUS_TAGS: Record<string, { label: string; className: string }> = {
+    NONE: { label: "Chưa hoàn", className: "bg-[#eef3f1] text-[#536078]" },
+    PARTIALLY_RETURNED: { label: "Đã hoàn một phần", className: "bg-[#fef3c7] text-[#b45309]" },
+    FULLY_RETURNED: { label: "Đã hoàn hết", className: "bg-[#ffecec] text-[#df2525]" }
+};
+
+function OrderReturnStatusTag({ order }: { order: OrderSummaryResponse }) {
+    const tag = ORDER_RETURN_STATUS_TAGS[order.returnStatus ?? "NONE"] ?? ORDER_RETURN_STATUS_TAGS.NONE;
+    return (
+        <span className={`inline-flex h-6 items-center whitespace-nowrap rounded-md px-2 text-xs font-black ${tag.className}`}>
+            {order.returnStatusLabel?.trim() || tag.label}
+        </span>
+    );
+}
+
+/** Tóm tắt cố định cạnh nút Tiếp tục: đơn đã chọn, số sản phẩm, giá trị hàng trả tạm tính. */
+function WizardSummary({
+    customer,
+    entries,
+    orderCode,
+    refundRequired
+}: {
+    customer: string | null;
+    entries: Array<{ item: OrderItemResponse; quantity: number }>;
+    orderCode: string | null;
+    refundRequired: boolean;
+}) {
+    if (!orderCode) {
+        return <p className={styles.wizardSummaryEmpty}>Chọn đơn hàng để bắt đầu.</p>;
+    }
+    const totalQuantity = entries.reduce((sum, entry) => sum + entry.quantity, 0);
+    // Tạm tính theo đơn giá thực bán của từng dòng; số tiền hoàn chính xác do hệ thống tính khi hoàn tiền.
+    const estimatedValue = entries.reduce((sum, { item, quantity }) => {
+        const lineQuantity = Number(item.quantity) || 0;
+        const unitPrice = lineQuantity > 0 && item.lineTotal != null
+            ? Number(item.lineTotal) / lineQuantity
+            : Number(item.actualUnitPrice ?? item.originalUnitPrice ?? 0);
+        return sum + unitPrice * quantity;
+    }, 0);
+
+    return (
+        <dl className={styles.wizardSummary}>
+            <div>
+                <dt>Đơn hàng</dt>
+                <dd>{orderCode}{customer ? ` · ${customer}` : ""}</dd>
+            </div>
+            <div>
+                <dt>Sản phẩm hoàn</dt>
+                <dd>{entries.length} dòng · SL {totalQuantity.toLocaleString("vi-VN")}</dd>
+            </div>
+            {refundRequired && entries.length > 0 ? (
+                <div>
+                    <dt>Giá trị hàng trả (tạm tính)</dt>
+                    <dd>{formatCurrency(estimatedValue)}</dd>
+                </div>
+            ) : null}
+        </dl>
     );
 }
 
