@@ -120,7 +120,7 @@ management:
 
 kafka-config:
   enabled: false
-  bootstrap-servers: 100.99.2.30:9092
+  bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:100.99.2.30:19092}
   num-of-partitions: 3
   replication-factor: 3
 
