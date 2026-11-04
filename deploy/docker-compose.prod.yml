@@ -148,9 +148,9 @@ services:
         SERVICE_PATH: services/Promotion-Service
         SERVICE_PORT: "8088"
     image: hvtra/promotion-service:latest
-    # Do thuc te: 367MiB luc idle (72% cua 512m).
-    mem_limit: 576m
-    mem_reservation: 352m
+    # Do thuc te: 367MiB o local, 420MiB tren box 1 (73% cua 576m) -> nang cho bot sat.
+    mem_limit: 640m
+    mem_reservation: 384m
     environment:
       SERVER_PORT: "8088"
       SPRING_DATASOURCE_URL: "jdbc:mysql://${MYSQL_HOST}:3306/promotion_db?allowPublicKeyRetrieval=true&useSSL=false&serverTimezone=UTC"
