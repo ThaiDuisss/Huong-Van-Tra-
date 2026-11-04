@@ -608,7 +608,7 @@ export function getCustomerReturnUiStatus(data?: CustomerReturnUiStatusSource | 
         return { label: "Đang chờ xử lý kiểm định tại kho", status: "PROCESSING" };
     }
     if (data.displayStatus === "COMPLETED" || data.status === "COMPLETED") {
-        return { label: "Hoàn tất", status: "COMPLETED" };
+        return { label: "Hoàn thành", status: "COMPLETED" };
     }
     if (data.displayStatus === "PENDING_REFUND") {
         return { label: "Chờ hoàn tiền", status: "PENDING" };
