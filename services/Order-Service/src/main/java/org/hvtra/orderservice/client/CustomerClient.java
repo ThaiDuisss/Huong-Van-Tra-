@@ -13,7 +13,7 @@ import java.util.UUID;
 
 @FeignClient(
         name = "customer-service",
-        url = "http://localhost:8082"
+        url = "${clients.customer-service.url:http://localhost:8082}"
 )
 public interface CustomerClient {
 
@@ -23,6 +23,6 @@ public interface CustomerClient {
     @GetMapping("/api/customer/{id}")
     CustomerResponse getCustomerById(@PathVariable("id") UUID id);
 
-    @PutMapping("/purchases/{orderId}")
-    CustomerPurchaseResponse updateCustomerPurchase(@PathVariable UUID orderId);
+    @PutMapping("/api/customer/purchases/{orderId}")
+    CustomerPurchaseResponse updateCustomerPurchase(@PathVariable("orderId") UUID orderId);
 }

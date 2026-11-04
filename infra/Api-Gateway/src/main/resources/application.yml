@@ -58,20 +58,10 @@ spring:
                   rate-limiter: "#{@customerRateLimiter}"
                   key-resolver: "#{@keycloakUserOrGuestKeyResolver}"
 
-          - id: reporting-service
-            uri: lb://reporting-service
-            predicates:
-              - Path=/api/reports/**
-
           - id: ai-report-service
             uri: ${RECOMMENDATION_SERVICE_URL:http://localhost:8090}
             predicates:
               - Path=/api/recommendation/ai-reports,/api/recommendation/ai-reports/**
-
-          - id: employee-service
-            uri: lb://employee-service
-            predicates:
-              - Path=/api/employee/**
 
           - id: file-service
             uri: lb://file-service
@@ -110,9 +100,11 @@ spring:
             add-to-simple-url-handler-mapping: true
   data:
     redis:
-      host: 100.93.252.63
-      port: 6379
-      password: Hvt@2026
+      # Password KHONG de default: no la secret, va da nam trong git history -> phai rotate.
+      # Chay local thi dat REDIS_PASSWORD trong env cua gateway.
+      host: ${REDIS_HOST:100.99.2.30}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
 
 eureka:
   instance:
@@ -152,14 +144,10 @@ springdoc:
         url: /api/promotions/v3/api-docs
       - name: file-service
         url: /api/file/v3/api-docs
-      - name: reporting-service
-        url: /api/reports/v3/api-docs
       - name: organization-service
         url: /api/organizations/v3/api-docs
       - name: inventory-service
         url: /api/inventory/v3/api-docs
-      - name: employee-service
-        url: /api/employee/v3/api-docs
     enabled: true
     path: /swagger-ui.html
 

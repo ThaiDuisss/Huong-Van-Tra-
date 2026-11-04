@@ -1,1 +1,77 @@
-application.yml
+# ===== Profile prod — AWS box 1 "app" =====
+# Kích hoạt bằng SPRING_PROFILES_ACTIVE=prod. Xem ghi chú đầy đủ ở
+# infra/Api-Gateway/src/main/resources/application-prod.yml.
+
+spring:
+  datasource:
+    url: ${SPRING_DATASOURCE_URL}
+    username: ${SPRING_DATASOURCE_USERNAME}
+    password: ${SPRING_DATASOURCE_PASSWORD}
+    hikari:
+      # 10 service x 8 = 80 kết nối. MySQL box 2 phải có max_connections >= 300
+      # (mặc định 151 không đủ khi cộng Keycloak + Debezium).
+      maximum-pool-size: ${DB_POOL_MAX:8}
+      minimum-idle: 2
+      connection-timeout: 10000
+      max-lifetime: 900000
+  jpa:
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: false
+  sql:
+    init:
+      mode: never
+  flyway:
+    # Đặt FLYWAY_ENABLED=false cho các lần chạy audit chỉ đọc.
+    enabled: ${FLYWAY_ENABLED:true}
+    # repair-on-migrate / validate-on-migrate / baseline-version giữ nguyên như
+    # application.yml: DB prod là bản dump của DB dev nên lịch sử migration giống nhau,
+    # siết validate ở đây sẽ làm service không khởi động được.
+  cloud:
+    discovery:
+      client:
+        simple:
+          instances:
+            inventory-service:
+              - host: inventory-service
+                port: 8084
+                secure: false
+            file-service:
+              - host: file-service
+                port: 8101
+                secure: false
+
+# clients.inventory.base-url giữ nguyên dạng service-id (http://inventory-service/api/inventory):
+# nó đi qua RestClient @LoadBalanced trong ClientConfig, thêm port vào đây sẽ phá load balancer.
+clients:
+  inventory:
+    # Feign InventoryClient dùng URL trực tiếp, không qua load balancer.
+    url: http://inventory-service:8084
+
+eureka:
+  client:
+    enabled: false
+    register-with-eureka: false
+    fetch-registry: false
+
+security:
+  internal:
+    header-secret: ${INTERNAL_HEADER_SECRET}
+
+hvtra:
+  logging:
+    action-log:
+      bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS}
+
+springdoc:
+  api-docs:
+    enabled: ${SPRINGDOC_ENABLED:false}
+  swagger-ui:
+    enabled: ${SPRINGDOC_ENABLED:false}
+
+logging:
+  level:
+    root: INFO
+    org.hvtra: INFO
+    org.hibernate.SQL: WARN

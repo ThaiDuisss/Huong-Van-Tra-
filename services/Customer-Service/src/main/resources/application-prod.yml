@@ -1,0 +1,66 @@
+# ===== Profile prod — AWS box 1 "app" =====
+# Kích hoạt bằng SPRING_PROFILES_ACTIVE=prod.
+
+spring:
+  datasource:
+    url: ${SPRING_DATASOURCE_URL}
+    username: ${SPRING_DATASOURCE_USERNAME}
+    password: ${SPRING_DATASOURCE_PASSWORD}
+    hikari:
+      maximum-pool-size: ${DB_POOL_MAX:8}
+      minimum-idle: 2
+      connection-timeout: 10000
+      max-lifetime: 900000
+  jpa:
+    show-sql: false
+  sql:
+    init:
+      mode: never
+  flyway:
+    enabled: ${FLYWAY_ENABLED:true}
+  cloud:
+    discovery:
+      client:
+        simple:
+          instances:
+            order-service:
+              - host: order-service
+                port: 8086
+                secure: false
+            file-service:
+              - host: file-service
+                port: 8101
+                secure: false
+
+eureka:
+  client:
+    enabled: false
+    register-with-eureka: false
+    fetch-registry: false
+
+# kafka-config.enabled vẫn là false như dev (service này chỉ produce qua kafka-producer-config).
+# bootstrap-servers của application.yml đang hardcode IP VPS nên vẫn phải override.
+kafka-config:
+  bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS}
+  replication-factor: 1
+
+security:
+  internal:
+    header-secret: ${INTERNAL_HEADER_SECRET}
+
+hvtra:
+  logging:
+    action-log:
+      bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS}
+
+springdoc:
+  api-docs:
+    enabled: ${SPRINGDOC_ENABLED:false}
+  swagger-ui:
+    enabled: ${SPRINGDOC_ENABLED:false}
+
+logging:
+  level:
+    root: INFO
+    org.hvtra: INFO
+    org.hibernate.SQL: WARN

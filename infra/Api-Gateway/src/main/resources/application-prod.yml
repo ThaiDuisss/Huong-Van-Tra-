@@ -1,1 +1,111 @@
-spring.application.name=Api-Gateway
+# ===== Profile prod — AWS box 1 "app" =====
+# Kích hoạt bằng SPRING_PROFILES_ACTIVE=prod.
+#
+# Nguyên tắc của file này:
+#   1. Không có Eureka. Thay bằng SimpleDiscoveryClient: mọi `lb://` trong application.yml
+#      vẫn hoạt động, chỉ cần khai báo instance tĩnh ở spring.cloud.discovery.client.simple.
+#      Key phải đúng tên dùng trong `lb://` / @FeignClient (chữ thường), không phải
+#      spring.application.name. Mỗi instance khai bằng host + port, KHÔNG dùng `uri:`:
+#      DefaultServiceInstance.getUri() dựng lại URI từ host/port và không đọc field uri,
+#      khai bằng uri sẽ cho ra http://null:80 (xem SimpleDiscoveryInstancesTest).
+#   2. Không giá trị nào được fallback về default của môi trường dev. Thiếu biến môi trường
+#      thì để app chết lúc khởi động, hơn là âm thầm nối vào VPS hoặc dùng secret đã lộ.
+#   3. Tên host = tên container trong docker-compose của box 1 (cùng một network).
+
+spring:
+  cloud:
+    discovery:
+      client:
+        simple:
+          instances:
+            catalog-service:
+              - host: catalog-service
+                port: 8081
+                secure: false
+            customer-service:
+              - host: customer-service
+                port: 8082
+                secure: false
+            inventory-service:
+              - host: inventory-service
+                port: 8084
+                secure: false
+            notification-service:
+              - host: notification-service
+                port: 8085
+                secure: false
+            order-service:
+              - host: order-service
+                port: 8086
+                secure: false
+            payment-service:
+              - host: payment-service
+                port: 8087
+                secure: false
+            promotion-service:
+              - host: promotion-service
+                port: 8088
+                secure: false
+            organization-service:
+              - host: organization-service
+                port: 8090
+                secure: false
+            file-service:
+              - host: file-service
+                port: 8101
+                secure: false
+            identity-service:
+              - host: identity-service
+                port: 8183
+                secure: false
+
+    gateway:
+      server:
+        webflux:
+          globalcors:
+            cors-configurations:
+              '[/**]':
+                # Danh sách YAML được ghép theo CHỈ SỐ, không thay thế cả list: application.yml
+                # có 2 phần tử (localhost, 127.0.0.1) nên ở đây phải khai báo đúng 2 phần tử,
+                # nếu không phần tử số [1] của dev sẽ còn lại trong prod.
+                # Thực tế prod gần như không cần CORS: pos-web gọi /api cùng origin qua nginx.
+                allowed-origin-patterns:
+                  - ${CORS_ORIGIN_1:https://pos.hvtra.id.vn}
+                  - ${CORS_ORIGIN_2:https://pos.hvtra.id.vn}
+
+  data:
+    redis:
+      host: ${REDIS_HOST}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD}
+
+eureka:
+  client:
+    enabled: false
+    register-with-eureka: false
+    fetch-registry: false
+
+security:
+  internal:
+    header-secret: ${INTERNAL_HEADER_SECRET}
+
+springdoc:
+  api-docs:
+    enabled: ${SPRINGDOC_ENABLED:false}
+  swagger-ui:
+    enabled: ${SPRINGDOC_ENABLED:false}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: never
+
+logging:
+  level:
+    root: INFO
+    org.hvtra: INFO
+    org.springframework.cloud.gateway: INFO
