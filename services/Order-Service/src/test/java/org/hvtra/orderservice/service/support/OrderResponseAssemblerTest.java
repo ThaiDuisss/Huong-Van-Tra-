@@ -12,6 +12,9 @@ import org.hvtra.orderservice.service.mapper.OrderMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
+import org.hvtra.orderservice.domain.enums.OrderStatus;
 import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -28,6 +31,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
+import static org.mockito.ArgumentMatchers.*;
 
 @ExtendWith(MockitoExtension.class)
 class OrderResponseAssemblerTest {
@@ -150,6 +155,30 @@ class OrderResponseAssemblerTest {
         assertTrue(assembler.paymentMethodMatches(bankItem, null));
         assertTrue(assembler.paymentMethodMatches(bankItem, "bank"));
         assertFalse(assembler.paymentMethodMatches(bankItem, "cash"));
+    }
+
+    @ParameterizedTest
+    @CsvSource(value = {"PAID|COMPLETED|0|<null>|false|CASH", "REFUNDED|COMPLETED|0|' '|false|<null>",
+            "WAITING_PAYMENT|PENDING_PAYMENT|0|<null>|false|DEBT", "PAID|COMPLETED|2|<null>|true|DEBT",
+            "PAID|COMPLETED|0|e_wallet|false|E_WALLET", "PAID|COMPLETED|0|combined|false|COMBINED",
+            "PAID|COMPLETED|0|custom|false|CUSTOM"}, delimiter = '|', nullValues = "<null>")
+    void absentPaymentMetadataUsesExplicitSavedMoneyAndMethodFallbacks(PaymentStatus paid, OrderStatus status,
+            String debt, String method, boolean ledgerWithNullMethod, String expected) {
+        Order order = order(UUID.randomUUID());
+        order.setStatus(status);
+        order.setPaymentStatus(paid);
+        order.setDebtAmount(new BigDecimal(debt));
+        order.setPaymentMethod(method);
+        if (ledgerWithNullMethod) when(paymentClient.getPaymentByOrderId(order.getId())).thenReturn(paymentInfo(order.getId(), null, null));
+        OrderResponseAssembler realAmounts = new OrderResponseAssembler(paymentClient, orderMapper,
+                new OrderAmountCalculator(), orderStatusHistoryReader);
+        OrderResponse mapped = OrderResponse.builder().id(order.getId()).build();
+        when(orderMapper.toResponse(order, null, BigDecimal.ZERO, expected)).thenReturn(mapped);
+        assertSame(mapped, realAmounts.toResponse(order));
+        verify(orderMapper).toResponse(order, null, BigDecimal.ZERO, expected);
+        assertEquals(new BigDecimal(debt), order.getDebtAmount());
+        assertEquals(paid, order.getPaymentStatus());
+        verifyNoInteractions(orderAmountCalculator);
     }
 
     private Order order(UUID orderId) {
