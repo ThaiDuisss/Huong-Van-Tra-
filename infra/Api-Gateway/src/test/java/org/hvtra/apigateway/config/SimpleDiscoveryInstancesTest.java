@@ -81,10 +81,11 @@ class SimpleDiscoveryInstancesTest {
         });
     }
 
-    @Test void coversAllTenServicesOfBoxOne() {
+    /** 9 service duoc deploy tren box 1. Organization-Service bi loai: xem ghi chu o test duoi. */
+    @Test void coversEveryServiceDeployedOnBoxOne() {
         assertEquals(Set.of(
                 "catalog-service", "customer-service", "inventory-service", "notification-service",
-                "order-service", "payment-service", "promotion-service", "organization-service",
+                "order-service", "payment-service", "promotion-service",
                 "file-service", "identity-service"
         ), properties.getInstances().keySet());
     }

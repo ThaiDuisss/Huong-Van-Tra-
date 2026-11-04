@@ -18,7 +18,7 @@ server:
 
 security:
   internal:
-    header-secret: ${INTERNAL_HEADER_SECRET:dev-internal-header-secret}
+    header-secret: ${INTERNAL_HEADER_SECRET}
 
 springdoc:
   api-docs:
@@ -54,7 +54,7 @@ idp:
   # Client chứa client role dùng làm permission (order:create, ...). Phải trùng security.permission-client-id của gateway.
   # Service account cần thêm realm-management: view-clients, manage-clients, view-realm, manage-realm.
   permission-client-id: ${KEYCLOAK_PERMISSION_CLIENT_ID:hvtra-pos}
-  admin-client-secret: ${KEYCLOAK_ADMIN_CLIENT_SECRET:Xb86IbJRQ5L6rf9x3DMHSPE98KoEGq3S}
+  admin-client-secret: ${KEYCLOAK_ADMIN_CLIENT_SECRET}
 
 
 # ===== Action log (nhận từ Kafka topic action.log, lưu bảng action_log) =====
