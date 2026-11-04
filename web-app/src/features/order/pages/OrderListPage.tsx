@@ -12,7 +12,7 @@ import {
   Plus,
   Upload,
 } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { TimeSidebar } from "../../../components/shared/TimeSidebar";
@@ -23,6 +23,7 @@ import {
 } from "../../../components/shared/TimeHierarchyFilter.utils";
 import { ExportDropdown } from "../components/ExportDropdown";
 import { OrderDetailPanel } from "../components/OrderDetailPanel";
+import { OrderImportDialog } from "../components/OrderImportDialog";
 import { OrderStatusBadge } from "../components/OrderStatusBadge";
 import { exportOrders, getOrderById, getOrders, getOrderStats } from "../services/order.api";
 import type {
@@ -130,7 +131,9 @@ function useDebouncedValue<T>(value: T, delayMs: number) {
 
 export function OrderListPage() {
   const navigate = useNavigate();
-  const importInputRef = useRef<HTMLInputElement | null>(null);
+  const [isImportOpen, setIsImportOpen] = useState(false);
+  /** Tăng sau khi nhập file để tải lại danh sách và thống kê. */
+  const [reloadKey, setReloadKey] = useState(0);
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedTimeNode, setSelectedTimeNode] = useState<TimeNode | null>(buildTodayTimeNode);
   const debouncedKeyword = useDebouncedValue(searchTerm.trim(), 400);
@@ -204,6 +207,7 @@ export function OrderListPage() {
     activeStatusTab?.status,
     currentPage,
     debouncedKeyword,
+    reloadKey,
     timeRange?.fromDate,
     timeRange?.toDate,
   ]);
@@ -229,7 +233,7 @@ export function OrderListPage() {
     return () => {
       ignore = true;
     };
-  }, [timeRange?.fromDate, timeRange?.toDate]);
+  }, [reloadKey, timeRange?.fromDate, timeRange?.toDate]);
 
   useEffect(() => {
     if (!activeOrderId) {
@@ -317,19 +321,6 @@ export function OrderListPage() {
     setOpenActionCode(null);
   };
 
-  const handleClickImport = () => {
-    importInputRef.current?.click();
-  };
-
-  const handleImportFile = (file?: File) => {
-    if (!file) {
-      return;
-    }
-
-    console.log("TODO: Nhập file đơn hàng", file);
-    window.alert("Chức năng nhập file đang được phát triển");
-  };
-
   const buildCurrentFilterExportParams = () =>
     buildActiveOrderExportParams({
       fromDate: timeRange?.fromDate,
@@ -361,23 +352,13 @@ export function OrderListPage() {
       }
       actions={
         <>
-          <input
-            ref={importInputRef}
-            accept=".xlsx,.xls,.csv"
-            className={styles.hiddenFileInput}
-            onChange={(event) => {
-              handleImportFile(event.target.files?.[0]);
-              event.target.value = "";
-            }}
-            type="file"
-          />
           <button className={orderUiStyles.primaryButton} type="button">
             <Plus size={18} aria-hidden="true" />
             Đặt hàng
           </button>
           <button
             className={orderUiStyles.secondaryButton}
-            onClick={handleClickImport}
+            onClick={() => setIsImportOpen(true)}
             type="button"
           >
             <Upload size={18} aria-hidden="true" />
@@ -559,6 +540,12 @@ export function OrderListPage() {
             />
           </div>
         </div>
+      ) : null}
+      {isImportOpen ? (
+        <OrderImportDialog
+          onClose={() => setIsImportOpen(false)}
+          onImported={() => setReloadKey((key) => key + 1)}
+        />
       ) : null}
     </OrderPageLayout>
   );

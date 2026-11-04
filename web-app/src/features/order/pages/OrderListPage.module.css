@@ -51,10 +51,6 @@
   font-weight: 500;
 }
 
-.hiddenFileInput {
-  display: none;
-}
-
 .tableCard {
   overflow: hidden;
   border: 1px solid #edf0f4;
