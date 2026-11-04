@@ -9,6 +9,7 @@ import org.springframework.cloud.gateway.filter.GatewayFilterChain;
 import org.springframework.cloud.gateway.filter.GlobalFilter;
 import org.springframework.core.Ordered;
 import org.springframework.http.server.reactive.ServerHttpRequest;
+import org.springframework.http.HttpHeaders;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
@@ -23,7 +24,8 @@ import java.security.MessageDigest;
 import java.util.Collection;
 import java.util.Map;
 import java.util.HexFormat;
-import java.util.Locale;
+import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -40,14 +42,22 @@ public class InternalUserContextRelayFilter implements GlobalFilter, Ordered {
     @Value("${security.permission-client-id:hvtra-pos}")
     private String permissionClientId;
 
+    @Value("${security.recommendation.customer-id-claim:}")
+    private String customerIdClaim = "";
+
+    private static final String RECOMMENDATION_PREFIX = "/api/recommendation/recommendations/";
+    private static final List<String> CONTEXT_HEADERS = List.of(
+            "X-User-ID", "X-User_Roles", "X-Request-ID", "X-Signature", "X-Customer-ID",
+            "X-Internal-Timestamp", "X-Internal-Nonce", "X-Token-Expires-At", "X-Context-Signature",
+            "X-User-Roles", "X-Role");
+
     @PostConstruct
     void logInternalAuthConfiguration() {
-        log.info(
-                "Internal auth secret loaded: service={}, property=security.internal.header-secret, length={}, fingerprint={}",
-                applicationName,
-                headerSecret.length(),
-                secretFingerprint()
-        );
+        if (headerSecret == null || headerSecret.isBlank() || headerSecret.getBytes(StandardCharsets.UTF_8).length < 32
+                || "dev-internal-header-secret".equals(headerSecret.strip())) {
+            throw new IllegalStateException("An explicit strong internal header secret is required");
+        }
+        log.info("Internal authentication configured for service={}", applicationName);
     }
 
     @Override
@@ -88,6 +98,24 @@ public class InternalUserContextRelayFilter implements GlobalFilter, Ordered {
                     );
                     String permissions = extractPermissions(jwt);
                     String permissionsSignature = signPermissions(userId, permissions, correlationId);
+                    String rawPath = exchange.getRequest().getURI().getRawPath();
+                    boolean recommendation = rawPath.startsWith(RECOMMENDATION_PREFIX);
+                    String customerId = "";
+                    if (recommendation && !isBlank(customerIdClaim)) {
+                        Object claim = jwt.getClaims().get(customerIdClaim);
+                        if (claim instanceof String text) {
+                            customerId = text;
+                        }
+                    }
+                    String signedCustomer = customerId;
+                    String timestamp = Long.toString(Instant.now().getEpochSecond());
+                    String nonce = UUID.randomUUID().toString();
+                    String expiry = jwt.getExpiresAt() == null ? "0" : Long.toString(jwt.getExpiresAt().getEpochSecond());
+                    String contextSignature = recommendation ? signRaw(String.join("\n",
+                            "hvtra-internal-v2", userId, roles, correlationId, authorization,
+                            timestamp, nonce, signedCustomer, expiry,
+                            exchange.getRequest().getMethod().name(), rawPath.substring("/api/recommendation".length()),
+                            value(exchange.getRequest().getURI().getRawQuery()))) : "";
                     log.debug(
                             "Internal auth relay: requestId={}, method={}, path={}, hasAuthorization={}, "
                                     + "principalPresent=true, authorities={}",
@@ -101,6 +129,14 @@ public class InternalUserContextRelayFilter implements GlobalFilter, Ordered {
                             .mutate()
                             // Xóa header client có thể giả mạo
                             .headers(headers -> {
+                                clearContext(headers);
+                                if (recommendation) {
+                                    headers.set("X-Customer-ID", signedCustomer);
+                                    headers.set("X-Internal-Timestamp", timestamp);
+                                    headers.set("X-Internal-Nonce", nonce);
+                                    headers.set("X-Token-Expires-At", expiry);
+                                    headers.set("X-Context-Signature", contextSignature);
+                                }
                                 headers.remove(GatewayConstants.HEADER_USER_ID);
                                 headers.remove(GatewayConstants.HEADER_USER_ROLES);
                                 headers.remove(GatewayConstants.HEADER_SIGNATURE);
@@ -139,13 +175,11 @@ public class InternalUserContextRelayFilter implements GlobalFilter, Ordered {
             String correlationId,
             String authorization
     ) {
+        return signRaw(String.join("\n", userId, roles, correlationId, authorization));
+    }
+
+    private String signRaw(String raw) {
         try {
-            String raw = String.join("\n",
-                    userId,
-                    roles,
-                    correlationId,
-                    authorization
-            );
 
             Mac mac = Mac.getInstance("HmacSHA256");
             mac.init(new SecretKeySpec(
@@ -206,6 +240,7 @@ public class InternalUserContextRelayFilter implements GlobalFilter, Ordered {
         ServerHttpRequest mutatedRequest = exchange.getRequest()
                 .mutate()
                 .headers(headers -> {
+                    clearContext(headers);
                     headers.remove(GatewayConstants.HEADER_USER_ID);
                     headers.remove(GatewayConstants.HEADER_USER_ROLES);
                     headers.remove(GatewayConstants.HEADER_SIGNATURE);
@@ -225,17 +260,8 @@ public class InternalUserContextRelayFilter implements GlobalFilter, Ordered {
         return value == null || value.isBlank();
     }
 
-    private String secretFingerprint() {
-        try {
-            MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            byte[] hash = digest.digest(headerSecret.getBytes(StandardCharsets.UTF_8));
-            return HexFormat.of()
-                    .formatHex(hash)
-                    .substring(0, 8)
-                    .toUpperCase(Locale.ROOT);
-        } catch (Exception ex) {
-            return "UNAVAILABLE";
-        }
+    private void clearContext(HttpHeaders headers) {
+        CONTEXT_HEADERS.forEach(headers::remove);
     }
 
     @Override

@@ -3,6 +3,10 @@
 FastAPI recommendation serving uses the existing V1 TF-IDF Content + Item-Item CF
 artifact. AI report workflows are documented in [AI_REPORTS.md](AI_REPORTS.md).
 
+POS Product V1 integration and the authenticated, snapshot-free guest Popularity
+endpoint are documented in [POS_RECOMMENDATION.md](POS_RECOMMENDATION.md).
+Source implementation does not imply runtime configuration or E2E verification.
+
 Serving now supports explicit **DISCOVERY** (never-purchased products) and **REPEAT**
 (purchased-only products), each capped at five. Authenticated requests go through
 `GET /api/recommendation/recommendations/{customer_uuid}?mode=DISCOVERY|REPEAT&limit=5`

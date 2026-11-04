@@ -1,17 +1,35 @@
 import { fileURLToPath, URL } from "node:url";
 
-import { defineConfig } from "vite";
+import { defineConfig, loadEnv } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import { VitePWA } from "vite-plugin-pwa";
 
 import { createCatalogRuntimeCaching } from "./src/app/pwa/runtime-caching";
+import * as path from "node:path";
 
-export default defineConfig({
+export default defineConfig(({ mode }) => {
+  const target = loadEnv(mode, process.cwd(), "VITE_INGREDIENT_DEMO_API_URL").VITE_INGREDIENT_DEMO_API_URL || "http://127.0.0.1:8096";
+  try {
+    const url = new URL(target);
+    if (!["http:", "https:"].includes(url.protocol) || url.username || url.password || url.search || url.hash
+        || url.pathname !== "/") throw new Error();
+  } catch { throw new Error("VITE_INGREDIENT_DEMO_API_URL phải là origin HTTP(S), không có credentials/path/query."); }
+  return {
+  server: {
+    proxy: {
+      "/ingredient-demo-api": {
+        target,
+        changeOrigin: true,
+        rewrite: path => path.replace(/^\/ingredient-demo-api(?=\/|$)/, ""),
+      },
+    },
+  },
   resolve: {
     alias: {
-      "@": fileURLToPath(new URL("./src", import.meta.url))
-    }
+      "@": fileURLToPath(new URL("./src", import.meta.url)),
+      "@hvt/api-client": path.resolve(__dirname, "./src/lib/api-client/api-error.ts"),
+    },
   },
   plugins: [
     react(),
@@ -44,10 +62,10 @@ export default defineConfig({
             src: "pwa-512.png",
             sizes: "512x512",
             type: "image/png",
-            purpose: "maskable"
+            purpose: "maskable",
           },
-          { src: "pwa-icon.svg", sizes: "any", type: "image/svg+xml" }
-        ]
+          { src: "pwa-icon.svg", sizes: "any", type: "image/svg+xml" },
+        ],
       },
       workbox: {
         globPatterns: ["**/*.{js,css,html,svg,png,ico,woff,woff2}"],
@@ -58,11 +76,12 @@ export default defineConfig({
         skipWaiting: true,
         // Trang Keycloak dùng để check SSO phải đi thẳng, không rơi vào index.html.
         navigateFallbackDenylist: [/^\/silent-check-sso\.html/],
-        runtimeCaching: createCatalogRuntimeCaching()
+        runtimeCaching: createCatalogRuntimeCaching(),
       },
       devOptions: {
-        enabled: false
-      }
-    })
+        enabled: false,
+      },
+    }),
   ],
+  };
 });

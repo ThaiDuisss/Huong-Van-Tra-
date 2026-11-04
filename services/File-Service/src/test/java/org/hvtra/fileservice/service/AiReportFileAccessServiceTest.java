@@ -3,6 +3,8 @@ package org.hvtra.fileservice.service;
 import io.minio.GetObjectResponse;
 import io.minio.MinioClient;
 import io.minio.StatObjectResponse;
+import io.minio.errors.ErrorResponseException;
+import io.minio.messages.ErrorResponse;
 import org.hvtra.commonservice.common_core.exception.AppException;
 import org.hvtra.fileservice.config.FileBucketResolver;
 import org.hvtra.fileservice.config.MinioProperties;
@@ -107,6 +109,19 @@ class AiReportFileAccessServiceTest {
         assertEquals("AI_REPORT", captor.getValue().getRefType());
         assertEquals(reportId, captor.getValue().getRefId());
         assertEquals(owner, captor.getValue().getCreatedBy());
+        assertEquals(reportId, file.getRefId());
+    }
+
+    @Test
+    void missingTypedReferenceCanBeRecoveredOnlyForMatchingReportId() throws Exception {
+        when(files.findForUpdate(file.getId())).thenReturn(Optional.of(file));
+        when(references.findByFile_IdAndIsDeletedFalse(file.getId())).thenReturn(List.of());
+        file.setRefId(reportId);
+        objectAvailable();
+        service.bind(reportId, file.getId(), owner);
+        verify(references).saveAndFlush(any());
+        assertEquals(409, assertThrows(ResponseStatusException.class,
+                () -> service.bind(UUID.randomUUID(), file.getId(), owner)).getStatusCode().value());
         assertEquals(reportId, file.getRefId());
     }
 
@@ -268,5 +283,29 @@ class AiReportFileAccessServiceTest {
         when(references.findOrphanCandidates(any(), any())).thenReturn(List.of(file.getId()));
         assertEquals(List.of(file.getId()), service.orphanCandidates());
         verifyNoInteractions(files, minio);
+    }
+
+    @Test
+    void deletedFileCannotCompleteOrAttach() {
+        file.setIsDeleted(true);
+        when(files.findForUpdate(file.getId())).thenReturn(Optional.of(file));
+        FileService generic = new FileService(minio, properties, buckets, files, references);
+        assertThrows(AppException.class, () -> generic.completeUpload(file.getId(), owner));
+        assertThrows(AppException.class, () -> generic.attachFile(new FileAttach(file.getId(), reportId), owner));
+        verify(files, never()).save(any());
+        verifyNoInteractions(minio);
+    }
+
+    @Test
+    void missingOriginalObjectIsPermanentNotTemporaryFailure() throws Exception {
+        when(files.findForUpdate(file.getId())).thenReturn(Optional.of(file));
+        ErrorResponse response = mock(ErrorResponse.class);
+        when(response.code()).thenReturn("NoSuchKey");
+        ErrorResponseException exception = mock(ErrorResponseException.class);
+        when(exception.errorResponse()).thenReturn(response);
+        when(minio.statObject(any())).thenThrow(exception);
+        assertEquals(404, assertThrows(ResponseStatusException.class,
+                () -> service.metadata(file.getId(), owner)).getStatusCode().value());
+        verify(minio, never()).getObject(any());
     }
 }

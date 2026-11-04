@@ -1,9 +1,11 @@
+import { buildTodayTimeNode } from "./TimeHierarchyFilter.utils";
 import styles from "./TimeHierarchyFilter.module.css";
 
 interface CalendarMonthPickerProps {
     month: number;
     selectedDate?: string | null;
     year: number;
+    timeZone?: string;
     onSelectDate: (date: string) => void;
 }
 
@@ -40,9 +42,10 @@ export function CalendarMonthPicker({
     month,
     selectedDate,
     year,
-    onSelectDate
+    onSelectDate,
+    timeZone
 }: CalendarMonthPickerProps) {
-    const todayIso = toIsoDate(new Date());
+    const todayIso = buildTodayTimeNode(timeZone).date;
     const days = buildCalendarDays(year, month);
 
     return (

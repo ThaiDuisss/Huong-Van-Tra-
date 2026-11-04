@@ -22,6 +22,7 @@ interface CustomerSearchDialogProps {
   loading: boolean;
   error: string;
   onSelect(customerId: string): void;
+  onCreate(): void;
   onClose(): void;
 }
 
@@ -76,6 +77,7 @@ export function CustomerSearchDialog({
   loading,
   error,
   onSelect,
+  onCreate,
   onClose
 }: CustomerSearchDialogProps) {
   const [query, setQuery] = useState("");
@@ -238,6 +240,10 @@ export function CustomerSearchDialog({
       <button
         type="button"
         className="mt-3 flex h-9 w-full items-center justify-center gap-2 rounded-full border border-pos-border text-sm font-semibold text-hvt-green-800 hover:bg-hvt-green-50"
+        onClick={() => {
+          setQuery("");
+          onCreate();
+        }}
       >
         <UserPlus size={17} aria-hidden="true" />
         Tạo khách hàng mới

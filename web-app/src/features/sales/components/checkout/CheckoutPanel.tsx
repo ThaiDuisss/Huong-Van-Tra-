@@ -65,6 +65,7 @@ interface CheckoutPanelProps {
     onPaymentMethodChange(value: SalePaymentMethod): void;
     onCustomerOpen(): void;
     onCustomerChange(customerId: string): void;
+    onCustomerCreated(customer: SaleCustomer): void;
     onCustomerClear(): void;
     onBankTransferCancel(): void;
     onBankTransferRefresh(): void;
@@ -102,6 +103,7 @@ export function CheckoutPanel({
     onPaymentMethodChange,
     onCustomerOpen,
     onCustomerChange,
+    onCustomerCreated,
     onCustomerClear,
     onBankTransferCancel,
     onBankTransferRefresh,
@@ -143,6 +145,7 @@ export function CheckoutPanel({
                 error={customersError}
                 onOpen={onCustomerOpen}
                 onSelect={onCustomerChange}
+                onCreated={onCustomerCreated}
                 onClear={onCustomerClear}
             />
 

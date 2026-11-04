@@ -21,6 +21,10 @@ from app.service.product_resolver import (
 logger = logging.getLogger(__name__)
 
 
+class PurchaseConflictError(ValueError):
+    """A logical purchase line was redelivered with different economic content."""
+
+
 def is_interaction_duplicate_conflict(exc: IntegrityError) -> bool:
     """
     Checks if an IntegrityError was specifically caused by a duplicate entry on
@@ -29,10 +33,16 @@ def is_interaction_duplicate_conflict(exc: IntegrityError) -> bool:
     """
     msg = str(exc).lower()
     orig = getattr(exc, "orig", None)
+    # The whole-order evidence PK is the existing durable fence for consumer
+    # batches. A loser rolls back interactions AND aggregates before retrying.
+    if "report_purchase_orders" in msg and (
+        "unique constraint failed" in msg or (orig and orig.args and orig.args[0] == 1062)
+    ):
+        return True
 
     # Check MySQL error code 1062 (ER_DUP_ENTRY)
     if orig and hasattr(orig, "args") and len(orig.args) > 0 and orig.args[0] == 1062:
-        if "interaction_events" in msg or "uq_interaction_events_source_line" in msg or "primary" in msg:
+        if "interaction_events" in msg or "uq_interaction_events_source_line" in msg:
             return True
 
     # Check error message strings for MySQL / SQLite
@@ -79,8 +89,29 @@ class InteractionService:
         variant = self.product_resolver.resolve_variant(
             db,
             product_variant_id=interaction.product_variant_id,
-            sku=interaction.sku,
+            # Strict authority identity for PURCHASE; retain the existing
+            # resolution contract for unrelated RETURN callers.
+            sku=None if interaction.event_type == "PURCHASE" else interaction.sku,
         )
+
+        if interaction.event_type == "PURCHASE":
+            if variant is None or not interaction.product_variant_id or variant.id != interaction.product_variant_id:
+                raise ProductResolutionError("PURCHASE requires an exact known variant")
+            if product_id and product_id != variant.product_id:
+                raise ProductResolutionError("Product identity contradicts variant binding")
+            normalized = (interaction.event_time.astimezone(timezone.utc).replace(tzinfo=None)
+                          if interaction.event_time.tzinfo else interaction.event_time)
+            existing_lines = self.interaction_event_repository.find_purchase_line(db, interaction.order_item_id)
+            if len(existing_lines) > 1:
+                raise PurchaseConflictError("Multiple durable purchases for one business line")
+            if existing_lines:
+                existing = existing_lines[0]
+                if (existing.order_id, existing.customer_id, existing.product_variant_id,
+                    existing.product_id, existing.quantity, existing.unit_price, existing.event_time) != (
+                    interaction.order_id, interaction.customer_id, variant.id,
+                    variant.product_id, interaction.quantity, interaction.unit_price, normalized):
+                    raise PurchaseConflictError("Conflicting purchase business line")
+                return existing
 
         if variant is not None:
             product_id = variant.product_id
@@ -224,17 +255,21 @@ class InteractionService:
             )
 
             # Bounded retry: exactly 1 attempt from clean DB state
-            events = []
-            for interaction in interactions:
-                event = self._process_one(db, interaction)
-                events.append(event)
-            if completed_order is not None:
-                from app.service.report_purchase_service import record_completed_order
-                record_completed_order(db, completed_order, events)
-            db.commit()
-            for event in events:
-                db.refresh(event)
-            return events
+            try:
+                events = []
+                for interaction in interactions:
+                    event = self._process_one(db, interaction)
+                    events.append(event)
+                if completed_order is not None:
+                    from app.service.report_purchase_service import record_completed_order
+                    record_completed_order(db, completed_order, events)
+                db.commit()
+                for event in events:
+                    db.refresh(event)
+                return events
+            except Exception:
+                db.rollback()
+                raise
         except Exception:
             db.rollback()
             raise

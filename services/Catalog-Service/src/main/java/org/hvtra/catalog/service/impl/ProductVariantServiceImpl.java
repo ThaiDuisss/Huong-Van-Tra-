@@ -19,7 +19,6 @@ import org.hvtra.catalog.dto.response.ProductVariantProductRefResponse;
 import org.hvtra.catalog.dto.response.SellableQuantityAdjustmentResponse;
 import org.hvtra.catalog.dto.response.VariantCostResponse;
 import org.hvtra.catalog.dto.response.VariantInventorySummaryResponse;
-import org.hvtra.catalog.entity.Barcode;
 import org.hvtra.catalog.entity.Product;
 import org.hvtra.catalog.entity.Category;
 import org.hvtra.catalog.entity.Ingredient;
@@ -144,17 +143,11 @@ public class ProductVariantServiceImpl implements ProductVariantService {
             predicates.add(cb.isFalse(root.get("customBundle")));
             if (keyword != null && !keyword.isBlank()) {
                 String pattern = "%" + keyword.toLowerCase() + "%";
-                // Mã vạch qua EXISTS để biến thể nhiều mã vạch không bị lặp dòng; máy quét gửi đúng mã nên khớp chính xác.
-                Subquery<Integer> barcodeMatch = query.subquery(Integer.class);
-                Root<Barcode> barcodeRoot = barcodeMatch.from(Barcode.class);
-                barcodeMatch.select(cb.literal(1)).where(
-                        cb.equal(barcodeRoot.get("productVariant"), root),
-                        cb.equal(cb.lower(barcodeRoot.get("barcodeValue")), keyword.trim().toLowerCase()));
                 predicates.add(cb.or(
                         cb.like(cb.lower(root.get("sku")), pattern),
                         cb.like(cb.lower(root.get("variantName")), pattern),
                         cb.like(cb.lower(productJoin.get("name")), pattern),
-                        cb.exists(barcodeMatch)
+                        cb.like(cb.lower(root.get("barcode")), pattern)
                 ));
             }
             if (sku != null && !sku.isBlank()) {
@@ -165,9 +158,8 @@ public class ProductVariantServiceImpl implements ProductVariantService {
                         cb.lower(root.get("variantName")), "%" + variantName.toLowerCase() + "%"));
             }
             if (barcode != null && !barcode.isBlank()) {
-                query.distinct(true);
                 predicates.add(cb.like(
-                        cb.lower(root.join("barcodes", JoinType.LEFT).get("barcodeValue")),
+                        cb.lower(root.get("barcode")),
                         "%" + barcode.toLowerCase() + "%"));
             }
             if (productId != null) predicates.add(cb.equal(root.get("product").get("id"), productId));
@@ -180,6 +172,16 @@ public class ProductVariantServiceImpl implements ProductVariantService {
     @Override
     public ProductResponse.VariantResponse findById(UUID id) {
         return mapper.toVariantResponse(get(id));
+    }
+
+    @Override
+    public ProductResponse.VariantResponse findByBarcode(String barcode) {
+        if (barcode == null || barcode.isBlank()) {
+            throw new BadRequestException("Barcode không được để trống");
+        }
+        return repository.findByBarcodeAndIsDeletedFalse(barcode.trim())
+                .map(mapper::toVariantResponse)
+                .orElseThrow(() -> new ResourceNotFoundException("ProductVariant", barcode));
     }
 
     @Override
@@ -218,6 +220,39 @@ public class ProductVariantServiceImpl implements ProductVariantService {
 
     @Override
     @Transactional
+    public String generateBarcode() {
+        BusinessSequence seq = businessSequenceRepository.findBySequenceKeyWithLock("BARCODE")
+                .orElseGet(() -> {
+                    BusinessSequence newSeq = new BusinessSequence();
+                    newSeq.setSequenceKey("BARCODE");
+                    newSeq.setCurrentValue(0L);
+                    return businessSequenceRepository.saveAndFlush(newSeq);
+                });
+
+        String barcode;
+        do {
+            long nextVal = seq.getCurrentValue() + 1;
+            seq.setCurrentValue(nextVal);
+            barcode = calculateEan13("893", nextVal);
+        } while (repository.existsByBarcode(barcode));
+
+        businessSequenceRepository.saveAndFlush(seq);
+        return barcode;
+    }
+
+    private static String calculateEan13(String prefix, long seqNum) {
+        String base12 = String.format("%s%09d", prefix, seqNum);
+        int sum = 0;
+        for (int i = 0; i < 12; i++) {
+            int digit = Character.getNumericValue(base12.charAt(i));
+            sum += (i % 2 == 0) ? digit : digit * 3;
+        }
+        int checkDigit = (10 - (sum % 10)) % 10;
+        return base12 + checkDigit;
+    }
+
+    @Override
+    @Transactional
     public ProductResponse.VariantResponse create(UUID productId, ProductVariantRequest request) {
         Product product = productRepository.findById(productId)
                 .orElseThrow(() -> new ResourceNotFoundException("Product", productId));
@@ -229,6 +264,10 @@ public class ProductVariantServiceImpl implements ProductVariantService {
         String symbol = variant.getUnit() != null ? variant.getUnit().getSymbol() : null;
         String generatedSku = generateSku(product, quantity, symbol);
         variant.setSku(generatedSku);
+
+        if (variant.getBarcode() == null || variant.getBarcode().isBlank()) {
+            variant.setBarcode(generateBarcode());
+        }
 
         ProductVariant savedVariant = repository.saveAndFlush(variant);
 
@@ -432,6 +471,19 @@ public class ProductVariantServiceImpl implements ProductVariantService {
 
         variant.setInventoryPolicy(request.inventoryPolicy());
         variant.setStatus(request.status());
+
+        if (request.barcode() != null && !request.barcode().isBlank()) {
+            String trimmedBarcode = request.barcode().trim();
+            boolean exists = variant.getId() != null
+                    ? repository.existsByBarcodeAndIdNot(trimmedBarcode, variant.getId())
+                    : repository.existsByBarcode(trimmedBarcode);
+            if (exists) {
+                throw new BadRequestException("Mã vạch đã tồn tại: " + trimmedBarcode);
+            }
+            variant.setBarcode(trimmedBarcode);
+        } else if (variant.getId() == null) {
+            variant.setBarcode(null);
+        }
 
         variant.setVariantName(composeVariantName(variant.getProduct(), request.quantity(), unit));
     }

@@ -61,6 +61,7 @@ interface DeliveryCheckoutPanelProps {
   state: DeliveryCheckoutState;
   totals: SaleTotals;
   onCustomerChange(customerId: string): void;
+  onCustomerCreated(customer: SaleCustomer): void;
   onCustomerClear(): void;
   onCustomerOpen(): void;
   onDiscountChange(discountId: string): void;
@@ -81,6 +82,7 @@ export function DeliveryCheckoutPanel({
   state,
   totals,
   onCustomerChange,
+  onCustomerCreated,
   onCustomerClear,
   onCustomerOpen,
   onDiscountChange,
@@ -183,6 +185,7 @@ export function DeliveryCheckoutPanel({
             error={customersError}
             onOpen={onCustomerOpen}
             onSelect={onCustomerChange}
+            onCreated={onCustomerCreated}
             onClear={onCustomerClear}
           />
           <label className="mt-3 flex items-center justify-between rounded-lg border border-[#dbe4ee] bg-[#f8fafc] px-3 py-2 text-sm font-bold text-[#172317]">

@@ -36,10 +36,21 @@ class Settings(BaseSettings):
     file_service_url: str = "http://localhost:8101"
     # Exact origins only; signed storage URLs are never supplied by the caller.
     ai_report_storage_origins: str = "http://localhost:9000"
+    ai_report_data_source: Literal["OPERATIONAL", "OFFLINE_EVALUATION"] | None = None
+    ai_report_offline_bundle_path: str | None = None
+    ai_report_offline_bundle_sha256: str | None = None
     ai_report_file_timeout_seconds: float = 30.0
     ai_report_evaluation_days: int = Field(default=7, ge=1, le=90)
     ai_report_max_period_days: int = Field(default=366, ge=1, le=366)
     ai_report_max_evidence_rows: int = Field(default=20000, ge=1, le=100000)
+    # Official authenticated BOM reports: explicit trusted server configuration only.
+    # Independent of standalone demo mode/token and never loaded at app startup.
+    ai_report_bom_enabled: bool = False
+    ai_report_bom_dataset_path: str | None = None
+    ai_report_bom_dataset_sha256: str | None = None
+    ai_report_bom_dataset_id: str | None = None
+    ai_report_bom_model_path: str | None = None
+    ai_report_bom_model_sha256: str | None = None
 
     model_artifact_path: str = "artifacts/lightfm_model.pkl"  # Legacy research training only.
     v1_artifact_path: str = "artifacts/v1_hybrid_model.npz"

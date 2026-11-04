@@ -395,6 +395,13 @@ export const systemNavigationItems: SystemNavigationItem[] = [
         icon: FileText,
         roles: AI_REPORT_ROLES,
       },
+      {
+        key: "ingredient-demo",
+        label: "Gợi ý nguyên liệu (Demo)",
+        to: routePaths.ingredientDemo,
+        icon: Sparkles,
+        roles: AI_REPORT_ROLES,
+      },
     ],
   },
   {

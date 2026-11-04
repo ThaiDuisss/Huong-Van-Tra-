@@ -452,6 +452,19 @@
   font-weight: 850;
 }
 
+.quantityInput[aria-invalid="true"] {
+  border-color: #b91c1c;
+  background: #fef2f2;
+  outline-color: #b91c1c;
+}
+
+.quantityError {
+  margin: 6px 0 0;
+  color: #b91c1c;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
 .reasonRow {
   display: grid;
   gap: 12px;

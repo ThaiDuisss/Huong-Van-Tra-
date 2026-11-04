@@ -1,7 +1,6 @@
 package org.hvtra.customer.service.impl;
 
 import lombok.RequiredArgsConstructor;
-import org.hvtra.customer.constant.ErrorCode;
 import org.hvtra.customer.constant.Message;
 import org.hvtra.customer.dto.request.ChangeCustomerStatusRequest;
 import org.hvtra.customer.dto.request.CustomerFilterRequest;
@@ -10,7 +9,6 @@ import org.hvtra.customer.dto.request.LoyaltyAccountRequest;
 import org.hvtra.customer.dto.request.LoyaltyTransactionRequest;
 import org.hvtra.customer.dto.response.CustomerResponse;
 import org.hvtra.customer.dto.response.PageResponse;
-import org.hvtra.customer.exception.CustomerServiceException;
 import org.hvtra.customer.infrastructure.client.OrderClient;
 import org.hvtra.customer.infrastructure.gateway.OrderGateway;
 import org.hvtra.customer.integration.event.OrderCompletedEvent;
@@ -28,7 +26,6 @@ import org.hvtra.customer.repository.LoyaltyTransactionRepository;
 import org.hvtra.customer.service.*;
 import org.hvtra.customer.specification.CustomerSpecification;
 import org.springframework.data.domain.Pageable;
-import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -38,6 +35,10 @@ import java.time.LocalDateTime;
 import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
 import org.hvtra.commonservice.common_core.util.CodeUtils;
+
+import static org.hvtra.customer.exception.CustomerServiceException.notFound;
+import static org.hvtra.customer.exception.CustomerServiceException.conflict;
+import static org.hvtra.customer.exception.CustomerServiceException.invalidRequest;
 
 @Service
 @RequiredArgsConstructor
@@ -282,25 +283,5 @@ public class CustomerServiceImpl implements CustomerService {
     // Kiểm tra chuỗi có giá trị và không chỉ chứa khoảng trắng.
     private boolean hasText(String value) {
         return value != null && !value.isBlank();
-    }
-
-    // Chuyển giá trị tiền null thành 0 để tính toán an toàn.
-    private BigDecimal defaultMoney(BigDecimal value) {
-        return value == null ? BigDecimal.ZERO : value;
-    }
-
-    // Tạo exception cho trường hợp không tìm thấy tài nguyên.
-    private CustomerServiceException notFound(String message) {
-        return new CustomerServiceException(ErrorCode.CUSTOMER_NOT_FOUND, message, HttpStatus.NOT_FOUND);
-    }
-
-    // Tạo exception cho trường hợp dữ liệu bị trùng hoặc xung đột.
-    private CustomerServiceException conflict(String message) {
-        return new CustomerServiceException(ErrorCode.CUSTOMER_CONFLICT, message, HttpStatus.CONFLICT);
-    }
-
-    // Tạo exception cho trường hợp dữ liệu yêu cầu không hợp lệ.
-    private CustomerServiceException invalidRequest(String message) {
-        return new CustomerServiceException(ErrorCode.CUSTOMER_INVALID_REQUEST, message, HttpStatus.BAD_REQUEST);
     }
 }

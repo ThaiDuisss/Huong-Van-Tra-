@@ -1251,9 +1251,22 @@ export function PosSalePage() {
     }
 
     function selectCustomer(customerId: string) {
-        const nextCustomer =
-            customers.find((customer) => customer.id === customerId) ?? null;
+        applySelectedCustomer(
+            customers.find((customer) => customer.id === customerId) ?? null
+        );
+    }
 
+    function addCreatedCustomer(createdCustomer: SaleCustomer) {
+        setCustomers((currentCustomers) => [
+            createdCustomer,
+            ...currentCustomers.filter(
+                (customer) => customer.id !== createdCustomer.id
+            )
+        ]);
+        applySelectedCustomer(createdCustomer);
+    }
+
+    function applySelectedCustomer(nextCustomer: SaleCustomer | null) {
         setSelectedCustomersByInvoice((currentCustomers) => ({
             ...currentCustomers,
             [currentInvoiceId]: nextCustomer
@@ -2928,6 +2941,7 @@ export function PosSalePage() {
                         totals={totals}
                         onCustomerOpen={loadCustomers}
                         onCustomerChange={selectCustomer}
+                        onCustomerCreated={addCreatedCustomer}
                         onCustomerClear={clearCustomer}
                         onDiscountChange={changeSelectedDiscount}
                         onDeliveryStateChange={setCurrentDeliveryState}
@@ -2986,6 +3000,7 @@ export function PosSalePage() {
                         onPaymentMethodChange={changePaymentMethod}
                         onCustomerOpen={loadCustomers}
                         onCustomerChange={selectCustomer}
+                        onCustomerCreated={addCreatedCustomer}
                         onCustomerClear={clearCustomer}
                         onBankTransferCancel={() => {
                             void cancelBankTransferPayment();

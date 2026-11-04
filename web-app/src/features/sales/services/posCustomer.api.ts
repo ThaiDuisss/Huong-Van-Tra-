@@ -5,7 +5,7 @@ import type {
 } from "../../customer/types/customer.types";
 import type { SaleCustomer } from "../types/sale.types";
 
-function toSaleCustomer(customer: CustomerResponse): SaleCustomer {
+export function toSaleCustomer(customer: CustomerResponse): SaleCustomer {
     return {
         id: customer.id,
         customerCode: customer.customerCode,
