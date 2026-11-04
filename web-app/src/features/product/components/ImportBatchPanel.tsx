@@ -63,6 +63,109 @@ interface ImportBatchPanelProps {
     api?: ImportBatchApi;
 }
 
+function validatePreviewPayload(
+    importType: ImportType,
+    payload: Record<string, unknown>
+): Array<{ field: string; message: string }> {
+    const errors: Array<{ field: string; message: string }> = [];
+
+    switch (importType) {
+        case "GOODS_RECEIPT": {
+            if (!payload.supplierId || !String(payload.supplierId).trim()) {
+                errors.push({ field: "supplierId", message: "Nhà cung cấp không được để trống hoặc không tồn tại" });
+            }
+            if (!payload.locationId || !String(payload.locationId).trim()) {
+                errors.push({ field: "locationId", message: "Kho nhận không được để trống hoặc không tồn tại" });
+            }
+            const items = Array.isArray(payload.items) ? (payload.items as Array<Record<string, unknown>>) : [];
+            if (items.length === 0) {
+                errors.push({ field: "items", message: "Phiếu nhập phải có ít nhất 1 dòng nguyên liệu" });
+            }
+            items.forEach((line, index) => {
+                const prefix = `items[${index}].`;
+                const isNew = Boolean(line.newIngredientName) || Boolean(line.isNewIngredient);
+                if (isNew) {
+                    if (!line.newIngredientName || !String(line.newIngredientName).trim()) {
+                        errors.push({ field: `${prefix}newIngredientName`, message: "Tên nguyên liệu mới không được để trống" });
+                    }
+                    if (!line.newIngredientUnitId || !String(line.newIngredientUnitId).trim()) {
+                        errors.push({ field: `${prefix}newIngredientUnitId`, message: "Đơn vị của nguyên liệu mới không được để trống hoặc không tồn tại" });
+                    }
+                } else {
+                    if (!line.inventoryItemId || !String(line.inventoryItemId).trim()) {
+                        errors.push({
+                            field: `${prefix}inventoryItemId`,
+                            message: "Nguyên liệu không được để trống hoặc không tồn tại (dùng sheet \"Nguyên liệu mới\" nếu muốn tạo mới)"
+                        });
+                    }
+                }
+                const qty = Number(line.orderedQuantity);
+                if (Number.isNaN(qty) || qty <= 0) {
+                    errors.push({ field: `${prefix}orderedQuantity`, message: "Số lượng phải lớn hơn 0" });
+                }
+            });
+            break;
+        }
+        case "PRODUCT": {
+            if (!payload.name || !String(payload.name).trim()) {
+                errors.push({ field: "name", message: "Tên sản phẩm không được để trống" });
+            }
+            if (!payload.categoryId || !String(payload.categoryId).trim()) {
+                errors.push({ field: "categoryId", message: "Danh mục không được để trống hoặc không tồn tại" });
+            }
+            break;
+        }
+        case "PRODUCT_VARIANT": {
+            if (!payload.productId || !String(payload.productId).trim()) {
+                errors.push({ field: "productId", message: "Sản phẩm không được để trống hoặc không tồn tại" });
+            }
+            if (!payload.variantName || !String(payload.variantName).trim()) {
+                errors.push({ field: "variantName", message: "Tên phiên bản không được để trống" });
+            }
+            if (!payload.sku || !String(payload.sku).trim()) {
+                errors.push({ field: "sku", message: "SKU không được để trống" });
+            }
+            if (!payload.unitId || !String(payload.unitId).trim()) {
+                errors.push({ field: "unitId", message: "Đơn vị tính không được để trống hoặc không tồn tại" });
+            }
+            const bomItems = Array.isArray(payload.bomItems) ? (payload.bomItems as Array<Record<string, unknown>>) : [];
+            bomItems.forEach((b, idx) => {
+                const prefix = `bomItems[${idx}].`;
+                if (!b.ingredientId || !String(b.ingredientId).trim()) {
+                    errors.push({ field: `${prefix}ingredientId`, message: "Nguyên liệu không được để trống hoặc không tồn tại" });
+                }
+                const qty = Number(b.quantity);
+                if (Number.isNaN(qty) || qty <= 0) {
+                    errors.push({ field: `${prefix}quantity`, message: "Số lượng phải lớn hơn 0" });
+                }
+            });
+            break;
+        }
+        case "INGREDIENT": {
+            if (!payload.name || !String(payload.name).trim()) {
+                errors.push({ field: "name", message: "Tên nguyên liệu không được để trống" });
+            }
+            if (!payload.unitId || !String(payload.unitId).trim()) {
+                errors.push({ field: "unitId", message: "Đơn vị tính không được để trống hoặc không tồn tại" });
+            }
+            break;
+        }
+        case "UNIT": {
+            if (!payload.name || !String(payload.name).trim()) {
+                errors.push({ field: "name", message: "Tên đơn vị không được để trống" });
+            }
+            if (!payload.symbol || !String(payload.symbol).trim()) {
+                errors.push({ field: "symbol", message: "Ký hiệu không được để trống" });
+            }
+            break;
+        }
+        default:
+            break;
+    }
+
+    return errors;
+}
+
 export function ImportBatchPanel({
     batchId,
     previewData,
@@ -103,6 +206,7 @@ export function ImportBatchPanel({
     const [rejectReason, setRejectReason] = useState("");
 
     const isPreview = !batch && Boolean(previewData);
+    const currentImportType: ImportType = (previewData?.importType ?? batch?.importType ?? "GOODS_RECEIPT") as ImportType;
 
     // Helper upload file lên FileService khi người dùng bấm Lưu nháp hoặc Gửi duyệt
     async function uploadSourceFile(): Promise<{ fileId: string; fileUrl: string | null } | null> {
@@ -192,9 +296,11 @@ export function ImportBatchPanel({
 
     async function handleUpdateItem(itemId: string, payload: Record<string, unknown>) {
         if (isPreview) {
+            const newValidationErrors = validatePreviewPayload(currentImportType, payload);
             setPreviewItems((prev) =>
-                prev.map((it) => (it.id === itemId ? { ...it, payload } : it))
+                prev.map((it) => (it.id === itemId ? { ...it, payload, validationErrors: newValidationErrors } : it))
             );
+            showToast("Đã cập nhật dòng.");
             return;
         }
         if (!batch) return;
@@ -214,6 +320,7 @@ export function ImportBatchPanel({
     async function handleDeleteItem(itemId: string) {
         if (isPreview) {
             setPreviewItems((prev) => prev.filter((it) => it.id !== itemId));
+            showToast("Đã xoá dòng.");
             return;
         }
         if (!batch) return;
@@ -261,7 +368,7 @@ export function ImportBatchPanel({
                 // Upload file lên FileService khi người dùng bấm Lưu nháp
                 const uploadResult = await uploadSourceFile();
                 const fileId = uploadResult?.fileId ?? null;
-                const sourceFileName = uploadResult?.fileUrl || previewData.sourceFileName;
+                const sourceFileName = (sourceFile?.name || previewData.sourceFileName || "import.xlsx").slice(0, 255);
 
                 const createdBatch = await api.saveDraft({
                     type: previewData.importType,
@@ -298,7 +405,7 @@ export function ImportBatchPanel({
                 // Upload file lên FileService khi người dùng bấm Gửi duyệt
                 const uploadResult = await uploadSourceFile();
                 const fileId = uploadResult?.fileId ?? null;
-                const sourceFileName = uploadResult?.fileUrl || previewData.sourceFileName;
+                const sourceFileName = (sourceFile?.name || previewData.sourceFileName || "import.xlsx").slice(0, 255);
 
                 // Lưu nháp vào DB trước (backend sẽ tự động attach fileId qua Feign), sau đó submit
                 const createdBatch = await api.saveDraft({
@@ -313,14 +420,19 @@ export function ImportBatchPanel({
                 });
                 applyBatch(createdBatch);
                 onBatchSaved?.(createdBatch);
-                // Submit batch vừa tạo
+                // Submit batch vừa tạo (nếu user là Admin/Manager, backend tự động duyệt và chuyển thành APPROVED ngay lập tức)
                 try {
                     const submitted = await api.submit(createdBatch.id, createdBatch.version);
                     applyBatch(submitted);
-                    showToast("Đã lưu và gửi quản lý duyệt thành công.", true);
+                    showToast(
+                        canApprove
+                            ? "Đã duyệt và ghi dữ liệu chính thức vào hệ thống thành công."
+                            : "Đã lưu và gửi quản lý duyệt thành công.",
+                        true
+                    );
                 } catch (submitErr) {
                     // Nháp đã lưu nhưng còn dòng lỗi — tải lại để hiện lỗi từng dòng
-                    showToast(submitErr instanceof Error ? submitErr.message : "Gửi duyệt thất bại.", false);
+                    showToast(submitErr instanceof Error ? submitErr.message : "Thao tác thất bại.", false);
                     loadBatch(createdBatch.id);
                 }
             } catch (err) {
@@ -331,7 +443,10 @@ export function ImportBatchPanel({
             return;
         }
         if (!batch) return;
-        await runVersionedAction(() => api.submit(batch.id, batch.version), "Đã gửi quản lý duyệt.");
+        await runVersionedAction(
+            () => api.submit(batch.id, batch.version),
+            canApprove ? "Đã duyệt và ghi dữ liệu chính thức vào hệ thống." : "Đã gửi quản lý duyệt."
+        );
     }
 
     async function handleApprove() {
@@ -375,12 +490,13 @@ export function ImportBatchPanel({
 
     const currentItems = isPreview ? previewItems : (batch?.items ?? []);
     const currentStatus: ImportBatchStatus | "PREVIEW" = isPreview ? "PREVIEW" : (batch?.status ?? "DRAFT");
-    const currentImportType: ImportType = isPreview ? previewData!.importType : batch!.importType;
     const currentFileName = isPreview ? previewData?.sourceFileName : batch?.sourceFileName;
     const currentBatchCode = isPreview ? "Bản xem trước (Chưa lưu)" : batch?.batchCode;
 
     const isEditable = isPreview || batch?.status === "DRAFT" || batch?.status === "REJECTED";
     const hasInvalidItems = currentItems.some((i) => i.validationErrors.length > 0);
+    const validItemsCount = currentItems.filter((i) => i.validationErrors.length === 0).length;
+    const invalidItemsCount = currentItems.length - validItemsCount;
     const canSubmit = isEditable && currentItems.length > 0 && !hasInvalidItems && !actionLoading;
     const showApprovalActions = !isPreview && batch?.status === "PENDING_APPROVAL" && canApprove;
 
@@ -424,7 +540,8 @@ export function ImportBatchPanel({
                     ) : (
                         "—"
                     )}{" "}
-                    · {currentItems.length} dòng
+                    · {currentItems.length} dòng ({validItemsCount} hợp lệ
+                    {invalidItemsCount > 0 ? `, ${invalidItemsCount} có lỗi` : ""})
                 </p>
                 {/* {isPreview ? (
                     <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm font-bold text-amber-800">
@@ -495,7 +612,7 @@ export function ImportBatchPanel({
                             onClick={() => void handleSubmit()}
                             type="button"
                         >
-                            Gửi quản lý duyệt
+                            {canApprove ? "Duyệt & Áp dụng ngay" : "Gửi quản lý duyệt"}
                         </button>
                     </>
                 ) : null}

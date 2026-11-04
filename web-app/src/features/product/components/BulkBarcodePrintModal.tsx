@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect } from "react";
 import { X, Printer, Plus, Minus, Sliders, Eye } from "lucide-react";
+import { toast } from "../../../components/ui/Toast";
 import type { ProductVariant } from "../types/product.types";
 import { BarcodeSvg } from "./BarcodeSvg";
 import { formatCurrency } from "../utils/product-formatters";
@@ -65,7 +66,7 @@ export function BulkBarcodePrintModal({
 
         const printWindow = window.open("", "_blank");
         if (!printWindow) {
-            alert("Trình duyệt đã chặn cửa sổ bật lên. Vui lòng cho phép popup để in tem.");
+            toast.error("Trình duyệt đã chặn cửa sổ bật lên. Vui lòng cho phép popup để in tem.");
             return;
         }
 

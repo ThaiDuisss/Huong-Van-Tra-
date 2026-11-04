@@ -2,6 +2,7 @@ import { Download, Upload } from "lucide-react";
 import { useCallback, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
+import { toast } from "../../../components/ui/Toast";
 import { SearchableDropdown } from "../../manufacturing/components/shared/SearchableDropdown";
 import type { LookupItem } from "../../manufacturing/components/shared/SearchableDropdown";
 import { useLookupDropdown, withPinned } from "../../manufacturing/components/shared/useLookupDropdown";
@@ -96,7 +97,7 @@ export function UnitListPage() {
             document.body.removeChild(link);
         } catch (error) {
             console.error("Lỗi xuất file:", error);
-            alert("Có lỗi xảy ra khi xuất file!");
+            toast.error("Có lỗi xảy ra khi xuất file!");
         }
     };
 

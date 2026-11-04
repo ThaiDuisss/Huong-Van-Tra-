@@ -9,6 +9,7 @@ import {
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
+import { toast } from "../../../components/ui/Toast";
 import { TimeSidebar } from "../../../components/shared/TimeSidebar";
 import {
     buildTodayTimeNode,
@@ -341,7 +342,7 @@ export function OrderListPage() {
         }
 
         console.log("TODO: Nhập file đơn hàng", file);
-        window.alert("Chức năng nhập file đang được phát triển");
+        toast.info("Chức năng nhập file đang được phát triển");
     };
 
     const buildCurrentFilterExportParams = () =>

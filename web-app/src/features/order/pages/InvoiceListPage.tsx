@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
+import { toast } from "../../../components/ui/Toast";
 import { TimeSidebar } from "../../../components/shared/TimeSidebar";
 import {
     buildTodayTimeNode,
@@ -269,7 +270,7 @@ export function InvoiceListPage() {
         }
 
         console.log("TODO: Nhập file hóa đơn", file);
-        window.alert("Chức năng nhập file đang được phát triển");
+        toast.info("Chức năng nhập file đang được phát triển");
     };
 
     const buildCurrentFilterExportParams = () =>
