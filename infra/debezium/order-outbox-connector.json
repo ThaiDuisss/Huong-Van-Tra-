@@ -15,7 +15,7 @@
     "schema.history.internal.kafka.topic": "schema-changes.order-db",
     "include.schema.changes": "false",
     "tombstones.on.delete": "false",
-    "snapshot.mode": "initial",
+    "snapshot.mode": "no_data",
     "transforms": "outbox",
     "transforms.outbox.type": "io.debezium.transforms.outbox.EventRouter",
     "transforms.outbox.route.by.field": "topic",

@@ -242,8 +242,12 @@ DB dùng chung, nên smoke test phải tắt.
 
 - Box 3 (Jenkins) + registry + pipeline — bước 7.
 - Recommendation-Service: có `Dockerfile` riêng, chưa đưa vào compose. Thêm ~700MB.
-- Debezium connector trên box 2 đang `snapshot.mode: initial`; nếu register lại sẽ phát
-  lại toàn bộ `outbox_events` lịch sử. Đổi sang `schema_only` trước khi chạy
-  `DB_HOST=<ten container mysql> bash infra/debezium/register-connectors.sh`.
+- Debezium connector trên box 2 vẫn đang đăng ký với `snapshot.mode: initial` (repo đã đổi
+  sang `no_data`). Lần tới đăng ký lại bằng
+  `DB_HOST=mysql CONNECT_URL=http://localhost:8083 bash infra/debezium/register-connectors.sh`
+  trên box 2 để áp dụng; offset cũ được giữ nên không replay.
+- Kafka Connect không tự khởi động lại task FAILED (đã gặp sau khi MySQL restart: 3 connector
+  chết lặng từ 30/10 đến 4/11). Cron trên box 2 mỗi 5 phút:
+  `for n in payment order inventory; do curl -s -o /dev/null -X POST "http://localhost:8083/connectors/$n-outbox-connector/restart?includeTasks=true&onlyFailed=true"; done`
 - Rotate 3 secret đã vào git history: `INTERNAL_HEADER_SECRET`, password Redis, password
   user `debezium`.
