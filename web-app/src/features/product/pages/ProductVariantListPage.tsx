@@ -707,7 +707,7 @@ export function ProductVariantListPage() {
                             }}
                         >
                             <Printer size={17} aria-hidden="true" />
-                            In mã vạch hàng loạt {selectedVariantIds.size > 0 ? `(${selectedVariantIds.size})` : ""}
+                            In mã {selectedVariantIds.size > 0 ? `(${selectedVariantIds.size})` : ""}
                         </ActionButton>
                         <ActionButton variant="secondary" onClick={() => navigate(routePaths.productVariantImport)}>
                             <Upload size={17} aria-hidden="true" />

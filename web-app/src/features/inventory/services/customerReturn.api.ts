@@ -7,7 +7,6 @@ import type {
 } from "../types/customer-return-inspection.types";
 import type { CustomerReturnActualCondition, CustomerReturnQcResult, CustomerReturnQcLocation } from "../types/customer-return-inspection.types";
 import { INVENTORY_LOCATION_TYPES } from "../types/inventory.types";
-import type { InventoryLocationType } from "../types/inventory.types";
 import { inventoryLocationApi } from "./inventoryLocation.api";
 
 export interface PostCustomerReturnInspectionRequest {

@@ -154,13 +154,13 @@ export const systemNavigationItems: SystemNavigationItem[] = [
         icon: Ruler,
         roles: [ROLES.SUPER_ADMIN, ROLES.MANAGER],
       },
-      {
-        key: "catalog-price-lists",
-        label: "Bảng giá",
-        to: routePaths.priceLists,
-        icon: WalletCards,
-        roles: PRICE_LIST_ROLES,
-      },
+      // {
+      //   key: "catalog-price-lists",
+      //   label: "Bảng giá",
+      //   to: routePaths.priceLists,
+      //   icon: WalletCards,
+      //   roles: PRICE_LIST_ROLES,
+      // },
     ],
   },
   {

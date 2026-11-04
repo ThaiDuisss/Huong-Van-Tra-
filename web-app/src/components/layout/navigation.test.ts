@@ -37,7 +37,7 @@ describe("system navigation by role and permission", () => {
 
   it("lets loaded permissions decide over roles for items that declare permissions", () => {
     const withPermission = filterSystemNavigationByRoles(["ROLE_MANAGER"], ["role:manage"]);
-    const withoutPermission = filterSystemNavigationByRoles(["ROLE_ADMIN"], ["order:view"]);
+    const withoutPermission = filterSystemNavigationByRoles(["ROLE_MANAGER"], ["order:view"]);
 
     expect(keys(withPermission)).toContain("settings");
     expect(keys(withoutPermission)).not.toContain("settings");

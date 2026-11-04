@@ -197,7 +197,7 @@ export function BulkBarcodePrintModal({
                         </div>
                         <div>
                             <h2 className="text-lg font-bold text-gray-900">
-                                In mã vạch hàng loạt
+                                In mã
                             </h2>
                             <p className="text-xs font-medium text-gray-500">
                                 Đã chọn <span className="font-bold text-gray-700">{variants.length}</span> mặt hàng | Tổng số tem sẽ in: <span className="font-bold text-pos-primary">{totalLabels}</span> tem
