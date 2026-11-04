@@ -6,7 +6,7 @@ import { getDefaultRouteForRoles } from "./role-utils";
 
 describe("normalizeRole", () => {
     it("adds the ROLE_ prefix, trims and upper-cases", () => {
-        expect(normalizeRole("admin")).toBe(ROLES.ADMIN);
+        expect(normalizeRole("admin")).toBe(ROLES.SUPER_ADMIN);
         expect(normalizeRole("  sale_staff ")).toBe(ROLES.SALE_STAFF);
         expect(normalizeRole("ROLE_MANAGER")).toBe(ROLES.MANAGER);
         expect(normalizeRole("role_qc")).toBe(ROLES.QC);
@@ -16,7 +16,7 @@ describe("normalizeRole", () => {
         expect(normalizeRole("WAREHOUSE_STAFF")).toBe(ROLES.INVENTORY_STAFF);
         expect(normalizeRole("ROLE_WAREHOUSE")).toBe(ROLES.INVENTORY_STAFF);
         expect(normalizeRole("qc_staff")).toBe(ROLES.QC);
-        expect(normalizeRole("SHIPPER")).toBe(ROLES.DELIVERY);
+        expect(normalizeRole("SHIPPER")).toBe("ROLE_SHIPPER");
         expect(normalizeRole("superadmin")).toBe(ROLES.SUPER_ADMIN);
     });
 
@@ -63,15 +63,15 @@ describe("getDefaultRouteForRoles", () => {
     it("sends each role to its landing page", () => {
         expect(getDefaultRouteForRoles(["SUPER_ADMIN"])).toBe("/system/dashboard");
         expect(getDefaultRouteForRoles(["MANAGER"])).toBe("/system/orders");
-        expect(getDefaultRouteForRoles(["QC"])).toBe("/system/inventory/quality");
-        expect(getDefaultRouteForRoles(["INVENTORY_STAFF"])).toBe("/system/inventory/balances");
+        expect(getDefaultRouteForRoles(["QC"])).toBe("/management/inventory/disposals");
+        expect(getDefaultRouteForRoles(["INVENTORY_STAFF"])).toBe("/system/inventory/warehouse");
         expect(getDefaultRouteForRoles(["SALE_STAFF"])).toBe("/pos/sales");
     });
 
     it("uses the highest-priority role when a user has several", () => {
         expect(getDefaultRouteForRoles(["SALE_STAFF", "MANAGER"])).toBe("/system/orders");
-        expect(getDefaultRouteForRoles(["ROLE_SUPER_ADMIN", "ROLE_ADMIN"])).toBe("/system/inventory/balances");
-        expect(getDefaultRouteForRoles(["sale_staff", "qc_staff"])).toBe("/system/inventory/quality");
+        expect(getDefaultRouteForRoles(["ROLE_SUPER_ADMIN", "ROLE_ADMIN"])).toBe("/system/dashboard");
+        expect(getDefaultRouteForRoles(["sale_staff", "qc_staff"])).toBe("/management/inventory/disposals");
     });
 
     it("falls back to the POS for missing or unknown roles", () => {

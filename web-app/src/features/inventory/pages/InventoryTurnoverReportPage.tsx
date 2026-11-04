@@ -1,6 +1,7 @@
 import { Clock3, Download, RotateCcw, TrendingDown } from "lucide-react";
 import { useEffect, useState } from "react";
 
+import { toast } from "../../../components/ui/Toast";
 import { InventoryPageHeader } from "../components/InventoryManagementComponents";
 import { inventoryReportApi, type InventoryTurnoverReportResponse } from "../services/inventoryReport.api";
 import { formatVietnamNumber } from "../utils/inventory-format";
@@ -35,7 +36,7 @@ export function InventoryTurnoverReportPage() {
         actions={
           <button
             className="inline-flex h-10 items-center gap-2 rounded-lg border border-[#d8eadc] bg-white px-4 text-sm font-black text-[#159734] transition hover:bg-[#f4faf5]"
-            onClick={() => alert("Xuất báo cáo thành công.")}
+            onClick={() => toast.success("Xuất báo cáo thành công.")}
             type="button"
           >
             <Download size={16} />

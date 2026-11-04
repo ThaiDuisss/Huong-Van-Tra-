@@ -284,6 +284,13 @@ public class ImportBatchServiceImpl implements ImportBatchService {
                     "Còn " + invalidCount + " dòng dữ liệu chưa hợp lệ — vui lòng sửa hết lỗi trước khi gửi duyệt");
         }
 
+        // Nếu người gửi là Admin hoặc Manager -> tự động duyệt và áp dụng dữ liệu luôn, không cần bước chờ duyệt
+        if (canApproveBatch()) {
+            batch.setSubmittedBy(getCurrentUserId());
+            batch.setSubmittedAt(Instant.now());
+            return approveBatchInternal(batch, "Tự động duyệt khi gửi phiếu bởi người có quyền quản lý");
+        }
+
         batch.setStatus(ImportBatchStatus.PENDING_APPROVAL);
         batch.setSubmittedBy(getCurrentUserId());
         batch.setSubmittedAt(Instant.now());
@@ -295,11 +302,15 @@ public class ImportBatchServiceImpl implements ImportBatchService {
     public ImportBatchResponse approve(UUID batchId, String note, Long expectedVersion) {
         ImportBatch batch = getBatchWithItems(batchId);
         checkVersion(batch, expectedVersion);
-        if (batch.getStatus() != ImportBatchStatus.PENDING_APPROVAL) {
+        if (batch.getStatus() != ImportBatchStatus.PENDING_APPROVAL && batch.getStatus() != ImportBatchStatus.DRAFT) {
             throw new BusinessException("INVALID_STATE",
-                    "Chỉ có thể duyệt phiếu import ở trạng thái PENDING_APPROVAL (hiện tại: " + batch.getStatus() + ")");
+                    "Chỉ có thể duyệt phiếu import ở trạng thái DRAFT hoặc PENDING_APPROVAL (hiện tại: " + batch.getStatus() + ")");
         }
 
+        return approveBatchInternal(batch, note);
+    }
+
+    private ImportBatchResponse approveBatchInternal(ImportBatch batch, String note) {
         ImportTypeHandler handler = handlerFor(batch.getImportType());
 
         // 1. Validate lại toàn bộ trước — nếu còn bất kỳ lỗi nào thì dừng ngay, KHÔNG commit dòng nào cả.
@@ -330,7 +341,9 @@ public class ImportBatchServiceImpl implements ImportBatchService {
         batch.setStatus(ImportBatchStatus.APPROVED);
         batch.setApprovedBy(getCurrentUserId());
         batch.setApprovedAt(Instant.now());
-        batch.setNote(note);
+        if (note != null && !note.isBlank()) {
+            batch.setNote(note);
+        }
         return toResponse(repository.saveAndFlush(batch));
     }
 
@@ -402,10 +415,15 @@ public class ImportBatchServiceImpl implements ImportBatchService {
         sequenceRepository.insertIfAbsent(SEQUENCE_KEY);
         BusinessSequence seq = sequenceRepository.findBySequenceKeyWithLock(SEQUENCE_KEY)
                 .orElseThrow(() -> new IllegalStateException("Không khởi tạo được bộ đếm: " + SEQUENCE_KEY));
-        long nextVal = seq.getCurrentValue() + 1;
-        seq.setCurrentValue(nextVal);
+        String code;
+        do {
+            long nextVal = seq.getCurrentValue() + 1;
+            seq.setCurrentValue(nextVal);
+            code = String.format("IMP-%05d", nextVal);
+        } while (repository.existsByBatchCode(code));
+
         sequenceRepository.saveAndFlush(seq);
-        return String.format("IMP-%05d", nextVal);
+        return code;
     }
 
     private UUID getCurrentUserId() {
@@ -419,6 +437,14 @@ public class ImportBatchServiceImpl implements ImportBatchService {
 
     /** ADMIN/BRANCH_MANAGER/INVENTORY_MANAGER xem toàn bộ; role khác chỉ xem phiếu do chính mình tạo. */
     private boolean canViewAllBatches() {
+        try {
+            return SecurityUtils.hasAnyRole(ELEVATED_ROLES);
+        } catch (AccessDeniedException ignored) {
+            return false;
+        }
+    }
+
+    private boolean canApproveBatch() {
         try {
             return SecurityUtils.hasAnyRole(ELEVATED_ROLES);
         } catch (AccessDeniedException ignored) {

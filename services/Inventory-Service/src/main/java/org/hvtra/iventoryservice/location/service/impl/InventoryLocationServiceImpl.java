@@ -112,7 +112,6 @@ public class InventoryLocationServiceImpl implements InventoryLocationService {
     private String generateCode(String name, InventoryLocationType type) {
         String fallback = switch (type) {
             case WAREHOUSE -> "KHO";
-            case STORAGE   -> "KC";
             case DAMAGED   -> "HL";
             case SHELF     -> "KE";
             case QUARANTINE -> "CL";

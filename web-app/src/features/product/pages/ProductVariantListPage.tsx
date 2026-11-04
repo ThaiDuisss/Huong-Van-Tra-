@@ -3,6 +3,7 @@ import { useCallback, useState, useEffect, useMemo } from "react";
 import type { FormEvent } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 
+import { toast } from "../../../components/ui/Toast";
 import { routePaths } from "../../../routes/path";
 import { ActionButton } from "../../manufacturing/components/shared/ActionButton";
 import { SearchableDropdown } from "../../manufacturing/components/shared/SearchableDropdown";
@@ -678,7 +679,7 @@ export function ProductVariantListPage() {
             document.body.removeChild(link);
         } catch (error) {
             console.error("Lỗi xuất file:", error);
-            alert("Có lỗi xảy ra khi xuất file!");
+            toast.error("Có lỗi xảy ra khi xuất file!");
         }
     };
 
@@ -700,14 +701,14 @@ export function ProductVariantListPage() {
                             variant={selectedVariantIds.size > 0 ? "primary" : "secondary"}
                             onClick={() => {
                                 if (selectedVariantIds.size === 0) {
-                                    alert("Vui lòng tích chọn ít nhất một mặt hàng để in mã vạch hàng loạt.");
+                                    toast.warning("Vui lòng tích chọn ít nhất một mặt hàng để in mã vạch hàng loạt.");
                                     return;
                                 }
                                 setShowBulkPrintModal(true);
                             }}
                         >
                             <Printer size={17} aria-hidden="true" />
-                            In mã vạch hàng loạt {selectedVariantIds.size > 0 ? `(${selectedVariantIds.size})` : ""}
+                            In mã {selectedVariantIds.size > 0 ? `(${selectedVariantIds.size})` : ""}
                         </ActionButton>
                         <ActionButton variant="secondary" onClick={() => navigate(routePaths.productVariantImport)}>
                             <Upload size={17} aria-hidden="true" />

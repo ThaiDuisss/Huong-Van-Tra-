@@ -10,8 +10,6 @@ import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.ss.usermodel.Workbook;
 import org.apache.poi.ss.util.CellRangeAddress;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
-import org.hvtra.catalog.client.InventoryClient;
-import org.hvtra.catalog.client.InventoryClient.CreateInventoryItemRequest;
 import org.hvtra.catalog.dto.request.IngredientRequest;
 import org.hvtra.catalog.dto.response.IngredientBundleLookupResponse;
 import org.hvtra.catalog.dto.response.IngredientResponse;
@@ -24,6 +22,7 @@ import org.hvtra.catalog.enums.Status;
 import org.hvtra.catalog.exception.BadRequestException;
 import org.hvtra.catalog.exception.ResourceNotFoundException;
 import org.hvtra.catalog.mapper.IngredientMapper;
+import org.hvtra.catalog.outbox.publisher.CatalogOutboxPublisher;
 import org.hvtra.commonservice.common_core.repository.BusinessSequenceRepository;
 import org.hvtra.catalog.repository.IngredientRepository;
 import org.hvtra.catalog.repository.UnitRepository;
@@ -47,19 +46,19 @@ public class IngredientServiceImpl implements IngredientService {
     private final IngredientMapper mapper;
     private final BusinessSequenceRepository businessSequenceRepository;
     private final UnitRepository unitRepository;
-    private final InventoryClient inventoryClient;
+    private final CatalogOutboxPublisher catalogOutboxPublisher;
 
     public IngredientServiceImpl(
             IngredientRepository repository,
             IngredientMapper mapper,
             BusinessSequenceRepository businessSequenceRepository,
             UnitRepository unitRepository,
-            InventoryClient inventoryClient) {
+            CatalogOutboxPublisher catalogOutboxPublisher) {
         this.repository = repository;
         this.mapper = mapper;
         this.businessSequenceRepository = businessSequenceRepository;
         this.unitRepository = unitRepository;
-        this.inventoryClient = inventoryClient;
+        this.catalogOutboxPublisher = catalogOutboxPublisher;
     }
 
     @Transactional
@@ -157,16 +156,9 @@ public class IngredientServiceImpl implements IngredientService {
         ingredient.setUnit(unit);
         Ingredient savedIngredient = repository.saveAndFlush(ingredient);
 
-        inventoryClient.createProductVariantItem(
-                CreateInventoryItemRequest.builder()
-                        .status(savedIngredient.getStatus().toString())
-                        .unitId(savedIngredient.getUnit() != null ? savedIngredient.getUnit().getId() : null)
-                        .referenceId(savedIngredient.getId())
-                        .referenceCode(savedIngredient.getIngredientCode())
-                        .name(savedIngredient.getName())
-                        .itemType("INGREDIENT")
-                        .reorderPoint(savedIngredient.getReorderPoint() != null ? savedIngredient.getReorderPoint() : 0)
-                        .build());
+        if (catalogOutboxPublisher != null) {
+            catalogOutboxPublisher.publishIngredientCreated(savedIngredient);
+        }
 
         return mapper.toResponse(savedIngredient);
     }
@@ -188,7 +180,9 @@ public class IngredientServiceImpl implements IngredientService {
         }
         Ingredient saved = repository.save(ingredient);
 
-        syncInventoryItem(saved);
+        if (catalogOutboxPublisher != null) {
+            catalogOutboxPublisher.publishIngredientUpdated(saved);
+        }
 
         return mapper.toResponse(saved);
     }
@@ -203,32 +197,11 @@ public class IngredientServiceImpl implements IngredientService {
         ingredient.setStatus(status);
         Ingredient saved = repository.save(ingredient);
 
-        syncInventoryItem(saved);
+        if (catalogOutboxPublisher != null) {
+            catalogOutboxPublisher.publishIngredientUpdated(saved);
+        }
 
         return mapper.toResponse(saved);
-    }
-
-    private void syncInventoryItem(Ingredient ingredient) {
-        if (ingredient == null || ingredient.getId() == null) {
-            return;
-        }
-        try {
-            inventoryClient.updateInventoryItemByReference(
-                    "INGREDIENT",
-                    ingredient.getId(),
-                    CreateInventoryItemRequest.builder()
-                            .referenceId(ingredient.getId())
-                            .referenceCode(ingredient.getIngredientCode())
-                            .name(ingredient.getName())
-                            .itemType("INGREDIENT")
-                            .unitId(ingredient.getUnit() != null ? ingredient.getUnit().getId() : null)
-                            .status(ingredient.getStatus() != null ? ingredient.getStatus().toString() : "ACTIVE")
-                            .reorderPoint(ingredient.getReorderPoint() != null ? ingredient.getReorderPoint() : 0)
-                            .build()
-            );
-        } catch (Exception e) {
-            // Log/gracefully continue
-        }
     }
 
     @Override
@@ -300,6 +273,9 @@ public class IngredientServiceImpl implements IngredientService {
         }
         ingredient.setIsDeleted(true);
         repository.save(ingredient);
+        if (catalogOutboxPublisher != null) {
+            catalogOutboxPublisher.publishIngredientDeleted(ingredient);
+        }
     }
 
     @Override

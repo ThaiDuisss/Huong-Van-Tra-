@@ -1,6 +1,5 @@
 package org.hvtra.catalog.service.impl;
 
-import org.hvtra.catalog.client.InventoryClient;
 import org.hvtra.catalog.dto.request.ProductVariantRequest;
 import org.hvtra.catalog.dto.request.SellableConfigRequest;
 import org.hvtra.catalog.dto.request.SellableQuantityAdjustmentRequest;
@@ -21,6 +20,7 @@ import org.hvtra.catalog.enums.Status;
 import org.hvtra.catalog.exception.BadRequestException;
 import org.hvtra.catalog.exception.ResourceNotFoundException;
 import org.hvtra.catalog.mapper.ProductMapper;
+import org.hvtra.catalog.outbox.publisher.CatalogOutboxPublisher;
 import org.hvtra.catalog.repository.IngredientRepository;
 import org.hvtra.catalog.repository.ProductRepository;
 import org.hvtra.catalog.repository.ProductVariantRepository;
@@ -73,9 +73,6 @@ class ProductVariantServiceImplTest {
     private ProductMapper mapper;
 
     @Mock
-    private InventoryClient inventoryClient;
-
-    @Mock
     private UnitRepository unitRepository;
 
     @Mock
@@ -83,6 +80,9 @@ class ProductVariantServiceImplTest {
 
     @Mock
     private IngredientRepository ingredientRepository;
+
+    @Mock
+    private CatalogOutboxPublisher catalogOutboxPublisher;
 
     @InjectMocks
     private ProductVariantServiceImpl service;

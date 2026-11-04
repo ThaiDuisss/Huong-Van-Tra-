@@ -3,6 +3,7 @@ import { Download, Eye, Filter, Pencil, Plus, Trash2, Upload } from "lucide-reac
 import { useCallback, useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 
+import { toast } from "../../../components/ui/Toast";
 import { useAuthorization } from "../../../auth/useAuthorization";
 import { ConfirmDialog } from "../../product/components/ConfirmDialog";
 import { ActionButton } from "../../manufacturing/components/shared/ActionButton";
@@ -68,7 +69,6 @@ export function GoodsReceiptListPage() {
     const [deleteTarget, setDeleteTarget] = useState<GoodsReceiptListItem | null>(null);
     const [deleting, setDeleting] = useState(false);
     const [deleteError, setDeleteError] = useState("");
-    const [toast, setToast] = useState("");
     const [exporting, setExporting] = useState(false);
     const [showFilters, setShowFilters] = useState(false);
     const [result, setResult] = useState<GoodsReceiptListResult | null>(null);
@@ -159,8 +159,7 @@ export function GoodsReceiptListPage() {
         try {
             await goodsReceiptApi.deleteGoodsReceipt(deleteTarget.id);
             setDeleteTarget(null);
-            setToast(`Đã xóa phiếu nhập kho ${deleteTarget.code}.`);
-            window.setTimeout(() => setToast(""), 2500);
+            toast.success(`Đã xóa phiếu nhập kho ${deleteTarget.code}.`);
             retry();
         } catch (err: unknown) {
             setDeleteError(getDeleteErrorMessage(err));
@@ -201,13 +200,13 @@ export function GoodsReceiptListPage() {
         try {
             const rows = await goodsReceiptApi.exportGoodsReceipts(query);
             if (rows.length === 0) {
-                alert("Không có dữ liệu phiếu nhập để xuất Excel!");
+                toast.warning("Không có dữ liệu phiếu nhập để xuất Excel!");
                 return;
             }
             exportGoodsReceiptsToExcel(rows);
         } catch (err) {
             console.error("Lỗi xuất Excel phiếu nhập kho:", err);
-            alert("Có lỗi xảy ra khi xuất file Excel!");
+            toast.error("Có lỗi xảy ra khi xuất file Excel!");
         } finally {
             setExporting(false);
         }
@@ -389,12 +388,6 @@ export function GoodsReceiptListPage() {
                     submitting={deleting}
                     title="Xóa phiếu nhập kho"
                 />
-            ) : null}
-
-            {toast ? (
-                <div className="fixed bottom-5 right-5 z-50 flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white shadow-xl">
-                    <span>{toast}</span>
-                </div>
             ) : null}
         </>
     );

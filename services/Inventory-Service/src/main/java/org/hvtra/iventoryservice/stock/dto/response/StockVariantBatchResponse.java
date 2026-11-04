@@ -5,7 +5,7 @@ import java.util.UUID;
 
 /**
  * Tồn của một mặt hàng tách theo nơi để: {@code shelfQuantity} là số đang trên kệ bán (SHELF),
- * {@code warehouseQuantity} là số còn trong kho (WAREHOUSE / STORAGE). {@code availableQuantity} là tổng hai phần.
+ * {@code warehouseQuantity} là số còn trong kho (WAREHOUSE). {@code availableQuantity} là tổng hai phần.
  */
 public record StockVariantBatchResponse(
         UUID variantId,
