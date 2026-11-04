@@ -78,8 +78,6 @@ export const routePaths = {
   inventoryStocktakes: "/management/inventory/stocktakes",
   inventoryStocktakeCreate: "/management/inventory/stocktakes/new",
   inventoryStocktakeDetail: "/management/inventory/stocktakes/:stocktakeId",
-  inventoryStocktakeReconciliation: "/management/inventory/stocktakes/:stocktakeId/reconciliation",
-  inventoryStocktakeAdjustment: "/management/inventory/stocktakes/:stocktakeId/adjustment",
   inventoryStocktakeAdjustments: "/management/inventory/stocktake-adjustments",
   inventoryStocktakeAdjustmentDetail: "/management/inventory/stocktake-adjustments/:adjustmentId",
   inventoryCustomerReturnList: "/management/inventory/customer-returns",

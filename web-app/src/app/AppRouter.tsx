@@ -49,11 +49,9 @@ import { DisposalListPage } from "../features/inventory/pages/DisposalListPage";
 import { PosCustomerReturnCreatePage } from "../features/inventory/pages/PosCustomerReturnCreatePage";
 import { PosCustomerReturnDetailPage } from "../features/inventory/pages/PosCustomerReturnDetailPage";
 import { StocktakeCreatePage } from "../features/inventory/pages/StocktakeCreatePage";
-import { StocktakeAdjustmentPage } from "../features/inventory/pages/StocktakeAdjustmentPage";
 import { StocktakeAdjustmentListPage } from "../features/inventory/pages/StocktakeAdjustmentListPage";
 import { StocktakeDetailPage } from "../features/inventory/pages/StocktakeDetailPage";
 import { StocktakeListPage } from "../features/inventory/pages/StocktakeListPage";
-import { StocktakeReconciliationPage } from "../features/inventory/pages/StocktakeReconciliationPage";
 import { InventoryValueReportPage } from "../features/inventory/pages/InventoryValueReportPage";
 import { StockCategoryAnalysisPage } from "../features/inventory/pages/StockCategoryAnalysisPage";
 import { InventoryTurnoverReportPage } from "../features/inventory/pages/InventoryTurnoverReportPage";
@@ -436,14 +434,6 @@ export function AppRouter() {
           <Route path="inventory/stocktakes" element={<StocktakeListPage />} />
           <Route path="inventory/stocktakes/new" element={<StocktakeCreatePage />} />
           <Route path="inventory/stocktakes/:stocktakeId" element={<StocktakeDetailPage />} />
-          <Route
-            path="inventory/stocktakes/:stocktakeId/reconciliation"
-            element={<StocktakeReconciliationPage />}
-          />
-          <Route
-            path="inventory/stocktakes/:stocktakeId/adjustment"
-            element={<StocktakeAdjustmentPage />}
-          />
           <Route path="inventory/stocktake-adjustments" element={<StocktakeAdjustmentListPage />} />
           <Route path="inventory/customer-returns" element={<CustomerReturnListPage />} />
           <Route

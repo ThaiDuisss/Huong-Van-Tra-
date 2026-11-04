@@ -2,27 +2,26 @@ package org.hvtra.iventoryservice.counting;
 
 import org.hvtra.commonservice.common_core.domain.entity.InternalUserPrincipal;
 import org.hvtra.iventoryservice.counting.dto.request.CreateInventoryTakeRequest;
-import org.hvtra.iventoryservice.counting.dto.request.RequestInventoryRecountRequest;
+import org.hvtra.iventoryservice.counting.dto.request.ReturnForRecountRequest;
 import org.hvtra.iventoryservice.counting.dto.request.UpdateInventoryCountsRequest;
 import org.hvtra.iventoryservice.counting.dto.request.UpdateInventoryCountsRequest.CountLineUpdate;
 import org.hvtra.iventoryservice.counting.dto.response.InventoryTakeLineResponse;
 import org.hvtra.iventoryservice.counting.dto.response.InventoryTakeResponse;
 import org.hvtra.iventoryservice.counting.mapper.InventoryTakeMapper;
-import org.hvtra.iventoryservice.counting.repository.InventoryCountApprovalPolicyRepository;
 import org.hvtra.iventoryservice.counting.repository.InventoryCountRepository;
+import org.hvtra.iventoryservice.counting.service.InventoryAdjustmentService;
 import org.hvtra.iventoryservice.counting.service.InventoryTakeServiceImpl;
 import org.hvtra.iventoryservice.domain.entity.InventoryBalance;
 import org.hvtra.iventoryservice.domain.entity.InventoryItem;
 import org.hvtra.iventoryservice.domain.entity.InventoryLocation;
 import org.hvtra.iventoryservice.domain.entity.batch.InventoryBatch;
 import org.hvtra.iventoryservice.domain.entity.counting.InventoryCount;
-import org.hvtra.iventoryservice.domain.entity.counting.InventoryCountApprovalPolicy;
 import org.hvtra.iventoryservice.domain.entity.counting.InventoryCountAssignment;
 import org.hvtra.iventoryservice.domain.entity.counting.InventoryCountAttempt;
 import org.hvtra.iventoryservice.domain.entity.counting.InventoryCountLine;
+import org.hvtra.iventoryservice.domain.entity.document.InventoryAdjustment;
 import org.hvtra.iventoryservice.domain.enums.InventoryCountAssignmentRole;
 import org.hvtra.iventoryservice.domain.enums.InventoryCountAssignmentStatus;
-import org.hvtra.iventoryservice.domain.enums.InventoryCountAttemptStatus;
 import org.hvtra.iventoryservice.domain.enums.InventoryCountScopeType;
 import org.hvtra.iventoryservice.domain.enums.InventoryCountStatus;
 import org.hvtra.iventoryservice.domain.enums.InventoryCountType;
@@ -42,6 +41,8 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
@@ -56,6 +57,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -105,7 +107,7 @@ class InventoryTakeServiceImplTest {
     @Mock
     private CatalogClient catalogClient;
     @Mock
-    private InventoryCountApprovalPolicyRepository approvalPolicyRepository;
+    private InventoryAdjustmentService adjustmentService;
 
     private InventoryTakeServiceImpl service;
     private InventoryItem item;
@@ -116,7 +118,7 @@ class InventoryTakeServiceImplTest {
     @BeforeEach
     void setUp() {
         service = new InventoryTakeServiceImpl(countRepository, balanceRepository, locationRepository, itemRepository,
-                new InventoryTakeMapper(), transactionLineRepository, catalogClient, approvalPolicyRepository);
+                new InventoryTakeMapper(), transactionLineRepository, catalogClient, adjustmentService);
 
         item = new InventoryItem();
         item.setId(ITEM_ID);
@@ -341,65 +343,13 @@ class InventoryTakeServiceImplTest {
     }
 
     @Nested
-    @DisplayName("freeze")
-    class FreezeTests {
-
-        @Test
-        @DisplayName("freeze moves a DRAFT count to FROZEN when no open count overlaps")
-        void freeze_WhenNoOverlap_ShouldFreeze() {
-            stubCount(count(InventoryCountStatus.DRAFT));
-            when(countRepository.findByBranchIdAndStatusInAndIsDeletedFalse(eq(BRANCH_ID), any())).thenReturn(List.of());
-
-            assertThat(service.freeze(COUNT_ID).status()).isEqualTo(InventoryCountStatus.FROZEN);
-        }
-
-        @Test
-        @DisplayName("freeze rejects a scope overlapping an open full count")
-        void freeze_WhenOpenFullCountExists_ShouldThrow() {
-            stubCount(count(InventoryCountStatus.DRAFT));
-            InventoryCount open = count(InventoryCountStatus.COUNTING);
-            open.setId(UUID.randomUUID());
-            when(countRepository.findByBranchIdAndStatusInAndIsDeletedFalse(eq(BRANCH_ID), any())).thenReturn(List.of(open));
-
-            assertThatThrownBy(() -> service.freeze(COUNT_ID))
-                    .isInstanceOf(BadRequestException.class)
-                    .hasMessage("Đã có kỳ kiểm kê đang mở trùng phạm vi");
-        }
-
-        @Test
-        @DisplayName("freeze ignores open counts of a different warehouse")
-        void freeze_WhenOpenCountInOtherWarehouse_ShouldFreeze() {
-            InventoryCount candidate = count(InventoryCountStatus.DRAFT);
-            candidate.setWarehouseId(WAREHOUSE_ID);
-            stubCount(candidate);
-            InventoryCount open = count(InventoryCountStatus.COUNTING);
-            open.setId(UUID.randomUUID());
-            open.setWarehouseId(UUID.randomUUID());
-            when(countRepository.findByBranchIdAndStatusInAndIsDeletedFalse(eq(BRANCH_ID), any())).thenReturn(List.of(open));
-
-            assertThat(service.freeze(COUNT_ID).status()).isEqualTo(InventoryCountStatus.FROZEN);
-        }
-
-        @Test
-        @DisplayName("freeze rejects counts that are not DRAFT")
-        void freeze_WhenNotDraft_ShouldThrow() {
-            stubCount(count(InventoryCountStatus.FROZEN));
-
-            assertThatThrownBy(() -> service.freeze(COUNT_ID))
-                    .isInstanceOf(BadRequestException.class)
-                    .hasMessage("Chỉ có thể xác nhận phạm vi khi kỳ kiểm kê ở trạng thái DRAFT");
-        }
-    }
-
-    @Nested
     @DisplayName("start")
     class StartTests {
 
         @Test
-        @DisplayName("start snapshots non-batch balances and unit cost")
+        @DisplayName("start locks the scope, snapshots non-batch balances and unit cost")
         void start_WhenBalancesExist_ShouldCreateLinesAndStartCounting() {
-            authenticate(COUNTER_ID.toString(), "INVENTORY_STAFF");
-            stubCount(count(InventoryCountStatus.FROZEN));
+            stubCount(count(InventoryCountStatus.DRAFT));
             when(balanceRepository.findAll(any(Specification.class))).thenReturn(List.of(balance(null, "10.00")));
             when(balanceRepository.findByBranchWithPositiveBalance(BRANCH_ID)).thenReturn(List.of());
             when(catalogClient.getVariantsBatch(List.of(VARIANT_ID))).thenReturn(List.of(variant("50000")));
@@ -407,18 +357,19 @@ class InventoryTakeServiceImplTest {
             InventoryTakeResponse response = service.start(COUNT_ID);
 
             assertThat(response.status()).isEqualTo(InventoryCountStatus.COUNTING);
-            assertThat(response.snapshotAt()).isNotNull();
+            assertThat(response.startedAt()).isNotNull();
             assertThat(response.lines()).singleElement().satisfies(line -> {
                 assertThat(line.snapshotQuantity()).isEqualByComparingTo("10.00");
                 assertThat(line.snapshotUnitCost()).isEqualByComparingTo("50000");
                 assertThat(line.inventoryBatchId()).isNull();
+                assertThat(line.counted()).isFalse();
             });
         }
 
         @Test
         @DisplayName("start creates batch lines instead of the item total when batch balances exist")
         void start_WhenBatchBalancesExist_ShouldCreateBatchLinesOnly() {
-            stubCount(count(InventoryCountStatus.FROZEN));
+            stubCount(count(InventoryCountStatus.DRAFT));
             when(balanceRepository.findAll(any(Specification.class))).thenReturn(List.of(balance(null, "10.00")));
             when(balanceRepository.findByBranchWithPositiveBalance(BRANCH_ID)).thenReturn(List.of(balance(batch, "6.00")));
             when(catalogClient.getVariantsBatch(anyList())).thenReturn(List.of());
@@ -435,7 +386,7 @@ class InventoryTakeServiceImplTest {
         @Test
         @DisplayName("start without any stock in scope throws BadRequestException")
         void start_WhenNoBalance_ShouldThrow() {
-            stubCount(count(InventoryCountStatus.FROZEN));
+            stubCount(count(InventoryCountStatus.DRAFT));
             when(balanceRepository.findAll(any(Specification.class))).thenReturn(List.of());
             when(balanceRepository.findByBranchWithPositiveBalance(BRANCH_ID)).thenReturn(List.of());
 
@@ -445,13 +396,64 @@ class InventoryTakeServiceImplTest {
         }
 
         @Test
-        @DisplayName("start before scope is frozen throws BadRequestException")
-        void start_WhenDraft_ShouldThrow() {
+        @DisplayName("start rejects a scope overlapping a count that is already counting")
+        void start_WhenOpenFullCountExists_ShouldThrow() {
             stubCount(count(InventoryCountStatus.DRAFT));
+            InventoryCount open = count(InventoryCountStatus.COUNTING);
+            open.setId(UUID.randomUUID());
+            when(countRepository.findByBranchIdAndStatusInAndIsDeletedFalse(eq(BRANCH_ID), any())).thenReturn(List.of(open));
 
             assertThatThrownBy(() -> service.start(COUNT_ID))
                     .isInstanceOf(BadRequestException.class)
-                    .hasMessage("Chỉ có thể bắt đầu kiểm kê sau khi phạm vi đã được xác nhận");
+                    .hasMessage("Đã có kỳ kiểm kê đang mở trùng phạm vi");
+        }
+
+        @Test
+        @DisplayName("start only checks overlap against COUNTING and PENDING_APPROVAL counts")
+        void start_ShouldIgnoreDraftCountsWhenCheckingOverlap() {
+            stubCount(count(InventoryCountStatus.DRAFT));
+            when(balanceRepository.findAll(any(Specification.class))).thenReturn(List.of(balance(null, "10.00")));
+            when(catalogClient.getVariantsBatch(anyList())).thenReturn(List.of());
+
+            service.start(COUNT_ID);
+
+            verify(countRepository).findByBranchIdAndStatusInAndIsDeletedFalse(BRANCH_ID,
+                    EnumSet.of(InventoryCountStatus.COUNTING, InventoryCountStatus.PENDING_APPROVAL));
+        }
+
+        @Test
+        @DisplayName("start ignores open counts of a different warehouse")
+        void start_WhenOpenCountInOtherWarehouse_ShouldStart() {
+            InventoryCount candidate = count(InventoryCountStatus.DRAFT);
+            candidate.setWarehouseId(WAREHOUSE_ID);
+            stubCount(candidate);
+            InventoryCount open = count(InventoryCountStatus.COUNTING);
+            open.setId(UUID.randomUUID());
+            open.setWarehouseId(UUID.randomUUID());
+            when(countRepository.findByBranchIdAndStatusInAndIsDeletedFalse(eq(BRANCH_ID), any())).thenReturn(List.of(open));
+            when(balanceRepository.findAll(any(Specification.class))).thenReturn(List.of(balance(null, "10.00")));
+            when(catalogClient.getVariantsBatch(anyList())).thenReturn(List.of());
+
+            assertThat(service.start(COUNT_ID).status()).isEqualTo(InventoryCountStatus.COUNTING);
+        }
+
+        @Test
+        @DisplayName("start outside DRAFT throws BadRequestException")
+        void start_WhenNotDraft_ShouldThrow() {
+            stubCount(count(InventoryCountStatus.COUNTING));
+
+            assertThatThrownBy(() -> service.start(COUNT_ID))
+                    .isInstanceOf(BadRequestException.class)
+                    .hasMessage("Chỉ có thể bắt đầu kiểm kê khi kỳ kiểm kê ở trạng thái DRAFT");
+        }
+
+        @Test
+        @DisplayName("start by inventory staff throws AccessDeniedException")
+        void start_WhenInventoryStaff_ShouldDeny() {
+            authenticate(COUNTER_ID.toString(), "INVENTORY_STAFF");
+
+            assertThatThrownBy(() -> service.start(COUNT_ID))
+                    .isInstanceOf(AccessDeniedException.class);
         }
     }
 
@@ -460,7 +462,7 @@ class InventoryTakeServiceImplTest {
     class UpdateCountsTests {
 
         @Test
-        @DisplayName("updateCounts records quantity, variance, attempt and completes the counter")
+        @DisplayName("updateCounts records quantity, variance, attempt and marks the counter done")
         void updateCounts_WhenAssignedCounter_ShouldRecordCount() {
             authenticate(COUNTER_ID.toString(), "INVENTORY_STAFF");
             InventoryCount count = count(InventoryCountStatus.COUNTING);
@@ -472,6 +474,7 @@ class InventoryTakeServiceImplTest {
             InventoryTakeResponse response = service.updateCounts(COUNT_ID, counts(update(LINE_ID, "9.00", null)));
 
             InventoryTakeLineResponse line = response.lines().get(0);
+            assertThat(line.counted()).isTrue();
             assertThat(line.countedQuantity()).isEqualByComparingTo("9.00");
             assertThat(line.varianceQuantity()).isEqualByComparingTo("-1.00");
             assertThat(line.goodQuantity()).isEqualByComparingTo("9.00");
@@ -479,12 +482,13 @@ class InventoryTakeServiceImplTest {
                 assertThat(attempt.attemptNo()).isEqualTo(1);
                 assertThat(attempt.counterId()).isEqualTo(COUNTER_ID);
             });
-            assertThat(counter.getStatus()).isEqualTo(InventoryCountAssignmentStatus.COMPLETED);
+            assertThat(counter.getStatus()).isEqualTo(InventoryCountAssignmentStatus.DONE);
+            assertThat(counter.getCompletedAt()).isNotNull();
         }
 
         @Test
-        @DisplayName("updateCounts keeps the counter in progress while lines remain uncounted")
-        void updateCounts_WhenLinesRemain_ShouldKeepInProgress() {
+        @DisplayName("updateCounts keeps the counter assigned while lines remain uncounted")
+        void updateCounts_WhenLinesRemain_ShouldKeepAssigned() {
             authenticate(COUNTER_ID.toString(), "INVENTORY_STAFF");
             InventoryCount count = count(InventoryCountStatus.COUNTING);
             count.addLine(line(LINE_ID, location, "10.00"));
@@ -495,8 +499,7 @@ class InventoryTakeServiceImplTest {
 
             service.updateCounts(COUNT_ID, counts(update(LINE_ID, "10.00", null)));
 
-            assertThat(counter.getStatus()).isEqualTo(InventoryCountAssignmentStatus.IN_PROGRESS);
-            assertThat(counter.getAcceptedAt()).isNotNull();
+            assertThat(counter.getStatus()).isEqualTo(InventoryCountAssignmentStatus.ASSIGNED);
         }
 
         @Test
@@ -544,8 +547,7 @@ class InventoryTakeServiceImplTest {
         @Test
         @DisplayName("updateCounts outside COUNTING throws BadRequestException")
         void updateCounts_WhenNotCounting_ShouldThrow() {
-            InventoryCount count = count(InventoryCountStatus.FROZEN);
-            stubCount(count);
+            stubCount(count(InventoryCountStatus.PENDING_APPROVAL));
 
             assertThatThrownBy(() -> service.updateCounts(COUNT_ID, counts(update(LINE_ID, "9.00", null))))
                     .isInstanceOf(BadRequestException.class)
@@ -578,94 +580,12 @@ class InventoryTakeServiceImplTest {
     }
 
     @Nested
-    @DisplayName("requestRecount")
-    class RequestRecountTests {
-
-        @Test
-        @DisplayName("requestRecount resets the lines, assigns a new counter and reopens counting")
-        void requestRecount_WhenReconciling_ShouldReopenCounting() {
-            InventoryCount count = reconcilingCount("9.00");
-            InventoryCountLine line = count.getLines().get(0);
-            InventoryCountAttempt attempt = new InventoryCountAttempt();
-            line.addAttempt(attempt);
-            stubCount(count);
-
-            InventoryTakeResponse response = service.requestRecount(COUNT_ID,
-                    new RequestInventoryRecountRequest(List.of(LINE_ID), SECOND_COUNTER_ID, "Lệch 1 hộp, cần đếm lại"));
-
-            assertThat(response.status()).isEqualTo(InventoryCountStatus.COUNTING);
-            assertThat(line.getCountedQuantity()).isNull();
-            assertThat(attempt.getStatus()).isEqualTo(InventoryCountAttemptStatus.RECOUNT_REQUIRED);
-            assertThat(response.assignments()).extracting(InventoryTakeResponse.AssignmentSummary::userId)
-                    .contains(SECOND_COUNTER_ID);
-        }
-
-        @Test
-        @DisplayName("requestRecount does not duplicate an already assigned counter")
-        void requestRecount_WhenCounterAlreadyAssigned_ShouldNotAddAssignment() {
-            InventoryCount count = reconcilingCount("9.00");
-            count.addAssignment(assignment(COUNTER_ID, InventoryCountAssignmentRole.COUNTER));
-            stubCount(count);
-
-            InventoryTakeResponse response = service.requestRecount(COUNT_ID,
-                    new RequestInventoryRecountRequest(List.of(LINE_ID), COUNTER_ID, "Đếm lại"));
-
-            assertThat(response.assignments()).hasSize(1);
-        }
-
-        @Test
-        @DisplayName("requestRecount without reason throws BadRequestException")
-        void requestRecount_WhenReasonBlank_ShouldThrow() {
-            stubCount(reconcilingCount("9.00"));
-
-            assertThatThrownBy(() -> service.requestRecount(COUNT_ID,
-                    new RequestInventoryRecountRequest(List.of(LINE_ID), COUNTER_ID, " ")))
-                    .isInstanceOf(BadRequestException.class)
-                    .hasMessage("Lý do kiểm kê lại là bắt buộc");
-        }
-
-        @Test
-        @DisplayName("requestRecount with a line of another count throws BadRequestException")
-        void requestRecount_WhenLineNotInCount_ShouldThrow() {
-            stubCount(reconcilingCount("9.00"));
-
-            assertThatThrownBy(() -> service.requestRecount(COUNT_ID,
-                    new RequestInventoryRecountRequest(List.of(UNKNOWN_ID), COUNTER_ID, "Đếm lại")))
-                    .isInstanceOf(BadRequestException.class)
-                    .hasMessage("Một hoặc nhiều dòng yêu cầu kiểm kê lại không thuộc kỳ này");
-        }
-
-        @Test
-        @DisplayName("requestRecount while still counting throws BadRequestException")
-        void requestRecount_WhenCounting_ShouldThrow() {
-            InventoryCount count = count(InventoryCountStatus.COUNTING);
-            count.addLine(line(LINE_ID, location, "10.00"));
-            stubCount(count);
-
-            assertThatThrownBy(() -> service.requestRecount(COUNT_ID,
-                    new RequestInventoryRecountRequest(List.of(LINE_ID), COUNTER_ID, "Đếm lại")))
-                    .isInstanceOf(BadRequestException.class)
-                    .hasMessage("Chỉ có thể yêu cầu kiểm kê lại khi đang đối soát");
-        }
-
-        @Test
-        @DisplayName("requestRecount by inventory staff throws AccessDeniedException")
-        void requestRecount_WhenInventoryStaff_ShouldDeny() {
-            authenticate(COUNTER_ID.toString(), "INVENTORY_STAFF");
-
-            assertThatThrownBy(() -> service.requestRecount(COUNT_ID,
-                    new RequestInventoryRecountRequest(List.of(LINE_ID), COUNTER_ID, "Đếm lại")))
-                    .isInstanceOf(AccessDeniedException.class);
-        }
-    }
-
-    @Nested
     @DisplayName("finish")
     class FinishTests {
 
         @Test
-        @DisplayName("finish without variance auto-approves the count")
-        void finish_WhenNoVariance_ShouldAutoApprove() {
+        @DisplayName("finish without variance completes the count without an adjustment")
+        void finish_WhenNoVariance_ShouldComplete() {
             authenticate(COUNTER_ID.toString(), "INVENTORY_STAFF");
             InventoryCount count = countingCount("10.00");
             count.addAssignment(assignment(COUNTER_ID, InventoryCountAssignmentRole.COUNTER));
@@ -673,16 +593,19 @@ class InventoryTakeServiceImplTest {
 
             InventoryTakeResponse response = service.finish(COUNT_ID);
 
-            assertThat(response.status()).isEqualTo(InventoryCountStatus.APPROVED);
-            assertThat(count.getApprovedBy()).isEqualTo(COUNTER_ID);
+            assertThat(response.status()).isEqualTo(InventoryCountStatus.COMPLETED);
+            assertThat(response.completedBy()).isEqualTo(COUNTER_ID);
+            assertThat(response.submittedAt()).isNotNull();
+            assertThat(response.adjustmentDocument()).isNull();
+            verify(adjustmentService, never()).createAndPostFromCount(any(), any());
         }
 
         @Test
-        @DisplayName("finish with variance moves the count to RECONCILING")
-        void finish_WhenVariance_ShouldReconcile() {
+        @DisplayName("finish with any variance waits for approval")
+        void finish_WhenVariance_ShouldWaitForApproval() {
             stubCount(countingCount("9.00"));
 
-            assertThat(service.finish(COUNT_ID).status()).isEqualTo(InventoryCountStatus.RECONCILING);
+            assertThat(service.finish(COUNT_ID).status()).isEqualTo(InventoryCountStatus.PENDING_APPROVAL);
         }
 
         @Test
@@ -695,7 +618,7 @@ class InventoryTakeServiceImplTest {
 
             InventoryTakeResponse response = service.finish(COUNT_ID);
 
-            assertThat(response.status()).isEqualTo(InventoryCountStatus.APPROVED);
+            assertThat(response.status()).isEqualTo(InventoryCountStatus.COMPLETED);
             assertThat(response.lines().get(0).expectedQuantity()).isEqualByComparingTo("13.00");
             assertThat(response.lines().get(0).varianceQuantity()).isEqualByComparingTo("0");
         }
@@ -717,13 +640,13 @@ class InventoryTakeServiceImplTest {
         @DisplayName("finish with uncounted lines throws BadRequestException")
         void finish_WhenLineNotCounted_ShouldThrow() {
             InventoryCount count = count(InventoryCountStatus.COUNTING);
-            count.setSnapshotAt(Instant.parse("2026-11-03T01:00:00Z"));
+            count.setStartedAt(Instant.parse("2026-11-03T01:00:00Z"));
             count.addLine(line(LINE_ID, location, "10.00"));
             stubCount(count);
 
             assertThatThrownBy(() -> service.finish(COUNT_ID))
                     .isInstanceOf(BadRequestException.class)
-                    .hasMessage("Tất cả dòng kiểm kê phải được đếm trước khi gửi đối soát");
+                    .hasMessage("Tất cả dòng kiểm kê phải được đếm trước khi kết thúc");
         }
 
         @Test
@@ -751,74 +674,50 @@ class InventoryTakeServiceImplTest {
     }
 
     @Nested
-    @DisplayName("submitApproval")
-    class SubmitApprovalTests {
+    @DisplayName("approve")
+    class ApproveTests {
 
         @Test
-        @DisplayName("submitApproval requires approval when branch has no auto-approve policy")
-        void submitApproval_WhenNoPolicy_ShouldWaitForApproval() {
-            stubCount(reconcilingCount("9.00"));
-            when(approvalPolicyRepository.findEffectivePolicies(BRANCH_ID)).thenReturn(List.of());
-
-            assertThat(service.submitApproval(COUNT_ID).status()).isEqualTo(InventoryCountStatus.PENDING_APPROVAL);
-        }
-
-        @Test
-        @DisplayName("submitApproval auto-approves variance within policy limits")
-        void submitApproval_WhenWithinPolicy_ShouldApprove() {
-            stubCount(reconcilingCount("9.00"));
-            when(approvalPolicyRepository.findEffectivePolicies(BRANCH_ID)).thenReturn(List.of(policy("5", "100000")));
-
-            InventoryTakeResponse response = service.submitApproval(COUNT_ID);
-
-            assertThat(response.status()).isEqualTo(InventoryCountStatus.APPROVED);
-        }
-
-        @Test
-        @DisplayName("submitApproval requires approval when variance value exceeds the policy")
-        void submitApproval_WhenValueExceedsPolicy_ShouldWaitForApproval() {
-            stubCount(reconcilingCount("9.00"));
-            when(approvalPolicyRepository.findEffectivePolicies(BRANCH_ID)).thenReturn(List.of(policy("5", "40000")));
-
-            assertThat(service.submitApproval(COUNT_ID).status()).isEqualTo(InventoryCountStatus.PENDING_APPROVAL);
-        }
-
-        @Test
-        @DisplayName("submitApproval while counting throws BadRequestException")
-        void submitApproval_WhenCounting_ShouldThrow() {
-            InventoryCount count = count(InventoryCountStatus.COUNTING);
-            count.setSnapshotAt(Instant.parse("2026-11-03T01:00:00Z"));
+        @DisplayName("approve posts the adjustment and completes the count")
+        void approve_WhenPendingApproval_ShouldPostAdjustmentAndComplete() {
+            InventoryCount count = pendingCount("9.00");
             stubCount(count);
+            InventoryAdjustment adjustment = InventoryAdjustment.forNetQuantity(new BigDecimal("-1.00"));
+            adjustment.setId(UUID.randomUUID());
+            adjustment.setDocumentCode("ADJ-20261104-0001");
+            when(adjustmentService.createAndPostFromCount(count, MANAGER_ID)).thenReturn(adjustment);
 
-            assertThatThrownBy(() -> service.submitApproval(COUNT_ID))
-                    .isInstanceOf(BadRequestException.class)
-                    .hasMessage("Chỉ có thể gửi phê duyệt khi đang đối soát");
-        }
-    }
+            InventoryTakeResponse response = service.approve(COUNT_ID);
 
-    @Nested
-    @DisplayName("approve / returnForRecount / reopen / reject")
-    class DecisionTests {
-
-        @Test
-        @DisplayName("approve records the approving manager")
-        void approve_WhenPendingApproval_ShouldApprove() {
-            InventoryCount count = count(InventoryCountStatus.PENDING_APPROVAL);
-            stubCount(count);
-
-            assertThat(service.approve(COUNT_ID).status()).isEqualTo(InventoryCountStatus.APPROVED);
-            assertThat(count.getApprovedBy()).isEqualTo(MANAGER_ID);
-            assertThat(count.getApprovedAt()).isNotNull();
+            assertThat(response.status()).isEqualTo(InventoryCountStatus.COMPLETED);
+            assertThat(response.completedBy()).isEqualTo(MANAGER_ID);
+            assertThat(response.completedAt()).isNotNull();
+            assertThat(response.adjustmentDocument().documentCode()).isEqualTo("ADJ-20261104-0001");
         }
 
         @Test
-        @DisplayName("approve outside PENDING_APPROVAL throws BadRequestException")
-        void approve_WhenReconciling_ShouldThrow() {
-            stubCount(count(InventoryCountStatus.RECONCILING));
+        @DisplayName("approve outside PENDING_APPROVAL throws and posts nothing")
+        void approve_WhenCounting_ShouldThrow() {
+            stubCount(countingCount("9.00"));
 
             assertThatThrownBy(() -> service.approve(COUNT_ID))
                     .isInstanceOf(BadRequestException.class)
                     .hasMessage("Kỳ kiểm kê không ở trạng thái chờ phê duyệt");
+            verify(adjustmentService, never()).createAndPostFromCount(any(), any());
+        }
+
+        @Test
+        @DisplayName("approve propagates a posting failure so the transaction rolls back")
+        void approve_WhenPostingFails_ShouldThrow() {
+            InventoryCount count = pendingCount("9.00");
+            stubCount(count);
+            when(adjustmentService.createAndPostFromCount(count, MANAGER_ID))
+                    .thenThrow(new BadRequestException("Tồn kho không đủ để điều chỉnh giảm cho mặt hàng " + ITEM_ID));
+
+            assertThatThrownBy(() -> service.approve(COUNT_ID))
+                    .isInstanceOf(BadRequestException.class)
+                    .hasMessageStartingWith("Tồn kho không đủ");
+            verify(countRepository, never()).save(any());
         }
 
         @Test
@@ -835,123 +734,140 @@ class InventoryTakeServiceImplTest {
         @DisplayName("approve with a non-UUID user id throws BadRequestException")
         void approve_WhenUserIdNotUuid_ShouldThrow() {
             authenticate("nv-kho-01", "MANAGER");
-            stubCount(count(InventoryCountStatus.PENDING_APPROVAL));
+            stubCount(pendingCount("9.00"));
 
             assertThatThrownBy(() -> service.approve(COUNT_ID))
                     .isInstanceOf(BadRequestException.class)
                     .hasMessage("User ID hiện tại không phải UUID hợp lệ");
         }
+    }
+
+    @Nested
+    @DisplayName("returnForRecount")
+    class ReturnForRecountTests {
 
         @Test
-        @DisplayName("returnForRecount stores trimmed reason and returns the count")
-        void returnForRecount_WhenPendingApproval_ShouldReturn() {
-            InventoryCount count = count(InventoryCountStatus.PENDING_APPROVAL);
+        @DisplayName("returnForRecount resets the lines, assigns a new counter and reopens counting")
+        void returnForRecount_WhenPendingApproval_ShouldReopenCounting() {
+            InventoryCount count = pendingCount("9.00");
+            InventoryCountLine line = count.getLines().get(0);
+            line.addAttempt(new InventoryCountAttempt());
             stubCount(count);
 
-            InventoryTakeResponse response = service.returnForRecount(COUNT_ID, "  Lệch quá lớn ở kệ A1  ");
+            InventoryTakeResponse response = service.returnForRecount(COUNT_ID,
+                    new ReturnForRecountRequest(List.of(LINE_ID), SECOND_COUNTER_ID, "  Lệch 1 hộp, cần đếm lại  "));
 
-            assertThat(response.status()).isEqualTo(InventoryCountStatus.RETURNED);
-            assertThat(count.getReturnReason()).isEqualTo("Lệch quá lớn ở kệ A1");
-            assertThat(count.getReturnedBy()).isEqualTo(MANAGER_ID);
+            assertThat(response.status()).isEqualTo(InventoryCountStatus.COUNTING);
+            assertThat(response.returnReason()).isEqualTo("Lệch 1 hộp, cần đếm lại");
+            assertThat(line.getCountedQuantity()).isNull();
+            assertThat(line.getAttempts()).hasSize(1);
+            assertThat(response.assignments()).extracting(InventoryTakeResponse.AssignmentSummary::userId)
+                    .contains(SECOND_COUNTER_ID);
+        }
+
+        @Test
+        @DisplayName("returnForRecount reopens an already assigned counter instead of duplicating it")
+        void returnForRecount_WhenCounterAlreadyAssigned_ShouldReopenAssignment() {
+            InventoryCount count = pendingCount("9.00");
+            InventoryCountAssignment counter = assignment(COUNTER_ID, InventoryCountAssignmentRole.COUNTER);
+            counter.markDone();
+            count.addAssignment(counter);
+            stubCount(count);
+
+            InventoryTakeResponse response = service.returnForRecount(COUNT_ID,
+                    new ReturnForRecountRequest(List.of(LINE_ID), COUNTER_ID, "Đếm lại"));
+
+            assertThat(response.assignments()).hasSize(1);
+            assertThat(counter.getStatus()).isEqualTo(InventoryCountAssignmentStatus.ASSIGNED);
+            assertThat(counter.getCompletedAt()).isNull();
+        }
+
+        @Test
+        @DisplayName("returnForRecount without an assignee reopens all existing counters")
+        void returnForRecount_WhenNoAssignee_ShouldReopenAllCounters() {
+            InventoryCount count = pendingCount("9.00");
+            InventoryCountAssignment first = assignment(COUNTER_ID, InventoryCountAssignmentRole.COUNTER);
+            InventoryCountAssignment second = assignment(SECOND_COUNTER_ID, InventoryCountAssignmentRole.COUNTER);
+            first.markDone();
+            second.markDone();
+            count.addAssignment(first);
+            count.addAssignment(second);
+            stubCount(count);
+
+            service.returnForRecount(COUNT_ID, new ReturnForRecountRequest(List.of(LINE_ID), null, "Đếm lại"));
+
+            assertThat(List.of(first.getStatus(), second.getStatus()))
+                    .containsOnly(InventoryCountAssignmentStatus.ASSIGNED);
         }
 
         @Test
         @DisplayName("returnForRecount without reason throws BadRequestException")
         void returnForRecount_WhenReasonBlank_ShouldThrow() {
-            stubCount(count(InventoryCountStatus.PENDING_APPROVAL));
+            stubCount(pendingCount("9.00"));
 
-            assertThatThrownBy(() -> service.returnForRecount(COUNT_ID, ""))
+            assertThatThrownBy(() -> service.returnForRecount(COUNT_ID,
+                    new ReturnForRecountRequest(List.of(LINE_ID), COUNTER_ID, " ")))
                     .isInstanceOf(BadRequestException.class)
-                    .hasMessage("Lý do trả lại là bắt buộc");
+                    .hasMessage("Lý do đếm lại là bắt buộc");
         }
 
         @Test
-        @DisplayName("returnForRecount outside PENDING_APPROVAL throws BadRequestException")
-        void returnForRecount_WhenApproved_ShouldThrow() {
-            stubCount(count(InventoryCountStatus.APPROVED));
+        @DisplayName("returnForRecount with a line of another count throws BadRequestException")
+        void returnForRecount_WhenLineNotInCount_ShouldThrow() {
+            stubCount(pendingCount("9.00"));
 
-            assertThatThrownBy(() -> service.returnForRecount(COUNT_ID, "Đếm lại"))
+            assertThatThrownBy(() -> service.returnForRecount(COUNT_ID,
+                    new ReturnForRecountRequest(List.of(UNKNOWN_ID), COUNTER_ID, "Đếm lại")))
                     .isInstanceOf(BadRequestException.class)
-                    .hasMessage("Chỉ có thể trả lại kỳ đang chờ phê duyệt");
+                    .hasMessage("Một hoặc nhiều dòng yêu cầu kiểm kê lại không thuộc kỳ này");
         }
 
         @Test
-        @DisplayName("reopen moves a RETURNED count back to COUNTING")
-        void reopen_WhenReturned_ShouldReopen() {
-            stubCount(count(InventoryCountStatus.RETURNED));
+        @DisplayName("returnForRecount while still counting throws BadRequestException")
+        void returnForRecount_WhenCounting_ShouldThrow() {
+            stubCount(countingCount("9.00"));
 
-            assertThat(service.reopen(COUNT_ID).status()).isEqualTo(InventoryCountStatus.COUNTING);
-        }
-
-        @Test
-        @DisplayName("reopen outside RETURNED throws BadRequestException")
-        void reopen_WhenPendingApproval_ShouldThrow() {
-            stubCount(count(InventoryCountStatus.PENDING_APPROVAL));
-
-            assertThatThrownBy(() -> service.reopen(COUNT_ID))
+            assertThatThrownBy(() -> service.returnForRecount(COUNT_ID,
+                    new ReturnForRecountRequest(List.of(LINE_ID), COUNTER_ID, "Đếm lại")))
                     .isInstanceOf(BadRequestException.class)
-                    .hasMessage("Chỉ có thể kiểm kê lại kỳ đã được trả về");
+                    .hasMessage("Chỉ có thể trả về đếm lại khi kỳ đang chờ phê duyệt");
         }
 
         @Test
-        @DisplayName("reject stores trimmed reason and rejecting manager")
-        void reject_WhenPendingApproval_ShouldReject() {
-            InventoryCount count = count(InventoryCountStatus.PENDING_APPROVAL);
-            stubCount(count);
+        @DisplayName("returnForRecount by inventory staff throws AccessDeniedException")
+        void returnForRecount_WhenInventoryStaff_ShouldDeny() {
+            authenticate(COUNTER_ID.toString(), "INVENTORY_STAFF");
 
-            InventoryTakeResponse response = service.reject(COUNT_ID, " Sai phạm vi kiểm kê ");
-
-            assertThat(response.status()).isEqualTo(InventoryCountStatus.REJECTED);
-            assertThat(count.getRejectReason()).isEqualTo("Sai phạm vi kiểm kê");
-            assertThat(count.getRejectedBy()).isEqualTo(MANAGER_ID);
-        }
-
-        @Test
-        @DisplayName("reject without reason throws BadRequestException")
-        void reject_WhenReasonBlank_ShouldThrow() {
-            stubCount(count(InventoryCountStatus.PENDING_APPROVAL));
-
-            assertThatThrownBy(() -> service.reject(COUNT_ID, null))
-                    .isInstanceOf(BadRequestException.class)
-                    .hasMessage("Lý do từ chối là bắt buộc");
-        }
-
-        @Test
-        @DisplayName("reject outside PENDING_APPROVAL throws BadRequestException")
-        void reject_WhenCounting_ShouldThrow() {
-            stubCount(count(InventoryCountStatus.COUNTING));
-
-            assertThatThrownBy(() -> service.reject(COUNT_ID, "Sai"))
-                    .isInstanceOf(BadRequestException.class)
-                    .hasMessage("Chỉ có thể từ chối kỳ đang chờ phê duyệt");
+            assertThatThrownBy(() -> service.returnForRecount(COUNT_ID,
+                    new ReturnForRecountRequest(List.of(LINE_ID), COUNTER_ID, "Đếm lại")))
+                    .isInstanceOf(AccessDeniedException.class);
         }
     }
 
     @Nested
-    @DisplayName("cancel / close")
-    class CancelCloseTests {
+    @DisplayName("cancel")
+    class CancelTests {
 
-        @Test
-        @DisplayName("cancel appends the reason to the note and cancels assignments")
-        void cancel_WhenFrozen_ShouldCancel() {
-            InventoryCount count = count(InventoryCountStatus.FROZEN);
-            count.setNote("Kiểm kê cuối tháng 11");
-            InventoryCountAssignment counter = assignment(COUNTER_ID, InventoryCountAssignmentRole.COUNTER);
-            count.addAssignment(counter);
+        @ParameterizedTest
+        @EnumSource(value = InventoryCountStatus.class, names = {"DRAFT", "COUNTING", "PENDING_APPROVAL"})
+        @DisplayName("cancel stores the trimmed reason for every open status")
+        void cancel_WhenOpen_ShouldCancel(InventoryCountStatus status) {
+            InventoryCount count = count(status);
             stubCount(count);
 
             InventoryTakeResponse response = service.cancel(COUNT_ID, " Đổi lịch kiểm kê ");
 
             assertThat(response.status()).isEqualTo(InventoryCountStatus.CANCELLED);
-            assertThat(response.note()).isEqualTo("Kiểm kê cuối tháng 11\nLý do hủy: Đổi lịch kiểm kê");
-            assertThat(counter.getStatus()).isEqualTo(InventoryCountAssignmentStatus.CANCELLED);
-            assertThat(count.getClosedBy()).isEqualTo(MANAGER_ID);
+            assertThat(response.cancelReason()).isEqualTo("Đổi lịch kiểm kê");
+            assertThat(response.cancelledBy()).isEqualTo(MANAGER_ID);
+            assertThat(response.cancelledAt()).isNotNull();
         }
 
-        @Test
-        @DisplayName("cancel an approved count throws BadRequestException")
-        void cancel_WhenApproved_ShouldThrow() {
-            stubCount(count(InventoryCountStatus.APPROVED));
+        @ParameterizedTest
+        @EnumSource(value = InventoryCountStatus.class, names = {"COMPLETED", "CANCELLED"})
+        @DisplayName("cancel a finished count throws BadRequestException")
+        void cancel_WhenClosed_ShouldThrow(InventoryCountStatus status) {
+            stubCount(count(status));
 
             assertThatThrownBy(() -> service.cancel(COUNT_ID, "Hủy muộn"))
                     .isInstanceOf(BadRequestException.class)
@@ -966,45 +882,6 @@ class InventoryTakeServiceImplTest {
             assertThatThrownBy(() -> service.cancel(COUNT_ID, "  "))
                     .isInstanceOf(BadRequestException.class)
                     .hasMessage("Lý do hủy kỳ kiểm kê là bắt buộc");
-        }
-
-        @Test
-        @DisplayName("close completes a posted count")
-        void close_WhenPosted_ShouldComplete() {
-            InventoryCount count = count(InventoryCountStatus.POSTED);
-            stubCount(count);
-
-            InventoryTakeResponse response = service.close(COUNT_ID);
-
-            assertThat(response.status()).isEqualTo(InventoryCountStatus.COMPLETED);
-            assertThat(response.countingCompletedAt()).isNotNull();
-            assertThat(count.getClosedBy()).isEqualTo(MANAGER_ID);
-        }
-
-        @Test
-        @DisplayName("close completes an approved count without variance")
-        void close_WhenApprovedWithoutVariance_ShouldComplete() {
-            InventoryCount count = count(InventoryCountStatus.APPROVED);
-            InventoryCountLine line = line(LINE_ID, location, "10.00");
-            line.recordCount(new BigDecimal("10.00"), null, null);
-            count.addLine(line);
-            stubCount(count);
-
-            assertThat(service.close(COUNT_ID).status()).isEqualTo(InventoryCountStatus.COMPLETED);
-        }
-
-        @Test
-        @DisplayName("close an approved count with unposted variance throws BadRequestException")
-        void close_WhenApprovedWithVariance_ShouldThrow() {
-            InventoryCount count = count(InventoryCountStatus.APPROVED);
-            InventoryCountLine line = line(LINE_ID, location, "10.00");
-            line.recordCount(new BigDecimal("9.00"), null, null);
-            count.addLine(line);
-            stubCount(count);
-
-            assertThatThrownBy(() -> service.close(COUNT_ID))
-                    .isInstanceOf(BadRequestException.class)
-                    .hasMessage("Chỉ có thể đóng kỳ sau khi mọi chênh lệch đã được hạch toán");
         }
     }
 
@@ -1032,17 +909,17 @@ class InventoryTakeServiceImplTest {
 
     private InventoryCount countingCount(String counted) {
         InventoryCount count = count(InventoryCountStatus.COUNTING);
-        count.setSnapshotAt(Instant.parse("2026-11-03T01:00:00Z"));
+        count.setStartedAt(Instant.parse("2026-11-03T01:00:00Z"));
         InventoryCountLine line = line(LINE_ID, location, "10.00");
         line.recordCount(new BigDecimal(counted), null, null);
         count.addLine(line);
         return count;
     }
 
-    private InventoryCount reconcilingCount(String counted) {
+    private InventoryCount pendingCount(String counted) {
         InventoryCount count = countingCount(counted);
         count.getLines().get(0).takeCostSnapshot(new BigDecimal("50000"));
-        count.setStatus(InventoryCountStatus.RECONCILING);
+        count.setStatus(InventoryCountStatus.PENDING_APPROVAL);
         return count;
     }
 
@@ -1078,14 +955,6 @@ class InventoryTakeServiceImplTest {
         balance.setLocation(location);
         balance.setQuantityOnHand(new BigDecimal(quantity));
         return balance;
-    }
-
-    private InventoryCountApprovalPolicy policy(String quantityLimit, String valueLimit) {
-        InventoryCountApprovalPolicy policy = new InventoryCountApprovalPolicy();
-        policy.setBranchId(BRANCH_ID);
-        policy.setAutoApproveQuantityLimit(new BigDecimal(quantityLimit));
-        policy.setAutoApproveValueLimit(new BigDecimal(valueLimit));
-        return policy;
     }
 
     private VariantResponse variant(String costPrice) {

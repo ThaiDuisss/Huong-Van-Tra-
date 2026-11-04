@@ -220,7 +220,7 @@ export const countAuditSummaries = [
     createdAt: "2026-09-14T08:00:00+07:00",
     id: "audit-001",
     source: "MOCK" as const,
-    status: "RECONCILING" as const,
+    status: "PENDING_APPROVAL" as const,
     title: "Kiểm kê định kỳ Kho Tổng Tháng 9",
     totalVarianceValue: -4250000,
     varianceItemsCount: 5,

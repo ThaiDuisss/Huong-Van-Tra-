@@ -1,27 +1,22 @@
 import { apiClient } from "../../../api/api-client";
-import {
-  stocktakeScopeLabels,
-  stocktakeStatusFilterOptions,
-} from "../constants/stocktake.constants";
+import { stocktakeScopeLabels } from "../constants/stocktake.constants";
 import type {
   InventoryBalanceViewResponse,
   InventoryLocationResponse,
   PageResponse,
 } from "../types/inventory.types";
 import type {
-  AdjustmentActionInput,
-  AdjustmentCreateInput,
   AdjustmentDocumentSummary,
   AdjustmentListItem,
   AdjustmentListQuery,
   StocktakeActionInput,
   StocktakeCountsInput,
   StocktakeCreateInput,
-  StocktakeRecountInput,
   StocktakeDetail,
   StocktakeListQuery,
   StocktakeListResult,
   StocktakeOptions,
+  StocktakeReturnInput,
   StocktakeCountType,
   StocktakeScopeType,
   StocktakeStatus,
@@ -50,9 +45,14 @@ type InventoryTakeApiResponse = {
   countType: StocktakeCountType;
   blindCount: boolean;
   status: StocktakeStatus;
-  snapshotAt: string | null;
-  countingStartedAt: string | null;
-  countingCompletedAt: string | null;
+  startedAt: string | null;
+  submittedAt: string | null;
+  completedAt: string | null;
+  completedBy: string | null;
+  returnReason: string | null;
+  cancelledAt: string | null;
+  cancelledBy: string | null;
+  cancelReason: string | null;
   note: string | null;
   createdAt: string;
   createdBy: string | null;
@@ -63,7 +63,7 @@ type InventoryTakeApiResponse = {
     id: string;
     userId: string;
     role: "COUNTER" | "SUPERVISOR";
-    status: "ASSIGNED" | "ACCEPTED" | "IN_PROGRESS" | "COMPLETED" | "CANCELLED";
+    status: "ASSIGNED" | "DONE";
     locationId: string | null;
   }>;
   lines: InventoryTakeLineApiResponse[];
@@ -80,6 +80,7 @@ type InventoryTakeLineApiResponse = {
   movementQuantity: number;
   expectedQuantity: number | null;
   snapshotUnitCost: number | null;
+  counted: boolean;
   countedQuantity: number | null;
   varianceQuantity: number | null;
   varianceValue: number;
@@ -89,22 +90,6 @@ type InventoryTakeLineApiResponse = {
   quarantinedQuantity: number;
   reasonCode: string | null;
   note: string | null;
-};
-
-type AdjustmentApiResponse = AdjustmentSummaryResponse & {
-  branchId: string;
-  referenceType: "STOCK_COUNT" | "MANUAL";
-  referenceId: string | null;
-  reasonCode: string | null;
-  note: string | null;
-  createdAt: string;
-  createdBy: string | null;
-  lines: Array<{
-    id: string;
-    adjustmentQuantity: number;
-    inventoryItemId: string;
-    locationId: string | null;
-  }>;
 };
 
 type Enrichment = {
@@ -165,9 +150,7 @@ export const stocktakeApi = {
 
   async listStocktakes(query: StocktakeListQuery): Promise<StocktakeListResult> {
     const branchId = query.branchId === "ALL" ? undefined : query.branchId;
-    const statuses = stocktakeStatusFilterOptions.find(
-      (option) => option.value === query.status,
-    )?.statuses;
+    const statuses = query.status === "ALL" ? undefined : [query.status];
     const [response, enrichment] = await Promise.all([
       apiClient.get<PageResponse<InventoryTakeApiResponse>>("/inventory/inventorytakes", {
         query: {
@@ -192,13 +175,10 @@ export const stocktakeApi = {
       totalElements: response.totalElements,
       totalPages: response.totalPages,
       summary: {
-        adjustmentReady: content.filter(
-          (item) => item.status === "COMPLETED" && !item.adjustmentDocument,
-        ).length,
         completed: content.filter((item) => item.status === "COMPLETED").length,
         counting: content.filter((item) => item.status === "COUNTING").length,
         draft: content.filter((item) => item.status === "DRAFT").length,
-        posted: content.filter((item) => item.adjustmentDocument?.status === "POSTED").length,
+        pendingApproval: content.filter((item) => item.status === "PENDING_APPROVAL").length,
       },
     };
   },
@@ -218,12 +198,9 @@ export const stocktakeApi = {
     return toDetail(response, await loadEnrichment(response.branchId, true));
   },
 
+  /** DRAFT → COUNTING: khoá phạm vi, ghi nhận tồn và sinh dòng đếm. */
   async startStocktake(input: StocktakeActionInput) {
     await apiClient.post(`/inventory/inventorytakes/${input.stocktakeId}/start`);
-    return this.getStocktake(input.stocktakeId);
-  },
-  async freezeStocktake(input: StocktakeActionInput) {
-    await apiClient.post(`/inventory/inventorytakes/${input.stocktakeId}/freeze`);
     return this.getStocktake(input.stocktakeId);
   },
   async saveStocktakeCount(input: StocktakeCountsInput) {
@@ -232,69 +209,30 @@ export const stocktakeApi = {
     });
     return this.getStocktake(input.stocktakeId);
   },
+  /** COUNTING → COMPLETED (không chênh lệch) hoặc PENDING_APPROVAL (có chênh lệch). */
   async finishStocktake(input: StocktakeActionInput) {
     await apiClient.post(`/inventory/inventorytakes/${input.stocktakeId}/finish`);
     return this.getStocktake(input.stocktakeId);
   },
-  async submitStocktakeApproval(input: StocktakeActionInput) {
-    await apiClient.post(`/inventory/inventorytakes/${input.stocktakeId}/submit-approval`);
+  /** PENDING_APPROVAL → COMPLETED: tạo và ghi sổ phiếu điều chỉnh trong cùng một thao tác. */
+  async approveStocktake(input: StocktakeActionInput) {
+    await apiClient.post(`/inventory/inventorytakes/${input.stocktakeId}/approve`);
     return this.getStocktake(input.stocktakeId);
   },
-  async requestStocktakeRecount(input: StocktakeRecountInput) {
-    await apiClient.post(`/inventory/inventorytakes/${input.stocktakeId}/recounts`, {
+  /** PENDING_APPROVAL → COUNTING: các dòng được chọn quay về chưa đếm. */
+  async returnStocktake(input: StocktakeReturnInput) {
+    await apiClient.post(`/inventory/inventorytakes/${input.stocktakeId}/return`, {
       assignedUserId: input.assignedUserId,
       lineIds: input.lineIds,
       reason: input.reason,
     });
     return this.getStocktake(input.stocktakeId);
   },
-  async approveStocktake(input: StocktakeActionInput) {
-    await apiClient.post(`/inventory/inventorytakes/${input.stocktakeId}/approve`);
-    return this.getStocktake(input.stocktakeId);
-  },
-  async returnStocktake(input: StocktakeActionInput & { reason: string }) {
-    await apiClient.post(`/inventory/inventorytakes/${input.stocktakeId}/return`, {
-      reason: input.reason,
-    });
-    return this.getStocktake(input.stocktakeId);
-  },
-  async reopenStocktake(input: StocktakeActionInput) {
-    await apiClient.post(`/inventory/inventorytakes/${input.stocktakeId}/reopen`);
-    return this.getStocktake(input.stocktakeId);
-  },
-  async rejectStocktake(input: StocktakeActionInput & { reason: string }) {
-    await apiClient.post(`/inventory/inventorytakes/${input.stocktakeId}/reject`, {
-      reason: input.reason,
-    });
-    return this.getStocktake(input.stocktakeId);
-  },
+  /** Hủy hoặc từ chối kỳ đang mở (DRAFT, COUNTING, PENDING_APPROVAL). */
   async cancelStocktake(input: StocktakeActionInput & { reason: string }) {
     await apiClient.post(`/inventory/inventorytakes/${input.stocktakeId}/cancel`, {
       reason: input.reason,
     });
-    return this.getStocktake(input.stocktakeId);
-  },
-  async closeStocktake(input: StocktakeActionInput) {
-    await apiClient.post(`/inventory/inventorytakes/${input.stocktakeId}/close`);
-    return this.getStocktake(input.stocktakeId);
-  },
-  async createAdjustmentFromStocktake(input: AdjustmentCreateInput) {
-    await apiClient.post<AdjustmentApiResponse, AdjustmentCreateInput>(
-      "/inventory/adjustments",
-      input,
-    );
-    return this.getStocktake(input.inventoryTakeId);
-  },
-  async approveStocktakeAdjustment(input: AdjustmentActionInput) {
-    await apiClient.post(`/inventory/adjustments/${input.adjustmentId}/approve`);
-    return this.getStocktake(input.stocktakeId);
-  },
-  async postStocktakeAdjustment(input: AdjustmentActionInput) {
-    await apiClient.post(`/inventory/adjustments/${input.adjustmentId}/post`);
-    return this.getStocktake(input.stocktakeId);
-  },
-  async rejectStocktakeAdjustment(input: AdjustmentActionInput) {
-    await apiClient.post(`/inventory/adjustments/${input.adjustmentId}/reject`);
     return this.getStocktake(input.stocktakeId);
   },
 };
@@ -333,9 +271,10 @@ function toSummary(response: InventoryTakeApiResponse, enrichment: Enrichment): 
       name: `Chi nhánh ${response.branchId.slice(0, 8)}`,
     },
     countCode: response.countCode,
-    countedLines: response.lines.filter((line) => line.countedQuantity !== null).length,
-    countingCompletedAt: response.countingCompletedAt,
-    countingStartedAt: response.countingStartedAt,
+    cancelReason: response.cancelReason,
+    cancelledAt: response.cancelledAt,
+    completedAt: response.completedAt,
+    countedLines: response.lines.filter((line) => line.counted).length,
     createdBy: {
       id: response.createdBy ?? "",
       name: response.createdBy ?? "-",
@@ -346,9 +285,11 @@ function toSummary(response: InventoryTakeApiResponse, enrichment: Enrichment): 
     blindCount: response.blindCount,
     countType: response.countType,
     scopeLabel: stocktakeScopeLabels[response.scopeType],
+    returnReason: response.returnReason,
     scopeType: response.scopeType,
-    snapshotAt: response.snapshotAt,
+    startedAt: response.startedAt,
     status: response.status,
+    submittedAt: response.submittedAt,
     totalLines: response.lines.length,
     varianceLines: response.lines.filter((line) => (line.varianceQuantity ?? 0) !== 0).length,
   };
@@ -371,6 +312,7 @@ function toDetail(response: InventoryTakeApiResponse, enrichment: Enrichment): S
       const view = balanceMap.get(line.inventoryItemId);
       return {
         batchCode: line.batchCode,
+        counted: line.counted,
         countedQuantity: line.countedQuantity,
         expiryDate: line.expiryDate,
         id: line.id,

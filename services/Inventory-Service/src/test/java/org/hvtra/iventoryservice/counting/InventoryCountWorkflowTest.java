@@ -26,67 +26,90 @@ class InventoryCountWorkflowTest {
     }
 
     @Test
-    void countRequiresFreezeBeforeStartAndApprovalBeforeClose() {
-        InventoryCount count = new InventoryCount();
-        InventoryCountLine line = new InventoryCountLine();
-        line.takeSnapshot(new BigDecimal("5.00"));
-        count.addLine(line);
+    void countWithoutVarianceCompletesOnFinish() {
+        UUID counterId = UUID.randomUUID();
+        InventoryCount count = countWithLine("5.00");
 
-        count.freeze();
         count.start();
-        line.recordCount(new BigDecimal("5.00"), null, null);
-        count.submitForReconciliation();
-        count.submitForApproval(false, UUID.randomUUID());
-        count.close(UUID.randomUUID());
+        count.getLines().get(0).recordCount(new BigDecimal("5.00"), null, null);
+        count.finish(counterId);
 
         assertThat(count.getStatus()).isEqualTo(InventoryCountStatus.COMPLETED);
-        assertThat(count.getClosedAt()).isNotNull();
+        assertThat(count.getStartedAt()).isNotNull();
+        assertThat(count.getCompletedBy()).isEqualTo(counterId);
     }
 
     @Test
-    void varianceRequiresApprovalAndPostingBeforeClose() {
-        InventoryCount count = new InventoryCount();
-        InventoryCountLine line = new InventoryCountLine();
-        line.takeSnapshot(new BigDecimal("5.00"));
-        count.addLine(line);
+    void varianceWaitsForApprovalThenCompletes() {
+        UUID managerId = UUID.randomUUID();
+        InventoryCount count = countWithLine("5.00");
 
-        count.freeze();
         count.start();
-        line.recordCount(new BigDecimal("4.00"), "COUNT", null);
-        count.submitForReconciliation();
-        count.submitForApproval(true, UUID.randomUUID());
-        count.approve(UUID.randomUUID());
-        count.markPosted();
-        count.close(UUID.randomUUID());
+        count.getLines().get(0).recordCount(new BigDecimal("4.00"), "COUNT", null);
+        count.finish(UUID.randomUUID());
+
+        assertThat(count.getStatus()).isEqualTo(InventoryCountStatus.PENDING_APPROVAL);
+
+        count.approve(managerId);
 
         assertThat(count.getStatus()).isEqualTo(InventoryCountStatus.COMPLETED);
+        assertThat(count.getCompletedBy()).isEqualTo(managerId);
+    }
+
+    @Test
+    void returnForRecountGoesBackToCountingAndLineBecomesUncounted() {
+        InventoryCount count = countWithLine("5.00");
+        count.start();
+        InventoryCountLine line = count.getLines().get(0);
+        line.recordCount(new BigDecimal("4.00"), null, null);
+        count.finish(UUID.randomUUID());
+
+        count.returnForRecount(" Lệch 1 hộp ");
+        line.resetForRecount();
+
+        assertThat(count.getStatus()).isEqualTo(InventoryCountStatus.COUNTING);
+        assertThat(count.getReturnReason()).isEqualTo("Lệch 1 hộp");
+        assertThat(line.hasBeenCounted()).isFalse();
+    }
+
+    @Test
+    void startRequiresDraft() {
+        InventoryCount count = countWithLine("5.00");
+        count.start();
+
+        assertThatThrownBy(count::start)
+                .hasMessage("Chỉ có thể bắt đầu kiểm kê khi kỳ kiểm kê ở trạng thái DRAFT");
     }
 
     @Test
     void cancelStopsAnOpenCountAndRecordsTheReason() {
+        UUID managerId = UUID.randomUUID();
         InventoryCount count = new InventoryCount();
-        count.freeze();
 
-        count.cancel(UUID.randomUUID(), "Không còn nhu cầu kiểm kê");
+        count.cancel(managerId, " Không còn nhu cầu kiểm kê ");
 
         assertThat(count.getStatus()).isEqualTo(InventoryCountStatus.CANCELLED);
-        assertThat(count.getClosedAt()).isNotNull();
-        assertThat(count.getNote()).contains("Không còn nhu cầu kiểm kê");
+        assertThat(count.getCancelledAt()).isNotNull();
+        assertThat(count.getCancelledBy()).isEqualTo(managerId);
+        assertThat(count.getCancelReason()).isEqualTo("Không còn nhu cầu kiểm kê");
     }
 
     @Test
-    void approvedCountCannotBeCancelled() {
-        InventoryCount count = new InventoryCount();
-        InventoryCountLine line = new InventoryCountLine();
-        line.takeSnapshot(new BigDecimal("5.00"));
-        count.addLine(line);
-        count.freeze();
+    void completedCountCannotBeCancelled() {
+        InventoryCount count = countWithLine("5.00");
         count.start();
-        line.recordCount(new BigDecimal("5.00"), null, null);
-        count.submitForReconciliation();
-        count.submitForApproval(false, UUID.randomUUID());
+        count.getLines().get(0).recordCount(new BigDecimal("5.00"), null, null);
+        count.finish(UUID.randomUUID());
 
         assertThatThrownBy(() -> count.cancel(UUID.randomUUID(), "Hủy muộn"))
                 .hasMessageContaining("Không thể hủy");
+    }
+
+    private InventoryCount countWithLine(String snapshot) {
+        InventoryCount count = new InventoryCount();
+        InventoryCountLine line = new InventoryCountLine();
+        line.takeSnapshot(new BigDecimal(snapshot));
+        count.addLine(line);
+        return count;
     }
 }

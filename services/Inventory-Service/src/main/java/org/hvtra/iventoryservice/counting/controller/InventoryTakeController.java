@@ -5,7 +5,7 @@ import org.hvtra.commonservice.common_core.logging.action.UserAction;
 import org.hvtra.iventoryservice.counting.dto.request.CreateInventoryTakeRequest;
 import org.hvtra.iventoryservice.counting.dto.request.UpdateInventoryCountsRequest;
 import org.hvtra.iventoryservice.counting.dto.request.InventoryCountDecisionRequest;
-import org.hvtra.iventoryservice.counting.dto.request.RequestInventoryRecountRequest;
+import org.hvtra.iventoryservice.counting.dto.request.ReturnForRecountRequest;
 import org.hvtra.iventoryservice.counting.dto.response.InventoryTakeResponse;
 import org.hvtra.iventoryservice.counting.service.InventoryTakeService;
 import org.hvtra.iventoryservice.domain.enums.InventoryCountScopeType;
@@ -56,12 +56,6 @@ public class InventoryTakeController {
         return service.start(id);
     }
 
-    @UserAction(value = "INVENTORY_TAKE_FREEZE", entityType = "InventoryTake", entityId = "#id")
-    @PostMapping("/{id}/freeze")
-    public InventoryTakeResponse freeze(@PathVariable UUID id) {
-        return service.freeze(id);
-    }
-
     @UserAction(value = "INVENTORY_TAKE_COUNTS_UPDATE", entityType = "InventoryTake", entityId = "#id")
     @PutMapping("/{id}/counts")
     public InventoryTakeResponse updateCounts(
@@ -76,12 +70,6 @@ public class InventoryTakeController {
         return service.finish(id);
     }
 
-    @UserAction(value = "INVENTORY_TAKE_SUBMIT_APPROVAL", entityType = "InventoryTake", entityId = "#id")
-    @PostMapping("/{id}/submit-approval")
-    public InventoryTakeResponse submitApproval(@PathVariable UUID id) {
-        return service.submitApproval(id);
-    }
-
     @UserAction(value = "INVENTORY_TAKE_APPROVE", entityType = "InventoryTake", entityId = "#id")
     @PostMapping("/{id}/approve")
     public InventoryTakeResponse approve(@PathVariable UUID id) {
@@ -92,43 +80,15 @@ public class InventoryTakeController {
     @PostMapping("/{id}/return")
     public InventoryTakeResponse returnForRecount(
             @PathVariable UUID id,
-            @RequestBody InventoryCountDecisionRequest request) {
-        return service.returnForRecount(id, request.reason());
-    }
-
-    @UserAction(value = "INVENTORY_TAKE_REOPEN", entityType = "InventoryTake", entityId = "#id")
-    @PostMapping("/{id}/reopen")
-    public InventoryTakeResponse reopen(@PathVariable UUID id) {
-        return service.reopen(id);
-    }
-
-    @UserAction(value = "INVENTORY_TAKE_REJECT", entityType = "InventoryTake", entityId = "#id")
-    @PostMapping("/{id}/reject")
-    public InventoryTakeResponse reject(
-            @PathVariable UUID id,
-            @RequestBody InventoryCountDecisionRequest request) {
-        return service.reject(id, request.reason());
+            @Valid @RequestBody ReturnForRecountRequest request) {
+        return service.returnForRecount(id, request);
     }
 
     @UserAction(value = "INVENTORY_TAKE_CANCEL", entityType = "InventoryTake", entityId = "#id")
     @PostMapping("/{id}/cancel")
     public InventoryTakeResponse cancel(
             @PathVariable UUID id,
-            @RequestBody InventoryCountDecisionRequest request) {
+            @Valid @RequestBody InventoryCountDecisionRequest request) {
         return service.cancel(id, request.reason());
-    }
-
-    @UserAction(value = "INVENTORY_TAKE_CLOSE", entityType = "InventoryTake", entityId = "#id")
-    @PostMapping("/{id}/close")
-    public InventoryTakeResponse close(@PathVariable UUID id) {
-        return service.close(id);
-    }
-
-    @UserAction(value = "INVENTORY_TAKE_RECOUNT_REQUEST", entityType = "InventoryTake", entityId = "#id")
-    @PostMapping("/{id}/recounts")
-    public InventoryTakeResponse requestRecount(
-            @PathVariable UUID id,
-            @Valid @RequestBody RequestInventoryRecountRequest request) {
-        return service.requestRecount(id, request);
     }
 }

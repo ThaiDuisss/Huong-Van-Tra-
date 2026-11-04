@@ -42,15 +42,7 @@ export function useStocktakeQueryState() {
       ),
       status: oneOf(
         searchParams.get("status"),
-        [
-          "ALL",
-          "PREPARING",
-          "IN_PROGRESS",
-          "PENDING_APPROVAL",
-          "APPROVED",
-          "COMPLETED",
-          "CANCELLED",
-        ],
+        ["ALL", "DRAFT", "COUNTING", "PENDING_APPROVAL", "COMPLETED", "CANCELLED"],
         "ALL",
       ),
     }),

@@ -7,7 +7,6 @@ import org.hvtra.iventoryservice.counting.dto.response.AdjustmentLineResponse;
 import org.hvtra.iventoryservice.counting.dto.response.AdjustmentResponse;
 import org.hvtra.iventoryservice.counting.mapper.AdjustmentMapper;
 import org.hvtra.iventoryservice.counting.repository.InventoryAdjustmentRepository;
-import org.hvtra.iventoryservice.counting.repository.InventoryCountRepository;
 import org.hvtra.iventoryservice.counting.service.InventoryAdjustmentServiceImpl;
 import org.hvtra.iventoryservice.domain.entity.InventoryBalance;
 import org.hvtra.iventoryservice.domain.entity.InventoryItem;
@@ -86,8 +85,6 @@ class InventoryAdjustmentServiceImplTest {
     @Mock
     private InventoryAdjustmentRepository adjustmentRepository;
     @Mock
-    private InventoryCountRepository countRepository;
-    @Mock
     private InventoryBalanceRepository balanceRepository;
     @Mock
     private InventoryItemRepository itemRepository;
@@ -103,7 +100,7 @@ class InventoryAdjustmentServiceImplTest {
 
     @BeforeEach
     void setUp() {
-        service = new InventoryAdjustmentServiceImpl(adjustmentRepository, countRepository, balanceRepository,
+        service = new InventoryAdjustmentServiceImpl(adjustmentRepository, balanceRepository,
                 itemRepository, locationRepository, transactionRepository, new AdjustmentMapper());
 
         item = new InventoryItem();
@@ -129,7 +126,6 @@ class InventoryAdjustmentServiceImplTest {
             }
             return document;
         });
-        when(countRepository.save(any(InventoryCount.class))).thenAnswer(invocation -> invocation.getArgument(0));
         authenticate(MANAGER_ID.toString(), "MANAGER");
     }
 
@@ -195,30 +191,6 @@ class InventoryAdjustmentServiceImplTest {
     class CreateTests {
 
         @Test
-        @DisplayName("create from an approved count copies variance lines and links the count")
-        void create_WhenFromApprovedCount_ShouldBuildStockCountAdjustment() {
-            InventoryCount count = approvedCount();
-            when(countRepository.findByIdAndIsDeletedFalse(COUNT_ID)).thenReturn(Optional.of(count));
-
-            AdjustmentResponse response = service.create(new CreateAdjustmentRequest(
-                    COUNT_ID, BRANCH_ID, "COUNT", "Điều chỉnh sau kiểm kê", null));
-
-            assertThat(response.documentCode()).matches("^ADJ-\\d{8}-[0-9A-F]{8}$");
-            assertThat(response.documentType()).isEqualTo(InventoryDocumentType.ADJUSTMENT_OUT);
-            assertThat(response.status()).isEqualTo(InventoryDocumentStatus.DRAFT);
-            assertThat(response.referenceType()).isEqualTo(InventoryReferenceType.STOCK_COUNT);
-            assertThat(response.referenceId()).isEqualTo(COUNT_ID.toString());
-            assertThat(response.lines()).extracting(AdjustmentLineResponse::adjustmentQuantity)
-                    .containsExactly(new BigDecimal("-2.00"), new BigDecimal("1.00"));
-            assertThat(count.getAdjustmentDocument()).isNotNull();
-            InventoryDocumentLine batchLine = count.getAdjustmentDocument().getLines().get(0);
-            assertThat(batchLine.getBatchAllocations()).singleElement()
-                    .extracting(InventoryDocumentBatchAllocation::getQuantity)
-                    .isEqualTo(new BigDecimal("-2.00"));
-            verify(countRepository).save(count);
-        }
-
-        @Test
         @DisplayName("create standalone with positive quantity creates a manual increase")
         void create_WhenStandaloneIncrease_ShouldBuildManualAdjustmentIn() {
             AdjustmentResponse response = service.create(standalone("5.00"));
@@ -235,7 +207,7 @@ class InventoryAdjustmentServiceImplTest {
         @Test
         @DisplayName("create standalone with net zero quantity is classified as an increase")
         void create_WhenNetZero_ShouldBeAdjustmentIn() {
-            AdjustmentResponse response = service.create(new CreateAdjustmentRequest(null, BRANCH_ID, "COUNT", null, List.of(
+            AdjustmentResponse response = service.create(new CreateAdjustmentRequest(BRANCH_ID, "COUNT", null, List.of(
                     new AdjustmentLineRequest(ITEM_ID, LOCATION_ID, new BigDecimal("2.00"), null),
                     new AdjustmentLineRequest(ITEM_ID, LOCATION_ID, new BigDecimal("-2.00"), null))));
 
@@ -244,56 +216,9 @@ class InventoryAdjustmentServiceImplTest {
         }
 
         @Test
-        @DisplayName("create from a count not yet approved throws BadRequestException")
-        void create_WhenCountNotApproved_ShouldThrow() {
-            InventoryCount count = approvedCount();
-            count.setStatus(InventoryCountStatus.PENDING_APPROVAL);
-            when(countRepository.findByIdAndIsDeletedFalse(COUNT_ID)).thenReturn(Optional.of(count));
-
-            assertThatThrownBy(() -> service.create(new CreateAdjustmentRequest(COUNT_ID, BRANCH_ID, null, null, null)))
-                    .isInstanceOf(BadRequestException.class)
-                    .hasMessage("Phiên kiểm kê phải được phê duyệt trước khi tạo điều chỉnh");
-            verify(adjustmentRepository, never()).save(any());
-        }
-
-        @Test
-        @DisplayName("create from a count that already has an adjustment throws BadRequestException")
-        void create_WhenCountAlreadyAdjusted_ShouldThrow() {
-            InventoryCount count = approvedCount();
-            count.linkAdjustmentDocument(manualDocument("1.00", InventoryDocumentStatus.DRAFT));
-            when(countRepository.findByIdAndIsDeletedFalse(COUNT_ID)).thenReturn(Optional.of(count));
-
-            assertThatThrownBy(() -> service.create(new CreateAdjustmentRequest(COUNT_ID, BRANCH_ID, null, null, null)))
-                    .isInstanceOf(BadRequestException.class)
-                    .hasMessage("Phiên kiểm kê đã có phiếu điều chỉnh");
-        }
-
-        @Test
-        @DisplayName("create from a count without variance throws BadRequestException")
-        void create_WhenCountHasNoVariance_ShouldThrow() {
-            InventoryCount count = count(InventoryCountStatus.APPROVED);
-            count.addLine(countLine(null, "10.00", "10.00"));
-            when(countRepository.findByIdAndIsDeletedFalse(COUNT_ID)).thenReturn(Optional.of(count));
-
-            assertThatThrownBy(() -> service.create(new CreateAdjustmentRequest(COUNT_ID, BRANCH_ID, null, null, null)))
-                    .isInstanceOf(BadRequestException.class)
-                    .hasMessage("Không có chênh lệch cần điều chỉnh");
-        }
-
-        @Test
-        @DisplayName("create from unknown count throws ResourceNotFoundException")
-        void create_WhenCountMissing_ShouldThrow() {
-            when(countRepository.findByIdAndIsDeletedFalse(UNKNOWN_ID)).thenReturn(Optional.empty());
-
-            assertThatThrownBy(() -> service.create(new CreateAdjustmentRequest(UNKNOWN_ID, BRANCH_ID, null, null, null)))
-                    .isInstanceOf(ResourceNotFoundException.class)
-                    .hasMessage("Inventory count not found: " + UNKNOWN_ID);
-        }
-
-        @Test
         @DisplayName("create standalone without lines throws BadRequestException")
         void create_WhenStandaloneWithoutLines_ShouldThrow() {
-            assertThatThrownBy(() -> service.create(new CreateAdjustmentRequest(null, BRANCH_ID, null, null, List.of())))
+            assertThatThrownBy(() -> service.create(new CreateAdjustmentRequest(BRANCH_ID, null, null, List.of())))
                     .isInstanceOf(BadRequestException.class)
                     .hasMessage("Danh sách dòng điều chỉnh không được rỗng");
         }
@@ -303,7 +228,7 @@ class InventoryAdjustmentServiceImplTest {
         void create_WhenItemMissing_ShouldThrow() {
             when(itemRepository.findById(UNKNOWN_ID)).thenReturn(Optional.empty());
 
-            assertThatThrownBy(() -> service.create(new CreateAdjustmentRequest(null, BRANCH_ID, null, null,
+            assertThatThrownBy(() -> service.create(new CreateAdjustmentRequest(BRANCH_ID, null, null,
                     List.of(new AdjustmentLineRequest(UNKNOWN_ID, LOCATION_ID, BigDecimal.ONE, null)))))
                     .isInstanceOf(ResourceNotFoundException.class)
                     .hasMessage("Inventory item not found: " + UNKNOWN_ID);
@@ -337,6 +262,63 @@ class InventoryAdjustmentServiceImplTest {
             assertThatThrownBy(() -> service.create(standalone("5.00")))
                     .isInstanceOf(AccessDeniedException.class)
                     .hasMessage("Bạn không có quyền thực hiện thao tác điều chỉnh này");
+        }
+    }
+
+    @Nested
+    @DisplayName("createAndPostFromCount")
+    class CreateAndPostFromCountTests {
+
+        @Test
+        @DisplayName("createAndPostFromCount builds a POSTED stock-count adjustment from variance lines")
+        void createAndPostFromCount_WhenVariance_ShouldCreatePostedAdjustment() {
+            InventoryCount count = varianceCount();
+            InventoryBalance balance = balance(null, "10.00");
+            InventoryBalance batchBalance = balance(batch, "6.00");
+            when(balanceRepository.findForUpdate(ITEM_ID, LOCATION_ID)).thenReturn(Optional.of(balance));
+            when(balanceRepository.findForUpdateByBatchId(BATCH_ID, LOCATION_ID)).thenReturn(Optional.of(batchBalance));
+
+            InventoryAdjustment document = service.createAndPostFromCount(count, MANAGER_ID);
+
+            assertThat(document.getStatus()).isEqualTo(InventoryDocumentStatus.POSTED);
+            assertThat(document.getApprovedBy()).isEqualTo(MANAGER_ID);
+            assertThat(document.getDocumentType()).isEqualTo(InventoryDocumentType.ADJUSTMENT_OUT);
+            assertThat(document.getReferenceType()).isEqualTo(InventoryReferenceType.STOCK_COUNT);
+            assertThat(document.getReferenceId()).isEqualTo(COUNT_ID.toString());
+            assertThat(document.getReasonCode()).isEqualTo("STOCK_COUNT");
+            assertThat(document.getLines()).extracting(InventoryDocumentLine::getOrderedQuantity)
+                    .containsExactly(new BigDecimal("-2.00"), new BigDecimal("1.00"));
+            assertThat(document.getLines().get(0).getBatchAllocations()).singleElement()
+                    .extracting(InventoryDocumentBatchAllocation::getQuantity)
+                    .isEqualTo(new BigDecimal("-2.00"));
+            assertThat(balance.getQuantityOnHand()).isEqualByComparingTo("9.00");
+            assertThat(batchBalance.getQuantityOnHand()).isEqualByComparingTo("4.00");
+            assertThat(capturedTransaction().getType()).isEqualTo(InventoryTransactionType.ADJUSTMENT_OUT);
+        }
+
+        @Test
+        @DisplayName("createAndPostFromCount without variance throws BadRequestException")
+        void createAndPostFromCount_WhenNoVariance_ShouldThrow() {
+            InventoryCount count = count(InventoryCountStatus.PENDING_APPROVAL);
+            count.addLine(countLine(null, "10.00", "10.00"));
+
+            assertThatThrownBy(() -> service.createAndPostFromCount(count, MANAGER_ID))
+                    .isInstanceOf(BadRequestException.class)
+                    .hasMessage("Không có chênh lệch cần điều chỉnh");
+            verify(adjustmentRepository, never()).save(any());
+        }
+
+        @Test
+        @DisplayName("createAndPostFromCount fails when the decrease would make stock negative")
+        void createAndPostFromCount_WhenStockWouldGoNegative_ShouldThrow() {
+            InventoryCount count = count(InventoryCountStatus.PENDING_APPROVAL);
+            count.addLine(countLine(null, "10.00", "7.00"));
+            when(balanceRepository.findForUpdate(ITEM_ID, LOCATION_ID)).thenReturn(Optional.of(balance(null, "2.00")));
+
+            assertThatThrownBy(() -> service.createAndPostFromCount(count, MANAGER_ID))
+                    .isInstanceOf(BadRequestException.class)
+                    .hasMessage("Tồn kho không đủ để điều chỉnh giảm cho mặt hàng " + ITEM_ID);
+            verify(transactionRepository, never()).saveAndFlush(any());
         }
     }
 
@@ -403,13 +385,12 @@ class InventoryAdjustmentServiceImplTest {
         }
 
         @Test
-        @DisplayName("post a stock-count decrease updates item and batch balances and marks the count posted")
-        void post_WhenStockCountDecrease_ShouldUpdateBatchAndMarkCountPosted() {
+        @DisplayName("post a batch decrease updates both item and batch balances")
+        void post_WhenBatchDecrease_ShouldUpdateItemAndBatchBalances() {
             InventoryAdjustment document = InventoryAdjustment.forNetQuantity(new BigDecimal("-2.00"));
             document.setId(DOCUMENT_ID);
             document.setStatus(InventoryDocumentStatus.APPROVED);
-            document.setReferenceType(InventoryReferenceType.STOCK_COUNT);
-            document.setReferenceId(COUNT_ID.toString());
+            document.setReferenceType(InventoryReferenceType.MANUAL);
             InventoryDocumentLine docLine = documentLine("-2.00");
             InventoryDocumentBatchAllocation allocation = new InventoryDocumentBatchAllocation();
             allocation.setInventoryBatch(batch);
@@ -421,15 +402,11 @@ class InventoryAdjustmentServiceImplTest {
             InventoryBalance batchBalance = balance(batch, "6.00");
             when(balanceRepository.findForUpdate(ITEM_ID, LOCATION_ID)).thenReturn(Optional.of(balance));
             when(balanceRepository.findForUpdateByBatchId(BATCH_ID, LOCATION_ID)).thenReturn(Optional.of(batchBalance));
-            InventoryCount count = count(InventoryCountStatus.APPROVED);
-            when(countRepository.findByIdAndIsDeletedFalse(COUNT_ID)).thenReturn(Optional.of(count));
-
             service.post(DOCUMENT_ID);
 
             assertThat(balance.getQuantityOnHand()).isEqualByComparingTo("8.00");
             assertThat(batchBalance.getQuantityOnHand()).isEqualByComparingTo("4.00");
             assertThat(capturedTransaction().getType()).isEqualTo(InventoryTransactionType.ADJUSTMENT_OUT);
-            assertThat(count.getStatus()).isEqualTo(InventoryCountStatus.POSTED);
             assertThat(docLine.getReceivedQuantity()).isEqualByComparingTo("-2.00");
         }
 
@@ -505,24 +482,6 @@ class InventoryAdjustmentServiceImplTest {
             stubDocument(manualDocument("5.00", InventoryDocumentStatus.DRAFT));
 
             assertThat(service.reject(DOCUMENT_ID).status()).isEqualTo(InventoryDocumentStatus.REJECTED);
-            verify(countRepository, never()).findByIdAndIsDeletedFalse(any());
-        }
-
-        @Test
-        @DisplayName("reject a stock-count adjustment sends the count back to reconciliation")
-        void reject_WhenStockCountAdjustment_ShouldReturnCountToReconciling() {
-            InventoryAdjustment document = manualDocument("-1.00", InventoryDocumentStatus.APPROVED);
-            document.setReferenceType(InventoryReferenceType.STOCK_COUNT);
-            document.setReferenceId(COUNT_ID.toString());
-            stubDocument(document);
-            InventoryCount count = count(InventoryCountStatus.APPROVED);
-            count.linkAdjustmentDocument(document);
-            when(countRepository.findByIdAndIsDeletedFalse(COUNT_ID)).thenReturn(Optional.of(count));
-
-            service.reject(DOCUMENT_ID);
-
-            assertThat(count.getStatus()).isEqualTo(InventoryCountStatus.RECONCILING);
-            assertThat(count.getAdjustmentDocument()).isNull();
         }
 
         @Test
@@ -587,14 +546,15 @@ class InventoryAdjustmentServiceImplTest {
     private InventoryCount count(InventoryCountStatus status) {
         InventoryCount count = new InventoryCount();
         count.setId(COUNT_ID);
+        count.setCountCode("CT-20261104-1A2B3C4D");
         count.setBranchId(BRANCH_ID);
         count.setScopeType(InventoryCountScopeType.FULL);
         count.setStatus(status);
         return count;
     }
 
-    private InventoryCount approvedCount() {
-        InventoryCount count = count(InventoryCountStatus.APPROVED);
+    private InventoryCount varianceCount() {
+        InventoryCount count = count(InventoryCountStatus.PENDING_APPROVAL);
         count.addLine(countLine(batch, "6.00", "4.00"));
         count.addLine(countLine(null, "10.00", "11.00"));
         count.addLine(countLine(null, "3.00", "3.00"));
@@ -621,7 +581,7 @@ class InventoryAdjustmentServiceImplTest {
     }
 
     private CreateAdjustmentRequest standalone(String quantity) {
-        return new CreateAdjustmentRequest(null, BRANCH_ID, "GIFT", "Nhập bổ sung hàng tặng",
+        return new CreateAdjustmentRequest(BRANCH_ID, "GIFT", "Nhập bổ sung hàng tặng",
                 List.of(new AdjustmentLineRequest(ITEM_ID, LOCATION_ID, new BigDecimal(quantity), "Hàng tặng kèm nhập bổ sung")));
     }
 }
