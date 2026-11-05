@@ -248,8 +248,12 @@ public class ProductServiceImpl implements ProductService {
     }
 
     private Product getProduct(UUID id) {
-        return productRepository.findById(id)
+        Product product = productRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Product", id));
+        if (Boolean.TRUE.equals(product.getIsDeleted())) {
+            throw new ResourceNotFoundException("Product", id);
+        }
+        return product;
     }
 
     @Override

@@ -21,7 +21,8 @@ public interface ProductVariantRepository extends JpaRepository<ProductVariant, 
         JpaSpecificationExecutor<ProductVariant> {
     boolean existsBySku(String sku);
     boolean existsBySkuAndIdNot(String sku, UUID id);
-    List<ProductVariant> findByProductId(UUID productId);
+    @Query("select v from ProductVariant v where v.product.id = :productId and v.isDeleted = false")
+    List<ProductVariant> findByProductId(@Param("productId") UUID productId);
 
     Optional<ProductVariant> findFirstByCustomBundleTrueAndIsDeletedFalse();
 
@@ -57,7 +58,7 @@ public interface ProductVariantRepository extends JpaRepository<ProductVariant, 
     @Query("""
             select v from ProductVariant v
             join fetch v.product p
-            where p.id in :productIds
+            where p.id in :productIds and v.isDeleted = false
             """)
     List<ProductVariant> findByProductIds(@Param("productIds") Collection<UUID> productIds);
 
@@ -66,7 +67,7 @@ public interface ProductVariantRepository extends JpaRepository<ProductVariant, 
             join fetch v.product p
             left join fetch p.category
             left join fetch v.unit
-            where p.id in :productIds
+            where p.id in :productIds and v.isDeleted = false
             order by v.sku
             """)
     List<ProductVariant> findByProductIdsWithDetails(@Param("productIds") Collection<UUID> productIds);
@@ -76,7 +77,7 @@ public interface ProductVariantRepository extends JpaRepository<ProductVariant, 
             select v from ProductVariant v
             join fetch v.product p
             left join fetch v.unit
-            where (:productId is null or p.id = :productId)
+            where (:productId is null or p.id = :productId) and v.isDeleted = false
             """)
     List<ProductVariant> findAllForExport(@Param("productId") UUID productId);
 
@@ -86,14 +87,14 @@ public interface ProductVariantRepository extends JpaRepository<ProductVariant, 
             join fetch v.product p
             left join fetch p.category
             left join fetch v.unit
-            where v.id in :ids
+            where v.id in :ids and v.isDeleted = false
             """)
     List<ProductVariant> findAllByIdWithDetails(@Param("ids") Collection<UUID> ids);
 
     @Query("""
             SELECT new org.hvtra.catalog.dto.response.VariantCostResponse(v.id, v.costPrice)
             FROM ProductVariant v
-            WHERE v.id IN :ids
+            WHERE v.id IN :ids AND v.isDeleted = false
             """)
     List<VariantCostResponse> findCostPricesByIds(@Param("ids") Collection<UUID> ids);
 
@@ -119,7 +120,7 @@ public interface ProductVariantRepository extends JpaRepository<ProductVariant, 
             JOIN v.product p
             LEFT JOIN p.category c
             LEFT JOIN v.unit u
-            WHERE v.id IN :ids
+            WHERE v.id IN :ids AND v.isDeleted = false
             """)
     List<VariantInventorySummaryResponse> findInventorySummariesByIds(@Param("ids") Collection<UUID> ids);
 }

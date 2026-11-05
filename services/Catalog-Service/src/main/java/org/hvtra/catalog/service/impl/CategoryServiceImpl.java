@@ -146,7 +146,11 @@ public class CategoryServiceImpl implements CategoryService {
     }
 
     private Category get(UUID id) {
-        return repository.findById(id).orElseThrow(() -> new ResourceNotFoundException("Category", id));
+        Category category = repository.findById(id).orElseThrow(() -> new ResourceNotFoundException("Category", id));
+        if (Boolean.TRUE.equals(category.getIsDeleted())) {
+            throw new ResourceNotFoundException("Category", id);
+        }
+        return category;
     }
 
     private Category parent(UUID parentId, UUID categoryId) {
@@ -166,6 +170,7 @@ public class CategoryServiceImpl implements CategoryService {
             return Collections.emptyList();
         }
         return repository.findAllById(ids).stream()
+                .filter(c -> !Boolean.TRUE.equals(c.getIsDeleted()))
                 .map(mapper::toResponse)
                 .toList();
     }

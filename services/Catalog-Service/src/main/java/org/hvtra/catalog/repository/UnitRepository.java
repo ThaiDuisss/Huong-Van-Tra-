@@ -10,8 +10,10 @@ import java.util.Optional;
 import java.util.UUID;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 
 public interface UnitRepository extends JpaRepository<Unit, UUID>, JpaSpecificationExecutor<Unit> {
+    List<Unit> findByIsDeletedFalse(Sort sort);
     Page<Unit> findByNameContainingIgnoreCaseAndIsDeletedFalse(String name, Pageable pageable);
     List<Unit> findByBaseUnitIsNullAndIsDeletedFalseAndStatus(Status status);
     Optional<Unit> findByNameIgnoreCaseAndIsDeletedFalse(String name);

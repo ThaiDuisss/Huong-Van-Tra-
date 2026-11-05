@@ -201,7 +201,7 @@ class UnitServiceImplTest {
     @Test
     @DisplayName("findAll() - Lấy tất cả danh sách đơn vị tính sắp xếp theo tên")
     void findAllList_ShouldReturnAllUnits() {
-        when(repository.findAll(any(Sort.class))).thenReturn(List.of(unit));
+        when(repository.findByIsDeletedFalse(any(Sort.class))).thenReturn(List.of(unit));
         when(mapper.toResponse(unit)).thenReturn(unitResponse);
 
         List<UnitResponse> result = unitService.findAll();
