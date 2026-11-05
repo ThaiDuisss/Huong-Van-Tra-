@@ -38,6 +38,7 @@ const CUSTOMER_RETURN_STATUS_TABS: { key: string; label: string; isError?: boole
     { key: "CREATED", label: "Chờ nhận hàng" },
     { key: "RECEIVED", label: "Chờ kiểm hàng" },
     { key: "PROCESSING", label: "Đang xử lý" },
+    { key: "PENDING_REFUND", label: "Chờ hoàn tiền" },
     { key: "COMPLETED", label: "Hoàn thành" },
     { key: "CANCELLED", label: "Đã hủy" },
     { key: "PROCESSING_FAILED", label: "Có lỗi", isError: true }
@@ -87,7 +88,7 @@ export function CustomerReturnQcQueue({
             fromDate: timeRange?.fromDate,
             keyword: debouncedSearchTerm || undefined,
             toDate: timeRange?.toDate,
-            warehouseActiveOnly: true
+            warehouseActiveOnly: false
         })
             .then((counts) => {
                 if (!active || !counts) return;
@@ -96,6 +97,7 @@ export function CustomerReturnQcQueue({
                     CREATED: counts.CREATED ?? 0,
                     RECEIVED: counts.RECEIVED ?? 0,
                     PROCESSING: counts.PROCESSING ?? 0,
+                    PENDING_REFUND: counts.PENDING_REFUND ?? 0,
                     COMPLETED: counts.COMPLETED ?? 0,
                     CANCELLED: counts.CANCELLED ?? 0,
                     PROCESSING_FAILED: counts.PROCESSING_FAILED ?? 0
@@ -128,7 +130,7 @@ export function CustomerReturnQcQueue({
                 sort: "createdAt,desc",
                 status: status === "ALL" ? undefined : status,
                 toDate: timeRange?.toDate,
-                warehouseActiveOnly: true
+                warehouseActiveOnly: false
             })
                 .then((response) => {
                     if (!active) return;
