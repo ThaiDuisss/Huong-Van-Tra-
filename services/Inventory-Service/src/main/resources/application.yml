@@ -69,6 +69,12 @@ kafka-consumer-config:
   poll-timeout-ms: 150
 
 inventory:
+  catalog:
+    events:
+      item-sync:
+        group-id: inventory-catalog-item-sync
+        topics:
+          item-sync: catalog.event.ITEM_SYNC
   order:
     events:
       return-disposition:
