@@ -5,6 +5,7 @@ import org.springframework.stereotype.Repository;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 import javax.sql.DataSource;
 
+import java.sql.Connection;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -40,6 +41,12 @@ class CommercialImportStore {
     }
 
     boolean usesDataSource(DataSource source) { return source != null && source == jdbc.getDataSource(); }
+
+    boolean hasSerializableWriteTransaction() {
+        return TransactionSynchronizationManager.isActualTransactionActive()
+                && !TransactionSynchronizationManager.isCurrentTransactionReadOnly()
+                && Integer.valueOf(Connection.TRANSACTION_SERIALIZABLE).equals(TransactionSynchronizationManager.getCurrentTransactionIsolationLevel());
+    }
 
     record Snapshot(Map<Kind, Map<UUID, Map<String, Object>>> rows,
                     Map<UUID, Map<String, Object>> units, String targetFingerprint,
