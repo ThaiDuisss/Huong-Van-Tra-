@@ -256,6 +256,9 @@
 .table tbody > tr {
   transition: background-color 0.16s ease;
 }
+.table tbody > tr[tabindex="0"] {
+  cursor: pointer;
+}
 .table tbody > tr:hover {
   background: #ecfdf3;
 }

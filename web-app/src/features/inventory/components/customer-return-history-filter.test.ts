@@ -117,7 +117,7 @@ describe("Customer Return History Filter & Lifecycle Consistency (Kho -> Khách 
             });
         });
 
-        it("maps pending warehouse inspection to 'Đang chờ xử lý kiểm định tại kho' (PROCESSING)", () => {
+        it("maps pending warehouse inspection to 'Đang xử lý' (PROCESSING)", () => {
             const status = getCustomerReturnUiStatus({
                 status: "RECEIVED",
                 isPendingDisposition: true,
@@ -125,7 +125,7 @@ describe("Customer Return History Filter & Lifecycle Consistency (Kho -> Khách 
                 qcStatus: "PENDING"
             });
             expect(status).toEqual({
-                label: "Đang chờ xử lý kiểm định tại kho",
+                label: "Đang xử lý",
                 status: "PROCESSING"
             });
         });
@@ -396,7 +396,7 @@ describe("Customer Return History Filter & Lifecycle Consistency (Kho -> Khách 
             );
 
             expect(html).toContain("Phiếu kiểm định kho");
-            expect(html).toContain("Đã kiểm định");
+            expect(html).toContain("Đã kiểm hàng");
             expect(html).toContain("Đóng");
             expect(html).not.toContain("Xác nhận xử lý");
         });
