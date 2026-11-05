@@ -267,6 +267,8 @@ services:
       INTERNAL_REPLAY_REDIS_URL: "${RECOMMEND_REDIS_URL}"
       INTERNAL_SERVICE_NAME: recommendation-service
       CATALOG_SYNC_INTERNAL_CALLERS: catalog-Service
+      # De trong la MOI request POS tra 403. Xem ghi chu trong .env.
+      RECOMMENDATION_STAFF_ROLES: "${RECOMMENDATION_STAFF_ROLES}"
       CATALOG_SERVICE_URL: http://catalog-service:8081
       FILE_SERVICE_URL: http://file-service:8101
       AI_REPORT_STORAGE_ORIGINS: "${MINIO_PUBLIC_ENDPOINT}"
