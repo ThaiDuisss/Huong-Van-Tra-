@@ -23,7 +23,7 @@ public interface ProductRepository extends JpaRepository<Product, UUID>, JpaSpec
     @Query("""
             select p from Product p
             left join fetch p.category
-            where p.id in :ids
+            where p.isDeleted = false and p.id in :ids
             """)
     List<Product> findAllByIdWithCategory(@Param("ids") Collection<UUID> ids);
 
@@ -31,6 +31,8 @@ public interface ProductRepository extends JpaRepository<Product, UUID>, JpaSpec
     @Query("""
             select p from Product p
             left join fetch p.category
+            where p.isDeleted = false and p.productCode != 'CUSTOM-BUNDLE'
+            order by p.name asc
             """)
     List<Product> findAllWithCategory();
 }

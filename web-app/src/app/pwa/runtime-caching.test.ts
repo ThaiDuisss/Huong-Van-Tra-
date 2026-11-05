@@ -10,6 +10,11 @@ import {
 const API = "http://localhost:8080/api";
 
 describe("luật cache danh mục cho service worker", () => {
+    it("bypasses cached POS metadata for explicit fresh AI price/stock reads", () => {
+        expect(POS_PRODUCT_PATTERN.test(`${API}/pos/products?productId=tea&_fresh=1`)).toBe(false);
+        expect(POS_PRODUCT_PATTERN.test(`${API}/orders/pos/products/variant?_fresh=1&other=1`)).toBe(false);
+        expect(POS_PRODUCT_PATTERN.test(`${API}/pos/products?productId=tea&_fresh=0`)).toBe(true);
+    });
     it("khớp tìm kiếm và chi tiết mặt hàng POS ở cả hai prefix", () => {
         expect(POS_PRODUCT_PATTERN.test(`${API}/pos/products?keyword=tr%C3%A0&page=0&size=20`)).toBe(true);
         expect(POS_PRODUCT_PATTERN.test(`${API}/orders/pos/products?keyword=sen`)).toBe(true);

@@ -279,6 +279,13 @@ export function getReturnErrorMessage(error: unknown, fallbackMessage?: string) 
             ? error.message
             : defaultMsg;
 
+    if (message.includes("requires reconciliation") || message.includes("reconciliation required")) {
+        return "Yêu cầu xử lý kho cần được đối soát trước khi tiếp tục. Vui lòng liên hệ quản lý.";
+    }
+    if (message.includes("authorization is unavailable")) {
+        return "Chưa xác minh được yêu cầu xử lý kho. Vui lòng làm mới và thử lại sau.";
+    }
+
     if (message.includes("Order not found")) {
         return "Không tìm thấy đơn hàng. Vui lòng chọn lại đơn hàng.";
     }
@@ -445,51 +452,126 @@ export function getReturnErrorMessage(error: unknown, fallbackMessage?: string) 
 }
 
 export interface CustomerReturnQuantitySource {
+    itemCount?: number | string | null;
     requiredQuantity?: number | string | null;
     processedQuantity?: number | string | null;
     remainingQuantity?: number | string | null;
     remainingQcQuantity?: number | string | null;
     postedQcQuantity?: number | string | null;
+    physicalDone?: boolean | null;
+    qcStatus?: string | null;
     items?: Array<{ quantity?: number | string | null }> | null;
 }
 
-export function resolveCustomerReturnQuantities(data?: CustomerReturnQuantitySource | null) {
+export interface CustomerReturnQuantitiesResult {
+    required: number;
+    processed: number;
+    remaining: number;
+    source: "INVENTORY" | "ORDER_FALLBACK" | "UNAVAILABLE";
+    hasDiscrepancy: boolean;
+    orderProcessedQuantity?: number;
+    inventoryPostedQuantity?: number;
+}
+
+export function resolveCustomerReturnQuantities(
+    data?: CustomerReturnQuantitySource | null
+): CustomerReturnQuantitiesResult {
     if (!data) {
-        return { required: 0, processed: 0, remaining: 0 };
+        return {
+            required: 0,
+            processed: 0,
+            remaining: 0,
+            source: "UNAVAILABLE",
+            hasDiscrepancy: false
+        };
     }
 
     const required = data.requiredQuantity != null
         ? toReturnNumber(data.requiredQuantity)
         : (data.items ?? []).reduce((sum, item) => sum + toReturnNumber(item.quantity), 0);
 
-    const processed = data.processedQuantity != null
-        ? toReturnNumber(data.processedQuantity)
-        : toReturnNumber(data.postedQcQuantity);
+    const hasInventoryQuantities = data.postedQcQuantity != null || data.remainingQcQuantity != null;
+    const hasOrderProcessed = data.processedQuantity != null;
 
-    let remaining = 0;
-    if (data.remainingQuantity != null) {
-        remaining = toReturnNumber(data.remainingQuantity);
-    } else if (data.remainingQcQuantity != null) {
-        remaining = toReturnNumber(data.remainingQcQuantity);
-    } else if (required > 0) {
-        remaining = Math.max(0, required - processed);
+    let processed: number;
+    let remaining: number;
+    let source: "INVENTORY" | "ORDER_FALLBACK" | "UNAVAILABLE";
+
+    if (hasInventoryQuantities) {
+        // Authoritative QC source: Inventory-Service
+        source = "INVENTORY";
+        processed = toReturnNumber(data.postedQcQuantity);
+        if (data.remainingQcQuantity != null) {
+            remaining = toReturnNumber(data.remainingQcQuantity);
+        } else if (data.qcStatus === "COMPLETED") {
+            remaining = 0;
+        } else if (data.remainingQuantity != null) {
+            remaining = toReturnNumber(data.remainingQuantity);
+        } else {
+            remaining = Math.max(0, required - processed);
+        }
+    } else if (hasOrderProcessed) {
+        // Fallback: Order-Service recorded progress
+        source = "ORDER_FALLBACK";
+        processed = toReturnNumber(data.processedQuantity);
+        if (data.remainingQuantity != null) {
+            remaining = toReturnNumber(data.remainingQuantity);
+        } else {
+            remaining = Math.max(0, required - processed);
+        }
+    } else {
+        source = "UNAVAILABLE";
+        processed = 0;
+        remaining = data.remainingQuantity != null ? toReturnNumber(data.remainingQuantity) : required;
     }
 
-    return { required, processed, remaining };
+    // Detect discrepancy between Order-Service recorded processing and Inventory-Service QC
+    let hasDiscrepancy = false;
+    let orderProcessedQuantity: number | undefined;
+    let inventoryPostedQuantity: number | undefined;
+
+    if (hasOrderProcessed && data.postedQcQuantity != null) {
+        orderProcessedQuantity = toReturnNumber(data.processedQuantity);
+        inventoryPostedQuantity = toReturnNumber(data.postedQcQuantity);
+        if (orderProcessedQuantity !== inventoryPostedQuantity) {
+            hasDiscrepancy = true;
+        }
+    }
+
+    return {
+        required,
+        processed,
+        remaining,
+        source,
+        hasDiscrepancy,
+        orderProcessedQuantity,
+        inventoryPostedQuantity
+    };
 }
 
 export function canInspectCustomerReturn(data?: (CustomerReturnQuantitySource & {
     status?: string | null;
+    displayStatus?: string | null;
+    inventoryProcessingStatus?: string | null;
     physicalDone?: boolean | null;
     isPendingDisposition?: boolean | null;
+    hasFailedDisposition?: boolean | null;
+    qcStatus?: string | null;
 }) | null): boolean {
     if (!data) return false;
     if (data.status !== "RECEIVED") return false;
     if (data.physicalDone) return false;
     if (data.isPendingDisposition) return false;
+    if (data.hasFailedDisposition || data.inventoryProcessingStatus === "FAILED" || data.displayStatus === "PROCESSING_FAILED") return false;
+    if (data.qcStatus === "COMPLETED") return false;
+    if (data.remainingQuantity != null && toReturnNumber(data.remainingQuantity) <= 0) return false;
+    if (data.remainingQcQuantity != null && toReturnNumber(data.remainingQcQuantity) <= 0) return false;
+    // PROCESSING also describes a partially posted return. Explicitly confirmed
+    // absence of a pending command permits the next partial QC action.
+    if (data.isPendingDisposition == null && (data.inventoryProcessingStatus === "PROCESSING" || data.displayStatus === "PROCESSING")) return false;
 
-    const { remaining } = resolveCustomerReturnQuantities(data);
-    return remaining > 0;
+    const { remaining, required } = resolveCustomerReturnQuantities(data);
+    return required > 0 && remaining > 0;
 }
 
 export interface CustomerReturnUiStatusSource extends CustomerReturnQuantitySource {
@@ -512,34 +594,38 @@ export function getCustomerReturnUiStatus(data?: CustomerReturnUiStatusSource | 
     if (data.status === "CREATED") {
         return { label: "Chờ nhận hàng", status: "PENDING" };
     }
-    if (data.displayStatus === "PROCESSING_FAILED" || data.hasFailedDisposition) {
-        return { label: "Xử lý kho thất bại", status: "FAILED" };
-    }
-    if (data.isPendingDisposition) {
-        return { label: "Đang tạo phiếu kiểm định", status: "PROCESSING" };
-    }
     if (data.displayStatus === "CANCELLED" || data.status === "CANCELLED") {
         return { label: "Đã hủy", status: "CANCELLED" };
     }
+    if (data.displayStatus === "PROCESSING_FAILED" || data.hasFailedDisposition) {
+        return { label: "Xử lý kho thất bại", status: "FAILED" };
+    }
+
+    const isQcCompleted = data.qcStatus === "COMPLETED";
+    const isPhysicalDone = Boolean(data.physicalDone);
+
+    if (data.isPendingDisposition && !isPhysicalDone && !isQcCompleted) {
+        return { label: "Đang xử lý", status: "PROCESSING" };
+    }
     if (data.displayStatus === "COMPLETED" || data.status === "COMPLETED") {
-        return { label: "Hoàn tất", status: "COMPLETED" };
+        return { label: "Hoàn thành", status: "COMPLETED" };
     }
     if (data.displayStatus === "PENDING_REFUND") {
         return { label: "Chờ hoàn tiền", status: "PENDING" };
     }
 
     if (data.status === "RECEIVED") {
-        if (data.qcStatus === "COMPLETED" || Boolean(data.physicalDone)) {
-            return { label: "Đã kiểm định", status: "QC_COMPLETED" };
+        if (isQcCompleted || isPhysicalDone) {
+            return { label: "Đã kiểm hàng", status: "QC_COMPLETED" };
         }
         if (data.qcStatus === "PARTIAL") {
-            return { label: "Đang kiểm định", status: "PROCESSING" };
+            return { label: "Đang kiểm hàng", status: "PROCESSING" };
         }
         const { processed, remaining } = resolveCustomerReturnQuantities(data);
         if (processed > 0 && remaining > 0) {
-            return { label: "Đang kiểm định", status: "PROCESSING" };
+            return { label: "Đang kiểm hàng", status: "PROCESSING" };
         }
-        return { label: "Chờ kiểm định", status: "PENDING" };
+        return { label: "Chờ kiểm hàng", status: "PENDING" };
     }
 
     return { label: data.status ?? "--", status: data.status ?? "DRAFT" };
@@ -554,17 +640,43 @@ export function getCustomerReturnQcProgressStatus(data?: (CustomerReturnQuantity
         return { label: "Chưa nhận hàng", status: "PENDING" };
     }
 
+    // 1. Authoritative Inventory QC status takes precedence over Order physicalDone
+    if (data.qcStatus === "COMPLETED") {
+        return { label: "Đã kiểm hàng", status: "QC_COMPLETED" };
+    }
+    if (data.qcStatus === "PARTIAL") {
+        return { label: "Đang kiểm hàng", status: "PROCESSING" };
+    }
+    if (data.qcStatus === "PENDING") {
+        return { label: "Chờ kiểm hàng", status: "PENDING" };
+    }
+
+    // 2. Fallback when Inventory qcStatus is not provided
     const { required, processed, remaining } = resolveCustomerReturnQuantities(data);
-    const isDone = (required > 0 && remaining === 0) || data.qcStatus === "COMPLETED" || Boolean(data.physicalDone);
-    if (isDone) {
-        return { label: "Đã kiểm định", status: "QC_COMPLETED" };
+    if (required > 0 && remaining === 0 && Boolean(data.physicalDone)) {
+        return { label: "Đã kiểm hàng", status: "QC_COMPLETED" };
+    }
+    if (processed > 0 && remaining > 0) {
+        return { label: "Đang kiểm hàng", status: "PROCESSING" };
     }
 
-    const isProcessing = data.qcStatus === "PARTIAL" || (processed > 0 && remaining > 0);
-    if (isProcessing) {
-        return { label: "Đang kiểm định", status: "PROCESSING" };
-    }
-
-    return { label: "Chờ kiểm định", status: "PENDING" };
+    return { label: "Chờ kiểm hàng", status: "PENDING" };
 }
 
+export const REFUND_BLOCK_REASON_LABELS: Record<string, string> = {
+    RETURN_NOT_RECEIVED: "Chưa nhận hàng trả lại",
+    PHYSICAL_DISPOSITION_NOT_COMPLETED: "Chưa hoàn tất kiểm hàng/nhập kho",
+    REFUND_NOT_REQUIRED: "Phiếu không yêu cầu hoàn tiền",
+    ALREADY_REFUNDED: "Đã hoàn tiền đầy đủ",
+    REFUND_FAILED: "Lần hoàn tiền trước đó thất bại",
+    PAYMENT_SERVICE_UNAVAILABLE: "Dịch vụ thanh toán tạm thời gián đoạn",
+    PAYMENT_NOT_FOUND: "Không tìm thấy giao dịch thanh toán",
+    PAYMENT_NOT_REFUNDABLE: "Thanh toán chưa ở trạng thái hợp lệ để hoàn",
+    UNSUPPORTED_PAYMENT_METHOD: "Phương thức thanh toán chưa hỗ trợ hoàn tự động",
+    NO_REFUND_AMOUNT: "Số tiền hoàn bằng 0",
+    REFUND_AMOUNT_EXCEEDS_REMAINING: "Số tiền hoàn vượt quá số tiền còn lại của thanh toán",
+};
+
+export function getBlockReasonLabel(reason?: string | null) {
+    return reason ? (REFUND_BLOCK_REASON_LABELS[reason] ?? reason) : "--";
+}

@@ -21,7 +21,7 @@ public interface PriceListRepository extends JpaRepository<PriceList, UUID>, Jpa
             left join fetch v.product p
             left join fetch p.category
             left join fetch v.unit
-            where pl.id in :ids
+            where pl.id in :ids and pl.isDeleted = false
             """)
     List<PriceList> findAllWithItemsByIdIn(@Param("ids") Collection<UUID> ids);
 }

@@ -4,11 +4,10 @@ import org.hvtra.commonservice.common_core.domain.constants.Role;
 import jakarta.persistence.criteria.Predicate;
 import org.hvtra.iventoryservice.counting.dto.request.CreateInventoryTakeRequest;
 import org.hvtra.iventoryservice.counting.dto.request.UpdateInventoryCountsRequest;
-import org.hvtra.iventoryservice.counting.dto.request.RequestInventoryRecountRequest;
+import org.hvtra.iventoryservice.counting.dto.request.ReturnForRecountRequest;
 import org.hvtra.iventoryservice.counting.dto.response.InventoryTakeResponse;
 import org.hvtra.iventoryservice.counting.mapper.InventoryTakeMapper;
 import org.hvtra.iventoryservice.counting.repository.InventoryCountRepository;
-import org.hvtra.iventoryservice.counting.repository.InventoryCountApprovalPolicyRepository;
 import org.hvtra.iventoryservice.domain.entity.InventoryBalance;
 import org.hvtra.iventoryservice.domain.entity.InventoryItem;
 import org.hvtra.iventoryservice.domain.entity.InventoryLocation;
@@ -16,6 +15,7 @@ import org.hvtra.iventoryservice.domain.entity.counting.InventoryCount;
 import org.hvtra.iventoryservice.domain.entity.counting.InventoryCountLine;
 import org.hvtra.iventoryservice.domain.entity.counting.InventoryCountAssignment;
 import org.hvtra.iventoryservice.domain.entity.counting.InventoryCountAttempt;
+import org.hvtra.iventoryservice.domain.entity.document.InventoryAdjustment;
 import org.hvtra.iventoryservice.domain.enums.InventoryCountScopeType;
 import org.hvtra.iventoryservice.domain.enums.InventoryCountStatus;
 import org.hvtra.iventoryservice.shared.exception.BadRequestException;
@@ -46,7 +46,6 @@ import java.util.stream.Collectors;
 import java.util.function.Function;
 import org.hvtra.iventoryservice.domain.enums.InventoryCountType;
 import org.hvtra.iventoryservice.domain.enums.InventoryCountAssignmentRole;
-import org.hvtra.iventoryservice.domain.enums.InventoryCountAssignmentStatus;
 
 @Service
 @Transactional(readOnly = true)
@@ -61,7 +60,7 @@ public class InventoryTakeServiceImpl implements InventoryTakeService {
     private final InventoryTakeMapper mapper;
     private final InventoryTransactionLineRepository transactionLineRepository;
     private final CatalogClient catalogClient;
-    private final InventoryCountApprovalPolicyRepository approvalPolicyRepository;
+    private final InventoryAdjustmentService adjustmentService;
 
     public InventoryTakeServiceImpl(
             InventoryCountRepository countRepository,
@@ -71,7 +70,7 @@ public class InventoryTakeServiceImpl implements InventoryTakeService {
             InventoryTakeMapper mapper,
             InventoryTransactionLineRepository transactionLineRepository,
             CatalogClient catalogClient,
-            InventoryCountApprovalPolicyRepository approvalPolicyRepository) {
+            InventoryAdjustmentService adjustmentService) {
         this.countRepository = countRepository;
         this.balanceRepository = balanceRepository;
         this.locationRepository = locationRepository;
@@ -79,7 +78,7 @@ public class InventoryTakeServiceImpl implements InventoryTakeService {
         this.mapper = mapper;
         this.transactionLineRepository = transactionLineRepository;
         this.catalogClient = catalogClient;
-        this.approvalPolicyRepository = approvalPolicyRepository;
+        this.adjustmentService = adjustmentService;
     }
 
     @Override
@@ -153,21 +152,12 @@ public class InventoryTakeServiceImpl implements InventoryTakeService {
 
     @Override
     @Transactional
-    public InventoryTakeResponse freeze(UUID id) {
+    public InventoryTakeResponse start(UUID id) {
         requireAnyRole(Role.SUPER_ADMIN, Role.MANAGER);
         InventoryCount count = findCountOrThrow(id);
         ensureNoOverlappingOpenCount(count);
-        count.freeze();
-        return mapper.toResponse(countRepository.save(count));
-    }
 
-    @Override
-    @Transactional
-    public InventoryTakeResponse start(UUID id) {
-        requireAnyRole(Role.SUPER_ADMIN, Role.MANAGER, Role.INVENTORY_STAFF);
-        InventoryCount count = findCountOrThrow(id);
-
-        // Delegate state transition to entity
+        // Delegate state transition to entity: DRAFT → COUNTING, khoá phạm vi
         count.start();
 
         // === Orchestration: generate lines from balance data ===
@@ -253,38 +243,9 @@ public class InventoryTakeServiceImpl implements InventoryTakeService {
             count.getAssignments().stream()
                     .filter(assignment -> assignment.getRole() == InventoryCountAssignmentRole.COUNTER)
                     .filter(assignment -> assignment.getUserId().equals(currentUserId))
-                    .forEach(InventoryCountAssignment::markCompleted);
+                    .forEach(InventoryCountAssignment::markDone);
         }
 
-        return mapper.toResponse(countRepository.save(count));
-    }
-
-    @Override
-    @Transactional
-    public InventoryTakeResponse requestRecount(UUID id, RequestInventoryRecountRequest request) {
-        requireAnyRole(Role.SUPER_ADMIN, Role.MANAGER);
-        InventoryCount count = findCountOrThrow(id);
-        if (request.reason() == null || request.reason().isBlank()) {
-            throw new BadRequestException("Lý do kiểm kê lại là bắt buộc");
-        }
-        var requestedIds = new HashSet<>(request.lineIds());
-        List<InventoryCountLine> requestedLines = count.getLines().stream()
-                .filter(line -> requestedIds.contains(line.getId()))
-                .toList();
-        if (requestedLines.size() != requestedIds.size()) {
-            throw new BadRequestException("Một hoặc nhiều dòng yêu cầu kiểm kê lại không thuộc kỳ này");
-        }
-        requestedLines.forEach(InventoryCountLine::requestRecount);
-        boolean alreadyAssigned = count.getAssignments().stream().anyMatch(assignment ->
-                assignment.getRole() == InventoryCountAssignmentRole.COUNTER
-                        && assignment.getUserId().equals(request.assignedUserId()));
-        if (!alreadyAssigned) {
-            InventoryCountAssignment assignment = new InventoryCountAssignment();
-            assignment.setUserId(request.assignedUserId());
-            assignment.setRole(InventoryCountAssignmentRole.COUNTER);
-            count.addAssignment(assignment);
-        }
-        count.reopenForRecount();
         return mapper.toResponse(countRepository.save(count));
     }
 
@@ -295,20 +256,8 @@ public class InventoryTakeServiceImpl implements InventoryTakeService {
         InventoryCount count = findCountOrThrow(id);
         ensureAssignedCounter(count, currentUserId());
         reconcileMovements(count);
-        count.submitForReconciliation();
-        if (count.getLinesWithVariance().isEmpty()) {
-            count.submitForApproval(false, currentUserId());
-        }
-        return mapper.toResponse(countRepository.save(count));
-    }
-
-    @Override
-    @Transactional
-    public InventoryTakeResponse submitApproval(UUID id) {
-        requireAnyRole(Role.SUPER_ADMIN, Role.MANAGER);
-        InventoryCount count = findCountOrThrow(id);
-        reconcileMovements(count);
-        count.submitForApproval(requiresApproval(count), currentUserId());
+        // Không chênh lệch → COMPLETED, có chênh lệch → PENDING_APPROVAL
+        count.finish(currentUserId());
         return mapper.toResponse(countRepository.save(count));
     }
 
@@ -317,34 +266,46 @@ public class InventoryTakeServiceImpl implements InventoryTakeService {
     public InventoryTakeResponse approve(UUID id) {
         requireAnyRole(Role.SUPER_ADMIN, Role.MANAGER);
         InventoryCount count = findCountOrThrow(id);
-        count.approve(currentUserId());
+        UUID userId = currentUserId();
+        count.approve(userId);
+        // Ghi sổ lỗi (vd. tồn âm) sẽ rollback cả thao tác duyệt, kỳ kiểm kê giữ PENDING_APPROVAL
+        InventoryAdjustment adjustment = adjustmentService.createAndPostFromCount(count, userId);
+        count.linkAdjustmentDocument(adjustment);
         return mapper.toResponse(countRepository.save(count));
     }
 
     @Override
     @Transactional
-    public InventoryTakeResponse returnForRecount(UUID id, String reason) {
+    public InventoryTakeResponse returnForRecount(UUID id, ReturnForRecountRequest request) {
         requireAnyRole(Role.SUPER_ADMIN, Role.MANAGER);
         InventoryCount count = findCountOrThrow(id);
-        count.returnForRecount(currentUserId(), reason);
-        return mapper.toResponse(countRepository.save(count));
-    }
+        var requestedIds = new HashSet<>(request.lineIds());
+        List<InventoryCountLine> requestedLines = count.getLines().stream()
+                .filter(line -> requestedIds.contains(line.getId()))
+                .toList();
+        if (requestedLines.size() != requestedIds.size()) {
+            throw new BadRequestException("Một hoặc nhiều dòng yêu cầu kiểm kê lại không thuộc kỳ này");
+        }
 
-    @Override
-    @Transactional
-    public InventoryTakeResponse reopen(UUID id) {
-        requireAnyRole(Role.SUPER_ADMIN, Role.MANAGER);
-        InventoryCount count = findCountOrThrow(id);
-        count.reopenReturnedCount();
-        return mapper.toResponse(countRepository.save(count));
-    }
+        count.returnForRecount(request.reason());
+        requestedLines.forEach(InventoryCountLine::resetForRecount);
 
-    @Override
-    @Transactional
-    public InventoryTakeResponse reject(UUID id, String reason) {
-        requireAnyRole(Role.SUPER_ADMIN, Role.MANAGER);
-        InventoryCount count = findCountOrThrow(id);
-        count.reject(currentUserId(), reason);
+        List<InventoryCountAssignment> counters = count.getAssignments().stream()
+                .filter(assignment -> assignment.getRole() == InventoryCountAssignmentRole.COUNTER)
+                .toList();
+        if (request.assignedUserId() == null) {
+            counters.forEach(InventoryCountAssignment::reopen);
+        } else {
+            counters.stream()
+                    .filter(assignment -> assignment.getUserId().equals(request.assignedUserId()))
+                    .findFirst()
+                    .ifPresentOrElse(InventoryCountAssignment::reopen, () -> {
+                        InventoryCountAssignment assignment = new InventoryCountAssignment();
+                        assignment.setUserId(request.assignedUserId());
+                        assignment.setRole(InventoryCountAssignmentRole.COUNTER);
+                        count.addAssignment(assignment);
+                    });
+        }
         return mapper.toResponse(countRepository.save(count));
     }
 
@@ -357,15 +318,6 @@ public class InventoryTakeServiceImpl implements InventoryTakeService {
         return mapper.toResponse(countRepository.save(count));
     }
 
-    @Override
-    @Transactional
-    public InventoryTakeResponse close(UUID id) {
-        requireAnyRole(Role.SUPER_ADMIN, Role.MANAGER);
-        InventoryCount count = findCountOrThrow(id);
-        count.close(currentUserId());
-        return mapper.toResponse(countRepository.save(count));
-    }
-
     // ====== Private Helpers ======
 
     private InventoryCount findCountOrThrow(UUID id) {
@@ -374,7 +326,7 @@ public class InventoryTakeServiceImpl implements InventoryTakeService {
     }
 
     private void reconcileMovements(InventoryCount count) {
-        if (count.getSnapshotAt() == null) {
+        if (count.getStartedAt() == null) {
             throw new BadRequestException("Kỳ kiểm kê chưa có snapshot");
         }
         count.getLines().forEach(line -> line.reconcileMovements(
@@ -382,11 +334,11 @@ public class InventoryTakeServiceImpl implements InventoryTakeService {
                         ? transactionLineRepository.sumMovementAfterSnapshot(
                                 line.getInventoryItem().getId(),
                                 line.getLocation().getId(),
-                                count.getSnapshotAt())
+                                count.getStartedAt())
                         : transactionLineRepository.sumBatchMovementAfterSnapshot(
                                 line.getInventoryBatch().getId(),
                                 line.getLocation().getId(),
-                                count.getSnapshotAt())));
+                                count.getStartedAt())));
     }
 
     private void snapshotUnitCosts(InventoryCount count) {
@@ -404,22 +356,6 @@ public class InventoryTakeServiceImpl implements InventoryTakeService {
             var variant = variants.get(line.getInventoryItem().getReferenceId());
             line.takeCostSnapshot(variant == null ? BigDecimal.ZERO : variant.costPrice());
         });
-    }
-
-    private boolean requiresApproval(InventoryCount count) {
-        if (count.getLinesWithVariance().isEmpty()) return false;
-        var policy = approvalPolicyRepository.findEffectivePolicies(count.getBranchId()).stream()
-                .findFirst()
-                .orElse(null);
-        if (policy == null) return true;
-        BigDecimal absoluteQuantity = count.getLinesWithVariance().stream()
-                .map(line -> line.getVarianceQuantity().abs())
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-        BigDecimal absoluteValue = count.getLinesWithVariance().stream()
-                .map(line -> line.getVarianceValue().abs())
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-        return absoluteQuantity.compareTo(policy.getAutoApproveQuantityLimit()) > 0
-                || absoluteValue.compareTo(policy.getAutoApproveValueLimit()) > 0;
     }
 
     private void ensureCounterCanUpdate(
@@ -446,10 +382,6 @@ public class InventoryTakeServiceImpl implements InventoryTakeService {
             if (outsideLocation) {
                 throw new BadRequestException("Có dòng không thuộc vị trí được phân công");
             }
-        }
-        assignment.markInProgress();
-        if (assignment.getStatus() == InventoryCountAssignmentStatus.COMPLETED) {
-            assignment.setStatus(InventoryCountAssignmentStatus.IN_PROGRESS);
         }
     }
 
@@ -529,12 +461,10 @@ public class InventoryTakeServiceImpl implements InventoryTakeService {
     }
 
     private void ensureNoOverlappingOpenCount(InventoryCount candidate) {
+        // DRAFT chưa khoá phạm vi nên không tính là trùng
         var openStatuses = EnumSet.of(
-                InventoryCountStatus.FROZEN,
                 InventoryCountStatus.COUNTING,
-                InventoryCountStatus.RECONCILING,
-                InventoryCountStatus.APPROVED,
-                InventoryCountStatus.POSTED
+                InventoryCountStatus.PENDING_APPROVAL
         );
         boolean overlap = countRepository
                 .findByBranchIdAndStatusInAndIsDeletedFalse(candidate.getBranchId(), openStatuses)

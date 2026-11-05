@@ -316,7 +316,7 @@ export function StocktakeTable({
                 </td>
                 <td className="border-b border-[#edf2ef] px-4 py-3">{item.varianceLines}</td>
                 <td className="border-b border-[#edf2ef] px-4 py-3">
-                  {item.countingStartedAt ? formatVietnamDateTime(item.countingStartedAt) : "-"}
+                  {item.startedAt ? formatVietnamDateTime(item.startedAt) : "-"}
                 </td>
                 <td className="border-b border-[#edf2ef] px-4 py-3">
                   <Link
@@ -360,21 +360,20 @@ export function StocktakeTable({
   );
 }
 
+const statusBadgeStyles: Record<StocktakeSummary["status"], string> = {
+  CANCELLED: "bg-red-50 text-red-700",
+  COMPLETED: "bg-emerald-50 text-emerald-700",
+  COUNTING: "bg-sky-50 text-sky-700",
+  DRAFT: "bg-slate-100 text-slate-700",
+  PENDING_APPROVAL: "bg-amber-50 text-amber-700",
+};
+
 export function StatusBadge({ status }: { status: StocktakeSummary["status"] }) {
-  const statusGroup = stocktakeStatusFilterOptions.find((option) =>
-    option.statuses.includes(status),
-  );
-  const style =
-    statusGroup?.value === "PREPARING"
-      ? "bg-slate-100 text-slate-700"
-      : statusGroup?.value === "IN_PROGRESS" || statusGroup?.value === "PENDING_APPROVAL"
-        ? "bg-amber-50 text-amber-700"
-        : statusGroup?.value === "CANCELLED"
-          ? "bg-red-50 text-red-700"
-          : "bg-emerald-50 text-emerald-700";
   return (
-    <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-black ${style}`}>
-      {statusGroup?.label ?? stocktakeStatusLabels[status]}
+    <span
+      className={`inline-flex rounded-full px-2.5 py-1 text-xs font-black ${statusBadgeStyles[status]}`}
+    >
+      {stocktakeStatusLabels[status]}
     </span>
   );
 }

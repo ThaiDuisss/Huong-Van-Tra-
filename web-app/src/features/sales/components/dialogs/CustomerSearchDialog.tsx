@@ -21,6 +21,9 @@ interface CustomerSearchDialogProps {
   selectedCustomerId: string;
   loading: boolean;
   error: string;
+  onSearch?(query: string): void;
+  onLoadMore?(): void;
+  hasMore?: boolean;
   onSelect(customerId: string): void;
   onCreate(): void;
   onClose(): void;
@@ -76,6 +79,9 @@ export function CustomerSearchDialog({
   selectedCustomerId,
   loading,
   error,
+  onSearch,
+  onLoadMore,
+  hasMore,
   onSelect,
   onCreate,
   onClose
@@ -123,8 +129,6 @@ export function CustomerSearchDialog({
     );
   }, [customers, query]);
 
-  const recentCustomers = filteredCustomers.slice(0, 3);
-  const frequentCustomers = filteredCustomers.slice(3, 5);
 
   if (!open) {
     return null;
@@ -186,7 +190,7 @@ export function CustomerSearchDialog({
           ref={searchInputRef}
           className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-neutral-400"
           value={query}
-          onChange={(event) => setQuery(event.currentTarget.value)}
+          onChange={(event) => { setQuery(event.currentTarget.value); onSearch?.(event.currentTarget.value); }}
           placeholder="Nhập tên, SĐT hoặc mã KH..."
           aria-label="Tìm khách hàng"
         />
@@ -207,18 +211,13 @@ export function CustomerSearchDialog({
       {!loading && !error ? (
         <>
           <CustomerGroup
-            title="Khách hàng gần đây"
-            customers={recentCustomers}
+            title={query ? "Kết quả tìm kiếm" : "Khách hàng gần đây"}
+            customers={filteredCustomers}
             selectedCustomerId={selectedCustomerId}
             onSelect={selectCustomer}
           />
 
-          <CustomerGroup
-            title="Khách hàng mua nhiều nhất hôm nay"
-            customers={frequentCustomers}
-            selectedCustomerId={selectedCustomerId}
-            onSelect={selectCustomer}
-          />
+          {hasMore && <button type="button" className="w-full py-2 text-sm font-semibold text-[#159734]" onClick={onLoadMore}>Xem thêm khách hàng</button>}
         </>
       ) : null}
 
@@ -273,15 +272,9 @@ function CustomerGroup({
     <section className="mb-3">
       <div className="mb-2 flex items-center justify-between">
         <h4 className="text-xs font-bold text-gray-500">{title}</h4>
-        <button
-          type="button"
-          className="text-xs font-semibold text-hvt-green-800"
-        >
-          Xem tất cả
-        </button>
       </div>
 
-      <div className="overflow-hidden rounded-xl border border-pos-border">
+      <div className="max-h-[min(320px,40vh)] overflow-y-auto rounded-xl border border-pos-border">
         {customers.map((customer) => {
           const selected = customer.id === selectedCustomerId;
 

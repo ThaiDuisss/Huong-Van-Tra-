@@ -1,17 +1,24 @@
 import {
     ArrowLeft,
     CalendarDays,
+    Check,
     ChevronLeft,
     ChevronRight,
+    Info,
+    LoaderCircle,
     Search
 } from "lucide-react";
 import { useEffect, useMemo, useState, type KeyboardEvent } from "react";
-
 import { useNavigate, useParams } from "react-router-dom";
+import { routePaths } from "../../../routes/path";
 
 import { getOrderById, getOrders } from "../services/order.api";
 import { checkOrderReturnEligibility, createOrderReturn, getOrderReturns } from "../services/order-return.api";
-import { ReturnEligibilityDetails, ReturnPolicy } from "../components/ReturnEligibilityDetails";
+import { ReturnProductSelectionTable } from "../components/ReturnProductSelectionTable";
+import { ReturnProductReasonCard } from "../components/ReturnProductReasonCard";
+import { ReturnConfirmationSummary } from "../components/ReturnConfirmationSummary";
+import { ReturnEligibilityStatus } from "../components/ReturnEligibilityStatus";
+import { ReturnPolicyModal } from "../components/ReturnPolicyModal";
 import type {
     OrderDetailResponse,
     OrderItemResponse,
@@ -23,18 +30,10 @@ import type {
     CreateOrderReturnPayload,
     CheckOrderReturnEligibilityPayload,
     OrderReturnEligibilityResponse,
-    OrderReturnResponse,
-    ReturnCondition
+    OrderReturnResponse
 } from "../types/order-return.types";
 import {
-    RETURN_CONDITION_LABELS,
-    RETURN_CONDITIONS,
-    RETURN_REASON_LABELS,
-    RETURN_REASONS,
-    formatReturnQuantity,
-    getReturnConditionLabel,
-    getReturnErrorMessage,
-    getReturnReasonLabel
+    getReturnErrorMessage
 } from "../utils/order-return.utils";
 import {
     formatCurrency,
@@ -101,14 +100,6 @@ function useDebouncedValue<T>(value: T, delayMs: number) {
     }, [delayMs, value]);
 
     return debouncedValue;
-}
-
-function getItemName(item: OrderItemResponse) {
-    return item.productNameSnapshot?.trim() || "Sản phẩm";
-}
-
-function getItemVariant(item: OrderItemResponse) {
-    return item.variantNameSnapshot?.trim() || "Không có phân loại";
 }
 
 function padDatePart(value: number) {
@@ -223,6 +214,9 @@ function getDraftValidationError(
         if (!draft.reason) {
             return "Vui lòng chọn lý do trả hàng cho từng sản phẩm.";
         }
+        if (draft.reason === "OTHER" && !draft.note.trim()) {
+            return "Vui lòng nhập ghi chú khi chọn lý do khác.";
+        }
     }
 
     return null;
@@ -265,6 +259,12 @@ export function CreateReturnPage() {
         response: OrderReturnEligibilityResponse | null;
         error: string | null;
     } | null>(null);
+
+    // Modal state for viewing return policies
+    const [isPolicyModalOpen, setIsPolicyModalOpen] = useState(false);
+    // Track open state of reason accordion cards
+    const [openReasonCards, setOpenReasonCards] = useState<Record<string, boolean>>({});
+
     const orderSearchDateRange = useMemo(
         () =>
             getOrderSearchDateRange(
@@ -409,6 +409,17 @@ export function CreateReturnPage() {
     const eligibilityError = eligibilityState?.key === eligibilityKey ? eligibilityState.error : null;
     const isCheckingEligibility = shouldCheckEligibility && eligibilityState?.key !== eligibilityKey;
 
+    // Deduplicate return policy statements from eligibility preview
+    const policyList = useMemo(() => {
+        const list: string[] = [];
+        (eligibility?.items ?? []).forEach(it => {
+            (it.policy ?? []).forEach(p => {
+                if (p && !list.includes(p)) list.push(p);
+            });
+        });
+        return list;
+    }, [eligibility]);
+
     useEffect(() => {
         if (!shouldCheckEligibility || !eligibilityOrderId) return;
         let ignore = false;
@@ -434,6 +445,10 @@ export function CreateReturnPage() {
             (!selectedOrder || isSelectedOrderLoading)) ||
         (wizardStep === 2 && Boolean(quantityValidation.error)) ||
         (wizardStep === 3 && isCreateDisabled);
+
+    const isNextLoading =
+        (wizardStep === 1 && isSelectedOrderLoading) ||
+        (wizardStep === 3 && isCheckingEligibility);
 
     const handleBackToList = () => {
         navigate(orderId ? "/system/orders" : "/system/orders/returns");
@@ -465,6 +480,7 @@ export function CreateReturnPage() {
         setSelectedOrderReturns([]);
         setEligibilityState(null);
         setDraftItems({});
+        setOpenReasonCards({});
         setWizardStep(1);
         setIsSelectedOrderLoading(true);
 
@@ -496,8 +512,36 @@ export function CreateReturnPage() {
         });
     };
 
+    const handleDeselectAll = () => {
+        setDraftItems((current) => {
+            const next: Record<string, ReturnDraftItem> = {};
+            for (const [key, val] of Object.entries(current)) {
+                next[key] = { ...val, selected: false };
+            }
+            return next;
+        });
+    };
+
+    const toggleReasonCard = (itemKey: string) => {
+        setOpenReasonCards((prev) => ({
+            ...prev,
+            [itemKey]: prev[itemKey] === false ? true : false
+        }));
+    };
+
+    const selectedEntries = useMemo(() => {
+        return (selectedOrder?.items ?? [])
+            .map((item, index) => ({
+                item,
+                index,
+                itemKey: getItemKey(item, index)
+            }))
+            .filter(({ itemKey }) => draftItems[itemKey]?.selected);
+    }, [selectedOrder, draftItems]);
+
     const moveToNextStep = () => {
         if (isSubmitting) return;
+
         if (wizardStep === 1 && (!selectedOrder || isSelectedOrderLoading)) {
             setToast("Vui lòng chọn đơn hàng trước khi tiếp tục.");
             return;
@@ -508,14 +552,38 @@ export function CreateReturnPage() {
             return;
         }
 
-        if (wizardStep === 3 && draftValidationError) {
-            setToast(draftValidationError);
-            return;
-        }
+        if (wizardStep === 3) {
+            // Check if any selected item is missing a return reason
+            for (const { itemKey, item } of selectedEntries) {
+                const draft = draftItems[itemKey];
+                const itemName = item.productNameSnapshot?.trim() || "Sản phẩm";
 
-        if (wizardStep === 3 && (isCheckingEligibility || !eligibility?.eligible)) {
-            setToast("Vui lòng hoàn tất kiểm tra điều kiện và xử lý các điều kiện không đạt trước khi tiếp tục.");
-            return;
+                if (!draft?.reason) {
+                    setOpenReasonCards((prev) => ({ ...prev, [itemKey]: true }));
+                    setToast(`Vui lòng chọn lý do trả hàng cho: ${itemName}.`);
+                    const cardElement = document.getElementById(`reason-card-${itemKey}`);
+                    cardElement?.scrollIntoView({ behavior: "smooth", block: "center" });
+                    return;
+                }
+
+                if (draft.reason === "OTHER" && !draft.note?.trim()) {
+                    setOpenReasonCards((prev) => ({ ...prev, [itemKey]: true }));
+                    setToast(`Vui lòng nhập ghi chú khi chọn lý do khác cho: ${itemName}.`);
+                    const cardElement = document.getElementById(`reason-card-${itemKey}`);
+                    cardElement?.scrollIntoView({ behavior: "smooth", block: "center" });
+                    return;
+                }
+            }
+
+            if (draftValidationError) {
+                setToast(draftValidationError);
+                return;
+            }
+
+            if (isCheckingEligibility || !eligibility?.eligible) {
+                setToast("Vui lòng hoàn tất kiểm tra điều kiện và xử lý các điều kiện không đạt trước khi tiếp tục.");
+                return;
+            }
         }
 
         setWizardStep((step) => Math.min(4, step + 1) as WizardStep);
@@ -566,7 +634,7 @@ export function CreateReturnPage() {
             payload.items = buildReturnPayloadItems(freshOrder.items ?? [], draftItems, freshReturns, latestEligibility.items);
             const createdReturn = await createOrderReturn(freshOrder.id, payload);
             setToast("Tạo phiếu hoàn hàng thành công");
-            window.setTimeout(() => navigate(`/system/orders/returns/${createdReturn.id}`), 350);
+            window.setTimeout(() => navigate(`${routePaths.returns}?detail=${encodeURIComponent(createdReturn.id)}`), 350);
         } catch (error: unknown) {
             setToast(getReturnErrorMessage(error));
             setEligibilityRevision(current => current + 1);
@@ -600,9 +668,10 @@ export function CreateReturnPage() {
 
         if (wizardStep === 2 && selectedOrder) {
             return (
-                <ReturnItemPicker
+                <ReturnProductSelectionTable
                     draftItems={draftItems}
                     items={selectedOrderItems}
+                    onDeselectAll={handleDeselectAll}
                     onUpdateDraftItem={updateDraftItem}
                     validation={quantityValidation}
                 />
@@ -611,36 +680,93 @@ export function CreateReturnPage() {
 
         if (wizardStep === 3 && selectedOrder) {
             return (
-                <>
-                <ReturnReasonForm
-                    draftItems={draftItems}
-                    eligibility={eligibility}
-                    items={selectedOrderItems}
-                    onNoteChange={setReturnNote}
-                    onRefundRequiredChange={setRefundRequired}
-                    onUpdateDraftItem={updateDraftItem}
-                    refundRequired={refundRequired}
-                    returnNote={returnNote}
-                />
-                <ReturnEligibilityDetails response={eligibility} checking={isCheckingEligibility} error={eligibilityError}
-                    items={selectedOrderItems} ready={hasReasonSelection} onRetry={() => setEligibilityRevision(current => current + 1)} />
-                </>
+                <div className={styles.reasonForm}>
+                    {/* Subtle Policy Helper Line (No Heavy Banner) */}
+                    <div className={styles.policySubtleBar}>
+                        <div className={styles.policySubtleLeft}>
+                            <Info size={15} className={styles.policySubtleIcon} aria-hidden="true" />
+                            <span>
+                                Hàng hoàn sẽ được kiểm tra tình trạng trước khi xử lý nhập kho và hoàn tiền (nếu có).
+                            </span>
+                        </div>
+                        <button
+                            type="button"
+                            className={styles.policySubtleLink}
+                            onClick={() => setIsPolicyModalOpen(true)}
+                        >
+                            Xem chính sách chi tiết
+                        </button>
+                    </div>
+
+                    {/* Accordion List for each selected item */}
+                    <div className={styles.reasonCardList}>
+                        {selectedEntries.map(({ item, itemKey }) => (
+                            <ReturnProductReasonCard
+                                key={itemKey}
+                                item={item}
+                                itemKey={itemKey}
+                                draft={draftItems[itemKey] ?? createDefaultDraftItem()}
+                                isOpen={openReasonCards[itemKey] !== false}
+                                onToggle={() => toggleReasonCard(itemKey)}
+                                onUpdateDraft={(update) => updateDraftItem(itemKey, update)}
+                            />
+                        ))}
+                    </div>
+
+                    {/* Refund Required Toggle */}
+                    <div style={{ padding: "1rem", background: "#f8fafc", borderRadius: "8px", border: "1px solid #e2e8f0" }}>
+                        <label style={{ display: "flex", alignItems: "center", gap: "0.75rem", cursor: "pointer", fontWeight: 600, fontSize: "0.95rem" }}>
+                            <input
+                                checked={refundRequired}
+                                onChange={(event) => setRefundRequired(event.target.checked)}
+                                style={{ width: "18px", height: "18px", cursor: "pointer" }}
+                                type="checkbox"
+                            />
+                            <span>Yêu cầu hoàn tiền cho khách hàng</span>
+                        </label>
+                        <p style={{ margin: "0.5rem 0 0 2rem", fontSize: "0.85rem", color: "#64748b", lineHeight: 1.4 }}>
+                            {refundRequired
+                                ? "Phiếu hoàn sẽ chuyển sang luồng hoàn tiền sau khi nhận hàng và kiểm kho hoàn tất."
+                                : "Phiếu hoàn KHÔNG phát sinh hoàn tiền (ví dụ: đổi ngang, tặng phẩm, bảo hành). Phiếu sẽ tự động hoàn tất khi kiểm kho 100%."}
+                        </p>
+                    </div>
+
+                    {/* General Return Note */}
+                    <label className={styles.fullField}>
+                        <span>Ghi chú phiếu hoàn</span>
+                        <textarea
+                            onChange={(event) => setReturnNote(event.target.value)}
+                            placeholder="Ghi chú chung nếu có"
+                            value={returnNote}
+                        />
+                    </label>
+
+                    {/* Consolidated Eligibility Verification */}
+                    <ReturnEligibilityStatus
+                        response={eligibility}
+                        checking={isCheckingEligibility}
+                        error={eligibilityError}
+                        items={selectedOrderItems}
+                        ready={hasReasonSelection}
+                        onRetry={() => setEligibilityRevision((current) => current + 1)}
+                    />
+                </div>
             );
         }
 
         if (wizardStep === 4 && selectedOrder) {
             return (
-                <>
-                <ReturnConfirmation
-                    draftItems={draftItems}
-                    items={selectedOrderItems}
+                <ReturnConfirmationSummary
                     order={selectedOrder}
+                    items={selectedOrderItems}
+                    draftItems={draftItems}
                     refundRequired={refundRequired}
                     returnNote={returnNote}
+                    eligibility={eligibility}
+                    isCheckingEligibility={isCheckingEligibility}
+                    eligibilityError={eligibilityError}
+                    onRetryEligibility={() => setEligibilityRevision((current) => current + 1)}
                 />
-                <ReturnEligibilityDetails response={eligibility} checking={isCheckingEligibility} error={eligibilityError}
-                    items={selectedOrderItems} ready={hasReasonSelection} showPolicies onRetry={() => setEligibilityRevision(current => current + 1)} />
-                </>
             );
         }
 
@@ -665,7 +791,7 @@ export function CreateReturnPage() {
                 </div>
             </header>
 
-            <div className={styles.stepper}>
+            <ol aria-label="Các bước tạo phiếu hoàn" className={styles.stepper}>
                 {WIZARD_STEPS.map((item) => {
                     const state =
                         item.step < wizardStep
@@ -673,18 +799,28 @@ export function CreateReturnPage() {
                             : item.step === wizardStep
                                 ? "active"
                                 : "upcoming";
+                    // Chỉ quay lại được bước đã xong; bước sau phải đi qua nút Tiếp tục để được kiểm tra.
+                    const canJump = state === "completed" && !isSubmitting && !(orderId && item.step === 1);
 
                     return (
-                        <div
-                            className={`${styles.step} ${styles[state]}`}
-                            key={item.step}
-                        >
-                            <span>{item.step}</span>
-                            <strong>{item.label}</strong>
-                        </div>
+                        <li key={item.step}>
+                            <button
+                                aria-current={state === "active" ? "step" : undefined}
+                                className={`${styles.step} ${styles[state]}`}
+                                disabled={!canJump}
+                                onClick={() => setWizardStep(item.step)}
+                                title={canJump ? `Quay lại bước ${item.label}` : undefined}
+                                type="button"
+                            >
+                                <span>
+                                    {state === "completed" ? <Check size={14} aria-hidden="true" /> : item.step}
+                                </span>
+                                <strong>{item.label}</strong>
+                            </button>
+                        </li>
                     );
                 })}
-            </div>
+            </ol>
 
             <section className={styles.card}>
                 {renderStepContent()}
@@ -696,6 +832,15 @@ export function CreateReturnPage() {
             </section>
 
             <footer className={styles.footer}>
+                <WizardSummary
+                    customer={selectedOrderSummary ? getCustomerDisplay(selectedOrderSummary) : null}
+                    entries={selectedEntries.map(({ item, itemKey }) => ({
+                        item,
+                        quantity: Number(draftItems[itemKey]?.quantity) || 0
+                    }))}
+                    orderCode={selectedOrder?.orderCode ?? selectedOrderSummary?.orderCode ?? null}
+                    refundRequired={refundRequired}
+                />
                 <button
                     className={styles.secondaryButton}
                     disabled={wizardStep === 1 || isSubmitting}
@@ -711,12 +856,22 @@ export function CreateReturnPage() {
                 {wizardStep < 4 ? (
                     <button
                         className={styles.primaryButton}
+                        aria-busy={isNextLoading || undefined}
                         disabled={isNextDisabled}
                         onClick={moveToNextStep}
                         type="button"
                     >
-                        Tiếp tục
-                        <ChevronRight size={18} aria-hidden="true" />
+                        {isNextLoading ? (
+                            <>
+                                <LoaderCircle className={styles.spinner} size={18} aria-hidden="true" />
+                                {wizardStep === 1 ? "Đang tải đơn..." : "Đang kiểm tra..."}
+                            </>
+                        ) : (
+                            <>
+                                Tiếp tục
+                                <ChevronRight size={18} aria-hidden="true" />
+                            </>
+                        )}
                     </button>
                 ) : (
                     <button
@@ -725,10 +880,24 @@ export function CreateReturnPage() {
                         onClick={submitReturn}
                         type="button"
                     >
-                        {isSubmitting ? "Đang tạo..." : "Tạo phiếu hoàn hàng"}
+                        {isSubmitting ? (
+                            <>
+                                <LoaderCircle className={styles.spinner} size={18} aria-hidden="true" />
+                                Đang tạo...
+                            </>
+                        ) : (
+                            "Tạo phiếu hoàn hàng"
+                        )}
                     </button>
                 )}
             </footer>
+
+            {/* Detailed Policy Modal */}
+            <ReturnPolicyModal
+                isOpen={isPolicyModalOpen}
+                onClose={() => setIsPolicyModalOpen(false)}
+                policies={policyList}
+            />
 
             {toast ? <div className={styles.toast}>{toast}</div> : null}
         </section>
@@ -852,23 +1021,25 @@ function OrderPicker({
                 <div className={styles.orderTableWrap}>
                     <table className={styles.orderTable}>
                         <colgroup>
-                            <col style={{ width: "24%" }} />
-                            <col style={{ width: "34%" }} />
-                            <col style={{ width: "20%" }} />
                             <col style={{ width: "22%" }} />
+                            <col style={{ width: "28%" }} />
+                            <col style={{ width: "18%" }} />
+                            <col style={{ width: "14%" }} />
+                            <col style={{ width: "18%" }} />
                         </colgroup>
                         <thead>
                             <tr>
                                 <th>Mã đơn hàng</th>
                                 <th>Khách hàng</th>
                                 <th>Thời gian</th>
+                                <th>Tình trạng hoàn</th>
                                 <th>Giá trị đơn hàng</th>
                             </tr>
                         </thead>
                         <tbody>
                             {isLoading ? (
                                 <tr>
-                                    <td className={styles.emptyCell} colSpan={4}>
+                                    <td className={styles.emptyCell} colSpan={5}>
                                         <strong>Đang tìm kiếm</strong>
                                         <span>Đang tải danh sách đơn hàng</span>
                                     </td>
@@ -876,7 +1047,7 @@ function OrderPicker({
                             ) : null}
                             {!isLoading && searchError ? (
                                 <tr>
-                                    <td className={styles.emptyCell} colSpan={4}>
+                                    <td className={styles.emptyCell} colSpan={5}>
                                         <strong>Không tải được đơn hàng</strong>
                                         <span>{searchError}</span>
                                     </td>
@@ -911,6 +1082,9 @@ function OrderPicker({
                                           <td className={styles.orderDateCell}>
                                               {formatDateTime(order.createdAt)}
                                           </td>
+                                          <td>
+                                              <OrderReturnStatusTag order={order} />
+                                          </td>
                                           <td className={styles.orderAmountCell}>
                                               {formatCurrency(order.finalAmount)}
                                           </td>
@@ -919,7 +1093,7 @@ function OrderPicker({
                                 : null}
                             {!isLoading && !searchError && orderResults.length === 0 ? (
                                 <tr>
-                                    <td className={styles.emptyCell} colSpan={4}>
+                                    <td className={styles.emptyCell} colSpan={5}>
                                         <strong>
                                             {hasSearchTerm || hasTimeFilter
                                                 ? "Không tìm thấy đơn hàng"
@@ -968,278 +1142,63 @@ function OrderPicker({
     );
 }
 
-function ReturnItemPicker({
-    draftItems,
-    items,
-    onUpdateDraftItem,
-    validation
-}: {
-    draftItems: Record<string, ReturnDraftItem>;
-    items: OrderItemResponse[];
-    onUpdateDraftItem: (
-        itemKey: string,
-        update: Partial<ReturnDraftItem>
-    ) => void;
-    validation: ReturnType<typeof validateReturnDraftQuantities>;
-}) {
-    return (
-        <div className={styles.itemTableWrap}>
-            <table className={styles.itemTable}>
-                <thead>
-                    <tr>
-                        <th>Sản phẩm</th>
-                        <th>Đã mua</th>
-                        <th>Còn được hoàn</th>
-                        <th>Số lượng hoàn</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {items.map((item, index) => {
-                        const itemKey = getItemKey(item, index);
-                        const draft = draftItems[itemKey];
-                        const availableQuantity = validation.remainingQuantities[itemKey] ?? 0;
-                        const error = validation.errors[itemKey];
-                        const errorId = `return-quantity-error-${index}`;
+const ORDER_RETURN_STATUS_TAGS: Record<string, { label: string; className: string }> = {
+    NONE: { label: "Chưa hoàn", className: "bg-[#eef3f1] text-[#536078]" },
+    PARTIALLY_RETURNED: { label: "Đã hoàn một phần", className: "bg-[#fef3c7] text-[#b45309]" },
+    FULLY_RETURNED: { label: "Đã hoàn hết", className: "bg-[#ffecec] text-[#df2525]" }
+};
 
-                        return (
-                            <tr key={itemKey}>
-                                <td>
-                                    <label className={styles.itemSelector}>
-                                        <input
-                                            checked={Boolean(draft?.selected)}
-                                            disabled={!draft?.selected && availableQuantity < 1}
-                                            onChange={(event) =>
-                                                onUpdateDraftItem(itemKey, {
-                                                    selected: event.target.checked
-                                                })
-                                            }
-                                            type="checkbox"
-                                        />
-                                        <span>
-                                            <strong>{getItemName(item)}</strong>
-                                            <small>
-                                                {item.skuSnapshot || "--"} ·{" "}
-                                                {getItemVariant(item)}
-                                            </small>
-                                        </span>
-                                    </label>
-                                </td>
-                                <td>{formatReturnQuantity(item.quantity)}</td>
-                                <td>{formatReturnQuantity(availableQuantity)}</td>
-                                <td>
-                                    <input
-                                        className={styles.quantityInput}
-                                        aria-label={`Số lượng hoàn ${getItemName(item)}`}
-                                        aria-invalid={Boolean(error)}
-                                        aria-describedby={error ? errorId : undefined}
-                                        disabled={!draft?.selected}
-                                        inputMode="numeric"
-                                        onChange={(event) =>
-                                            onUpdateDraftItem(itemKey, {
-                                                quantity: event.target.value
-                                            })
-                                        }
-                                        type="text"
-                                        value={draft?.quantity ?? "1"}
-                                    />
-                                    {error ? <p className={styles.quantityError} id={errorId} role="alert">{error}</p> : null}
-                                </td>
-                            </tr>
-                        );
-                    })}
-                </tbody>
-            </table>
-        </div>
+function OrderReturnStatusTag({ order }: { order: OrderSummaryResponse }) {
+    const tag = ORDER_RETURN_STATUS_TAGS[order.returnStatus ?? "NONE"] ?? ORDER_RETURN_STATUS_TAGS.NONE;
+    return (
+        <span className={`inline-flex h-6 items-center whitespace-nowrap rounded-md px-2 text-xs font-black ${tag.className}`}>
+            {order.returnStatusLabel?.trim() || tag.label}
+        </span>
     );
 }
 
-function ReturnReasonForm({
-    draftItems,
-    eligibility,
-    items,
-    onNoteChange,
-    onRefundRequiredChange,
-    onUpdateDraftItem,
-    refundRequired,
-    returnNote
+/** Tóm tắt cố định cạnh nút Tiếp tục: đơn đã chọn, số sản phẩm, giá trị hàng trả tạm tính. */
+function WizardSummary({
+    customer,
+    entries,
+    orderCode,
+    refundRequired
 }: {
-    draftItems: Record<string, ReturnDraftItem>;
-    eligibility: OrderReturnEligibilityResponse | null;
-    items: OrderItemResponse[];
-    onNoteChange: (value: string) => void;
-    onRefundRequiredChange: (value: boolean) => void;
-    onUpdateDraftItem: (
-        itemKey: string,
-        update: Partial<ReturnDraftItem>
-    ) => void;
+    customer: string | null;
+    entries: Array<{ item: OrderItemResponse; quantity: number }>;
+    orderCode: string | null;
     refundRequired: boolean;
-    returnNote: string;
 }) {
-    const selectedEntries = items
-        .map((item, index) => ({
-            index,
-            item
-        }))
-        .filter(({ index, item }) => {
-            return draftItems[getItemKey(item, index)]?.selected;
-        });
+    if (!orderCode) {
+        return <p className={styles.wizardSummaryEmpty}>Chọn đơn hàng để bắt đầu.</p>;
+    }
+    const totalQuantity = entries.reduce((sum, entry) => sum + entry.quantity, 0);
+    // Tạm tính theo đơn giá thực bán của từng dòng; số tiền hoàn chính xác do hệ thống tính khi hoàn tiền.
+    const estimatedValue = entries.reduce((sum, { item, quantity }) => {
+        const lineQuantity = Number(item.quantity) || 0;
+        const unitPrice = lineQuantity > 0 && item.lineTotal != null
+            ? Number(item.lineTotal) / lineQuantity
+            : Number(item.actualUnitPrice ?? item.originalUnitPrice ?? 0);
+        return sum + unitPrice * quantity;
+    }, 0);
 
     return (
-        <div className={styles.reasonForm}>
-            {selectedEntries.map(({ index, item }) => {
-                const itemKey = getItemKey(item, index);
-                const draft = draftItems[itemKey] ?? createDefaultDraftItem();
-
-                return (
-                    <div className={styles.reasonRow} key={itemKey}>
-                        <div className={styles.reasonTitle}>
-                            <strong>{getItemName(item)}</strong>
-                            <span>
-                                {formatReturnQuantity(draft.quantity)} sản phẩm
-                            </span>
-                        </div>
-                        <div className={styles.reasonGrid}>
-                            <label>
-                                <span>Lý do</span>
-                                <select
-                                    onChange={(event) =>
-                                        onUpdateDraftItem(itemKey, {
-                                            reason: event.target.value as ReturnDraftItem["reason"]
-                                        })
-                                    }
-                                    value={draft.reason}
-                                >
-                                    <option value="">Chọn lý do trả hàng</option>
-                                    {RETURN_REASONS.map((reason) => (
-                                        <option key={reason} value={reason}>
-                                            {RETURN_REASON_LABELS[reason]}
-                                        </option>
-                                    ))}
-                                </select>
-                            </label>
-                            <label>
-                                <span>Tình trạng khai báo</span>
-                                <select
-                                    onChange={(event) =>
-                                        onUpdateDraftItem(itemKey, {
-                                            condition: event.target.value as ReturnCondition
-                                        })
-                                    }
-                                    value={draft.condition}
-                                >
-                                    {RETURN_CONDITIONS.map((condition) => (
-                                        <option key={condition} value={condition}>
-                                            {RETURN_CONDITION_LABELS[condition]}
-                                        </option>
-                                    ))}
-                                </select>
-                            </label>
-                            <label className={styles.fullField}>
-                                <span>Ghi chú sản phẩm</span>
-                                <textarea
-                                    onChange={(event) =>
-                                        onUpdateDraftItem(itemKey, {
-                                            note: event.target.value
-                                        })
-                                    }
-                                    placeholder={
-                                        draft.reason === "OTHER"
-                                            ? "Bắt buộc khi chọn lý do khác"
-                                             : "Ghi chú thêm nếu có"
-                                    }
-                                    value={draft.note}
-                                />
-                            </label>
-                        </div>
-                        {draft.reason ? <ReturnPolicy policy={eligibility?.items.find(result => result.orderItemId === item.id && result.reason === draft.reason)?.policy} /> : null}
-                    </div>
-                );
-            })}
-
-            <div style={{ padding: "1rem", background: "#f8fafc", borderRadius: "8px", border: "1px solid #e2e8f0" }}>
-                <label style={{ display: "flex", alignItems: "center", gap: "0.75rem", cursor: "pointer", fontWeight: 600, fontSize: "0.95rem" }}>
-                    <input
-                        checked={refundRequired}
-                        onChange={(event) => onRefundRequiredChange(event.target.checked)}
-                        style={{ width: "18px", height: "18px", cursor: "pointer" }}
-                        type="checkbox"
-                    />
-                    <span>Yêu cầu hoàn tiền cho khách hàng</span>
-                </label>
-                <p style={{ margin: "0.5rem 0 0 2rem", fontSize: "0.85rem", color: "#64748b", lineHeight: 1.4 }}>
-                    {refundRequired
-                        ? "Phiếu hoàn sẽ chuyển sang luồng hoàn tiền sau khi nhận hàng và kiểm kho hoàn tất."
-                        : "Phiếu hoàn KHÔNG phát sinh hoàn tiền (ví dụ: đổi ngang, tặng phẩm, bảo hành). Phiếu sẽ tự động hoàn tất khi kiểm kho 100%."}
-                </p>
+        <dl className={styles.wizardSummary}>
+            <div>
+                <dt>Đơn hàng</dt>
+                <dd>{orderCode}{customer ? ` · ${customer}` : ""}</dd>
             </div>
-
-            <label className={styles.fullField}>
-                <span>Ghi chú phiếu hoàn</span>
-                <textarea
-                    onChange={(event) => onNoteChange(event.target.value)}
-                    placeholder="Ghi chú chung nếu có"
-                    value={returnNote}
-                />
-            </label>
-        </div>
-    );
-}
-
-function ReturnConfirmation({
-    draftItems,
-    items,
-    order,
-    refundRequired,
-    returnNote
-}: {
-    draftItems: Record<string, ReturnDraftItem>;
-    items: OrderItemResponse[];
-    order: OrderDetailResponse;
-    refundRequired: boolean;
-    returnNote: string;
-}) {
-    const selectedEntries = items
-        .map((item, index) => ({
-            index,
-            item
-        }))
-        .filter(({ index, item }) => {
-            return draftItems[getItemKey(item, index)]?.selected;
-        });
-
-    return (
-        <div className={styles.confirmation}>
-            <div className={styles.summaryPanel}>
-                <h3>{getOrderCode(order)}</h3>
-                <p>{getCustomerName(order)}</p>
-                <div style={{ marginTop: "0.5rem", fontSize: "0.9rem", color: refundRequired ? "#166534" : "#b45309", fontWeight: 600 }}>
-                    Chính sách hoàn tiền: {refundRequired ? "Có hoàn tiền" : "Không hoàn tiền (tự động hoàn tất khi kiểm kho)"}
+            <div>
+                <dt>Sản phẩm hoàn</dt>
+                <dd>{entries.length} dòng · SL {totalQuantity.toLocaleString("vi-VN")}</dd>
+            </div>
+            {refundRequired && entries.length > 0 ? (
+                <div>
+                    <dt>Giá trị hàng trả (tạm tính)</dt>
+                    <dd>{formatCurrency(estimatedValue)}</dd>
                 </div>
-                {returnNote.trim() ? <span>{returnNote.trim()}</span> : null}
-            </div>
-
-            <div className={styles.confirmItems}>
-                {selectedEntries.map(({ index, item }) => {
-                    const itemKey = getItemKey(item, index);
-                    const draft = draftItems[itemKey] ?? createDefaultDraftItem();
-
-                    return (
-                        <div className={styles.confirmItem} key={itemKey}>
-                            <strong>{getItemName(item)}</strong>
-                            <span>
-                                SL {formatReturnQuantity(draft.quantity)}
-                            </span>
-                            <small>
-                                {item.skuSnapshot || "--"} ·{" "}
-                                {getReturnReasonLabel(draft.reason || null)} ·{" "}
-                                {getReturnConditionLabel(draft.condition)}
-                            </small>
-                            {draft.note.trim() ? <p>{draft.note.trim()}</p> : null}
-                        </div>
-                    );
-                })}
-            </div>
-        </div>
+            ) : null}
+        </dl>
     );
 }
 

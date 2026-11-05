@@ -35,4 +35,6 @@ public class OrderReturnResponse {
     private BigDecimal remainingQuantity;
     private String inventoryProcessingStatus;
     private String displayStatus;
+    private Boolean isPendingDisposition;
+    private Boolean hasFailedDisposition;
 }

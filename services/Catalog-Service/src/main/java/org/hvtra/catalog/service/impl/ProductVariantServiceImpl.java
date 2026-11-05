@@ -11,7 +11,6 @@ import org.hvtra.commonservice.common_core.util.CodeUtils;
 import org.hvtra.catalog.dto.request.ProductVariantRequest;
 import org.hvtra.catalog.dto.request.SellableConfigRequest;
 import org.hvtra.catalog.dto.request.SellableQuantityAdjustmentRequest;
-import org.hvtra.catalog.client.InventoryClient;
 import org.hvtra.catalog.dto.response.LookupResponse;
 import org.hvtra.catalog.dto.response.PageResponse;
 import org.hvtra.catalog.dto.response.ProductResponse;
@@ -30,6 +29,7 @@ import org.hvtra.catalog.enums.Status;
 import org.hvtra.catalog.exception.BadRequestException;
 import org.hvtra.catalog.exception.ResourceNotFoundException;
 import org.hvtra.catalog.mapper.ProductMapper;
+import org.hvtra.catalog.outbox.publisher.CatalogOutboxPublisher;
 import org.hvtra.catalog.repository.IngredientRepository;
 import org.hvtra.catalog.repository.ProductRepository;
 import org.hvtra.catalog.repository.ProductVariantRepository;
@@ -76,29 +76,29 @@ public class ProductVariantServiceImpl implements ProductVariantService {
     private final ProductVariantRepository repository;
     private final ProductRepository productRepository;
     private final ProductMapper mapper;
-    private final InventoryClient inventoryClient;
     private final UnitRepository unitRepository;
     private final BusinessSequenceRepository businessSequenceRepository;
     private final IngredientRepository ingredientRepository;
     private final SellableAdjustmentRepository adjustmentRepository;
+    private final CatalogOutboxPublisher catalogOutboxPublisher;
 
     public ProductVariantServiceImpl(
             ProductVariantRepository repository,
             ProductRepository productRepository,
             ProductMapper mapper,
-            InventoryClient inventoryClient,
             UnitRepository unitRepository,
             BusinessSequenceRepository businessSequenceRepository,
             IngredientRepository ingredientRepository,
-            SellableAdjustmentRepository adjustmentRepository) {
+            SellableAdjustmentRepository adjustmentRepository,
+            CatalogOutboxPublisher catalogOutboxPublisher) {
         this.repository = repository;
         this.productRepository = productRepository;
         this.mapper = mapper;
-        this.inventoryClient = inventoryClient;
         this.unitRepository = unitRepository;
         this.businessSequenceRepository = businessSequenceRepository;
         this.ingredientRepository = ingredientRepository;
         this.adjustmentRepository = adjustmentRepository;
+        this.catalogOutboxPublisher = catalogOutboxPublisher;
     }
 
     @Override
@@ -141,6 +141,7 @@ public class ProductVariantServiceImpl implements ProductVariantService {
 
             var predicates = new ArrayList<Predicate>();
             predicates.add(cb.isFalse(root.get("customBundle")));
+            predicates.add(cb.isFalse(root.get("isDeleted")));
             if (keyword != null && !keyword.isBlank()) {
                 String pattern = "%" + keyword.toLowerCase() + "%";
                 predicates.add(cb.or(
@@ -271,22 +272,9 @@ public class ProductVariantServiceImpl implements ProductVariantService {
 
         ProductVariant savedVariant = repository.saveAndFlush(variant);
 
-        Category category = product.getCategory();
-        Integer defaultReorder = (category != null && category.getDefaultReorderPoint() != null)
-                ? category.getDefaultReorderPoint()
-                : 10;
-        Integer reorderPoint = request.reorderPoint() != null ? request.reorderPoint() : defaultReorder;
-
-        inventoryClient.createProductVariantItem(
-                InventoryClient.CreateInventoryItemRequest.builder()
-                        .status(savedVariant.getStatus().toString())
-                        .unitId(savedVariant.getUnit() != null ? savedVariant.getUnit().getId() : null)
-                        .referenceId(savedVariant.getId())
-                        .referenceCode(savedVariant.getSku())
-                        .name(savedVariant.getVariantName())
-                        .itemType(InventoryItemType.PRODUCT_VARIANT.toString())
-                        .reorderPoint(reorderPoint)
-                        .build());
+        if (catalogOutboxPublisher != null) {
+            catalogOutboxPublisher.publishVariantCreated(savedVariant);
+        }
         return mapper.toVariantResponseForNewlyCreated(savedVariant);
     }
 
@@ -298,7 +286,9 @@ public class ProductVariantServiceImpl implements ProductVariantService {
         apply(variant, request);
         ProductVariant savedVariant = repository.save(variant);
 
-        syncInventoryItem(savedVariant);
+        if (catalogOutboxPublisher != null) {
+            catalogOutboxPublisher.publishVariantUpdated(savedVariant);
+        }
 
         return mapper.toVariantResponse(savedVariant);
     }
@@ -310,7 +300,9 @@ public class ProductVariantServiceImpl implements ProductVariantService {
         requireNotCustomBundle(variant);
         variant.setStatus(status);
         ProductVariant savedVariant = repository.save(variant);
-        syncInventoryItem(savedVariant);
+        if (catalogOutboxPublisher != null) {
+            catalogOutboxPublisher.publishVariantUpdated(savedVariant);
+        }
         return mapper.toVariantResponse(savedVariant);
     }
 
@@ -326,7 +318,11 @@ public class ProductVariantServiceImpl implements ProductVariantService {
         variant.setSellableQuantity(request.sellableQuantity());
         variant.setProductionThreshold(request.productionThreshold());
         variant.setProductionBatchQuantity(request.productionBatchQuantity());
-        return mapper.toVariantResponse(repository.save(variant));
+        ProductVariant saved = repository.save(variant);
+        if (catalogOutboxPublisher != null) {
+            catalogOutboxPublisher.publishVariantUpdated(saved);
+        }
+        return mapper.toVariantResponse(saved);
     }
 
     @Override
@@ -425,29 +421,6 @@ public class ProductVariantServiceImpl implements ProductVariantService {
         adjustmentRepository.save(adjustment);
     }
 
-    private void syncInventoryItem(ProductVariant variant) {
-        if (variant == null || variant.getId() == null) {
-            return;
-        }
-        try {
-            inventoryClient.updateInventoryItemByReference(
-                    InventoryItemType.PRODUCT_VARIANT.toString(),
-                    variant.getId(),
-                    InventoryClient.CreateInventoryItemRequest.builder()
-                            .referenceId(variant.getId())
-                            .referenceCode(variant.getSku())
-                            .name(variant.getVariantName())
-                            .itemType(InventoryItemType.PRODUCT_VARIANT.toString())
-                            .unitId(variant.getUnit() != null ? variant.getUnit().getId() : null)
-                            .status(variant.getStatus() != null ? variant.getStatus().toString() : "ACTIVE")
-                            .reorderPoint(10)
-                            .build()
-            );
-        } catch (Exception e) {
-            log.error("Failed to sync inventory item for variant id: {}", variant.getId(), e);
-        }
-    }
-
     /** Variant hệ thống "Trà đóng theo yêu cầu" do migration tạo; không cho sửa/xoá qua API quản lý. */
     private void requireNotCustomBundle(ProductVariant variant) {
         if (variant.isCustomBundle()) {
@@ -456,8 +429,12 @@ public class ProductVariantServiceImpl implements ProductVariantService {
     }
 
     private ProductVariant get(UUID id) {
-        return repository.findById(id)
+        ProductVariant variant = repository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("ProductVariant", id));
+        if (Boolean.TRUE.equals(variant.getIsDeleted())) {
+            throw new ResourceNotFoundException("ProductVariant", id);
+        }
+        return variant;
     }
 
     private void apply(ProductVariant variant, ProductVariantRequest request) {
@@ -1021,5 +998,8 @@ public class ProductVariantServiceImpl implements ProductVariantService {
         requireNotCustomBundle(variant);
         variant.setIsDeleted(true);
         repository.save(variant);
+        if (catalogOutboxPublisher != null) {
+            catalogOutboxPublisher.publishVariantDeleted(variant);
+        }
     }
 }

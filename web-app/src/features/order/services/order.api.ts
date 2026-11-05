@@ -9,6 +9,7 @@ import type {
     OrderSummaryResponse,
     UpdateOrderStatusRequest
 } from "../types/order.types";
+import type { OrderImportRequest, OrderImportResponse } from "../types/order-import.types";
 import type { OrderExportQueryParams } from "../utils/order-export-filters";
 
 type InvoiceExportQueryParams = Pick<
@@ -96,3 +97,11 @@ export const orderApi = {
     updateOrderStatus,
     cancelOrder
 };
+
+export function importOrders(input: OrderImportRequest) {
+    return apiClient.post<OrderImportResponse, OrderImportRequest>("/orders/import", input, {
+        // Nhập thật tạo từng đơn kèm thanh toán và giữ tồn kho, có thể mất vài chục giây.
+        timeoutMs: input.dryRun ? 60_000 : 300_000,
+        retry: false
+    });
+}

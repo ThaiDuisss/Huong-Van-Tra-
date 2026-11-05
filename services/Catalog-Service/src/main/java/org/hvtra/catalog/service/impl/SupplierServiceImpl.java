@@ -242,8 +242,12 @@ public class SupplierServiceImpl implements SupplierService {
     }
 
     private Supplier get(UUID id) {
-        return repository.findById(id)
+        Supplier supplier = repository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Supplier", id));
+        if (Boolean.TRUE.equals(supplier.getIsDeleted())) {
+            throw new ResourceNotFoundException("Supplier", id);
+        }
+        return supplier;
     }
 
     @Override

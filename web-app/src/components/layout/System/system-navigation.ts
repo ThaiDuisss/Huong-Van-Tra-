@@ -36,6 +36,7 @@ import {
   ACCOUNT_ROLES,
   ACTION_LOG_ROLES,
   AI_REPORT_ROLES,
+  POS_WORKSPACE_ROLES,
   BACKOFFICE_ROLES,
   CUSTOMER_ROLES,
   INVENTORY_OPERATION_ROLES,
@@ -154,13 +155,13 @@ export const systemNavigationItems: SystemNavigationItem[] = [
         icon: Ruler,
         roles: [ROLES.SUPER_ADMIN, ROLES.MANAGER],
       },
-      {
-        key: "catalog-price-lists",
-        label: "Bảng giá",
-        to: routePaths.priceLists,
-        icon: WalletCards,
-        roles: PRICE_LIST_ROLES,
-      },
+      // {
+      //   key: "catalog-price-lists",
+      //   label: "Bảng giá",
+      //   to: routePaths.priceLists,
+      //   icon: WalletCards,
+      //   roles: PRICE_LIST_ROLES,
+      // },
     ],
   },
   {
@@ -226,13 +227,6 @@ export const systemNavigationItems: SystemNavigationItem[] = [
         icon: Warehouse,
         roles: INVENTORY_ROLES,
         children: [
-          // {
-          //   key: "inventory-balances",
-          //   label: "Tồn kho hiện tại",
-          //   icon: Warehouse,
-          //   to: routePaths.inventoryBalances,
-          //   roles: INVENTORY_ROLES,
-          // },
           {
             key: "warehouse-inventory",
             label: "Tồn kho kho tổng",
@@ -396,11 +390,11 @@ export const systemNavigationItems: SystemNavigationItem[] = [
         roles: AI_REPORT_ROLES,
       },
       {
-        key: "ingredient-demo",
-        label: "Gợi ý nguyên liệu (Demo)",
-        to: routePaths.ingredientDemo,
+        key: "product-recommendations",
+        label: "AI gợi ý sản phẩm",
+        to: routePaths.productRecommendations,
         icon: Sparkles,
-        roles: AI_REPORT_ROLES,
+        roles: POS_WORKSPACE_ROLES,
       },
     ],
   },

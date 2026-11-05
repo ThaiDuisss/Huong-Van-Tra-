@@ -18,6 +18,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.Arrays;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
+import static org.mockito.Mockito.*;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -277,6 +281,47 @@ class OrderReturnPhysicalProgressResolverTest {
         assertFalse(prog2.physicalDone());
         assertEquals("PROCESSING", prog2.inventoryProcessingStatus());
         assertTrue(prog2.hasPendingCommand());
+    }
+
+    @ParameterizedTest
+    @CsvSource({"-2,0,3,false", "0,0,3,false", "1.25,1.25,1.75,false", "3,3,0,true", "9,3,0,true"})
+    void batchRejectsMalformedAggregateRowsAndClampsOnlyTheMatchingReturnItem(String raw, String processed, String remaining, boolean done) {
+        UUID itemId = UUID.randomUUID();
+        orderReturn.setItems(List.of(createItem(itemId, new BigDecimal("3"), false),
+                createItem(UUID.randomUUID(), null, false), createItem(UUID.randomUUID(), BigDecimal.ZERO, false),
+                createItem(UUID.randomUUID(), new BigDecimal("-1"), false)));
+        List<UUID> ids = List.of(returnId);
+        when(commandRepository.findCommandStatusesByReturnIds(ids)).thenReturn(Arrays.asList(null, new Object[]{},
+                new Object[]{"bad-return-id", OrderReturnInventoryCommandStatus.FAILED},
+                new Object[]{returnId, "bad-status"}, new Object[]{returnId, OrderReturnInventoryCommandStatus.PROCESSED}));
+        when(commandRepository.sumQuantityByReturnIdsAndCommandStatus(ids, OrderReturnInventoryCommandStatus.PROCESSED))
+                .thenReturn(Arrays.asList(null, new Object[]{}, new Object[]{"bad-return-id", itemId, BigDecimal.TEN},
+                        new Object[]{returnId, "bad-item-id", BigDecimal.TEN}, new Object[]{returnId, itemId, "bad-quantity"},
+                        new Object[]{returnId, itemId, new BigDecimal(raw)}));
+        OrderReturn missingId = new OrderReturn();
+        var result = resolver.resolveBatch(Arrays.asList(null, missingId, orderReturn, orderReturn));
+        assertEquals(1, result.size());
+        var progress = result.get(returnId);
+        assertEquals(0, new BigDecimal(processed).compareTo(progress.processedQuantity()));
+        assertEquals(0, new BigDecimal(remaining).compareTo(progress.remainingQuantity()));
+        assertEquals(0, progress.requiredQuantity().subtract(progress.processedQuantity()).compareTo(progress.remainingQuantity()));
+        assertEquals(done, progress.physicalDone());
+        assertFalse(progress.hasFailedCommand());
+        assertFalse(progress.hasPendingCommand());
+        verify(commandRepository).findCommandStatusesByReturnIds(ids);
+        verify(commandRepository).sumQuantityByReturnIdsAndCommandStatus(ids, OrderReturnInventoryCommandStatus.PROCESSED);
+        verifyNoInteractions(orderReturnRepository);
+    }
+
+    @Test
+    void batchByIdsLoadsExactReturnIdsAndMissingRecordsStayEmptyWithoutInventingCompletion() {
+        when(orderReturnRepository.findByIdInAndIsDeletedFalseWithItems(List.of(returnId))).thenReturn(List.of());
+        assertTrue(resolver.resolveBatchByIds(List.of(returnId)).isEmpty());
+        assertTrue(resolver.resolveBatchByIds(null).isEmpty());
+        assertTrue(resolver.resolveBatchByIds(List.of()).isEmpty());
+        assertTrue(resolver.resolveBatch(Arrays.asList(null, new OrderReturn())).isEmpty());
+        assertFalse(resolver.resolve(UUID.randomUUID()).physicalDone());
+        verifyNoInteractions(commandRepository);
     }
 
     @Test

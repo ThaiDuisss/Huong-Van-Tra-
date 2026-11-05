@@ -27,6 +27,11 @@ public interface InventoryItemRepository
 
     Optional<InventoryItem> findByReferenceIdAndItemType(UUID referenceId, InventoryItemType itemType);
 
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select i from InventoryItem i where i.referenceId = :referenceId and i.itemType = :itemType")
+    Optional<InventoryItem> findByReferenceIdAndItemTypeForUpdate(
+            @Param("referenceId") UUID referenceId, @Param("itemType") InventoryItemType itemType);
+
     @Lock(LockModeType.PESSIMISTIC_READ)
     @Query("select i from InventoryItem i where i.referenceId = :referenceId and i.itemType = :itemType")
     Optional<InventoryItem> findByReferenceIdAndItemTypeLocked(

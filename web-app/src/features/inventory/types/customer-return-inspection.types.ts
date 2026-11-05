@@ -64,9 +64,9 @@ export interface CustomerReturnInspection {
 export interface CustomerReturnInspectionListQuery {
     page: number;
     size: number;
-    returnCode: string;
-    orderCode: string;
-    status: "ALL" | CustomerReturnInspectionStatus;
+    returnCode?: string;
+    orderCode?: string;
+    status?: "ALL" | CustomerReturnInspectionStatus;
     fromDate?: string;
     toDate?: string;
 }

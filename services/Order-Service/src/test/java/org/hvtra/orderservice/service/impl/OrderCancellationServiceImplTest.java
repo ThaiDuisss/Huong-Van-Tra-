@@ -33,6 +33,7 @@ import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.verify;
 
 @ExtendWith(MockitoExtension.class)
 class OrderCancellationServiceImplTest {
@@ -138,6 +139,34 @@ class OrderCancellationServiceImplTest {
         );
 
         assertNotNull(method.getAnnotation(Transactional.class));
+    }
+
+    @Test
+    void unavailablePaymentSessionDoesNotPreventCancellationButMarksWaitingPaymentFailed() {
+        UUID id = UUID.randomUUID();
+        Order order = order(id, OrderStatus.PENDING_PAYMENT, PaymentStatus.WAITING_PAYMENT);
+        when(orderRepository.findByIdAndIsDeletedFalse(id)).thenReturn(Optional.of(order));
+        when(orderRepository.save(order)).thenReturn(order);
+        doThrow(new IllegalStateException("payment unavailable")).when(paymentClient).cancelPendingPayment(id);
+        CancelOrderRequest request = new CancelOrderRequest();
+        request.setReason("Customer cancelled");
+        service.cancelOrder(id, request);
+        assertEquals(OrderStatus.CANCELLED, order.getStatus());
+        assertEquals(PaymentStatus.FAILED, order.getPaymentStatus());
+        verify(orderRepository).save(order);
+        verify(orderStatusHistoryWriter).write(order, OrderStatus.PENDING_PAYMENT, OrderStatus.CANCELLED, request.getReason(), null);
+    }
+
+    @Test
+    void unpaidCancellationDoesNotCallPaymentOrInventFailedPayment() {
+        UUID id = UUID.randomUUID();
+        Order order = order(id, OrderStatus.DRAFT, PaymentStatus.UNPAID);
+        when(orderRepository.findByIdAndIsDeletedFalse(id)).thenReturn(Optional.of(order));
+        when(orderRepository.save(order)).thenReturn(order);
+        service.cancelOrder(id, new CancelOrderRequest());
+        assertEquals(OrderStatus.CANCELLED, order.getStatus());
+        assertEquals(PaymentStatus.UNPAID, order.getPaymentStatus());
+        verifyNoInteractions(paymentClient);
     }
 
     private Order order(UUID orderId, OrderStatus status, PaymentStatus paymentStatus) {

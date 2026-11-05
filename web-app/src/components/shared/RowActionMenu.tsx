@@ -90,7 +90,8 @@ export function RowActionMenu({
         aria-haspopup="menu"
         aria-label={triggerLabel}
         className={styles.trigger}
-        onClick={() => {
+        onClick={(event) => {
+          event.stopPropagation();
           focusLastItemRef.current = false;
           onOpenChange(!isOpen);
         }}

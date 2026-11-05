@@ -30,6 +30,10 @@ import org.hvtra.iventoryservice.domain.enums.InventoryReferenceType;
 import org.hvtra.iventoryservice.domain.enums.InventoryStatus;
 import org.hvtra.iventoryservice.domain.enums.InventoryTransactionType;
 import org.hvtra.iventoryservice.domain.support.InventoryLocationSaleability;
+import org.hvtra.iventoryservice.integration.identity.client.IdentityClient;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
@@ -41,17 +45,21 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Set;
-import java.util.UUID;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
 @Service
 @Transactional(readOnly = true)
 public class InventoryTransactionServiceImpl implements InventoryTransactionService {
+    private static final Logger log = LoggerFactory.getLogger(InventoryTransactionServiceImpl.class);
     private static final DateTimeFormatter CODE_DATE = DateTimeFormatter.BASIC_ISO_DATE;
 
     private final InventoryTransactionRepository transactionRepository;
@@ -60,6 +68,7 @@ public class InventoryTransactionServiceImpl implements InventoryTransactionServ
     private final InventoryBalanceRepository balanceRepository;
     private final InventoryBatchRepository batchRepository;
     private final InventoryTransactionMapper mapper;
+    private final IdentityClient identityClient;
 
     public InventoryTransactionServiceImpl(
             InventoryTransactionRepository transactionRepository,
@@ -68,12 +77,25 @@ public class InventoryTransactionServiceImpl implements InventoryTransactionServ
             InventoryBalanceRepository balanceRepository,
             InventoryBatchRepository batchRepository,
             InventoryTransactionMapper mapper) {
+        this(transactionRepository, itemRepository, locationRepository, balanceRepository, batchRepository, mapper, null);
+    }
+
+    @Autowired
+    public InventoryTransactionServiceImpl(
+            InventoryTransactionRepository transactionRepository,
+            InventoryItemRepository itemRepository,
+            InventoryLocationRepository locationRepository,
+            InventoryBalanceRepository balanceRepository,
+            InventoryBatchRepository batchRepository,
+            InventoryTransactionMapper mapper,
+            @Autowired(required = false) IdentityClient identityClient) {
         this.transactionRepository = transactionRepository;
         this.itemRepository = itemRepository;
         this.locationRepository = locationRepository;
         this.balanceRepository = balanceRepository;
         this.batchRepository = batchRepository;
         this.mapper = mapper;
+        this.identityClient = identityClient;
     }
 
     @Override
@@ -186,9 +208,18 @@ public class InventoryTransactionServiceImpl implements InventoryTransactionServ
 
     @Override
     public InventoryTransactionResponse findById(UUID id) {
-        InventoryTransaction transaction = transactionRepository.findById(id)
+        InventoryTransaction transaction = transactionRepository.findByIdWithLines(id)
+                .or(() -> transactionRepository.findById(id))
                 .orElseThrow(() -> new ResourceNotFoundException("Inventory transaction", id));
-        return mapper.toResponse(transaction);
+
+        Map<UUID, String> userNames = transaction.getCreatedBy() != null
+                ? fetchUserNames(List.of(transaction.getCreatedBy()))
+                : Map.of();
+        Map<UUID, String> branchNames = transaction.getBranchId() != null
+                ? fetchBranchNames(List.of(transaction.getBranchId()))
+                : Map.of();
+
+        return mapper.toResponse(transaction, userNames, branchNames);
     }
 
     @Override
@@ -259,7 +290,75 @@ public class InventoryTransactionServiceImpl implements InventoryTransactionServ
                 ? Map.of()
                 : transactionRepository.findAllWithLinesByIdIn(ids).stream()
                         .collect(Collectors.toMap(InventoryTransaction::getId, Function.identity()));
-        return PageResponse.from(page.map(t -> mapper.toResponse(withLines.getOrDefault(t.getId(), t))));
+
+        Set<UUID> userIds = page.getContent().stream()
+                .map(InventoryTransaction::getCreatedBy)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+        Map<UUID, String> userNames = fetchUserNames(userIds);
+
+        Set<UUID> branchIds = page.getContent().stream()
+                .map(InventoryTransaction::getBranchId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+        Map<UUID, String> branchNames = fetchBranchNames(branchIds);
+
+        return PageResponse.from(page.map(t -> {
+            InventoryTransaction tx = withLines.getOrDefault(t.getId(), t);
+            return mapper.toResponse(tx, userNames, branchNames);
+        }));
+    }
+
+    private Map<UUID, String> fetchUserNames(Collection<UUID> userIds) {
+        Map<UUID, String> userNameMap = new HashMap<>();
+        if (identityClient == null || userIds == null || userIds.isEmpty()) {
+            return userNameMap;
+        }
+        try {
+            List<IdentityClient.UserBriefResponse> users = identityClient.getUsersBatch(
+                    userIds.stream().map(UUID::toString).toList());
+            if (users != null) {
+                for (IdentityClient.UserBriefResponse u : users) {
+                    UUID userId = u != null ? tryParseUuid(u.keycloakSubject()) : null;
+                    String name = u == null ? null
+                            : (u.fullName() != null && !u.fullName().isBlank()) ? u.fullName() : u.username();
+                    if (userId != null && name != null && !name.isBlank()) {
+                        userNameMap.put(userId, name);
+                    }
+                }
+            }
+        } catch (Exception exception) {
+            log.warn("Không lấy được tên người dùng từ Identity-Service: {}", exception.getMessage());
+        }
+        return userNameMap;
+    }
+
+    private Map<UUID, String> fetchBranchNames(Collection<UUID> branchIds) {
+        Map<UUID, String> branchNames = new HashMap<>();
+        if (branchIds == null || branchIds.isEmpty()) {
+            return branchNames;
+        }
+        try {
+            List<InventoryLocation> warehouses = locationRepository.findAll((root, query, cb) -> cb.and(
+                    root.get("branchId").in(branchIds),
+                    cb.equal(root.get("type"), InventoryLocationType.WAREHOUSE),
+                    cb.equal(root.get("status"), InventoryStatus.ACTIVE)
+            ));
+            for (InventoryLocation w : warehouses) {
+                branchNames.put(w.getBranchId(), w.getName());
+            }
+        } catch (Exception exception) {
+            log.warn("Không lấy được tên chi nhánh: {}", exception.getMessage());
+        }
+        return branchNames;
+    }
+
+    private UUID tryParseUuid(String value) {
+        try {
+            return value != null && !value.isBlank() ? UUID.fromString(value.trim()) : null;
+        } catch (IllegalArgumentException ignored) {
+            return null;
+        }
     }
 
     private InventoryTransaction createTransaction(

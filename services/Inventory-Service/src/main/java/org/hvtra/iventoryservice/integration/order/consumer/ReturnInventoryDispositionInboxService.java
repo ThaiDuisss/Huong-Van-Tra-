@@ -546,6 +546,7 @@ public class ReturnInventoryDispositionInboxService {
     private TransactionTemplate transactionTemplate(int propagationBehavior) {
         TransactionTemplate template = new TransactionTemplate(transactionManager);
         template.setPropagationBehavior(propagationBehavior);
+        template.setIsolationLevel(TransactionDefinition.ISOLATION_READ_COMMITTED);
         return template;
     }
 

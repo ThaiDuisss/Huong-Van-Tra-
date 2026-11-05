@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { ArrowLeftRight, X } from "lucide-react";
 
+import { PosVariantSelector } from "../product/PosVariantSelector";
+import { posVariantSelectionError } from "../../services/posProductSelection";
 import { posProductApi } from "../../services/posProduct.api";
 import type { SaleCartItem, SaleProductPreview } from "../../types/sale.types";
 
@@ -58,9 +60,9 @@ export function UnitSwitchDialog({
     const others = (variants ?? []).filter(
         (variant) => (variant.productVariantId ?? variant.id) !== currentVariantId
     );
-    const selected = others.find((variant) => variant.id === selectedId) ?? null;
+    const selected = others.find((variant) => (variant.productVariantId ?? variant.id) === selectedId) ?? null;
     const quantity = Number(draft);
-    const canSwitch = Boolean(selected) && Number.isInteger(quantity) && quantity > 0 && !submitting;
+    const canSwitch = Boolean(selected && !posVariantSelectionError(selected)) && Number.isInteger(quantity) && quantity > 0 && !submitting;
 
     return (
         <div className="fixed inset-0 z-50 grid place-items-center bg-black/62 px-4" role="presentation">
@@ -103,38 +105,13 @@ export function UnitSwitchDialog({
                             {loadError || "Sản phẩm này chưa có đơn vị đóng gói nào khác trong Catalog."}
                         </p>
                     ) : (
-                        <ul className="grid gap-2">
-                            {others.map((variant) => {
-                                const active = variant.id === selectedId;
-
-                                return (
-                                    <li key={variant.id}>
-                                        <button
-                                            className={`grid w-full grid-cols-[1fr_auto] items-center gap-3 rounded-xl border px-4 py-3 text-left ${
-                                                active
-                                                    ? "border-[#159734] bg-[#eaf7ec]"
-                                                    : "border-[#e8eef0] hover:border-[#b9dfc8]"
-                                            }`}
-                                            onClick={() => setSelectedId(variant.id)}
-                                            type="button"
-                                        >
-                                            <span className="grid gap-0.5">
-                                                <strong className="text-sm font-black text-[#172317]">
-                                                    {variant.variant || variant.name}
-                                                </strong>
-                                                <small className="text-xs font-semibold text-[#697684]">
-                                                    {variant.sku} · Trên kệ {variant.shelfQuantity} · Trong kho{" "}
-                                                    {variant.warehouseQuantity}
-                                                </small>
-                                            </span>
-                                            <strong className="text-sm font-black tabular-nums text-[#172317]">
-                                                {formatCurrency(variant.price)}
-                                            </strong>
-                                        </button>
-                                    </li>
-                                );
-                            })}
-                        </ul>
+                        <PosVariantSelector
+                            variants={others}
+                            selectedId={selectedId}
+                            disabled={submitting}
+                            onSelect={setSelectedId}
+                            formatCurrency={formatCurrency}
+                        />
                     )}
 
                     {selected ? (

@@ -12,10 +12,13 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.MockedStatic;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.Instant;
+import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -27,6 +30,10 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.mockStatic;
+import static org.mockito.Mockito.CALLS_REAL_METHODS;
+import static org.mockito.Mockito.inOrder;
 
 @ExtendWith(MockitoExtension.class)
 class OrderReturnInventoryCommandReconciliationWriterTest {
@@ -317,5 +324,90 @@ class OrderReturnInventoryCommandReconciliationWriterTest {
         assertEquals(OrderReturnInventoryCommandStatus.FAILED, command.getStatus());
         verify(commandRepository, never()).saveAndFlush(any());
         verify(physicalCompletionHandler, never()).recordPhysicalCompletion(any(), any(), any());
+    }
+
+    @Test
+    void absentCommandIdentityAndDeprecatedReturnLevelEvidenceCannotWriteCommands() {
+        writer.reconcileCommand(null);
+        writer.reconcileCommand(new OrderReturnInventoryCommandReconciliationWriter.CommandEvidence(null, null, null, null, null, null, null));
+        writer.reconcileCommands(null);
+        writer.reconcileCommands(List.of());
+        writer.reconcileCommands(Arrays.asList(null,
+                new OrderReturnInventoryCommandReconciliationWriter.CommandEvidence(null, null, null, null, null, null, null)));
+        writer.reconcileCompletedReturns(null);
+        writer.reconcileCompletedReturns(Map.of());
+        verifyNoInteractions(commandRepository, physicalCompletionHandler);
+    }
+
+    @Test
+    void duplicateEvidenceKeepsLastStateAndLocksCommandsInDeterministicOrder() {
+        UUID firstId = new UUID(0, 1);
+        UUID secondId = new UUID(0, 2);
+        command.setCommandId(firstId);
+        OrderReturnInventoryCommand second = new OrderReturnInventoryCommand();
+        second.setCommandId(secondId);
+        second.setStatus(OrderReturnInventoryCommandStatus.PENDING);
+        when(commandRepository.findByCommandIdForUpdate(firstId)).thenReturn(Optional.of(command));
+        when(commandRepository.findByCommandIdForUpdate(secondId)).thenReturn(Optional.of(second));
+        Instant now = Instant.parse("2026-11-03T00:00:00Z");
+        writer.reconcileCommands(List.of(
+                new OrderReturnInventoryCommandReconciliationWriter.CommandEvidence(secondId, ReturnDispositionReconciliationStatus.PROCESSING, null, null, null, null, null),
+                new OrderReturnInventoryCommandReconciliationWriter.CommandEvidence(firstId, ReturnDispositionReconciliationStatus.FAILED, null, null, now, "old", "old"),
+                new OrderReturnInventoryCommandReconciliationWriter.CommandEvidence(firstId, ReturnDispositionReconciliationStatus.PROCESSED, null, inspectionId, now, null, null)));
+        var sequence = inOrder(commandRepository);
+        sequence.verify(commandRepository).findByCommandIdForUpdate(firstId);
+        sequence.verify(commandRepository).saveAndFlush(command);
+        sequence.verify(commandRepository).findByCommandIdForUpdate(secondId);
+        assertEquals(OrderReturnInventoryCommandStatus.PROCESSED, command.getStatus());
+        assertEquals(OrderReturnInventoryCommandStatus.PENDING, second.getStatus());
+        assertNull(command.getFailureCode());
+    }
+
+    @Test
+    void failedEvidenceWithoutOptionalDetailsUsesControlledTimeAndFailureDefaults() {
+        when(commandRepository.findByCommandIdForUpdate(commandId)).thenReturn(Optional.of(command));
+        Instant now = Instant.parse("2026-11-03T00:00:00Z");
+        try (MockedStatic<Instant> clock = mockStatic(Instant.class, CALLS_REAL_METHODS)) {
+            clock.when(Instant::now).thenReturn(now);
+            writer.reconcileCommand(new OrderReturnInventoryCommandReconciliationWriter.CommandEvidence(
+                    commandId, ReturnDispositionReconciliationStatus.FAILED, null, null, null, null, null));
+        }
+        assertEquals(OrderReturnInventoryCommandStatus.FAILED, command.getStatus());
+        assertEquals("RECONCILED_FAILED", command.getFailureCode());
+        assertEquals("Failed in inventory", command.getFailureReason());
+        assertEquals(now, command.getFailedAt());
+        verifyNoInteractions(physicalCompletionHandler);
+    }
+
+    @Test
+    void postedInspectionWithoutReturnReferencePreservesInspectionAndDoesNotCompleteUnrelatedReturn() {
+        command.setOrderReturn(null);
+        command.setInspectionId(inspectionId);
+        when(commandRepository.findByCommandIdForUpdate(commandId)).thenReturn(Optional.of(command));
+        Instant now = Instant.parse("2026-11-03T00:00:00Z");
+        try (MockedStatic<Instant> clock = mockStatic(Instant.class, CALLS_REAL_METHODS)) {
+            clock.when(Instant::now).thenReturn(now);
+            writer.reconcileCommand(new OrderReturnInventoryCommandReconciliationWriter.CommandEvidence(
+                    commandId, ReturnDispositionReconciliationStatus.PROCESSING, "posted", null, null, null, null));
+        }
+        assertEquals(OrderReturnInventoryCommandStatus.PROCESSED, command.getStatus());
+        assertEquals(now, command.getProcessedAt());
+        assertEquals(inspectionId, command.getInspectionId());
+        verifyNoInteractions(physicalCompletionHandler);
+    }
+
+    @Test
+    void failedReplayAndUnknownLocalStatusCannotOverwriteTerminalState() {
+        command.setStatus(OrderReturnInventoryCommandStatus.FAILED);
+        when(commandRepository.findByCommandIdForUpdate(commandId)).thenReturn(Optional.of(command));
+        var failed = new OrderReturnInventoryCommandReconciliationWriter.CommandEvidence(
+                commandId, ReturnDispositionReconciliationStatus.FAILED, null, null, null, "new", "new");
+        writer.reconcileCommand(failed);
+        assertEquals(OrderReturnInventoryCommandStatus.FAILED, command.getStatus());
+        command.setStatus(null);
+        writer.reconcileCommand(failed);
+        assertNull(command.getStatus());
+        verify(commandRepository, never()).saveAndFlush(any());
+        verifyNoInteractions(physicalCompletionHandler);
     }
 }

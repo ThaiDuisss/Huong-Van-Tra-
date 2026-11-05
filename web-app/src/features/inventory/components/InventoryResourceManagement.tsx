@@ -49,6 +49,7 @@ export interface InventoryFilter {
     options: Array<{ label: string; value: string }>;
     onChange(value: string): void;
     render?: ReactNode;
+    isTop?: boolean;
 }
 
 export interface InventoryResourceManagementProps<T extends RowBase, S extends string = string> {
@@ -191,7 +192,22 @@ export function InventoryResourceManagement<T extends RowBase, S extends string 
     const [activeActionMenuId, setActiveActionMenuId] = useState<string | null>(null);
 
     const activeFilters = filters ?? [];
-    const remainingFilters = activeFilters.filter(f => f.label !== "Loại vị trí" && f.label !== "Trạng thái" && f.label !== "Kệ hàng" && f.label !== "Đơn vị tính" && f.label !== "Sản phẩm" && f.label !== "Danh mục" && f.label !== "Kho hàng" && f.label !== "Nhà cung cấp" && f.label !== "Kho nhận");
+    const isTopFilter = (f: InventoryFilter) =>
+        Boolean(
+            f.isTop ||
+            f.label === "Loại vị trí" ||
+            f.label === "Trạng thái" ||
+            f.label === "Kệ hàng" ||
+            f.label === "Đơn vị tính" ||
+            f.label === "Sản phẩm" ||
+            f.label === "Danh mục" ||
+            f.label === "Kho hàng" ||
+            f.label === "Nhà cung cấp" ||
+            f.label === "Kho nhận" ||
+            f.label === "Loại tham chiếu"
+        );
+    const topFilters = activeFilters.filter(isTopFilter);
+    const remainingFilters = activeFilters.filter((f) => !isTopFilter(f));
     const hasRemainingFilters = remainingFilters.length > 0;
 
     async function submitForm(values: FormValues) {
@@ -270,10 +286,7 @@ export function InventoryResourceManagement<T extends RowBase, S extends string 
             <div className="flex flex-col rounded-2xl bg-white p-4 shadow-pos-card border border-neutral-100">
                 {searchPlaceholder ? (
                     <div className={`${hasRemainingFilters ? "border-b border-[#f3f5f7]" : ""} pb-2`}>
-                        {(() => {
-                            const topFilters = activeFilters.filter(f => f.label === "Loại vị trí" || f.label === "Trạng thái" || f.label === "Kệ hàng" || f.label === "Đơn vị tính" || f.label === "Sản phẩm" || f.label === "Danh mục" || f.label === "Kho hàng" || f.label === "Nhà cung cấp" || f.label === "Kho nhận");
-                            return (
-                                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 justify-between">
+                        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 justify-between">
                                     <div className="relative flex-1">
                                         <SearchBox
                                             value={query}
@@ -310,10 +323,8 @@ export function InventoryResourceManagement<T extends RowBase, S extends string 
                                         </div>
                                     )}
                                 </div>
-                            );
-                        })()}
-                    </div>
-                ) : null}
+                            </div>
+                        ) : null}
 
                 {(() => {
                     if (!hasRemainingFilters) return null;
@@ -647,12 +658,20 @@ export function InventoryResourceManagement<T extends RowBase, S extends string 
                                         </div>
                                     </div>
                                     <div className="mt-6 grid gap-4">
-                                        {((selectedItem as any).code || (selectedItem as any).id) && (
-                                            <div className="grid gap-1">
-                                                <span className="text-[11px] font-bold uppercase tracking-wider text-gray-400">Mã / ID</span>
-                                                <span className="text-sm font-semibold text-[#172317]">#{(selectedItem as any).code || (selectedItem as any).id}</span>
-                                            </div>
-                                        )}
+                                        {(() => {
+                                            const rawCode = (selectedItem as any).code || (selectedItem as any).sku || (selectedItem as any).referenceCode;
+                                            const isUuid = (val: unknown) =>
+                                                typeof val === "string" &&
+                                                /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val);
+                                            const displayCode = rawCode && !isUuid(rawCode) ? rawCode : null;
+                                            if (!displayCode) return null;
+                                            return (
+                                                <div className="grid gap-1">
+                                                    <span className="text-[11px] font-bold uppercase tracking-wider text-gray-400">Mã / ID</span>
+                                                    <span className="text-sm font-semibold text-[#172317]">#{displayCode}</span>
+                                                </div>
+                                            );
+                                        })()}
                                         {(selectedItem as any).status && (
                                             <div className="grid gap-1">
                                                 <span className="text-[11px] font-bold uppercase tracking-wider text-gray-400">Trạng thái</span>

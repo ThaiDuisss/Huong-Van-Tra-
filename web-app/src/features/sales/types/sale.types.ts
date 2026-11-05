@@ -18,6 +18,8 @@ export interface SaleProductPreview {
   category: string;
   variant: string;
   price: number;
+  /** False when the POS response did not contain a finite, nonnegative selling price. */
+  priceAvailable?: boolean;
   imageUrl: string;
   availableQuantity: number | null;
   sellableQuantity: number;

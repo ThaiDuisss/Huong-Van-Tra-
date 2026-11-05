@@ -5,7 +5,6 @@ import java.time.LocalDate;
 import java.util.UUID;
 import java.util.List;
 import java.time.Instant;
-import org.hvtra.iventoryservice.domain.enums.InventoryCountAttemptStatus;
 
 public record InventoryTakeLineResponse(
         UUID id,
@@ -18,6 +17,7 @@ public record InventoryTakeLineResponse(
         BigDecimal movementQuantity,
         BigDecimal expectedQuantity,
         BigDecimal snapshotUnitCost,
+        boolean counted,
         BigDecimal countedQuantity,
         BigDecimal varianceQuantity,
         BigDecimal varianceValue,
@@ -34,7 +34,6 @@ public record InventoryTakeLineResponse(
             Integer attemptNo,
             UUID counterId,
             BigDecimal countedQuantity,
-            InventoryCountAttemptStatus status,
             String note,
             Instant submittedAt
     ) {}

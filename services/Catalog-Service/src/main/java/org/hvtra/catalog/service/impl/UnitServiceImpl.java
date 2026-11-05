@@ -80,6 +80,7 @@ public class UnitServiceImpl implements UnitService {
         if (ids != null && !ids.isEmpty()) {
             // Lấy tên theo id cho giá trị đã chọn sẵn trong dropdown
             List<LookupResponse> content = repository.findAllById(ids).stream()
+                    .filter(u -> !Boolean.TRUE.equals(u.getIsDeleted()))
                     .map(u -> new LookupResponse(u.getId().toString(), u.getName()))
                     .toList();
             return new PageResponse<>(content, 0, content.size(), content.size(), 1, true, true);
@@ -119,7 +120,7 @@ public class UnitServiceImpl implements UnitService {
 
     @Override
     public List<UnitResponse> findAll() {
-        return repository.findAll(Sort.by("name")).stream().map(mapper::toResponse).toList();
+        return repository.findByIsDeletedFalse(Sort.by("name")).stream().map(mapper::toResponse).toList();
     }
 
     @Override
@@ -171,7 +172,11 @@ public class UnitServiceImpl implements UnitService {
     }
 
     private Unit get(UUID id) {
-        return repository.findById(id).orElseThrow(() -> new ResourceNotFoundException("Unit", id));
+        Unit unit = repository.findById(id).orElseThrow(() -> new ResourceNotFoundException("Unit", id));
+        if (Boolean.TRUE.equals(unit.getIsDeleted())) {
+            throw new ResourceNotFoundException("Unit", id);
+        }
+        return unit;
     }
 
     /**
@@ -194,6 +199,7 @@ public class UnitServiceImpl implements UnitService {
             return Collections.emptyList();
         }
         return repository.findAllById(ids).stream()
+                .filter(u -> !Boolean.TRUE.equals(u.getIsDeleted()))
                 .map(mapper::toResponse)
                 .toList();
     }

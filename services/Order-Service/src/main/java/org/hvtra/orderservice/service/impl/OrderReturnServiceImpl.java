@@ -73,6 +73,7 @@ import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.annotation.Isolation;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -590,7 +591,7 @@ public class OrderReturnServiceImpl implements OrderReturnService {
     }
 
     @Override
-    @Transactional
+    @Transactional(isolation = Isolation.READ_COMMITTED)
     public OrderReturnInventoryDispositionResponse submitInventoryDisposition(
             UUID returnId,
             SubmitReturnInventoryDispositionRequest request
@@ -615,6 +616,13 @@ public class OrderReturnServiceImpl implements OrderReturnService {
         // A new commandId is a new action, even when all business fields match an earlier action.
         if (ReturnStatus.RECEIVED != orderReturn.getStatus()) {
             throw new InvalidOrderReturnException("Only received returns can request inventory disposition");
+        }
+        // A FAILED command can still have an outbox event or an unacknowledged
+        // inspection. Do not release its quantity by choosing a new commandId.
+        if (orderReturnInventoryCommandRepository.existsByOrderReturnIdAndStatusAndIsDeletedFalse(
+                returnId, OrderReturnInventoryCommandStatus.FAILED)) {
+            throw new InvalidOrderReturnException(
+                    "Failed inventory disposition requires reconciliation before a new command");
         }
 
         Map<UUID, OrderReturnItem> returnItemsById = activeReturnItemsById(orderReturn);
@@ -810,6 +818,10 @@ public class OrderReturnServiceImpl implements OrderReturnService {
                 .returnId(orderReturn == null ? null : orderReturn.getId())
                 .returnCode(orderReturn == null ? null : orderReturn.getReturnCode())
                 .status(command.getStatus())
+                .executionAllowed(command.getStatus() == OrderReturnInventoryCommandStatus.PENDING
+                        && orderReturn != null && orderReturn.getStatus() == ReturnStatus.RECEIVED
+                        && !orderReturnInventoryCommandRepository.existsByOrderReturnIdAndStatusAndIsDeletedFalse(
+                                orderReturn.getId(), OrderReturnInventoryCommandStatus.FAILED))
                 .createdAt(command.getCreatedAt())
                 .processedAt(command.getProcessedAt())
                 .failedAt(command.getFailedAt())

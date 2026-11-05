@@ -50,6 +50,11 @@ public class OrderReturnInventoryReconciliationTransactionServiceImpl
         if (commandId == null || statusResponse == null || statusResponse.status() == null) {
             return;
         }
+        if (!commandId.equals(statusResponse.commandId())) {
+            log.error("Ignoring reconciliation evidence for a different command: requested={}, actual={}",
+                    commandId, statusResponse.commandId());
+            return;
+        }
         inventoryCommandReconciliationWriter.reconcileCommand(
                 OrderReturnInventoryCommandReconciliationWriter.CommandEvidence.from(statusResponse)
         );
@@ -81,14 +86,15 @@ public class OrderReturnInventoryReconciliationTransactionServiceImpl
         Instant now = Instant.now();
         int currentRecoveryAttempts = command.getRecoveryAttemptCount() == null ? 0 : command.getRecoveryAttemptCount();
 
-        // If recovery attempts are already exhausted: transition command to FAILED
+        // NOT_FOUND is absence of evidence, not cancellation. An outbox record (or
+        // the final recovery event) may still be in flight. Keep its reservation.
         if (currentRecoveryAttempts >= maxRecoveryAttempts) {
-            command.setStatus(OrderReturnInventoryCommandStatus.FAILED);
-            command.setFailedAt(now);
             command.setFailureCode("ORPHAN_RECOVERY_EXHAUSTED");
-            command.setFailureReason("Command not found in inventory inbox after " + maxRecoveryAttempts + " recovery attempts");
+            command.setFailureReason("Delivery unconfirmed after " + maxRecoveryAttempts
+                    + " recovery attempts; reservation retained pending reconciliation");
+            command.setLastNotFoundAt(now);
             commandRepository.saveAndFlush(command);
-            log.warn("Command exhausted max recovery attempts ({}/{}): marked as FAILED. commandId={}, returnId={}",
+            log.warn("Command exhausted max recovery attempts ({}/{}): remains PENDING with reservation. commandId={}, returnId={}",
                     currentRecoveryAttempts, maxRecoveryAttempts, commandId, returnId);
             return;
         }

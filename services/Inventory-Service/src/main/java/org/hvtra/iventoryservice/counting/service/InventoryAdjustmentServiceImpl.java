@@ -5,7 +5,6 @@ import jakarta.persistence.criteria.Predicate;
 import org.hvtra.iventoryservice.counting.dto.request.CreateAdjustmentRequest;
 import org.hvtra.iventoryservice.counting.dto.response.AdjustmentResponse;
 import org.hvtra.iventoryservice.counting.mapper.AdjustmentMapper;
-import org.hvtra.iventoryservice.counting.repository.InventoryCountRepository;
 import org.hvtra.iventoryservice.counting.repository.InventoryAdjustmentRepository;
 import org.hvtra.iventoryservice.domain.entity.InventoryBalance;
 import org.hvtra.iventoryservice.domain.entity.InventoryItem;
@@ -51,7 +50,6 @@ public class InventoryAdjustmentServiceImpl implements InventoryAdjustmentServic
     private static final DateTimeFormatter CODE_DATE = DateTimeFormatter.BASIC_ISO_DATE;
 
     private final InventoryAdjustmentRepository adjustmentRepository;
-    private final InventoryCountRepository countRepository;
     private final InventoryBalanceRepository balanceRepository;
     private final InventoryItemRepository itemRepository;
     private final InventoryLocationRepository locationRepository;
@@ -60,14 +58,12 @@ public class InventoryAdjustmentServiceImpl implements InventoryAdjustmentServic
 
     public InventoryAdjustmentServiceImpl(
             InventoryAdjustmentRepository adjustmentRepository,
-            InventoryCountRepository countRepository,
             InventoryBalanceRepository balanceRepository,
             InventoryItemRepository itemRepository,
             InventoryLocationRepository locationRepository,
             InventoryTransactionRepository transactionRepository,
             AdjustmentMapper mapper) {
         this.adjustmentRepository = adjustmentRepository;
-        this.countRepository = countRepository;
         this.balanceRepository = balanceRepository;
         this.itemRepository = itemRepository;
         this.locationRepository = locationRepository;
@@ -104,101 +100,87 @@ public class InventoryAdjustmentServiceImpl implements InventoryAdjustmentServic
     @Transactional
     public AdjustmentResponse create(CreateAdjustmentRequest request) {
         requireAnyRole(Role.SUPER_ADMIN, Role.MANAGER, Role.INVENTORY_STAFF);
-        // Loại phiếu (tăng / giảm) phụ thuộc tổng điều chỉnh nên gom dòng trước, tạo phiếu sau
-        List<InventoryDocumentLine> lines = new ArrayList<>();
-        InventoryReferenceType referenceType;
-        String referenceId = null;
-
-        AtomicInteger lineNo = new AtomicInteger(1);
-        InventoryCount sourceCount = null;
-
-        if (request.inventoryTakeId() != null) {
-            // Create from inventory take
-            InventoryCount count = countRepository.findByIdAndIsDeletedFalse(request.inventoryTakeId())
-                    .orElseThrow(() -> new ResourceNotFoundException("Inventory count", request.inventoryTakeId()));
-
-            // Delegate validation to entity
-            count.validateCanCreateAdjustment();
-
-            // Delegate query to entity
-            List<InventoryCountLine> varianceLines = count.getLinesWithVariance();
-            if (varianceLines.isEmpty()) {
-                throw new BadRequestException("Không có chênh lệch cần điều chỉnh");
-            }
-
-            for (InventoryCountLine countLine : varianceLines) {
-                InventoryDocumentLine docLine = new InventoryDocumentLine();
-                docLine.setLineNo(lineNo.getAndIncrement());
-                docLine.setInventoryItem(countLine.getInventoryItem());
-                docLine.setSourceLocation(countLine.getLocation());
-                docLine.setUnitId(countLine.getInventoryItem().getUnitId());
-                docLine.setOrderedQuantity(countLine.getVarianceQuantity());
-                if (countLine.getInventoryBatch() != null) {
-                    InventoryDocumentBatchAllocation allocation = new InventoryDocumentBatchAllocation();
-                    allocation.setInventoryBatch(countLine.getInventoryBatch());
-                    allocation.setQuantity(countLine.getVarianceQuantity());
-                    docLine.addBatchAllocation(allocation);
-                }
-                lines.add(docLine);
-            }
-
-            referenceType = InventoryReferenceType.STOCK_COUNT;
-            referenceId = count.getId().toString();
-
-            sourceCount = count;
-        } else {
-            // Standalone adjustment
-            if (request.lines() == null || request.lines().isEmpty()) {
-                throw new BadRequestException("Danh sách dòng điều chỉnh không được rỗng");
-            }
-
-            for (CreateAdjustmentRequest.AdjustmentLineRequest lineRequest : request.lines()) {
-                InventoryItem item = itemRepository.findById(lineRequest.inventoryItemId())
-                        .orElseThrow(() -> new ResourceNotFoundException(
-                                "Inventory item", lineRequest.inventoryItemId()));
-                if (item.getStatus() != InventoryStatus.ACTIVE) {
-                    throw new BadRequestException("Mặt hàng không hoạt động: " + item.getId());
-                }
-
-                InventoryLocation location = locationRepository.findById(lineRequest.locationId())
-                        .orElseThrow(() -> new ResourceNotFoundException(
-                                "Inventory location", lineRequest.locationId()));
-                if (location.getStatus() != InventoryStatus.ACTIVE) {
-                    throw new BadRequestException("Vị trí không hoạt động: " + location.getId());
-                }
-
-                InventoryDocumentLine docLine = new InventoryDocumentLine();
-                docLine.setLineNo(lineNo.getAndIncrement());
-                docLine.setInventoryItem(item);
-                docLine.setSourceLocation(location);
-                docLine.setUnitId(item.getUnitId());
-                docLine.setOrderedQuantity(lineRequest.adjustmentQuantity());
-                docLine.setNote(lineRequest.note());
-                lines.add(docLine);
-            }
-
-            referenceType = InventoryReferenceType.MANUAL;
+        if (request.lines() == null || request.lines().isEmpty()) {
+            throw new BadRequestException("Danh sách dòng điều chỉnh không được rỗng");
         }
 
-        // Determine document type based on net adjustment direction
-        BigDecimal netQuantity = lines.stream()
-                .map(InventoryDocumentLine::getOrderedQuantity)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-        InventoryAdjustment document = InventoryAdjustment.forNetQuantity(netQuantity);
-        document.setDocumentCode(generateDocumentCode());
+        List<InventoryDocumentLine> lines = new ArrayList<>();
+        AtomicInteger lineNo = new AtomicInteger(1);
+        for (CreateAdjustmentRequest.AdjustmentLineRequest lineRequest : request.lines()) {
+            InventoryItem item = itemRepository.findById(lineRequest.inventoryItemId())
+                    .orElseThrow(() -> new ResourceNotFoundException(
+                            "Inventory item", lineRequest.inventoryItemId()));
+            if (item.getStatus() != InventoryStatus.ACTIVE) {
+                throw new BadRequestException("Mặt hàng không hoạt động: " + item.getId());
+            }
+
+            InventoryLocation location = locationRepository.findById(lineRequest.locationId())
+                    .orElseThrow(() -> new ResourceNotFoundException(
+                            "Inventory location", lineRequest.locationId()));
+            if (location.getStatus() != InventoryStatus.ACTIVE) {
+                throw new BadRequestException("Vị trí không hoạt động: " + location.getId());
+            }
+
+            InventoryDocumentLine docLine = new InventoryDocumentLine();
+            docLine.setLineNo(lineNo.getAndIncrement());
+            docLine.setInventoryItem(item);
+            docLine.setSourceLocation(location);
+            docLine.setUnitId(item.getUnitId());
+            docLine.setOrderedQuantity(lineRequest.adjustmentQuantity());
+            docLine.setNote(lineRequest.note());
+            lines.add(docLine);
+        }
+
+        InventoryAdjustment document = newDocument(lines);
         document.setBranchId(request.branchId());
         document.setReasonCode(request.reasonCode());
         document.setNote(request.note());
-        document.setReferenceType(referenceType);
-        document.setReferenceId(referenceId);
-        lines.forEach(document::addLine);
+        document.setReferenceType(InventoryReferenceType.MANUAL);
+        return mapper.toResponse(adjustmentRepository.save(document));
+    }
 
-        InventoryAdjustment savedDocument = adjustmentRepository.save(document);
-        if (sourceCount != null) {
-            sourceCount.linkAdjustmentDocument(savedDocument);
-            countRepository.save(sourceCount);
+    /**
+     * Tạo phiếu điều chỉnh từ các dòng chênh lệch của kỳ kiểm kê, duyệt và ghi sổ ngay.
+     * Phải chạy trong transaction của thao tác approve kiểm kê: nếu ghi sổ lỗi thì rollback cả kỳ kiểm kê.
+     */
+    @Override
+    @Transactional
+    public InventoryAdjustment createAndPostFromCount(InventoryCount count, UUID approvedBy) {
+        List<InventoryCountLine> varianceLines = count.getLinesWithVariance();
+        if (varianceLines.isEmpty()) {
+            throw new BadRequestException("Không có chênh lệch cần điều chỉnh");
         }
-        return mapper.toResponse(savedDocument);
+
+        List<InventoryDocumentLine> lines = new ArrayList<>();
+        AtomicInteger lineNo = new AtomicInteger(1);
+        for (InventoryCountLine countLine : varianceLines) {
+            InventoryDocumentLine docLine = new InventoryDocumentLine();
+            docLine.setLineNo(lineNo.getAndIncrement());
+            docLine.setInventoryItem(countLine.getInventoryItem());
+            docLine.setSourceLocation(countLine.getLocation());
+            docLine.setUnitId(countLine.getInventoryItem().getUnitId());
+            docLine.setOrderedQuantity(countLine.getVarianceQuantity());
+            if (countLine.getInventoryBatch() != null) {
+                InventoryDocumentBatchAllocation allocation = new InventoryDocumentBatchAllocation();
+                allocation.setInventoryBatch(countLine.getInventoryBatch());
+                allocation.setQuantity(countLine.getVarianceQuantity());
+                docLine.addBatchAllocation(allocation);
+            }
+            lines.add(docLine);
+        }
+
+        InventoryAdjustment document = newDocument(lines);
+        document.setBranchId(count.getBranchId());
+        document.setReasonCode(InventoryReferenceType.STOCK_COUNT.name());
+        document.setNote("Điều chỉnh từ kỳ kiểm kê " + count.getCountCode());
+        document.setReferenceType(InventoryReferenceType.STOCK_COUNT);
+        document.setReferenceId(count.getId().toString());
+        document.approve(approvedBy);
+
+        InventoryAdjustment saved = adjustmentRepository.save(document);
+        applyToStock(saved);
+        saved.post();
+        return adjustmentRepository.save(saved);
     }
 
     @Override
@@ -222,6 +204,41 @@ public class InventoryAdjustmentServiceImpl implements InventoryAdjustmentServic
         // Delegate validation to entity
         document.validateCanPost();
 
+        applyToStock(document);
+        document.post();
+
+        return mapper.toResponse(adjustmentRepository.save(document));
+    }
+
+    @Override
+    @Transactional
+    public AdjustmentResponse reject(UUID id) {
+        requireAnyRole(Role.SUPER_ADMIN, Role.MANAGER);
+        InventoryAdjustment document = findDocumentOrThrow(id);
+
+        // Delegate to entity
+        document.reject();
+
+        return mapper.toResponse(adjustmentRepository.save(document));
+    }
+
+    // ====== Private Helpers ======
+
+    private InventoryAdjustment newDocument(List<InventoryDocumentLine> lines) {
+        // Loại phiếu (tăng / giảm) phụ thuộc tổng điều chỉnh
+        BigDecimal netQuantity = lines.stream()
+                .map(InventoryDocumentLine::getOrderedQuantity)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        InventoryAdjustment document = InventoryAdjustment.forNetQuantity(netQuantity);
+        document.setDocumentCode(generateDocumentCode());
+        lines.forEach(document::addLine);
+        return document;
+    }
+
+    /**
+     * Cập nhật tồn theo các dòng của phiếu và ghi transaction. Lỗi nếu tồn sau điều chỉnh âm.
+     */
+    private void applyToStock(InventoryAdjustment document) {
         // Orchestration: update balances and create transaction
         InventoryTransaction transaction = new InventoryTransaction();
         transaction.setTransactionCode(generateTransactionCode());
@@ -287,44 +304,7 @@ public class InventoryAdjustmentServiceImpl implements InventoryAdjustmentServic
         }
 
         transactionRepository.saveAndFlush(transaction);
-
-        // Delegate state transition to entity
-        document.post();
-
-        if (document.getReferenceType() == InventoryReferenceType.STOCK_COUNT
-                && document.getReferenceId() != null) {
-            UUID countId = UUID.fromString(document.getReferenceId());
-            InventoryCount count = countRepository.findByIdAndIsDeletedFalse(countId)
-                    .orElseThrow(() -> new ResourceNotFoundException("Inventory count", countId));
-            count.markPosted();
-            countRepository.save(count);
-        }
-
-        return mapper.toResponse(adjustmentRepository.save(document));
     }
-
-    @Override
-    @Transactional
-    public AdjustmentResponse reject(UUID id) {
-        requireAnyRole(Role.SUPER_ADMIN, Role.MANAGER);
-        InventoryAdjustment document = findDocumentOrThrow(id);
-
-        // Delegate to entity
-        document.reject();
-
-        if (document.getReferenceType() == InventoryReferenceType.STOCK_COUNT
-                && document.getReferenceId() != null) {
-            UUID countId = UUID.fromString(document.getReferenceId());
-            InventoryCount count = countRepository.findByIdAndIsDeletedFalse(countId)
-                    .orElseThrow(() -> new ResourceNotFoundException("Inventory count", countId));
-            count.returnAfterAdjustmentRejected();
-            countRepository.save(count);
-        }
-
-        return mapper.toResponse(adjustmentRepository.save(document));
-    }
-
-    // ====== Private Helpers ======
 
     private InventoryAdjustment findDocumentOrThrow(UUID id) {
         return adjustmentRepository.findByIdAndIsDeletedFalse(id)

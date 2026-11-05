@@ -2,6 +2,7 @@ import { X } from "lucide-react";
 import { useState, useEffect } from "react";
 
 import type { FormField, FormValues } from "./CatalogResourceManagement";
+import { toast } from "../../../components/ui/Toast";
 import { fileApi } from "../../../api/file.api";
 
 interface FormDialogProps {
@@ -310,7 +311,7 @@ export function FormDialog({
                                                             }));
                                                         } catch (err) {
                                                             console.error("Upload error:", err);
-                                                            alert("Lỗi tải lên hình ảnh!");
+                                                            toast.error("Lỗi tải lên hình ảnh!");
                                                             setFilePreviews(prev => ({ ...prev, [field.name]: "" }));
                                                         } finally {
                                                             setUploadingField(null);

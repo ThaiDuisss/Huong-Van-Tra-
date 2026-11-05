@@ -6,8 +6,9 @@ import type {
     CustomerReturnInspectionListResult
 } from "../types/customer-return-inspection.types";
 import type { CustomerReturnActualCondition, CustomerReturnQcResult, CustomerReturnQcLocation } from "../types/customer-return-inspection.types";
-import type { InventoryLocationType } from "../types/inventory.types";
+import { INVENTORY_LOCATION_TYPES } from "../types/inventory.types";
 import { inventoryLocationApi } from "./inventoryLocation.api";
+import type { CustomerReturnQcSummaryResponse } from "@/features/order/types/order-return.types.ts";
 
 export interface PostCustomerReturnInspectionRequest {
     lines?: Array<{
@@ -44,6 +45,12 @@ export const customerReturnApi = {
         );
     },
 
+    getQcSummary(returnId: string) {
+        return apiClient.get<CustomerReturnQcSummaryResponse>(
+            `/inventory/customer-returns/${encodeURIComponent(returnId)}/qc-summary`
+        );
+    },
+
     postInspection(inspectionId: string, body?: PostCustomerReturnInspectionRequest) {
         return apiClient.post<CustomerReturnInspection, PostCustomerReturnInspectionRequest | undefined>(
             `/inventory/customer-return-inspections/${encodeURIComponent(inspectionId)}/post`,
@@ -53,8 +60,7 @@ export const customerReturnApi = {
 };
 
 export async function loadCustomerReturnQcLocations(): Promise<CustomerReturnQcLocation[]> {
-    const types: InventoryLocationType[] = ["WAREHOUSE", "STORAGE", "SHELF", "DAMAGED", "QUARANTINE"];
-    const byType = await Promise.all(types.map(async (type) => {
+    const byType = await Promise.all(INVENTORY_LOCATION_TYPES.map(async (type) => {
         const locations: CustomerReturnQcLocation[] = [];
         let page = 0;
         let totalPages: number;

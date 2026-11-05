@@ -5,26 +5,8 @@ import type {
 } from "./stock-document.types";
 
 export type StocktakeScopeType = "FULL" | "LOCATION" | "PARTIAL";
-export type StocktakeStatus =
-  | "DRAFT"
-  | "FROZEN"
-  | "COUNTING"
-  | "RECONCILING"
-  | "PENDING_APPROVAL"
-  | "RETURNED"
-  | "REJECTED"
-  | "APPROVED"
-  | "POSTED"
-  | "COMPLETED"
-  | "CANCELLED";
-export type StocktakeStatusFilter =
-  | "ALL"
-  | "PREPARING"
-  | "IN_PROGRESS"
-  | "PENDING_APPROVAL"
-  | "APPROVED"
-  | "COMPLETED"
-  | "CANCELLED";
+export type StocktakeStatus = "DRAFT" | "COUNTING" | "PENDING_APPROVAL" | "COMPLETED" | "CANCELLED";
+export type StocktakeStatusFilter = "ALL" | StocktakeStatus;
 export type StocktakeCountType = "FULL_COUNT" | "CYCLE_COUNT" | "SPOT_COUNT";
 export type AdjustmentStatus = "DRAFT" | "APPROVED" | "POSTED" | "REJECTED";
 export type AdjustmentReferenceType = "STOCK_COUNT" | "MANUAL";
@@ -50,6 +32,7 @@ export interface StocktakeLine {
   movementQuantity: number;
   expectedQuantity: number;
   snapshotUnitCost: number;
+  counted: boolean;
   countedQuantity: number | null;
   varianceQuantity: number | null;
   varianceValue: number;
@@ -71,9 +54,12 @@ export interface StocktakeSummary {
   blindCount: boolean;
   scopeLabel: string;
   status: StocktakeStatus;
-  snapshotAt: string | null;
-  countingStartedAt: string | null;
-  countingCompletedAt: string | null;
+  startedAt: string | null;
+  submittedAt: string | null;
+  completedAt: string | null;
+  returnReason: string | null;
+  cancelledAt: string | null;
+  cancelReason: string | null;
   totalLines: number;
   countedLines: number;
   varianceLines: number;
@@ -99,7 +85,7 @@ export interface StocktakeAssignment {
   id: string;
   userId: string;
   role: "COUNTER" | "SUPERVISOR";
-  status: "ASSIGNED" | "ACCEPTED" | "IN_PROGRESS" | "COMPLETED" | "CANCELLED";
+  status: "ASSIGNED" | "DONE";
   locationId: string | null;
 }
 
@@ -169,9 +155,8 @@ export interface StocktakeListResult {
   summary: {
     draft: number;
     counting: number;
+    pendingApproval: number;
     completed: number;
-    adjustmentReady: number;
-    posted: number;
   };
 }
 
@@ -204,9 +189,10 @@ export interface StocktakeActionInput {
   stocktakeId: string;
 }
 
-export interface StocktakeRecountInput extends StocktakeActionInput {
+export interface StocktakeReturnInput extends StocktakeActionInput {
   lineIds: string[];
-  assignedUserId: string;
+  /** Bỏ trống để giữ nguyên người đếm đã phân công. */
+  assignedUserId?: string;
   reason: string;
 }
 
@@ -217,22 +203,4 @@ export interface StocktakeCountsInput extends StocktakeActionInput {
     reasonCode?: string;
     note?: string;
   }>;
-}
-
-export interface AdjustmentCreateInput {
-  branchId: string;
-  inventoryTakeId: string;
-  reasonCode?: string;
-  note?: string;
-  lines?: Array<{
-    inventoryItemId: string;
-    locationId: string;
-    adjustmentQuantity: number;
-    note?: string;
-  }>;
-}
-
-export interface AdjustmentActionInput {
-  stocktakeId: string;
-  adjustmentId: string;
 }

@@ -91,7 +91,7 @@ describe("account filters and query", () => {
 describe("account display helpers", () => {
   it("labels known roles and keeps unknown ones", () => {
     expect(getRoleLabel("SALE_STAFF")).toBe("Nhân viên bán hàng");
-    expect(getRoleLabel("SUPER_ADMIN")).toBe("Quản trị cấp cao");
+    expect(getRoleLabel("SUPER_ADMIN")).toBe("Quản trị hệ thống");
     expect(getRoleLabel("CUSTOMER")).toBe("CUSTOMER");
   });
 

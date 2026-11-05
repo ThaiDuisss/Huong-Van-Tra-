@@ -153,10 +153,7 @@ function DispositionEvidence({
             ) : disposition.result === "WRITE_OFF" ? (
                 <span>Điểm đến: Không nhập tồn kho</span>
             ) : null}
-            <span>Giao dịch: {transactionType}</span>
-            <span className={styles.transactionId}>
-                Mã giao dịch: {disposition.transactionId ?? "Chưa đồng bộ"}
-            </span>
+            <span>Giao dịch: {TRANSACTION_TYPE_LABELS[transactionType] ?? transactionType}</span>
             <span>
                 Trạng thái: {disposition.processingStatus === "PROCESSED" ? "Đã xử lý" : "Chờ đồng bộ"}
             </span>
@@ -166,6 +163,11 @@ function DispositionEvidence({
         </div>
     );
 }
+
+const TRANSACTION_TYPE_LABELS: Record<string, string> = {
+    CUSTOMER_RETURN_RECEIPT: "Nhận hàng trả vào kho",
+    WRITE_OFF: "Tiêu hủy",
+};
 
 function resolveItemName(
     returnData: OrderReturnResponse | OrderReturnListRow,

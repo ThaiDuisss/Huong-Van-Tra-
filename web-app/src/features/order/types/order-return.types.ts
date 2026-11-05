@@ -139,6 +139,8 @@ export interface OrderReturnResponse {
     processedQuantity?: number | string | null;
     remainingQuantity?: number | string | null;
     inventoryProcessingStatus?: string | null;
+    isPendingDisposition?: boolean | null;
+    hasFailedDisposition?: boolean | null;
 }
 
 export interface OrderReturnSummaryResponse {

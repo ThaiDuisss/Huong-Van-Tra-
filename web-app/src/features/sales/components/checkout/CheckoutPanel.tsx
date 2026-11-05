@@ -48,6 +48,11 @@ interface CheckoutPanelProps {
     customersLoading: boolean;
     customersError: string;
     selectedCustomer: SaleCustomer | null;
+    customerLocked?: boolean;
+    customerHasMore?: boolean;
+    onCustomerSearch?(query: string): void;
+    onCustomerLoadMore?(): void;
+    recommendationEntry?: ReactNode;
     /** Số tiền phải thu ở lần này (tiền cọc của đơn chờ hàng). Mặc định là tổng tiền. */
     amountDue?: number;
     /** Thông báo đơn chờ hàng kèm lựa chọn thu đủ / đặt cọc. */
@@ -93,6 +98,11 @@ export function CheckoutPanel({
     customersLoading,
     customersError,
     selectedCustomer,
+    customerLocked,
+    customerHasMore,
+    onCustomerSearch,
+    onCustomerLoadMore,
+    recommendationEntry,
     amountDue,
     backorderNotice,
     paymentBlocked = false,
@@ -139,6 +149,10 @@ export function CheckoutPanel({
     return (
         <section className="flex h-full min-h-0 flex-col gap-3 rounded-[20px] bg-pos-surface p-4 shadow-pos-panel">
             <CustomerSelector
+                disabled={customerLocked}
+                hasMore={customerHasMore}
+                onSearch={onCustomerSearch}
+                onLoadMore={onCustomerLoadMore}
                 customers={customers}
                 selectedCustomer={selectedCustomer}
                 loading={customersLoading}
@@ -149,6 +163,8 @@ export function CheckoutPanel({
                 onClear={onCustomerClear}
             />
 
+            {recommendationEntry}
+            <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto">
             <div className="grid gap-3">
                 <OrderTotals
                     totals={totals}
@@ -277,6 +293,7 @@ export function CheckoutPanel({
                     loading={checkoutLoading}
                     onClick={onCompletePayment}
                 />
+            </div>
             </div>
         </section>
     );

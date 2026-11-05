@@ -1,6 +1,7 @@
 import { AlertTriangle, Download, FileUp, RefreshCw } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import { toast } from "../../../components/ui/Toast";
 import { SalesHistoryFilters } from "../components/sales-history/SalesHistoryFilters";
 import { SalesOrderDetailDrawer } from "../components/sales-history/SalesOrderDetailDrawer";
 import { SalesOrdersTable } from "../components/sales-history/SalesOrdersTable";
@@ -243,7 +244,7 @@ export function SalesHistoryPage() {
         try {
             printReceipt(order);
         } catch (error) {
-            window.alert(
+            toast.error(
                 error instanceof Error ? error.message : "Không in được hóa đơn."
             );
         }
@@ -253,7 +254,7 @@ export function SalesHistoryPage() {
         getSalesOrderDetail(order.orderId)
             .then(handlePrintDetail)
             .catch(() => {
-                window.alert("Không tải được hóa đơn để in. Vui lòng thử lại.");
+                toast.error("Không tải được hóa đơn để in. Vui lòng thử lại.");
             });
     };
 
@@ -267,12 +268,12 @@ export function SalesHistoryPage() {
         }
 
         console.log("TODO: Nhập file bán hàng hôm nay", file);
-        window.alert("Chức năng nhập file đang được phát triển");
+        toast.info("Chức năng nhập file đang được phát triển");
     };
 
     const handleExportFile = () => {
         console.log("TODO: Xuất file bán hàng hôm nay");
-        window.alert("Chức năng xuất file đang được phát triển");
+        toast.info("Chức năng xuất file đang được phát triển");
     };
 
     const handleFilterChange = (nextFilters: SalesHistoryFilterValues) => {

@@ -2,6 +2,8 @@ package org.hvtra.iventoryservice.counting.dto.response;
 
 import org.hvtra.iventoryservice.domain.enums.InventoryCountScopeType;
 import org.hvtra.iventoryservice.domain.enums.InventoryCountStatus;
+import org.hvtra.iventoryservice.domain.enums.InventoryDocumentStatus;
+import org.hvtra.iventoryservice.domain.enums.InventoryDocumentType;
 import org.hvtra.iventoryservice.domain.enums.InventoryCountLockMode;
 import org.hvtra.iventoryservice.domain.enums.InventoryCountType;
 
@@ -21,9 +23,14 @@ public record InventoryTakeResponse(
         InventoryCountStatus status,
         InventoryCountLockMode lockMode,
         Boolean blindCount,
-        Instant snapshotAt,
-        Instant countingStartedAt,
-        Instant countingCompletedAt,
+        Instant startedAt,
+        Instant submittedAt,
+        Instant completedAt,
+        UUID completedBy,
+        String returnReason,
+        Instant cancelledAt,
+        UUID cancelledBy,
+        String cancelReason,
         String note,
         Instant createdAt,
         UUID createdBy,
@@ -45,8 +52,8 @@ public record InventoryTakeResponse(
     public record AdjustmentSummary(
             UUID id,
             String documentCode,
-            org.hvtra.iventoryservice.domain.enums.InventoryDocumentType documentType,
-            org.hvtra.iventoryservice.domain.enums.InventoryDocumentStatus status,
+            InventoryDocumentType documentType,
+            InventoryDocumentStatus status,
             UUID approvedBy,
             Instant approvedAt,
             Instant postedAt
