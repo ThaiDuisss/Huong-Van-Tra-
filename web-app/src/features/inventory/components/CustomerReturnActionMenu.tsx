@@ -32,6 +32,21 @@ function getReturnAvailableActions(
     return actions;
   }
 
+  if (row.status === "COMPLETED" || row.displayStatus === "COMPLETED") {
+    if (
+      onViewInspection &&
+      (row.inspectionStatus === "POSTED" ||
+        row.qcStatus === "COMPLETED" ||
+        Boolean(row.physicalDone))
+    ) {
+      actions.push({
+        label: "Xem kết quả kiểm định",
+        onSelect: onViewInspection,
+      });
+    }
+    return actions;
+  }
+
   if (row.status === "RECEIVED") {
     const isQcCompleted =
       row.qcStatus === "COMPLETED" ||

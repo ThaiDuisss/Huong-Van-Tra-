@@ -278,12 +278,12 @@ describe("shared Order list presentation", () => {
   });
 });
 
-describe("shared style propagation across all four Order routes", () => {
+describe("shared style propagation across Order list routes", () => {
   const screens = [
-    ["OrderListPage", "visibleOrders", "isOrdersLoading", "ordersError", 5],
-    ["InvoiceListPage", "visibleInvoices", "isListLoading", "listError", 6],
-    ["OrderReturnPage", "visibleRows", "isRowsLoading", "rowsError", 5],
+    ["OrderListPage", "visibleOrders", "isOrdersLoading", "ordersError", 4],
+    ["InvoiceListPage", "visibleInvoices", "isListLoading", "listError", 5],
     ["OrderRefundPage", "visibleRefunds", "isListLoading", "listError", 6],
+    ["OrderReturnPage", "visibleRows", "isRowsLoading", "rowsError", 5],
   ] as const;
   it.each(screens)(
     "%s imports and renders the same shared family with its own state",

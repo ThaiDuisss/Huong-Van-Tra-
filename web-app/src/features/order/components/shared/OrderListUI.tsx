@@ -106,7 +106,7 @@ export function OrderStatusFilters<Value extends string>({
             onClick={() => onChange(option.key)}
           >
             {option.label}
-            {option.count !== undefined && <span>{option.count}</span>}
+            {option.count !== undefined && option.count !== null && <span>{option.count}</span>}
           </button>
         ))}
       </div>

@@ -15,8 +15,11 @@ import org.hvtra.catalog.outbox.resolver.CatalogOutboxTopicResolver;
 import org.hvtra.commonservice.common_core.kafka.outbox.dto.OutboxSaveCommand;
 import org.hvtra.commonservice.common_core.kafka.outbox.service.OutboxEventService;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.nio.charset.StandardCharsets;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.UUID;
@@ -35,6 +38,16 @@ public class CatalogOutboxPublisher {
 
     public void publishVariantCreated(ProductVariant variant) {
         publishVariantEvent(variant, CatalogEventType.PRODUCT_VARIANT_CREATED, false);
+    }
+
+    /** Stable event identity for the guarded commercial importer; ordinary event behavior is unchanged. */
+    @Transactional(propagation = Propagation.MANDATORY)
+    public String publishImportedVariantCreated(ProductVariant variant, String importIdentity) {
+        if (importIdentity == null || importIdentity.isBlank()) throw new IllegalArgumentException("IMPORT_EVENT_IDENTITY_REQUIRED");
+        String eventId = UUID.nameUUIDFromBytes(("catalog-commercial-import:" + importIdentity).getBytes(StandardCharsets.UTF_8)).toString();
+        String businessKey = "commercial-import:" + eventId;
+        publishVariantEvent(variant, CatalogEventType.PRODUCT_VARIANT_CREATED, false, eventId, businessKey);
+        return eventId;
     }
 
     public void publishVariantUpdated(ProductVariant variant) {
@@ -61,6 +74,11 @@ public class CatalogOutboxPublisher {
         String eventId = UUID.randomUUID().toString();
         String aggregateId = variant.getId().toString();
         String businessKey = aggregateId + ":" + eventType + ":" + System.currentTimeMillis();
+        publishVariantEvent(variant, eventType, isDeleted, eventId, businessKey);
+    }
+
+    private void publishVariantEvent(ProductVariant variant, String eventType, boolean isDeleted, String eventId, String businessKey) {
+        String aggregateId = variant.getId().toString();
         String topic = topicResolver.resolveTopic(eventType);
         Instant now = Instant.now();
 

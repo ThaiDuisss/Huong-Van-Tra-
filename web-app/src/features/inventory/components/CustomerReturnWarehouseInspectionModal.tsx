@@ -28,10 +28,11 @@ import type {
     CustomerReturnQcLocation
 } from "../types/customer-return-inspection.types";
 import { createCustomerReturnQcDraft, getCustomerReturnQcError } from "../utils/customer-return-qc";
-import { formatVietnamDateTime, formatVietnamNumber } from "../utils/inventory-format";
+import { formatVietnamDateTime } from "../utils/inventory-format";
 import { InspectionStatusBadge } from "./CustomerReturnInspectionComponents";
-import { CustomerReturnQcFields } from "./CustomerReturnQcFields";
-import styles from "./CustomerReturnDetailModal.module.css";
+import { CustomerReturnInspectionCard } from "./CustomerReturnInspectionCard";
+import { ChevronDown, ChevronUp, Info } from "lucide-react";
+import styles from "./CustomerReturnWarehouseInspectionModal.module.css";
 
 export interface CustomerReturnWarehouseInspectionModalProps {
     isOpen: boolean;
@@ -59,15 +60,15 @@ function resolveQcStatusDisplay(
         return { label: "Chờ nhận hàng", status: "PENDING" };
     }
     if (qcStatus === "COMPLETED") {
-        return { label: "Đã kiểm định", status: "QC_COMPLETED" };
+        return { label: "Đã kiểm hàng", status: "QC_COMPLETED" };
     }
     if (qcStatus === "PARTIAL") {
-        return { label: "Đang kiểm định", status: "PROCESSING" };
+        return { label: "Đang kiểm hàng", status: "PROCESSING" };
     }
     if (qcStatus === "PENDING" || !hasInspection) {
-        return { label: "Chờ kiểm định", status: "PENDING" };
+        return { label: "Chờ kiểm hàng", status: "PENDING" };
     }
-    return { label: "Chờ kiểm định", status: "PENDING" };
+    return { label: "Chờ kiểm hàng", status: "PENDING" };
 }
 
 export function CustomerReturnWarehouseInspectionModal({
@@ -94,6 +95,12 @@ export function CustomerReturnWarehouseInspectionModal({
     const [inspectionDetail, setInspectionDetail] = useState<CustomerReturnInspection | null>(null);
     const [drafts, setDrafts] = useState<Record<string, CustomerReturnQcDraft>>({});
     const [locations, setLocations] = useState<CustomerReturnQcLocation[]>([]);
+
+    // UX improvements state: drawer, validation touched & card accordion
+    const [showInfoDrawer, setShowInfoDrawer] = useState(false);
+    const [attemptedSubmit, setAttemptedSubmit] = useState(false);
+    const [touchedFields, setTouchedFields] = useState<Record<string, { actualCondition?: boolean; result?: boolean; destinationLocationId?: boolean }>>({});
+    const [expandedCards, setExpandedCards] = useState<Record<string, boolean>>({});
 
     const loadData = useCallback(async () => {
         if (!returnId) return;
@@ -322,11 +329,24 @@ export function CustomerReturnWarehouseInspectionModal({
                 {/* Header */}
                 <div className={styles.modalHeader}>
                     <div className={styles.headerTitleGroup}>
-                        <h2>Phiếu kiểm định kho</h2>
-                        <span className={styles.orderReference}>
-                            Phiếu hoàn: <strong>{effectiveReturnCode}</strong> · Đơn hàng: {effectiveOrderCode}
-                        </span>
-                        <OrderStatusBadge label={qcBadge.label} status={qcBadge.status} />
+                        <div className="flex flex-col">
+                            <div className="flex items-center gap-2.5">
+                                <h2>Kiểm định hàng trả</h2>
+                                <OrderStatusBadge label={qcBadge.label} status={qcBadge.status} />
+                            </div>
+                            <span className="text-xs font-mono font-bold text-[#07883a] mt-0.5">
+                                {inspectionDetail?.inspectionCode || qcSummary?.inspectionId || effectiveReturnCode}
+                            </span>
+                        </div>
+                        <button
+                            className={`${styles.headerInfoToggle} ${showInfoDrawer ? styles.headerInfoToggleActive : ""}`}
+                            onClick={() => setShowInfoDrawer((prev) => !prev)}
+                            type="button"
+                        >
+                            <Info size={14} aria-hidden="true" />
+                            Thông tin phiếu
+                            {showInfoDrawer ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                        </button>
                     </div>
                     <button
                         aria-label="Đóng kiểm định kho"
@@ -340,7 +360,45 @@ export function CustomerReturnWarehouseInspectionModal({
 
                 {/* Body */}
                 <div className={styles.modalBody}>
-                    {/* QC Quantity Summary Card */}
+                    {/* Collapsible Info Drawer */}
+                    <div
+                        className={styles.collapsibleInfoDrawer}
+                        style={{ display: showInfoDrawer ? "block" : "none" }}
+                        aria-hidden={!showInfoDrawer}
+                    >
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs">
+                            <div>
+                                <span className="text-[#64748b] block font-semibold">Mã phiếu hoàn</span>
+                                <strong className="text-[#0f172a] font-bold text-sm">{effectiveReturnCode}</strong>
+                            </div>
+                            <div>
+                                <span className="text-[#64748b] block font-semibold">Mã đơn hàng</span>
+                                <strong className="text-[#0f172a] font-bold text-sm">{effectiveOrderCode}</strong>
+                            </div>
+                            <div>
+                                <span className="text-[#64748b] block font-semibold">Thời gian tạo</span>
+                                <strong className="text-[#0f172a] font-bold">
+                                    {inspectionDetail?.createdAt
+                                        ? formatVietnamDateTime(inspectionDetail.createdAt)
+                                        : qcSummary?.inspectedAt
+                                            ? formatVietnamDateTime(qcSummary.inspectedAt)
+                                            : "--"}
+                                </strong>
+                            </div>
+                            <div>
+                                <span className="text-[#64748b] block font-semibold">Trạng thái phiếu</span>
+                                <div className="mt-0.5">
+                                    {inspectionDetail ? (
+                                        <InspectionStatusBadge status={inspectionDetail.status} />
+                                    ) : (
+                                        <OrderStatusBadge label={qcBadge.label} status={qcBadge.status} />
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* QC Quantity Summary Card (3 metrics on 1 row) */}
                     <div className={styles.qcSummaryCard}>
                         <div className={styles.qcSummaryItem}>
                             <span className={styles.qcSummaryLabel}>Tổng SL hàng trả</span>
@@ -349,18 +407,29 @@ export function CustomerReturnWarehouseInspectionModal({
                             </span>
                         </div>
                         <div className={styles.qcSummaryItem}>
-                            <span className={styles.qcSummaryLabel}>Đã kiểm định</span>
+                            <span className={styles.qcSummaryLabel}>Đã kiểm hàng</span>
                             <span className={styles.qcSummaryValue}>
                                 <strong>{formatReturnQuantity(totalPosted)}</strong>
                             </span>
                         </div>
                         <div className={styles.qcSummaryItem}>
-                            <span className={styles.qcSummaryLabel}>Còn cần kiểm định</span>
+                            <span className={styles.qcSummaryLabel}>Còn cần kiểm hàng</span>
                             <span className={styles.qcSummaryValue}>
                                 <strong>{formatReturnQuantity(totalRemaining)}</strong>
                             </span>
                         </div>
                     </div>
+                    {isEditable && pendingLines.length > 0 ? (
+                        <div className={styles.qcProgressLine}>
+                            <span>Tiến độ nhập liệu:</span>
+                            <span className={styles.qcProgressHighlight}>
+                                Đã nhập kết quả {pendingLines.filter(l => {
+                                    const d = drafts[l.id];
+                                    return d && d.actualCondition && (d.result === "WRITE_OFF" || d.destinationLocationId);
+                                }).length}/{pendingLines.length} dòng sản phẩm
+                            </span>
+                        </div>
+                    ) : null}
 
                     {/* QC Discrepancy & Source Notifications */}
                     {hasDiscrepancy ? (
@@ -471,7 +540,7 @@ export function CustomerReturnWarehouseInspectionModal({
                                                             <td>{getReturnConditionLabel(line.condition)}</td>
                                                             <td>{getReturnReasonLabel(line.reason as ReturnReason) || "--"}</td>
                                                             <td>
-                                                                <OrderStatusBadge label="Chờ kiểm định" status="PENDING" />
+                                                                <OrderStatusBadge label="Chờ kiểm hàng" status="PENDING" />
                                                             </td>
                                                         </tr>
                                                     );
@@ -488,7 +557,7 @@ export function CustomerReturnWarehouseInspectionModal({
                                                     <td>{getReturnConditionLabel(item.condition)}</td>
                                                     <td>{getReturnReasonLabel(item.reason) || "--"}</td>
                                                     <td>
-                                                        <OrderStatusBadge label="Chờ kiểm định" status="PENDING" />
+                                                        <OrderStatusBadge label="Chờ kiểm hàng" status="PENDING" />
                                                     </td>
                                                 </tr>
                                             ))}
@@ -501,166 +570,155 @@ export function CustomerReturnWarehouseInspectionModal({
 
                     {/* State: Success and Has Inspection */}
                     {!loading && hasInspection ? (
-                        <div className="flex flex-col gap-5">
-                            {/* Inspection Header Info Grid */}
-                            <div className={styles.infoGrid}>
-                                <div className={styles.infoItem}>
-                                    <span className={styles.infoLabel}>Mã phiếu kiểm định</span>
-                                    <span className={styles.infoValue}>
-                                        <strong>{inspectionDetail?.inspectionCode || qcSummary?.inspectionId || "--"}</strong>
-                                    </span>
-                                </div>
-                                <div className={styles.infoItem}>
-                                    <span className={styles.infoLabel}>Trạng thái phiếu</span>
-                                    <span className={styles.infoValue}>
-                                        {inspectionDetail ? (
-                                            <InspectionStatusBadge status={inspectionDetail.status} />
-                                        ) : (
-                                            <OrderStatusBadge
-                                                label={qcBadge.label}
-                                                status={qcBadge.status}
-                                            />
-                                        )}
-                                    </span>
-                                </div>
-                                <div className={styles.infoItem}>
-                                    <span className={styles.infoLabel}>Thời gian tạo kiểm định</span>
-                                    <span className={styles.infoValue}>
-                                        {inspectionDetail?.createdAt
-                                            ? formatVietnamDateTime(inspectionDetail.createdAt)
-                                            : qcSummary?.inspectedAt
-                                                ? formatVietnamDateTime(qcSummary.inspectedAt)
-                                                : "--"}
-                                    </span>
-                                </div>
-                                {inspectionDetail?.postedAt ? (
-                                    <div className={styles.infoItem}>
-                                        <span className={styles.infoLabel}>Xử lý kho lúc</span>
-                                        <span className={styles.infoValue}>
-                                            {formatVietnamDateTime(inspectionDetail.postedAt)}
-                                        </span>
-                                    </div>
-                                ) : null}
-                            </div>
-
-                            {/* Inspection Lines Table */}
-                            <div className={styles.section}>
-                                <div className={styles.sectionHeading}>
-                                    <h4 className={styles.sectionTitle}>
-                                        Kết quả kiểm định &amp; Xử lý kho ({inspectionDetail?.lines?.length || lines.length})
+                        <div className={styles.cardsSection}>
+                            {/* Cards Toolbar */}
+                            <div className={styles.cardsToolbar}>
+                                <div className="flex items-center gap-2">
+                                    <h4 className={styles.cardsTitle}>
+                                        Sản phẩm kiểm định ({inspectionDetail?.lines?.length || lines.length})
                                     </h4>
                                     {isEditable ? (
-                                        <span className="text-xs font-semibold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-md border border-emerald-200">
-                                            Chế độ kiểm tra thực tế &amp; phân bổ kho
+                                        <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                                            Chế độ kiểm tra &amp; phân bổ kho
                                         </span>
                                     ) : (
-                                        <span className="text-xs font-semibold text-slate-600 bg-slate-100 px-2.5 py-1 rounded-md">
+                                        <span className="text-xs font-semibold text-slate-600 bg-slate-100 px-2 py-0.5 rounded">
                                             Chế độ xem kết quả
                                         </span>
                                     )}
                                 </div>
-                                <div className={styles.itemsTableWrap}>
-                                    <table className={styles.itemsTable}>
-                                        <thead>
-                                            <tr>
-                                                <th>Sản phẩm</th>
-                                                <th style={{ width: "70px", textAlign: "center" }}>SL</th>
-                                                <th>Tình trạng khai báo</th>
-                                                <th>Tình trạng thực tế</th>
-                                                <th>Kết quả xử lý</th>
-                                                <th>Vị trí đích</th>
-                                                <th>Ghi chú</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {inspectionDetail && inspectionDetail.lines.length > 0 ? (
-                                                inspectionDetail.lines.map((inspLine) => {
-                                                    const lineDraft = drafts[inspLine.id] ?? createCustomerReturnQcDraft(inspLine);
-                                                    const isLineEditable = isEditable && !inspLine.posted;
-                                                    return (
-                                                        <tr key={inspLine.id}>
-                                                            <td className={styles.productCell}>
-                                                                <strong>{inspLine.itemName || "Sản phẩm"}</strong>
-                                                                <span className={styles.skuText}>{inspLine.itemCode || "--"}</span>
-                                                                {inspLine.posted ? (
-                                                                    <span className="inline-block mt-1 text-[11px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
-                                                                        Đã hạch toán
-                                                                    </span>
-                                                                ) : null}
-                                                            </td>
-                                                            <td style={{ textAlign: "center" }}>
-                                                                <strong>{formatVietnamNumber(Number(inspLine.quantity))}</strong>
-                                                            </td>
-                                                            <CustomerReturnQcFields
-                                                                draft={lineDraft}
-                                                                editable={isLineEditable}
-                                                                line={inspLine}
-                                                                locations={locations}
-                                                                onChange={(update) => {
-                                                                    setDrafts((curr) => ({
-                                                                        ...curr,
-                                                                        [inspLine.id]: {
-                                                                            ...(curr[inspLine.id] ?? createCustomerReturnQcDraft(inspLine)),
-                                                                            ...update
-                                                                        }
-                                                                    }));
-                                                                    setError("");
-                                                                }}
-                                                            />
-                                                        </tr>
-                                                    );
-                                                })
-                                            ) : lines.map((line, idx) => {
-                                                const matchedItem = itemsMap.get(line.returnItemId);
-                                                const prodName = matchedItem?.productNameSnapshot || "Sản phẩm hoàn";
-                                                const sku = matchedItem?.skuSnapshot || "--";
-                                                const disposition = line.dispositions && line.dispositions.length > 0
-                                                    ? line.dispositions[0]
-                                                    : null;
 
-                                                return (
-                                                    <tr key={line.returnItemId || idx}>
-                                                        <td className={styles.productCell}>
-                                                            <strong>{prodName}</strong>
-                                                            <span className={styles.skuText}>{sku}</span>
-                                                        </td>
-                                                        <td style={{ textAlign: "center" }}>
-                                                            <strong>{formatReturnQuantity(line.returnedQuantity)}</strong>
-                                                        </td>
-                                                        <td>{getReturnConditionLabel(line.condition)}</td>
-                                                        <td>--</td>
-                                                        <td>
-                                                            {disposition ? (
-                                                                <span className="font-bold text-[#172317]">
-                                                                    {RESULT_LABELS[disposition.result] ?? disposition.result}
-                                                                </span>
-                                                            ) : (
-                                                                <span className="text-[#64748b]">Chưa phân loại</span>
-                                                            )}
-                                                        </td>
-                                                        <td>
-                                                            {disposition?.destinationLocationName || "--"}
-                                                        </td>
-                                                        <td className="text-xs text-[#64748b]">
-                                                            {disposition?.transactionType || "--"}
-                                                        </td>
-                                                    </tr>
+                                {inspectionDetail && inspectionDetail.lines.length > 1 ? (
+                                    <button
+                                        className={styles.expandAllButton}
+                                        onClick={() => {
+                                            const anyCollapsed = inspectionDetail.lines.some(
+                                                (l) => expandedCards[l.id] === false
+                                            );
+                                            if (anyCollapsed) {
+                                                setExpandedCards({});
+                                            } else {
+                                                setExpandedCards(
+                                                    Object.fromEntries(inspectionDetail.lines.map((l) => [l.id, false]))
                                                 );
-                                            })}
-                                        </tbody>
-                                    </table>
-                                </div>
+                                            }
+                                        }}
+                                        type="button"
+                                    >
+                                        {inspectionDetail.lines.some((l) => expandedCards[l.id] === false)
+                                            ? "Mở rộng tất cả"
+                                            : "Thu gọn tất cả"}
+                                    </button>
+                                ) : null}
+                            </div>
+
+                            {/* Product Cards List */}
+                            <div className={styles.cardList}>
+                                {inspectionDetail && inspectionDetail.lines.length > 0 ? (
+                                    inspectionDetail.lines.map((inspLine) => {
+                                        const matchedItem = itemsMap.get(inspLine.returnItemId);
+                                        const lineDraft = drafts[inspLine.id] ?? createCustomerReturnQcDraft(inspLine);
+                                        const isLineEditable = isEditable && !inspLine.posted;
+                                        return (
+                                            <CustomerReturnInspectionCard
+                                                attemptedSubmit={attemptedSubmit}
+                                                declaredCondition={inspLine.declaredCondition ?? inspLine.condition}
+                                                draft={lineDraft}
+                                                editable={isLineEditable}
+                                                isCollapsible={inspectionDetail.lines.length > 1}
+                                                isExpanded={expandedCards[inspLine.id] !== false}
+                                                key={inspLine.id}
+                                                line={inspLine}
+                                                locations={locations}
+                                                onChange={(update) => {
+                                                    setDrafts((curr) => ({
+                                                        ...curr,
+                                                        [inspLine.id]: {
+                                                            ...(curr[inspLine.id] ?? createCustomerReturnQcDraft(inspLine)),
+                                                            ...update
+                                                        }
+                                                    }));
+                                                    setError("");
+                                                }}
+                                                onFieldTouch={(field) =>
+                                                    setTouchedFields((prev) => ({
+                                                        ...prev,
+                                                        [inspLine.id]: {
+                                                            ...(prev[inspLine.id] ?? {}),
+                                                            [field]: true
+                                                        }
+                                                    }))
+                                                }
+                                                onToggleExpand={() =>
+                                                    setExpandedCards((prev) => ({
+                                                        ...prev,
+                                                        [inspLine.id]: prev[inspLine.id] === false
+                                                    }))
+                                                }
+                                                productName={inspLine.itemName || matchedItem?.productNameSnapshot}
+                                                sku={inspLine.itemCode || matchedItem?.skuSnapshot}
+                                                touched={touchedFields[inspLine.id] ?? {}}
+                                            />
+                                        );
+                                    })
+                                ) : lines.map((line, idx) => {
+                                    const matchedItem = itemsMap.get(line.returnItemId);
+                                    const prodName = matchedItem?.productNameSnapshot || "Sản phẩm hoàn";
+                                    const sku = matchedItem?.skuSnapshot || "--";
+                                    const disposition = line.dispositions && line.dispositions.length > 0
+                                        ? line.dispositions[0]
+                                        : null;
+
+                                    return (
+                                        <div className={styles.inspectionCard} key={line.returnItemId || idx}>
+                                            <div className={styles.cardHeader}>
+                                                <div className={styles.cardHeaderInfo}>
+                                                    <strong className={styles.cardProductName}>{prodName}</strong>
+                                                    <span className={styles.skuBadge}>{sku}</span>
+                                                    <span className="text-xs text-[#64748b] ml-2">
+                                                        Số lượng: <strong>{formatReturnQuantity(line.returnedQuantity)}</strong>
+                                                    </span>
+                                                </div>
+                                            </div>
+                                            <div className={styles.cardBody}>
+                                                <div className={styles.readOnlyGrid}>
+                                                    <div className={styles.readOnlyItem}>
+                                                        <span className={styles.readOnlyLabel}>Tình trạng khai báo</span>
+                                                        <span className={styles.readOnlyValue}>{getReturnConditionLabel(line.condition)}</span>
+                                                    </div>
+                                                    <div className={styles.readOnlyItem}>
+                                                        <span className={styles.readOnlyLabel}>Phương án xử lý</span>
+                                                        <span className={styles.readOnlyValue}>
+                                                            {disposition ? (RESULT_LABELS[disposition.result] ?? disposition.result) : "Chưa phân loại"}
+                                                        </span>
+                                                    </div>
+                                                    <div className={styles.readOnlyItem}>
+                                                        <span className={styles.readOnlyLabel}>Vị trí đích</span>
+                                                        <span className={styles.readOnlyValue}>
+                                                            {disposition?.destinationLocationName || "--"}
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    );
+                                })}
                             </div>
                         </div>
                     ) : null}
                 </div>
 
-                {/* Footer */}
+                {/* Sticky Footer */}
                 <div className={styles.modalFooter}>
                     <div className="flex items-center gap-2">
-                        {isEditable && validationErrors.length > 0 ? (
-                            <span className="text-xs font-semibold text-amber-700">
-                                {validationErrors[0]}
+                        {isEditable && attemptedSubmit && validationErrors.length > 0 ? (
+                            <span className="text-xs font-bold text-red-600 flex items-center gap-1.5" role="alert">
+                                <AlertCircle size={14} />
+                                Còn {validationErrors.length} dòng sản phẩm cần hoàn thiện thông tin trước khi xác nhận.
+                            </span>
+                        ) : isEditable && pendingLines.length > 0 ? (
+                            <span className="text-xs font-semibold text-slate-500">
+                                Kiểm tra thực tế và phân bổ vị trí kho cho từng sản phẩm trước khi xác nhận.
                             </span>
                         ) : null}
                     </div>
@@ -671,11 +729,35 @@ export function CustomerReturnWarehouseInspectionModal({
                         {isEditable && pendingLines.length > 0 ? (
                             <button
                                 className={styles.primaryButton}
-                                disabled={cannotPost}
-                                onClick={() => void handlePostInspection()}
+                                disabled={submitting}
+                                onClick={() => {
+                                    if (validationErrors.length > 0) {
+                                        setAttemptedSubmit(true);
+                                        const firstInvalid = pendingLines.find((line) => {
+                                            const draft = drafts[line.id] ?? createCustomerReturnQcDraft(line);
+                                            return Boolean(getCustomerReturnQcError(line, draft, locations));
+                                        });
+                                        if (firstInvalid) {
+                                            setExpandedCards((prev) => ({ ...prev, [firstInvalid.id]: true }));
+                                            window.setTimeout(() => {
+                                                const el = document.getElementById(`card-${firstInvalid.id}`);
+                                                el?.scrollIntoView({ behavior: "smooth", block: "center" });
+                                            }, 50);
+                                        }
+                                        return;
+                                    }
+                                    void handlePostInspection();
+                                }}
                                 type="button"
                             >
-                                {submitting ? "Đang xử lý..." : "Xác nhận xử lý"}
+                                {submitting ? (
+                                    <>
+                                        <RotateCw className="animate-spin" size={15} />
+                                        Đang xử lý...
+                                    </>
+                                ) : (
+                                    "Xác nhận xử lý"
+                                )}
                             </button>
                         ) : null}
                     </div>

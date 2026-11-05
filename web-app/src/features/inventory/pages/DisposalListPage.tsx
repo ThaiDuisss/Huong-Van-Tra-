@@ -1,18 +1,25 @@
+import orderUiStyles from "@/features/order/components/shared/OrderListUI.module.css";
+import {
+    OrderPageLayout,
+    OrderListWorkspace,
+    OrderToolbar,
+    OrderStatusFilters,
+    OrderDataTable,
+    OrderPagination,
+} from "@/features/order/components/shared/OrderListUI";
+import { RefreshCw } from "lucide-react";
 import { useEffect, useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
+
 import { TimeSidebar } from "@/components/shared/TimeSidebar";
 import { useTimeFilter } from "@/components/shared/useTimeFilter";
+import { RowActionMenu, type RowAction } from "@/components/shared/RowActionMenu";
 
 import { useAuthorization } from "../../../auth/useAuthorization";
+import { ROLES } from "../../../auth/roles";
 import { ConfirmDialog } from "../../product/components/ConfirmDialog";
-import orderStyles from "../../order/pages/OrderListPage.module.css";
-import { useDebouncedValue } from "../hooks/useDebouncedValue";
-import { DisposalTable } from "../components/QualityComponents";
-import {
-    ListFilterBar,
-    ListMessage,
-    ListPagination,
-    type CustomerReturnStatusTab
-} from "../components/CustomerReturnListUi";
+import { formatDateTime } from "../../order/utils/order-formatters";
+import { DisposalStatusBadge } from "../components/QualityComponents";
 import { qualityApi } from "../services/quality.api";
 import type {
     DisposalListQuery,
@@ -20,26 +27,49 @@ import type {
     DisposalRequest,
     DisposalStatusCounts
 } from "../types/quality.types";
-import styles from "./CustomerReturnListPage.module.css";
-import disposalStyles from "./DisposalListPage.module.css";
 import { isCustomerReturnDisposal } from "../utils/inventory-labels";
-import { ROLES } from "../../../auth/roles";
+import styles from "./CustomerReturnListPage.module.css";
 
 const PAGE_SIZE = 10;
-const STATUS_TABS: CustomerReturnStatusTab[] = [
+const STATUS_TABS = [
     { key: "ALL", label: "Tất cả" },
     { key: "PENDING_APPROVAL", label: "Chờ xử lý" },
     { key: "APPROVED", label: "Đã xử lý" }
-];
+] as const;
+
+type DisposalStatusFilter = NonNullable<DisposalListQuery["status"]>;
+
+function useDebouncedValue<T>(value: T, delayMs: number) {
+    const [debouncedValue, setDebouncedValue] = useState(value);
+
+    useEffect(() => {
+        const timerId = window.setTimeout(() => setDebouncedValue(value), delayMs);
+        return () => window.clearTimeout(timerId);
+    }, [delayMs, value]);
+
+    return debouncedValue;
+}
 
 export function DisposalListPage() {
+    const navigate = useNavigate();
     const { hasAnyRole } = useAuthorization();
     const canApprove = hasAnyRole([ROLES.SUPER_ADMIN, ROLES.MANAGER]);
+
     const [searchTerm, setSearchTerm] = useState("");
-    const keyword = useDebouncedValue(searchTerm.trim(), 300);
-    const [status, setStatus] = useState<DisposalListQuery["status"]>("ALL");
+    const debouncedSearchTerm = useDebouncedValue(searchTerm.trim(), 350);
+
+    const [status, setStatus] = useState<DisposalStatusFilter>("ALL");
     const [page, setPage] = useState(0);
-    const [isTimeCollapsed, setIsTimeCollapsed] = useState(true);
+
+    const {
+        selectedTimeNode,
+        selectTimeNode,
+        clearTimeRange,
+        isTimeCollapsed,
+        setIsTimeCollapsed,
+        timeRange,
+    } = useTimeFilter(() => setPage(0));
+
     const [reloadKey, setReloadKey] = useState(0);
     const [result, setResult] = useState<DisposalListResult | null>(null);
     const [statusCounts, setStatusCounts] = useState<DisposalStatusCounts | null>(null);
@@ -51,13 +81,8 @@ export function DisposalListPage() {
     const [approvalError, setApprovalError] = useState("");
     const [submitting, setSubmitting] = useState(false);
     const [openActionId, setOpenActionId] = useState<string | null>(null);
-    const { selectedTimeNode, selectTimeNode, timeRange, timeZone } = useTimeFilter(() => {
-        setOpenActionId(null);
-        setPage(0);
-    });
 
     useEffect(() => {
-        if (searchTerm.trim() !== keyword) return;
         let active = true;
         queueMicrotask(() => {
             if (!active) return;
@@ -66,7 +91,10 @@ export function DisposalListPage() {
             void qualityApi.listDisposalRequests({
                 fromDate: timeRange?.fromDate,
                 toDate: timeRange?.toDate,
-                keyword, page, size: PAGE_SIZE, status
+                keyword: debouncedSearchTerm,
+                page,
+                size: PAGE_SIZE,
+                status
             })
                 .then((response) => {
                     if (!active) return;
@@ -88,7 +116,7 @@ export function DisposalListPage() {
                 });
         });
         return () => { active = false; };
-    }, [keyword, page, reloadKey, searchTerm, status, timeRange?.fromDate, timeRange?.toDate]);
+    }, [debouncedSearchTerm, page, reloadKey, setPage, status, timeRange?.fromDate, timeRange?.toDate]);
 
     useEffect(() => {
         let active = true;
@@ -96,7 +124,11 @@ export function DisposalListPage() {
             if (!active) return;
             setStatusCounts(null);
             setCountsError("");
-            void qualityApi.getDisposalStatusCounts(keyword || undefined, timeRange?.fromDate, timeRange?.toDate)
+            void qualityApi.getDisposalStatusCounts(
+                debouncedSearchTerm || undefined,
+                timeRange?.fromDate,
+                timeRange?.toDate
+            )
                 .then((counts) => {
                     if (active) setStatusCounts(counts);
                 })
@@ -105,7 +137,7 @@ export function DisposalListPage() {
                 });
         });
         return () => { active = false; };
-    }, [keyword, reloadKey, timeRange?.fromDate, timeRange?.toDate]);
+    }, [debouncedSearchTerm, reloadKey, timeRange?.fromDate, timeRange?.toDate]);
 
     async function approveRequest() {
         if (!confirmRequest || isCustomerReturnDisposal(confirmRequest) || submitting || !canApprove) return;
@@ -125,111 +157,185 @@ export function DisposalListPage() {
         }
     }
 
-    const hasFilter = Boolean(searchTerm.trim()) || status !== "ALL" || timeRange !== null;
+    function getRowActions(request: DisposalRequest): RowAction[] {
+        const actions: RowAction[] = [{
+            label: "Xem chi tiết",
+            onSelect: () => navigate(`/management/inventory/disposals/${request.id}`)
+        }];
+        if (request.status === "PENDING_APPROVAL" && !isCustomerReturnDisposal(request) && canApprove) {
+            actions.push({
+                label: "Phê duyệt",
+                onSelect: () => {
+                    setApprovalError("");
+                    setConfirmRequest(request);
+                }
+            });
+        }
+        return actions;
+    }
+
+    const handleSearchChange = (value: string) => {
+        setSearchTerm(value);
+        setPage(0);
+    };
+
+    const selectStatus = (newStatus: DisposalStatusFilter) => {
+        setOpenActionId(null);
+        setStatus(newStatus);
+        setPage(0);
+    };
 
     return (
-        <section className={`${orderStyles.page} ${isTimeCollapsed ? orderStyles.pageTimeCollapsed : ""}`}>
-            <TimeSidebar
-                activeDate={timeRange?.selectedDate ?? undefined}
-                collapsed={isTimeCollapsed}
-                enableCalendar
-                onClear={() => selectTimeNode(null)}
-                onSelect={selectTimeNode}
-                onToggleCollapse={() => setIsTimeCollapsed((collapsed) => !collapsed)}
-                selectedNode={selectedTimeNode}
-                timeZone={timeZone}
-            />
-            <div className={styles.content}>
-                <header className={orderStyles.header}>
-                    <div className={orderStyles.title}>
-                        <h1>Yêu cầu tiêu hủy</h1>
-                        <p>Theo dõi yêu cầu và lịch sử xử lý tiêu hủy.</p>
-                    </div>
-                </header>
-
-                <section className={styles.section}>
-                    <ListFilterBar
-                        activeStatus={status}
-                        onSearchChange={(value) => {
-                            setOpenActionId(null);
-                            setSearchTerm(value);
-                            setPage(0);
-                        }}
-                        onStatusChange={(value) => {
-                            setOpenActionId(null);
-                            setStatus(value as DisposalListQuery["status"]);
-                            setPage(0);
-                        }}
-                        searchPlaceholder="Tìm mã yêu cầu hoặc mã phiếu trả"
-                        searchTerm={searchTerm}
-                        statusCounts={statusCounts ?? undefined}
-                        statusTabs={STATUS_TABS}
+        <OrderPageLayout
+            title="Yêu cầu tiêu hủy"
+            description="Theo dõi yêu cầu và lịch sử xử lý tiêu hủy hàng hỏng, hàng khách trả."
+            sidebarCollapsed={isTimeCollapsed}
+            sidebar={
+                <TimeSidebar
+                    activeDate={timeRange?.selectedDate ?? undefined}
+                    collapsed={isTimeCollapsed}
+                    enableCalendar
+                    onClear={clearTimeRange}
+                    onSelect={selectTimeNode}
+                    onToggleCollapse={() => setIsTimeCollapsed((collapsed) => !collapsed)}
+                    selectedNode={selectedTimeNode}
+                />
+            }
+            actions={
+                <button
+                    className={orderUiStyles.secondaryButton}
+                    disabled={loading}
+                    onClick={() => setReloadKey((key) => key + 1)}
+                    type="button"
+                >
+                    <RefreshCw size={17} aria-hidden="true" />
+                    Làm mới
+                </button>
+            }
+        >
+            <OrderListWorkspace>
+                <OrderToolbar
+                    search={{
+                        "aria-label": "Tìm kiếm yêu cầu tiêu hủy",
+                        placeholder: "Tìm mã yêu cầu hoặc mã phiếu trả...",
+                        value: searchTerm,
+                        onChange: (event) => handleSearchChange(event.target.value),
+                        onKeyDown: (event) => {
+                            if (event.key === "Escape") {
+                                handleSearchChange("");
+                            }
+                        },
+                    }}
+                >
+                    <OrderStatusFilters
+                        label="Trạng thái:"
+                        options={STATUS_TABS.map((tab) => ({
+                            ...tab,
+                            count: countsError ? undefined : statusCounts ? (statusCounts[tab.key] ?? 0) : undefined,
+                        }))}
+                        value={status}
+                        onChange={selectStatus}
                     />
+                </OrderToolbar>
 
-                    {notice ? <div className={styles.notice}>{notice}</div> : null}
-                    {countsError ? <div className={styles.error}>{countsError}</div> : null}
-                    {error ? <div className={styles.error}>{error}</div> : null}
+                {notice ? <div className={styles.notice} role="status">{notice}</div> : null}
 
-                    <div className={orderStyles.tableCard}>
-                        <div className={orderStyles.tableWrap}>
-                            {loading || error || !result?.content.length ? (
-                                <table className={`${orderStyles.orderTable} ${styles.dataTable} ${disposalStyles.table}`}>
-                                    <thead>
-                                        <tr>
-                                            <th>Mã yêu cầu</th>
-                                            <th>Thời gian</th>
-                                            <th>Trạng thái</th>
-                                            <th>Phiếu trả</th>
-                                            <th>Phiếu kiểm định</th>
-                                            <th>Thao tác</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {loading ? <ListMessage colSpan={6} message="Đang tải danh sách yêu cầu tiêu hủy..." /> : null}
-                                        {!loading && error ? <ListMessage colSpan={6} message="Không thể hiển thị yêu cầu tiêu hủy." /> : null}
-                                        {!loading && !error && !result?.content.length ? (
-                                            <ListMessage
-                                                colSpan={6}
-                                                message={hasFilter
-                                                    ? "Chưa có yêu cầu tiêu hủy phù hợp bộ lọc."
-                                                    : "Chưa có yêu cầu tiêu hủy phù hợp."}
-                                            />
-                                        ) : null}
-                                    </tbody>
-                                </table>
-                            ) : (
-                                <DisposalTable
-                                    canApprove={canApprove}
-                                    disposals={result.content}
-                                    openActionId={openActionId}
-                                    onOpenActionChange={(requestId, open) => setOpenActionId((current) => {
-                                        if (open) return requestId;
-                                        return current === requestId ? null : current;
+                <OrderDataTable<DisposalRequest>
+                    caption="Danh sách yêu cầu tiêu hủy"
+                    rows={result?.content ?? []}
+                    columns={[
+                        {
+                            key: "code",
+                            header: "Mã yêu cầu",
+                            width: "18%",
+                            render: (request: DisposalRequest) => <DisposalCodeCell request={request} />
+                        },
+                        {
+                            key: "source",
+                            header: "Nguồn",
+                            width: "14%",
+                            render: (request: DisposalRequest) => (isCustomerReturnDisposal(request) ? "Khách trả hàng" : "Hàng hỏng / hết hạn")
+                        },
+                        {
+                            key: "items",
+                            header: "Hàng tiêu hủy",
+                            width: "22%",
+                            render: (request: DisposalRequest) => <DisposalItemsCell request={request} />
+                        },
+                        {
+                            key: "quantity",
+                            header: "Số lượng",
+                            width: "12%",
+                            align: "right",
+                            render: (request: DisposalRequest) => (
+                                <strong>
+                                    {request.lines
+                                        .reduce((total, line) => total + line.quantity, 0)
+                                        .toLocaleString("vi-VN")}
+                                </strong>
+                            )
+                        },
+                        {
+                            key: "status",
+                            header: "Trạng thái",
+                            width: "14%",
+                            align: "center",
+                            render: (request: DisposalRequest) => (
+                                <DisposalStatusBadge customerReturn={isCustomerReturnDisposal(request)} status={request.status} />
+                            )
+                        },
+                        {
+                            key: "requestedAt",
+                            header: "Thời gian",
+                            width: "16%",
+                            render: (request: DisposalRequest) => formatDateTime(request.requestedAt)
+                        },
+                        {
+                            key: "actions",
+                            header: "Thao tác",
+                            width: "8%",
+                            align: "center",
+                            render: (request: DisposalRequest) => (
+                                <RowActionMenu
+                                    actions={getRowActions(request)}
+                                    isOpen={openActionId === request.id}
+                                    menuLabel={`Thao tác yêu cầu ${request.code}`}
+                                    onOpenChange={(open) => setOpenActionId((current) => {
+                                        if (open) return request.id;
+                                        return current === request.id ? null : current;
                                     })}
-                                    onApprove={(request) => {
-                                        if (isCustomerReturnDisposal(request)) return;
-                                        setApprovalError("");
-                                        setConfirmRequest(request);
-                                    }}
+                                    triggerLabel={`Mở thao tác cho yêu cầu ${request.code}`}
                                 />
-                            )}
-                        </div>
-                        {!loading && !error ? (
-                            <ListPagination
-                                itemLabel="yêu cầu"
-                                onPageChange={(nextPage) => {
-                                    setOpenActionId(null);
-                                    setPage(nextPage);
-                                }}
-                                page={page}
-                                pageSize={PAGE_SIZE}
-                                totalItems={result?.totalElements ?? 0}
-                                totalPages={result?.totalPages ?? 0}
-                            />
-                        ) : null}
-                    </div>
-                </section>
-            </div>
+                            )
+                        }
+                    ]}
+                    emptyDescription="Thử đổi từ khóa, trạng thái hoặc khoảng thời gian"
+                    emptyTitle="Chưa có yêu cầu tiêu hủy phù hợp"
+                    error={error || null}
+                    getRowKey={(request: DisposalRequest) => request.id}
+                    loading={loading}
+                    loadingDescription="Dữ liệu đang được tải từ Inventory-Service"
+                    loadingTitle="Đang tải yêu cầu tiêu hủy"
+                    errorTitle="Không tải được danh sách yêu cầu tiêu hủy"
+                    onRetry={() => setReloadKey((key) => key + 1)}
+                    onRowClick={(request: DisposalRequest) => navigate(`/management/inventory/disposals/${request.id}`)}
+                    pagination={
+                        <OrderPagination
+                            disabled={loading}
+                            itemLabel="yêu cầu"
+                            onPageChange={(nextPage) => {
+                                setOpenActionId(null);
+                                setPage(nextPage);
+                            }}
+                            page={page}
+                            pageSize={PAGE_SIZE}
+                            totalItems={result?.totalElements ?? 0}
+                            totalPages={result?.totalPages ?? 0}
+                        />
+                    }
+                    minWidth={800}
+                />
+            </OrderListWorkspace>
 
             {confirmRequest && !isCustomerReturnDisposal(confirmRequest) ? (
                 <ConfirmDialog
@@ -242,6 +348,41 @@ export function DisposalListPage() {
                     title="Xác nhận phê duyệt tiêu hủy"
                 />
             ) : null}
-        </section>
+        </OrderPageLayout>
+    );
+}
+
+function DisposalCodeCell({ request }: { request: DisposalRequest }) {
+    const references = [
+        request.returnCode ? `Phiếu trả ${request.returnCode}` : null,
+        request.inspectionCode ? `Kiểm hàng ${request.inspectionCode}` : null
+    ].filter(Boolean);
+
+    return (
+        <div className="grid">
+            <Link
+                className={styles.codeLink}
+                onClick={(event) => event.stopPropagation()}
+                to={`/management/inventory/disposals/${request.id}`}
+            >
+                {request.code}
+            </Link>
+            {references.length ? <span className={styles.mutedText}>{references.join(" · ")}</span> : null}
+        </div>
+    );
+}
+
+function DisposalItemsCell({ request }: { request: DisposalRequest }) {
+    const [first, ...rest] = request.lines;
+    if (!first) return <span className={styles.mutedText}>Chưa có dòng hàng</span>;
+
+    return (
+        <div className="grid max-w-[280px]">
+            <span className="truncate font-bold" title={first.skuName}>
+                {first.skuName}
+                {rest.length ? <span className={styles.mutedText}> +{rest.length}</span> : null}
+            </span>
+            <span className={styles.mutedText}>{first.skuCode}</span>
+        </div>
     );
 }

@@ -605,10 +605,10 @@ export function getCustomerReturnUiStatus(data?: CustomerReturnUiStatusSource | 
     const isPhysicalDone = Boolean(data.physicalDone);
 
     if (data.isPendingDisposition && !isPhysicalDone && !isQcCompleted) {
-        return { label: "Đang chờ xử lý kiểm định tại kho", status: "PROCESSING" };
+        return { label: "Đang xử lý", status: "PROCESSING" };
     }
     if (data.displayStatus === "COMPLETED" || data.status === "COMPLETED") {
-        return { label: "Hoàn tất", status: "COMPLETED" };
+        return { label: "Hoàn thành", status: "COMPLETED" };
     }
     if (data.displayStatus === "PENDING_REFUND") {
         return { label: "Chờ hoàn tiền", status: "PENDING" };
@@ -616,16 +616,16 @@ export function getCustomerReturnUiStatus(data?: CustomerReturnUiStatusSource | 
 
     if (data.status === "RECEIVED") {
         if (isQcCompleted || isPhysicalDone) {
-            return { label: "Đã kiểm định", status: "QC_COMPLETED" };
+            return { label: "Đã kiểm hàng", status: "QC_COMPLETED" };
         }
         if (data.qcStatus === "PARTIAL") {
-            return { label: "Đang kiểm định", status: "PROCESSING" };
+            return { label: "Đang kiểm hàng", status: "PROCESSING" };
         }
         const { processed, remaining } = resolveCustomerReturnQuantities(data);
         if (processed > 0 && remaining > 0) {
-            return { label: "Đang kiểm định", status: "PROCESSING" };
+            return { label: "Đang kiểm hàng", status: "PROCESSING" };
         }
-        return { label: "Chờ kiểm định", status: "PENDING" };
+        return { label: "Chờ kiểm hàng", status: "PENDING" };
     }
 
     return { label: data.status ?? "--", status: data.status ?? "DRAFT" };
@@ -642,24 +642,41 @@ export function getCustomerReturnQcProgressStatus(data?: (CustomerReturnQuantity
 
     // 1. Authoritative Inventory QC status takes precedence over Order physicalDone
     if (data.qcStatus === "COMPLETED") {
-        return { label: "Đã kiểm định", status: "QC_COMPLETED" };
+        return { label: "Đã kiểm hàng", status: "QC_COMPLETED" };
     }
     if (data.qcStatus === "PARTIAL") {
-        return { label: "Đang kiểm định", status: "PROCESSING" };
+        return { label: "Đang kiểm hàng", status: "PROCESSING" };
     }
     if (data.qcStatus === "PENDING") {
-        return { label: "Chờ kiểm định", status: "PENDING" };
+        return { label: "Chờ kiểm hàng", status: "PENDING" };
     }
 
     // 2. Fallback when Inventory qcStatus is not provided
     const { required, processed, remaining } = resolveCustomerReturnQuantities(data);
     if (required > 0 && remaining === 0 && Boolean(data.physicalDone)) {
-        return { label: "Đã kiểm định", status: "QC_COMPLETED" };
+        return { label: "Đã kiểm hàng", status: "QC_COMPLETED" };
     }
     if (processed > 0 && remaining > 0) {
-        return { label: "Đang kiểm định", status: "PROCESSING" };
+        return { label: "Đang kiểm hàng", status: "PROCESSING" };
     }
 
-    return { label: "Chờ kiểm định", status: "PENDING" };
+    return { label: "Chờ kiểm hàng", status: "PENDING" };
 }
 
+export const REFUND_BLOCK_REASON_LABELS: Record<string, string> = {
+    RETURN_NOT_RECEIVED: "Chưa nhận hàng trả lại",
+    PHYSICAL_DISPOSITION_NOT_COMPLETED: "Chưa hoàn tất kiểm hàng/nhập kho",
+    REFUND_NOT_REQUIRED: "Phiếu không yêu cầu hoàn tiền",
+    ALREADY_REFUNDED: "Đã hoàn tiền đầy đủ",
+    REFUND_FAILED: "Lần hoàn tiền trước đó thất bại",
+    PAYMENT_SERVICE_UNAVAILABLE: "Dịch vụ thanh toán tạm thời gián đoạn",
+    PAYMENT_NOT_FOUND: "Không tìm thấy giao dịch thanh toán",
+    PAYMENT_NOT_REFUNDABLE: "Thanh toán chưa ở trạng thái hợp lệ để hoàn",
+    UNSUPPORTED_PAYMENT_METHOD: "Phương thức thanh toán chưa hỗ trợ hoàn tự động",
+    NO_REFUND_AMOUNT: "Số tiền hoàn bằng 0",
+    REFUND_AMOUNT_EXCEEDS_REMAINING: "Số tiền hoàn vượt quá số tiền còn lại của thanh toán",
+};
+
+export function getBlockReasonLabel(reason?: string | null) {
+    return reason ? (REFUND_BLOCK_REASON_LABELS[reason] ?? reason) : "--";
+}

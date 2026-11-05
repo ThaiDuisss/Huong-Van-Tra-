@@ -117,7 +117,7 @@ describe("Customer Return QC Actions & Reservation Rules", () => {
         });
 
         expect(getCustomerReturnUiStatus({ status: "RECEIVED", isPendingDisposition: true })).toEqual({
-            label: "Đang chờ xử lý kiểm định tại kho",
+            label: "Đang xử lý",
             status: "PROCESSING"
         });
 
@@ -132,17 +132,17 @@ describe("Customer Return QC Actions & Reservation Rules", () => {
         });
 
         expect(getCustomerReturnUiStatus({ status: "RECEIVED", physicalDone: true })).toEqual({
-            label: "Đã kiểm định",
+            label: "Đã kiểm hàng",
             status: "QC_COMPLETED"
         });
 
         expect(getCustomerReturnUiStatus({ status: "RECEIVED", qcStatus: "PARTIAL" })).toEqual({
-            label: "Đang kiểm định",
+            label: "Đang kiểm hàng",
             status: "PROCESSING"
         });
 
         expect(getCustomerReturnUiStatus({ status: "RECEIVED", qcStatus: "PENDING", remainingQuantity: 1 })).toEqual({
-            label: "Chờ kiểm định",
+            label: "Chờ kiểm hàng",
             status: "PENDING"
         });
     });
@@ -218,14 +218,14 @@ describe("Customer Return QC Actions & Reservation Rules", () => {
             });
         });
 
-        it("maps QC progress status specifically to 'Đã kiểm định' (QC_COMPLETED)", () => {
+        it("maps QC progress status specifically to 'Đã kiểm hàng' (QC_COMPLETED)", () => {
             const qcStatus = getCustomerReturnUiStatus({
                 status: "RECEIVED",
                 physicalDone: true,
                 qcStatus: "COMPLETED"
             });
             expect(qcStatus).toEqual({
-                label: "Đã kiểm định",
+                label: "Đã kiểm hàng",
                 status: "QC_COMPLETED"
             });
         });
@@ -271,7 +271,7 @@ describe("Customer Return QC Actions & Reservation Rules", () => {
 
             const qcStatus = getCustomerReturnQcProgressStatus(data);
             expect(qcStatus).toEqual({
-                label: "Đang kiểm định",
+                label: "Đang kiểm hàng",
                 status: "PROCESSING"
             });
         });
@@ -300,10 +300,10 @@ describe("Customer Return QC Actions & Reservation Rules", () => {
             // QC progress status must reflect Inventory PARTIAL, not Order physicalDone
             const qcStatus = getCustomerReturnQcProgressStatus(data);
             expect(qcStatus).toEqual({
-                label: "Đang kiểm định",
+                label: "Đang kiểm hàng",
                 status: "PROCESSING"
             });
-            expect(qcStatus.label).not.toBe("Đã kiểm định");
+            expect(qcStatus.label).not.toBe("Đã kiểm hàng");
         });
 
         it("Scenario 3: Inspection POSTED but whole return is PARTIAL -> Does NOT mark whole return as completed", () => {
@@ -318,7 +318,7 @@ describe("Customer Return QC Actions & Reservation Rules", () => {
 
             const qcStatus = getCustomerReturnQcProgressStatus(data);
             expect(qcStatus).toEqual({
-                label: "Đang kiểm định",
+                label: "Đang kiểm hàng",
                 status: "PROCESSING"
             });
 
@@ -376,7 +376,7 @@ describe("Customer Return QC Actions & Reservation Rules", () => {
                 remainingQuantity: 2
             };
             expect(getCustomerReturnUiStatus(activePending)).toEqual({
-                label: "Đang chờ xử lý kiểm định tại kho",
+                label: "Đang xử lý",
                 status: "PROCESSING"
             });
             expect(canInspectCustomerReturn(activePending)).toBe(false);
