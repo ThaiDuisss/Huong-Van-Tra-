@@ -278,11 +278,21 @@ describe("shared Order list presentation", () => {
   });
 });
 
-describe("shared style propagation across all four Order routes", () => {
+describe("shared style propagation across Order list routes", () => {
+  // OrderReturnPage đã chuyển sang bộ danh sách dùng chung `components/shared/list` (chuẩn màn Khách hàng).
+  it("OrderReturnPage renders the shared list family with its own state", () => {
+    const source = readFileSync(new URL("../../pages/OrderReturnPage.tsx", import.meta.url), "utf8");
+    for (const component of ["ListPageHeader", "ListFilterToolbar", "DataTable", "TablePagination"])
+      expect(source).toContain(`<${component}`);
+    expect(source).toContain("rows={visibleRows}");
+    expect(source).toContain("loading={isRowsLoading}");
+    expect(source).toContain("error={rowsError}");
+    expect(source).not.toContain('from "../components/shared/OrderListUI"');
+  });
+
   const screens = [
     ["OrderListPage", "visibleOrders", "isOrdersLoading", "ordersError", 5],
     ["InvoiceListPage", "visibleInvoices", "isListLoading", "listError", 6],
-    ["OrderReturnPage", "visibleRows", "isRowsLoading", "rowsError", 5],
     ["OrderRefundPage", "visibleRefunds", "isListLoading", "listError", 6],
   ] as const;
   it.each(screens)(

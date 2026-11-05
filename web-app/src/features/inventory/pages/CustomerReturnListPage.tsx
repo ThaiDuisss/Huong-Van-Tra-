@@ -1,41 +1,33 @@
+import { RefreshCw } from "lucide-react";
 import { useState } from "react";
-import { TimeSidebar } from "@/components/shared/TimeSidebar";
-import { useTimeFilter } from "@/components/shared/useTimeFilter";
 
-import orderStyles from "../../order/pages/OrderListPage.module.css";
+import { ListPageHeader } from "@/components/shared/list/ListPageHeader";
+import { LIST_SECONDARY_BUTTON } from "@/components/shared/list/list-ui.constants";
+import { useListUrlState } from "@/components/shared/list/useListUrlState";
+
 import { CustomerReturnQcQueue } from "../components/CustomerReturnQcQueue";
-import styles from "./CustomerReturnListPage.module.css";
 
 export function CustomerReturnListPage() {
-    const [returnPage, setReturnPage] = useState(0);
-    const [isTimeCollapsed, setIsTimeCollapsed] = useState(true);
-    const { selectedTimeNode, selectTimeNode, timeRange, timeZone } = useTimeFilter(() => setReturnPage(0));
+    const listState = useListUrlState();
+    const [reloadSignal, setReloadSignal] = useState(0);
 
     return (
-        <section className={`${orderStyles.page} ${isTimeCollapsed ? orderStyles.pageTimeCollapsed : ""}`}>
-            <TimeSidebar
-                activeDate={timeRange?.selectedDate ?? undefined}
-                collapsed={isTimeCollapsed}
-                enableCalendar
-                onClear={() => selectTimeNode(null)}
-                onSelect={selectTimeNode}
-                onToggleCollapse={() => setIsTimeCollapsed((collapsed) => !collapsed)}
-                selectedNode={selectedTimeNode}
-                timeZone={timeZone}
+        <section className="flex h-full min-h-0 flex-col gap-4 text-[#172317]">
+            <ListPageHeader
+                title="Khách trả hàng"
+                description="Tiếp nhận, kiểm hàng và xử lý kho cho hàng khách trả."
+                actions={(
+                    <button
+                        className={LIST_SECONDARY_BUTTON}
+                        onClick={() => setReloadSignal((value) => value + 1)}
+                        type="button"
+                    >
+                        <RefreshCw size={17} aria-hidden="true" />
+                        Làm mới
+                    </button>
+                )}
             />
-            <div className={styles.content}>
-                <header className={orderStyles.header}>
-                    <div className={orderStyles.title}>
-                        <h1>Khách trả hàng</h1>
-                        <p>Theo dõi và xử lý hàng khách trả.</p>
-                    </div>
-                </header>
-                <CustomerReturnQcQueue
-                    onPageChange={setReturnPage}
-                    page={returnPage}
-                    timeRange={timeRange}
-                />
-            </div>
+            <CustomerReturnQcQueue listState={listState} reloadSignal={reloadSignal} />
         </section>
     );
 }

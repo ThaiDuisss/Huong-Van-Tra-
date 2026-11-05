@@ -1615,3 +1615,65 @@
     width: auto;
   }
 }
+
+.stepper {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.stepper > li {
+  min-width: 0;
+}
+
+.stepper .step {
+  width: 100%;
+  text-align: left;
+}
+
+.stepper .step:disabled {
+  cursor: default;
+}
+
+.stepper .completed:not(:disabled) {
+  cursor: pointer;
+}
+
+.stepper .completed:not(:disabled):hover {
+  border-color: #07883a;
+}
+
+.footer {
+  align-items: center;
+}
+
+.wizardSummary {
+  display: flex;
+  flex: 1;
+  flex-wrap: wrap;
+  gap: 6px 24px;
+  min-width: 0;
+  margin: 0 auto 0 0;
+}
+
+.wizardSummary dt {
+  color: #697684;
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.wizardSummary dd {
+  margin: 0;
+  color: #172317;
+  font-size: 13px;
+  font-weight: 950;
+}
+
+.wizardSummaryEmpty {
+  flex: 1;
+  margin: 0 auto 0 0;
+  color: #697684;
+  font-size: 13px;
+  font-weight: 800;
+}

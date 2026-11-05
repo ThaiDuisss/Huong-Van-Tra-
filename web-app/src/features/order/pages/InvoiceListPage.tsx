@@ -11,9 +11,8 @@ import {
   MoreHorizontal,
   Upload,
 } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 
-import { toast } from "../../../components/ui/Toast";
 import { TimeSidebar } from "../../../components/shared/TimeSidebar";
 import {
   buildTodayTimeNode,
@@ -22,6 +21,7 @@ import {
 } from "../../../components/shared/TimeHierarchyFilter.utils";
 import { ExportDropdown } from "../components/ExportDropdown";
 import { InvoiceDetailPanel } from "../components/InvoiceDetailPanel";
+import { OrderImportDialog } from "../components/OrderImportDialog";
 import { PaymentStatusBadge } from "../components/PaymentStatusBadge";
 import { exportInvoices, getOrderById, getOrders, getOrderStats } from "../services/order.api";
 import type {
@@ -101,7 +101,9 @@ function useDebouncedValue<T>(value: T, delayMs: number) {
 }
 
 export function InvoiceListPage() {
-  const importInputRef = useRef<HTMLInputElement | null>(null);
+  const [isImportOpen, setIsImportOpen] = useState(false);
+  /** Tăng sau khi nhập file để tải lại danh sách và thống kê. */
+  const [reloadKey, setReloadKey] = useState(0);
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedTimeNode, setSelectedTimeNode] = useState<TimeNode | null>(buildTodayTimeNode);
   const debouncedKeyword = useDebouncedValue(searchTerm.trim(), 400);
@@ -168,6 +170,7 @@ export function InvoiceListPage() {
     activePaymentTab?.paymentStatus,
     currentPage,
     debouncedKeyword,
+    reloadKey,
     timeRange?.fromDate,
     timeRange?.toDate,
   ]);
@@ -193,7 +196,7 @@ export function InvoiceListPage() {
     return () => {
       ignore = true;
     };
-  }, [timeRange?.fromDate, timeRange?.toDate]);
+  }, [reloadKey, timeRange?.fromDate, timeRange?.toDate]);
 
   useEffect(() => {
     if (!selectedOrderId) {
@@ -241,19 +244,6 @@ export function InvoiceListPage() {
 
     setOpenActionCode(null);
   };
-
-  const handleClickImport = () => {
-    importInputRef.current?.click();
-  };
-
-  const handleImportFile = (file?: File) => {
-    if (!file) {
-      return;
-    }
-
-        console.log("TODO: Nhập file hóa đơn", file);
-        toast.info("Chức năng nhập file đang được phát triển");
-    };
 
   const buildCurrentFilterExportParams = () =>
     buildActiveOrderExportParams({
@@ -314,19 +304,9 @@ export function InvoiceListPage() {
       }
       actions={
         <>
-          <input
-            ref={importInputRef}
-            accept=".xlsx,.xls,.csv"
-            className={styles.hiddenFileInput}
-            onChange={(event) => {
-              handleImportFile(event.target.files?.[0]);
-              event.target.value = "";
-            }}
-            type="file"
-          />
           <button
             className={orderUiStyles.secondaryButton}
-            onClick={handleClickImport}
+            onClick={() => setIsImportOpen(true)}
             type="button"
           >
             <Upload size={18} aria-hidden="true" />
@@ -538,6 +518,13 @@ export function InvoiceListPage() {
             />
           </div>
         </div>
+      ) : null}
+      {isImportOpen ? (
+        <OrderImportDialog
+          onClose={() => setIsImportOpen(false)}
+          onImported={() => setReloadKey((key) => key + 1)}
+          title="Nhập hóa đơn từ file"
+        />
       ) : null}
     </OrderPageLayout>
   );
