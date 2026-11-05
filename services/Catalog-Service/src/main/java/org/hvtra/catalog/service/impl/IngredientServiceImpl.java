@@ -519,6 +519,10 @@ public class IngredientServiceImpl implements IngredientService {
     }
 
     private Ingredient get(UUID id) {
-        return repository.findById(id).orElseThrow(() -> new ResourceNotFoundException("Ingredient", id));
+        Ingredient ingredient = repository.findById(id).orElseThrow(() -> new ResourceNotFoundException("Ingredient", id));
+        if (Boolean.TRUE.equals(ingredient.getIsDeleted())) {
+            throw new ResourceNotFoundException("Ingredient", id);
+        }
+        return ingredient;
     }
 }

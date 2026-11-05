@@ -658,12 +658,20 @@ export function InventoryResourceManagement<T extends RowBase, S extends string 
                                         </div>
                                     </div>
                                     <div className="mt-6 grid gap-4">
-                                        {((selectedItem as any).code || (selectedItem as any).id) && (
-                                            <div className="grid gap-1">
-                                                <span className="text-[11px] font-bold uppercase tracking-wider text-gray-400">Mã / ID</span>
-                                                <span className="text-sm font-semibold text-[#172317]">#{(selectedItem as any).code || (selectedItem as any).id}</span>
-                                            </div>
-                                        )}
+                                        {(() => {
+                                            const rawCode = (selectedItem as any).code || (selectedItem as any).sku || (selectedItem as any).referenceCode;
+                                            const isUuid = (val: unknown) =>
+                                                typeof val === "string" &&
+                                                /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val);
+                                            const displayCode = rawCode && !isUuid(rawCode) ? rawCode : null;
+                                            if (!displayCode) return null;
+                                            return (
+                                                <div className="grid gap-1">
+                                                    <span className="text-[11px] font-bold uppercase tracking-wider text-gray-400">Mã / ID</span>
+                                                    <span className="text-sm font-semibold text-[#172317]">#{displayCode}</span>
+                                                </div>
+                                            );
+                                        })()}
                                         {(selectedItem as any).status && (
                                             <div className="grid gap-1">
                                                 <span className="text-[11px] font-bold uppercase tracking-wider text-gray-400">Trạng thái</span>

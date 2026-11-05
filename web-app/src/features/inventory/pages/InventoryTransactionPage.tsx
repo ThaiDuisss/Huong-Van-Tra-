@@ -20,6 +20,10 @@ import {
     transactionTypeLabels
 } from "../utils/inventory-labels";
 
+function isUuid(val?: unknown): boolean {
+    return typeof val === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val);
+}
+
 export function InventoryTransactionPage() {
     const [transactionCode, setTransactionCode] = useState("");
     const [type, setType] = useState<"ALL" | InventoryTransactionType>("ALL");
@@ -214,43 +218,90 @@ export function InventoryTransactionPage() {
                     <TableCell>{formatInventoryDate(item.createdAt)}</TableCell>
                 </>
             )}
-            renderDetail={(item: any) => (
-                <div className="grid gap-5 text-sm">
-                    <dl className="grid gap-3">
-                        <DetailItem label="Mã giao dịch" value={item.transactionCode} />
-                        <DetailItem label="Loại giao dịch" value={transactionTypeLabels[item.type as keyof typeof transactionTypeLabels]} />
-                        <DetailItem label="Loại tham chiếu" value={formatReferenceType(item.referenceType)} />
-                        <DetailItem label="Mã tham chiếu" value={item.referenceId ? `#${item.referenceId}` : "-"} />
-                        <DetailItem label="Chi nhánh" value={`#${item.branchId}`} />
-                        <DetailItem label="Người tạo" value={`#${item.createdBy}`} />
-                        <DetailItem label="Thời gian tạo" value={formatInventoryDate(item.createdAt)} />
-                    </dl>
-                    <div className="overflow-x-auto rounded-xl border border-pos-border">
-                        <table className="min-w-[620px] w-full text-left text-xs">
-                            <thead className="bg-neutral-50">
-                                <tr>
-                                    <th className="p-3">Mã hàng tồn kho</th>
-                                    <th className="p-3">Vị trí</th>
-                                    <th className="p-3">Số lượng thay đổi</th>
-                                    <th className="p-3">Tồn trước</th>
-                                    <th className="p-3">Tồn sau</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {item.lines.map((line: any) => (
-                                    <tr key={line.id}>
-                                        <td className="border-t p-3">#{line.inventoryItemId}</td>
-                                        <td className="border-t p-3">#{line.locationId}</td>
-                                        <td className="border-t p-3">{formatQuantity(line.quantity)}</td>
-                                        <td className="border-t p-3">{formatQuantity(line.beforeQuantity)}</td>
-                                        <td className="border-t p-3">{formatQuantity(line.afterQuantity)}</td>
+            renderDetail={(item: any) => {
+                const hasValidRefCode = item.referenceId && !isUuid(item.referenceId);
+                const branchDisplay = item.branchName || (item.branchId && !isUuid(item.branchId) ? `#${item.branchId}` : null);
+                const creatorDisplay = item.createdByName || (item.createdBy && !isUuid(item.createdBy) ? item.createdBy : "-");
+
+                return (
+                    <div className="grid gap-5 text-sm">
+                        <dl className="grid gap-3">
+                            <DetailItem label="Mã giao dịch" value={item.transactionCode} />
+                            <DetailItem label="Loại giao dịch" value={transactionTypeLabels[item.type as keyof typeof transactionTypeLabels]} />
+                            <DetailItem label="Loại tham chiếu" value={formatReferenceType(item.referenceType)} />
+                            {hasValidRefCode && (
+                                <DetailItem label="Mã tham chiếu" value={`#${item.referenceId}`} />
+                            )}
+                            {branchDisplay && (
+                                <DetailItem label="Chi nhánh" value={branchDisplay} />
+                            )}
+                            <DetailItem label="Người tạo" value={creatorDisplay} />
+                            <DetailItem label="Thời gian tạo" value={formatInventoryDate(item.createdAt)} />
+                        </dl>
+                        <div className="overflow-x-auto rounded-xl border border-pos-border">
+                            <table className="min-w-[620px] w-full text-left text-xs">
+                                <thead className="bg-neutral-50">
+                                    <tr>
+                                        <th className="p-3">Mặt hàng</th>
+                                        <th className="p-3">Vị trí</th>
+                                        <th className="p-3">Số lượng thay đổi</th>
+                                        <th className="p-3">Tồn trước</th>
+                                        <th className="p-3">Tồn sau</th>
                                     </tr>
-                                ))}
-                            </tbody>
-                        </table>
+                                </thead>
+                                <tbody>
+                                    {item.lines.map((line: any) => {
+                                        const itemName = line.itemName;
+                                        const itemCode = line.itemCode && !isUuid(line.itemCode) ? line.itemCode : null;
+                                        const locationName = line.locationName;
+                                        const locationCode = line.locationCode && !isUuid(line.locationCode) ? line.locationCode : null;
+
+                                        return (
+                                            <tr key={line.id}>
+                                                <td className="border-t p-3">
+                                                    {itemName ? (
+                                                        <div>
+                                                            <div className="font-semibold text-gray-900">{itemName}</div>
+                                                            {itemCode && (
+                                                                <div className="text-[11px] text-gray-500 font-mono">#{itemCode}</div>
+                                                            )}
+                                                        </div>
+                                                    ) : itemCode ? (
+                                                        <div className="font-mono text-gray-900">#{itemCode}</div>
+                                                    ) : (
+                                                        <span className="text-gray-400">-</span>
+                                                    )}
+                                                </td>
+                                                <td className="border-t p-3">
+                                                    {locationName ? (
+                                                        <div>
+                                                            <div className="font-medium text-gray-900">{locationName}</div>
+                                                            {locationCode && (
+                                                                <div className="text-[11px] text-gray-500 font-mono">{locationCode}</div>
+                                                            )}
+                                                        </div>
+                                                    ) : locationCode ? (
+                                                        <div className="font-medium text-gray-900">{locationCode}</div>
+                                                    ) : (
+                                                        <span className="text-gray-400">-</span>
+                                                    )}
+                                                </td>
+                                                <td className="border-t p-3">
+                                                    <span className={line.quantity > 0 ? "font-bold text-emerald-600" : line.quantity < 0 ? "font-bold text-rose-600" : "text-gray-700"}>
+                                                        {line.quantity > 0 ? `+${formatQuantity(line.quantity)}` : formatQuantity(line.quantity)}
+                                                    </span>
+                                                </td>
+                                                <td className="border-t p-3">{formatQuantity(line.beforeQuantity)}</td>
+                                                <td className="border-t p-3">{formatQuantity(line.afterQuantity)}</td>
+                                            </tr>
+                                        );
+                                    })}
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
-                </div>
-            )}
+                );
+            }}
         />
     );
 }

@@ -23,6 +23,8 @@ public class ProductMapper {
     }
 
     public ProductResponse toResponse(Product product, List<ProductVariant> variants) {
+        List<ProductVariant> activeVariants = variants == null ? List.of() :
+                variants.stream().filter(v -> !Boolean.TRUE.equals(v.getIsDeleted())).toList();
         return new ProductResponse(
                 product.getId(),
                 categoryMapper.toResponse(product.getCategory()),
@@ -31,7 +33,7 @@ public class ProductMapper {
                 product.getDescription(),
                 product.getImageUrl(),
                 product.getStatus(),
-                variants.stream().map(this::toVariantResponse).toList()
+                activeVariants.stream().map(this::toVariantResponse).toList()
         );
     }
 
@@ -54,7 +56,7 @@ public class ProductMapper {
                 categoryMapper.toResponse(product.getCategory()),
                 product.getImageUrl(),
                 product.getStatus(),
-                product.getVariants().size(),
+                product.getVariants() == null ? 0 : (int) product.getVariants().stream().filter(v -> !Boolean.TRUE.equals(v.getIsDeleted())).count(),
                 safeAvailable,
                 safeReserved,
                 safeStatus,

@@ -16,7 +16,7 @@ public class CatalogItemSyncConsumer {
 
     @KafkaListener(
             topics = "${inventory.catalog.events.item-sync.topics.item-sync:catalog.event.ITEM_SYNC}",
-            groupId = "${inventory.catalog.events.item-sync.group-id:${spring.application.name:Inventory-Service}-catalog-item-sync}"
+            groupId = "${inventory.catalog.events.item-sync.group-id:inventory-catalog-item-sync}"
     )
     public void handle(ConsumerRecord<String, String> record, Acknowledgment acknowledgment) {
         catalogItemSyncInboxService.handle(record);

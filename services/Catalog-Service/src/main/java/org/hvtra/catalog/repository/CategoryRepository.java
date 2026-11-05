@@ -22,7 +22,7 @@ public interface CategoryRepository extends JpaRepository<Category, UUID>, JpaSp
     Page<IdNameView> findLookup(@Param("search") String search, Pageable pageable);
 
     /** Lấy tên theo id cho các giá trị đã chọn sẵn trong dropdown. */
-    @Query("SELECT c.id AS id, c.name AS name FROM Category c WHERE c.id IN :ids")
+    @Query("SELECT c.id AS id, c.name AS name FROM Category c WHERE c.isDeleted = false AND c.id IN :ids")
     List<IdNameView> findLookupByIds(@Param("ids") Collection<UUID> ids);
 }
 

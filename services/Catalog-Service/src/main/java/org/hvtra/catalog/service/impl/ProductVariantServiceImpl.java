@@ -141,6 +141,7 @@ public class ProductVariantServiceImpl implements ProductVariantService {
 
             var predicates = new ArrayList<Predicate>();
             predicates.add(cb.isFalse(root.get("customBundle")));
+            predicates.add(cb.isFalse(root.get("isDeleted")));
             if (keyword != null && !keyword.isBlank()) {
                 String pattern = "%" + keyword.toLowerCase() + "%";
                 predicates.add(cb.or(
@@ -428,8 +429,12 @@ public class ProductVariantServiceImpl implements ProductVariantService {
     }
 
     private ProductVariant get(UUID id) {
-        return repository.findById(id)
+        ProductVariant variant = repository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("ProductVariant", id));
+        if (Boolean.TRUE.equals(variant.getIsDeleted())) {
+            throw new ResourceNotFoundException("ProductVariant", id);
+        }
+        return variant;
     }
 
     private void apply(ProductVariant variant, ProductVariantRequest request) {

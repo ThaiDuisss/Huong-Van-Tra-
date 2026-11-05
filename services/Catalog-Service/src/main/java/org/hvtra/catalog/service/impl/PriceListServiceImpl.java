@@ -55,6 +55,7 @@ public class PriceListServiceImpl implements PriceListService {
             UUID branchId, Status status, LocalDateTime effectiveAt, Pageable pageable) {
         Specification<PriceList> spec = (root, query, cb) -> {
             var predicates = new ArrayList<Predicate>();
+            predicates.add(cb.equal(root.get("isDeleted"), false));
             if (branchId != null) predicates.add(cb.equal(root.get("branchId"), branchId));
             if (status != null) predicates.add(cb.equal(root.get("status"), status));
             if (effectiveAt != null) {
@@ -165,7 +166,11 @@ public class PriceListServiceImpl implements PriceListService {
     }
 
     private PriceList get(UUID id) {
-        return repository.findById(id).orElseThrow(() -> new ResourceNotFoundException("Price list", id));
+        PriceList priceList = repository.findById(id).orElseThrow(() -> new ResourceNotFoundException("Price list", id));
+        if (Boolean.TRUE.equals(priceList.getIsDeleted())) {
+            throw new ResourceNotFoundException("Price list", id);
+        }
+        return priceList;
     }
 }
 
