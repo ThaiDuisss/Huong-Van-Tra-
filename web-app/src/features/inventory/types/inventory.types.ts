@@ -92,7 +92,11 @@ export interface InventoryBalanceResponse {
 export interface InventoryTransactionLineResponse {
     id: EntityId;
     inventoryItemId: EntityId;
+    itemCode?: string | null;
+    itemName?: string | null;
     locationId: EntityId;
+    locationCode?: string | null;
+    locationName?: string | null;
     quantity: number;
     beforeQuantity: number;
     afterQuantity: number;
@@ -105,7 +109,9 @@ export interface InventoryTransactionResponse {
     referenceType: InventoryReferenceType;
     referenceId: EntityId | null;
     branchId: EntityId;
+    branchName?: string | null;
     createdBy: EntityId;
+    createdByName?: string | null;
     createdAt: string;
     lines: InventoryTransactionLineResponse[];
 }
