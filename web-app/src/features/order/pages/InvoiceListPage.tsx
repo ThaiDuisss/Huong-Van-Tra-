@@ -8,7 +8,6 @@ import {
   OrderPagination,
 } from "../components/shared/OrderListUI";
 import {
-  MoreHorizontal,
   Upload,
 } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -114,7 +113,6 @@ export function InvoiceListPage() {
   const [selectedSummary, setSelectedSummary] = useState<OrderSummaryResponse | null>(null);
   const [selectedRowIndex, setSelectedRowIndex] = useState(0);
   const [selectedDetail, setSelectedDetail] = useState<OrderDetailResponse | null>(null);
-  const [openActionCode, setOpenActionCode] = useState<string | null>(null);
   const [invoicePage, setInvoicePage] = useState(emptyPage);
   const [stats, setStats] = useState<OrderStatsResponse>({});
   const [isListLoading, setIsListLoading] = useState(false);
@@ -237,13 +235,6 @@ export function InvoiceListPage() {
   const totalPages = Math.max(invoicePage.totalPages ?? 0, 1);
   const totalElements = invoicePage.totalElements ?? 0;
 
-  const handleAction = (action: string, order: OrderSummaryResponse, rowIndex: number) => {
-    if (action === "Xem chi tiết") {
-      selectInvoice(order, rowIndex);
-    }
-
-    setOpenActionCode(null);
-  };
 
   const buildCurrentFilterExportParams = () =>
     buildActiveOrderExportParams({
@@ -378,24 +369,22 @@ export function InvoiceListPage() {
             {
               key: "column-0",
               header: "Mã hóa đơn",
-              width: "28%",
+              width: "24%",
               align: "left",
               render: (order, index) => {
                 const absoluteIndex = invoicePage.number * invoicePage.size + index;
                 const invoiceCode = buildInvoiceCode(order, absoluteIndex);
                 return (
-                  <>
-                    <button className={styles.invoiceLink} type="button">
-                      {invoiceCode}
-                    </button>
-                  </>
+                  <span className={styles.invoiceLink} title={invoiceCode}>
+                    {invoiceCode}
+                  </span>
                 );
               },
             },
             {
               key: "column-1",
               header: "Thanh toán",
-              width: "30%",
+              width: "24%",
               align: "center",
               render: (order) => (
                 <>
@@ -409,7 +398,7 @@ export function InvoiceListPage() {
             {
               key: "column-2",
               header: "Tổng tiền",
-              width: "17%",
+              width: "20%",
               align: "left",
               render: (order) => (
                 <>
@@ -420,7 +409,7 @@ export function InvoiceListPage() {
             {
               key: "column-3",
               header: "Khách hàng",
-              width: "15%",
+              width: "18%",
               align: "left",
               render: (order) => (
                 <>
@@ -431,56 +420,9 @@ export function InvoiceListPage() {
             {
               key: "column-4",
               header: "Ngày",
-              width: "12%",
+              width: "14%",
               align: "left",
               render: (order) => <>{formatDateOnly(order.createdAt)}</>,
-            },
-            {
-              key: "column-5",
-              header: "Thao tác",
-              width: "10%",
-              align: "center",
-              cellClassName: styles.actionCell,
-              render: (order, index) => {
-                const absoluteIndex = invoicePage.number * invoicePage.size + index;
-                const invoiceCode = buildInvoiceCode(order, absoluteIndex);
-                return (
-                  <>
-                    <div className={styles.actionButtonWrap}>
-                      <button
-                        aria-expanded={openActionCode === order.id}
-                        aria-label={`Mở thao tác cho hóa đơn ${invoiceCode}`}
-                        className={styles.rowActionButton}
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          setOpenActionCode((current) => (current === order.id ? null : order.id));
-                        }}
-                        type="button"
-                      >
-                        <MoreHorizontal size={17} aria-hidden="true" />
-                      </button>
-                    </div>
-                    {openActionCode === order.id ? (
-                      <div className={styles.actionMenu}>
-                        {["Xem chi tiết", "In hóa đơn", "Tải PDF", "Gửi hóa đơn", "Hoàn tiền"].map(
-                          (action) => (
-                            <button
-                              key={action}
-                              onClick={(event) => {
-                                event.stopPropagation();
-                                handleAction(action, order, absoluteIndex);
-                              }}
-                              type="button"
-                            >
-                              {action}
-                            </button>
-                          ),
-                        )}
-                      </div>
-                    ) : null}
-                  </>
-                );
-              },
             },
           ]}
           pagination={

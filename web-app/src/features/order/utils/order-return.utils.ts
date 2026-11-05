@@ -605,7 +605,7 @@ export function getCustomerReturnUiStatus(data?: CustomerReturnUiStatusSource | 
     const isPhysicalDone = Boolean(data.physicalDone);
 
     if (data.isPendingDisposition && !isPhysicalDone && !isQcCompleted) {
-        return { label: "Đang chờ xử lý kiểm định tại kho", status: "PROCESSING" };
+        return { label: "Đang xử lý", status: "PROCESSING" };
     }
     if (data.displayStatus === "COMPLETED" || data.status === "COMPLETED") {
         return { label: "Hoàn thành", status: "COMPLETED" };

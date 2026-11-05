@@ -1,11 +1,17 @@
+import orderUiStyles from "@/features/order/components/shared/OrderListUI.module.css";
+import {
+    OrderPageLayout,
+    OrderListWorkspace,
+    OrderToolbar,
+    OrderStatusFilters,
+    OrderDataTable,
+    OrderPagination,
+} from "@/features/order/components/shared/OrderListUI";
+import { RefreshCw } from "lucide-react";
 import { useEffect, useState } from "react";
 
-import { DataTable } from "../../../components/shared/list/DataTable";
-import { ListFilterToolbar } from "../../../components/shared/list/ListFilterToolbar";
-import { LIST_CODE_TEXT, LIST_MUTED_TEXT } from "../../../components/shared/list/list-ui.constants";
-import { TablePagination } from "../../../components/shared/list/TablePagination";
-import { TimeRangeSelect } from "../../../components/shared/list/TimeRangeSelect";
-import type { useListUrlState } from "../../../components/shared/list/useListUrlState";
+import { TimeSidebar } from "@/components/shared/TimeSidebar";
+import { useTimeFilter } from "@/components/shared/useTimeFilter";
 import { ConfirmDialog } from "../../product/components/ConfirmDialog";
 import { ReturnDetailModal } from "../../order/components/return-detail/ReturnDetailModal";
 import { ReturnInspectionModal } from "../../order/components/ReturnInspectionModal";
@@ -44,19 +50,41 @@ const CUSTOMER_RETURN_STATUS_TABS: { key: string; label: string; isError?: boole
     { key: "PROCESSING_FAILED", label: "Có lỗi", isError: true }
 ];
 
+function useDebouncedValue<T>(value: T, delayMs: number) {
+    const [debouncedValue, setDebouncedValue] = useState(value);
+
+    useEffect(() => {
+        const timerId = window.setTimeout(() => setDebouncedValue(value), delayMs);
+        return () => window.clearTimeout(timerId);
+    }, [delayMs, value]);
+
+    return debouncedValue;
+}
+
 export function CustomerReturnQcQueue({
-    listState,
     onInspectionCreated,
     reloadSignal = 0
 }: {
-    listState: ReturnType<typeof useListUrlState>;
+    listState?: unknown;
     onInspectionCreated?: () => void;
     /** Tăng giá trị để tải lại danh sách (nút Làm mới ở header). */
     reloadSignal?: number;
-}) {
-    const { page, setPage: onPageChange, timeRange } = listState;
-    const debouncedSearchTerm = listState.keyword;
-    const status = CUSTOMER_RETURN_STATUS_TABS.some((tab) => tab.key === listState.status) ? listState.status : "ALL";
+} = {}) {
+    const [searchTerm, setSearchTerm] = useState("");
+    const debouncedSearchTerm = useDebouncedValue(searchTerm.trim(), 350);
+
+    const [status, setStatus] = useState("ALL");
+    const [page, setPage] = useState(0);
+
+    const {
+        selectedTimeNode,
+        selectTimeNode,
+        clearTimeRange,
+        isTimeCollapsed,
+        setIsTimeCollapsed,
+        timeRange,
+    } = useTimeFilter(() => setPage(0));
+
     const [statusCounts, setStatusCounts] = useState<Record<string, number> | null>(null);
     const [localReloadKey, setReloadKey] = useState(0);
     const reloadKey = localReloadKey + reloadSignal;
@@ -149,7 +177,6 @@ export function CustomerReturnQcQueue({
         return () => { active = false; };
     }, [page, reloadKey, status, debouncedSearchTerm, timeRange?.fromDate, timeRange?.toDate]);
 
-
     useEffect(() => {
         if (!selectedId) return;
         let active = true;
@@ -232,119 +259,175 @@ export function CustomerReturnQcQueue({
             });
     };
 
+    const handleSearchChange = (value: string) => {
+        setSearchTerm(value);
+        setPage(0);
+    };
+
+    const selectStatusFilter = (newStatus: string) => {
+        setOpenActionId(null);
+        setStatus(newStatus);
+        setPage(0);
+    };
+
     return (
-        <>
-            <ListFilterToolbar
-                activeChip={status}
-                chips={CUSTOMER_RETURN_STATUS_TABS.map((tab) => ({
-                    key: tab.key,
-                    label: tab.label,
-                    count: statusCounts ? (statusCounts[tab.key] ?? 0) : null,
-                    tone: tab.isError ? "danger" : "default"
-                }))}
-                onChipChange={(value) => {
-                    setOpenActionId(null);
-                    listState.setStatus(value);
-                }}
-                search={{
-                    value: listState.searchDraft,
-                    placeholder: "Tìm mã phiếu hoàn, mã đơn hàng, khách hàng...",
-                    onChange: listState.setSearchDraft
-                }}
-            >
-                <TimeRangeSelect onChange={listState.setTime} value={listState.time} />
-            </ListFilterToolbar>
+        <OrderPageLayout
+            title="Khách trả hàng"
+            description="Tiếp nhận, kiểm hàng và xử lý kho cho hàng khách trả."
+            sidebarCollapsed={isTimeCollapsed}
+            sidebar={
+                <TimeSidebar
+                    activeDate={timeRange?.selectedDate ?? undefined}
+                    collapsed={isTimeCollapsed}
+                    enableCalendar
+                    onClear={clearTimeRange}
+                    onSelect={selectTimeNode}
+                    onToggleCollapse={() => setIsTimeCollapsed((collapsed) => !collapsed)}
+                    selectedNode={selectedTimeNode}
+                />
+            }
+            actions={
+                <button
+                    className={orderUiStyles.secondaryButton}
+                    disabled={loading}
+                    onClick={reload}
+                    type="button"
+                >
+                    <RefreshCw size={17} aria-hidden="true" />
+                    Làm mới
+                </button>
+            }
+        >
+            <OrderListWorkspace>
+                <OrderToolbar
+                    search={{
+                        "aria-label": "Tìm kiếm phiếu khách trả hàng",
+                        placeholder: "Tìm mã phiếu hoàn, mã đơn hàng, khách hàng...",
+                        value: searchTerm,
+                        onChange: (event) => handleSearchChange(event.target.value),
+                        onKeyDown: (event) => {
+                            if (event.key === "Escape") {
+                                handleSearchChange("");
+                            }
+                        },
+                    }}
+                >
+                    <OrderStatusFilters
+                        label="Trạng thái:"
+                        options={CUSTOMER_RETURN_STATUS_TABS.map((tab) => ({
+                            ...tab,
+                            count: statusCounts ? (statusCounts[tab.key] ?? 0) : undefined,
+                        }))}
+                        value={status}
+                        onChange={selectStatusFilter}
+                    />
+                </OrderToolbar>
 
-            {notice ? <div className={styles.notice} role="status">{notice}</div> : null}
+                {notice ? <div className={styles.notice} role="status">{notice}</div> : null}
 
-            <DataTable
-                caption="Danh sách phiếu khách trả hàng"
-                columns={[
-                    {
-                        key: "code",
-                        header: "Phiếu hoàn",
-                        className: LIST_CODE_TEXT,
-                        render: (row) => row.returnCode ?? "Chưa có mã phiếu"
-                    },
-                    {
-                        key: "customer",
-                        header: "Khách hàng",
-                        render: (row) => (
-                            <div className="grid">
-                                <span className="font-bold">{row.customerName?.trim() || "Khách lẻ"}</span>
-                                {row.customerPhone ? <span className={LIST_MUTED_TEXT}>{row.customerPhone}</span> : null}
-                            </div>
-                        )
-                    },
-                    {
-                        key: "order",
-                        header: "Đơn hàng",
-                        className: LIST_CODE_TEXT,
-                        render: (row) => row.orderCode ?? "--"
-                    },
-                    {
-                        key: "quantity",
-                        header: "Số lượng",
-                        align: "right",
-                        render: (row) => <ReturnQuantityCell row={row} />
-                    },
-                    {
-                        key: "status",
-                        header: "Trạng thái",
-                        render: (row) => {
-                            const statusInfo = getCustomerReturnUiStatus(row);
-                            return <OrderStatusBadge label={statusInfo.label} status={statusInfo.status} />;
-                        }
-                    },
-                    {
-                        key: "createdAt",
-                        header: "Thời gian",
-                        render: (row) => formatDateTime(row.createdAt)
+                <OrderDataTable
+                    caption="Danh sách phiếu khách trả hàng"
+                    columns={[
+                        {
+                            key: "code",
+                            header: "Phiếu hoàn",
+                            width: "20%",
+                            cellClassName: styles.returnCodeText,
+                            render: (row) => (
+                                <span title={row.returnCode ?? undefined}>
+                                    {row.returnCode ?? "Chưa có mã phiếu"}
+                                </span>
+                            ),
+                        },
+                        {
+                            key: "status",
+                            header: "Trạng thái",
+                            width: "18%",
+                            align: "center",
+                            render: (row) => {
+                                const statusInfo = getCustomerReturnUiStatus(row);
+                                return <OrderStatusBadge label={statusInfo.label} status={statusInfo.status} />;
+                            },
+                        },
+                        {
+                            key: "customer",
+                            header: "Khách hàng",
+                            width: "22%",
+                            render: (row) => (
+                                <div className="grid">
+                                    <span className="font-bold">{row.customerName?.trim() || "Khách lẻ"}</span>
+                                    {row.customerPhone ? <span className={styles.mutedText}>{row.customerPhone}</span> : null}
+                                </div>
+                            ),
+                        },
+                        {
+                            key: "order",
+                            header: "Đơn hàng",
+                            width: "16%",
+                            cellClassName: styles.orderCodeText,
+                            render: (row) => (
+                                <span title={row.orderCode ?? undefined}>{row.orderCode ?? "--"}</span>
+                            ),
+                        },
+                        {
+                            key: "createdAt",
+                            header: "Thời gian",
+                            width: "16%",
+                            render: (row) => formatDateTime(row.createdAt),
+                        },
+                        {
+                            key: "actions",
+                            header: "Thao tác",
+                            width: "8%",
+                            align: "center",
+                            render: (row) => (
+                                <CustomerReturnActionMenu
+                                    isOpen={openActionId === row.id}
+                                    isReceiving={receivingId === row.id}
+                                    onInspect={() => setSelectedId(row.id)}
+                                    onOpenChange={(open) => handleActionMenuChange(row.id, open)}
+                                    onReceive={() => {
+                                        setReceiveConfirmError("");
+                                        setConfirmReceiveRow(row);
+                                    }}
+                                    onViewDetail={() => setDetailModalItem(row)}
+                                    onViewInspection={() => {
+                                        setOpenActionId(null);
+                                        setWarehouseInspectionItem(row);
+                                    }}
+                                    row={row}
+                                />
+                            ),
+                        },
+                    ]}
+                    rows={rows}
+                    emptyDescription="Thử đổi từ khóa, trạng thái hoặc khoảng thời gian"
+                    emptyTitle="Không có phiếu hoàn hàng phù hợp"
+                    error={error || null}
+                    getRowKey={(row) => row.id}
+                    loading={loading}
+                    loadingDescription="Dữ liệu đang được tải từ Order-Service"
+                    loadingTitle="Đang tải phiếu khách trả hàng"
+                    errorTitle="Không tải được danh sách phiếu khách trả hàng"
+                    onRetry={reload}
+                    onRowClick={(row) => setDetailModalItem(row)}
+                    pagination={
+                        <OrderPagination
+                            disabled={loading}
+                            itemLabel="phiếu hoàn"
+                            onPageChange={(nextPage) => {
+                                setOpenActionId(null);
+                                setPage(nextPage);
+                            }}
+                            page={page}
+                            pageSize={PAGE_SIZE}
+                            totalItems={totalElements}
+                            totalPages={totalPages}
+                        />
                     }
-                ]}
-                emptyDescription={listState.hasFilter
-                    ? "Thử đổi từ khóa, trạng thái hoặc khoảng thời gian."
-                    : "Phiếu hoàn sẽ xuất hiện ở đây khi cửa hàng tiếp nhận hàng khách trả."}
-                emptyTitle="Không có phiếu hoàn hàng phù hợp"
-                error={error || null}
-                getRowKey={(row) => row.id}
-                loading={loading}
-                onRetry={() => setReloadKey((key) => key + 1)}
-                onRowClick={(row) => setDetailModalItem(row)}
-                pagination={(
-                    <TablePagination
-                        disabled={loading}
-                        itemLabel="phiếu hoàn"
-                        onPageChange={(nextPage) => {
-                            setOpenActionId(null);
-                            onPageChange(nextPage);
-                        }}
-                        page={page}
-                        pageSize={PAGE_SIZE}
-                        totalItems={totalElements}
-                        totalPages={totalPages}
-                    />
-                )}
-                rowActions={(row) => (
-                    <CustomerReturnActionMenu
-                        isOpen={openActionId === row.id}
-                        isReceiving={receivingId === row.id}
-                        onInspect={() => setSelectedId(row.id)}
-                        onOpenChange={(open) => handleActionMenuChange(row.id, open)}
-                        onReceive={() => {
-                            setReceiveConfirmError("");
-                            setConfirmReceiveRow(row);
-                        }}
-                        onViewDetail={() => setDetailModalItem(row)}
-                        onViewInspection={() => {
-                            setOpenActionId(null);
-                            setWarehouseInspectionItem(row);
-                        }}
-                        row={row}
-                    />
-                )}
-                rows={rows}
-            />
+                    minWidth={800}
+                />
+            </OrderListWorkspace>
 
             {selectedId && (selectionLoading || selectionError) ? (
                 <div className="rounded-xl border border-[#e8eef0] bg-white p-4 text-sm font-semibold">
@@ -408,22 +491,6 @@ export function CustomerReturnQcQueue({
                     title="Xác nhận nhận hàng"
                 />
             ) : null}
-        </>
-    );
-}
-
-function ReturnQuantityCell({ row }: { row: OrderReturnListRow }) {
-    const required = toReturnNumber(row.requiredQuantity ?? row.itemCount ?? 0);
-    const hasProgress = row.processedQuantity !== null && row.processedQuantity !== undefined && required > 0;
-
-    return (
-        <div className="grid justify-items-end">
-            <span className="font-bold">{required.toLocaleString("vi-VN")}</span>
-            {hasProgress ? (
-                <span className={LIST_MUTED_TEXT}>
-                    Đã kiểm {toReturnNumber(row.processedQuantity).toLocaleString("vi-VN")}/{required.toLocaleString("vi-VN")}
-                </span>
-            ) : null}
-        </div>
+        </OrderPageLayout>
     );
 }

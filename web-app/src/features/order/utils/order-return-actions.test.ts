@@ -117,7 +117,7 @@ describe("Customer Return QC Actions & Reservation Rules", () => {
         });
 
         expect(getCustomerReturnUiStatus({ status: "RECEIVED", isPendingDisposition: true })).toEqual({
-            label: "Đang chờ xử lý kiểm định tại kho",
+            label: "Đang xử lý",
             status: "PROCESSING"
         });
 
@@ -376,7 +376,7 @@ describe("Customer Return QC Actions & Reservation Rules", () => {
                 remainingQuantity: 2
             };
             expect(getCustomerReturnUiStatus(activePending)).toEqual({
-                label: "Đang chờ xử lý kiểm định tại kho",
+                label: "Đang xử lý",
                 status: "PROCESSING"
             });
             expect(canInspectCustomerReturn(activePending)).toBe(false);

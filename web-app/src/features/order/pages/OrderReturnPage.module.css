@@ -12,3 +12,49 @@
   font-size: 14px;
   font-weight: 850;
 }
+
+.code {
+  color: #0f172a;
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.customerCell {
+  display: grid;
+  gap: 2px;
+}
+
+.customerName {
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.customerPhone {
+  color: #536078;
+  font-size: 13px;
+}
+
+.itemsSummary {
+  display: grid;
+  max-width: 260px;
+  gap: 2px;
+}
+
+.itemTitle {
+  font-weight: 700;
+  color: #0f172a;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.itemExtra {
+  color: #536078;
+}
+
+.itemQuantity {
+  color: #536078;
+  font-size: 13px;
+}

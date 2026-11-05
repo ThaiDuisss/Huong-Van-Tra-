@@ -8,8 +8,6 @@ import {
   OrderPagination,
 } from "../components/shared/OrderListUI";
 import {
-  MoreHorizontal,
-  Plus,
   Upload,
 } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -143,7 +141,6 @@ export function OrderListPage() {
   const [activeSummary, setActiveSummary] = useState<OrderSummaryResponse | null>(null);
   const [activeOrder, setActiveOrder] = useState<OrderDetailResponse | null>(null);
   const [isTimeCollapsed, setIsTimeCollapsed] = useState(true);
-  const [openActionCode, setOpenActionCode] = useState<string | null>(null);
   const [ordersPage, setOrdersPage] = useState(emptyPage);
   const [stats, setStats] = useState<OrderStatsResponse>({});
   const [isOrdersLoading, setIsOrdersLoading] = useState(false);
@@ -307,19 +304,6 @@ export function OrderListPage() {
     setIsDetailLoading(false);
   };
 
-  const handleAction = (action: string, order: OrderSummaryResponse) => {
-    if (action === "Hoàn hàng") {
-      navigate(`/system/orders/${order.id}/returns/create`);
-      setOpenActionCode(null);
-      return;
-    }
-
-    if (action === "Xem chi tiết" || action === "Sửa đơn") {
-      selectOrder(order);
-    }
-
-    setOpenActionCode(null);
-  };
 
   const buildCurrentFilterExportParams = () =>
     buildActiveOrderExportParams({
@@ -352,10 +336,6 @@ export function OrderListPage() {
       }
       actions={
         <>
-          <button className={orderUiStyles.primaryButton} type="button">
-            <Plus size={18} aria-hidden="true" />
-            Đặt hàng
-          </button>
           <button
             className={orderUiStyles.secondaryButton}
             onClick={() => setIsImportOpen(true)}
@@ -427,7 +407,7 @@ export function OrderListPage() {
             {
               key: "column-0",
               header: "Mã đơn hàng",
-              width: "22%",
+              width: "26%",
               align: "left",
               cellClassName: styles.code,
               render: (order) => <>{getOrderCode(order)}</>,
@@ -435,7 +415,7 @@ export function OrderListPage() {
             {
               key: "column-1",
               header: "Trạng thái",
-              width: "40%",
+              width: "30%",
               align: "center",
               render: (order) => (
                 <>
@@ -448,7 +428,7 @@ export function OrderListPage() {
             {
               key: "column-2",
               header: "Giá trị đơn hàng",
-              width: "20%",
+              width: "24%",
               align: "left",
               render: (order) => (
                 <>
@@ -459,52 +439,9 @@ export function OrderListPage() {
             {
               key: "column-3",
               header: "Ngày đặt",
-              width: "21%",
+              width: "20%",
               align: "left",
               render: (order) => <>{formatDateOnly(order.createdAt)}</>,
-            },
-            {
-              key: "column-4",
-              header: "Thao tác",
-              width: "10%",
-              align: "center",
-              cellClassName: styles.actionCell,
-              render: (order) => (
-                <>
-                  <div className={styles.actionButtonWrap}>
-                    <button
-                      aria-expanded={openActionCode === order.id}
-                      aria-label={`Mở thao tác cho đơn ${getOrderCode(order)}`}
-                      className={styles.rowActionButton}
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        setOpenActionCode((current) => (current === order.id ? null : order.id));
-                      }}
-                      type="button"
-                    >
-                      <MoreHorizontal size={18} aria-hidden="true" />
-                    </button>
-                  </div>
-                  {openActionCode === order.id ? (
-                    <div className={styles.actionMenu}>
-                      {["Xem chi tiết", "Sửa đơn", "In hóa đơn", "Hủy đơn", "Hoàn hàng"].map(
-                        (action) => (
-                          <button
-                            key={action}
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              handleAction(action, order);
-                            }}
-                            type="button"
-                          >
-                            {action}
-                          </button>
-                        ),
-                      )}
-                    </div>
-                  ) : null}
-                </>
-              ),
             },
           ]}
           pagination={
