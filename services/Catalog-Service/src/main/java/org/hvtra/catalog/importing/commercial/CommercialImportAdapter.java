@@ -38,7 +38,7 @@ import static org.hvtra.catalog.importing.commercial.CommercialImportPlan.Row;
 import static org.hvtra.catalog.importing.commercial.CommercialImportPlan.VariantInput;
 import static org.hvtra.catalog.importing.commercial.CommercialImportStore.Snapshot;
 
-/** Application-only entry point. Deliberately has no HTTP controller or startup runner. */
+/** Authenticated application facade plus package-scoped transactional import operations. */
 @Service
 public class CommercialImportAdapter {
     public static final String CONTRACT_SHA = "00267effe77f5e4bee1842d8567ccd13d6d8c4751518727b6126c8050919deb3";
@@ -96,6 +96,9 @@ public class CommercialImportAdapter {
         return reads.execute(tx -> preflight(plan, "DRY_RUN").report());
     }
 
+    /** Only the isolated manual CLI uses the larger budget for remote development SQL round trips. */
+    void allowLocalOperatorNetworkLatency() { reads.setTimeout(600); }
+
     /** In-memory application of explicitly approved group decisions; never grants execution approval. */
     public CommercialImportPlan applyCommercialDecisions(CommercialImportPlan plan, CommercialImportDecisions decisions) {
         actorWithPermission("catalog:commercial-import:approve");
@@ -111,12 +114,18 @@ public class CommercialImportAdapter {
     public UUID recordExecutionApproval(CommercialImportPlan plan, ApprovalEvidence evidence) {
         requireExecutionEnabled();
         UUID actor = actorWithPermission("catalog:commercial-import:approve");
+        return writes.execute(tx -> recordApprovalInTransaction(plan, evidence, actor));
+    }
+
+    /** Shared operation: the HTTP facade or isolated local CLI authenticates its operator first. */
+    UUID recordApprovalInTransaction(CommercialImportPlan plan, ApprovalEvidence evidence, UUID actor) {
+        requireExecutionEnabled();
+        requireOperatorTransaction(actor);
         if (evidence == null || evidence.expiresAt() == null || !evidence.expiresAt().isAfter(Instant.now())
                 || evidence.expiresAt().isAfter(Instant.now().plus(Duration.ofHours(24)))
                 || !reference(evidence.commercialDecisionReference()) || !reference(evidence.backupRecoveryReference())
                 || !reference(evidence.downstreamVerificationReference()) || !reference(evidence.sourceRevalidationReference())
                 || !freshSourceEvidence(evidence.sourceRevalidatedAt())) throw new IllegalArgumentException("COMPLETE_REVIEWED_APPROVAL_EVIDENCE_REQUIRED");
-        return writes.execute(tx -> {
             Preflight p = preflight(plan, "APPROVAL_PREFLIGHT");
             requireValid(p.report());
             if (!Objects.equals(p.report().planHash(), evidence.confirmedPlanHash())
@@ -127,7 +136,6 @@ public class CommercialImportAdapter {
             store.saveApproval(id, p.report().planHash(), p.report().actionsHash(), p.report().targetFingerprint(),
                     p.report().schemaFingerprint(), actor, evidence, Instant.now());
             return id;
-        });
     }
 
     public ExecutionResult executeJson(String json, UUID approvalId) {
@@ -162,7 +170,10 @@ public class CommercialImportAdapter {
         });
     }
 
-    private ExecutionResult executeInTransaction(CommercialImportPlan plan, UUID approvalId, UUID actor, String planHash) {
+    ExecutionResult executeInTransaction(CommercialImportPlan plan, UUID approvalId, UUID actor, String planHash) {
+        requireExecutionEnabled();
+        requireOperatorTransaction(actor);
+        if (!codec.hash(plan).equals(planHash)) throw new IllegalArgumentException("IMPORT_PLAN_HASH_MISMATCH");
         Map<String, Object> approval = store.lockApproval(approvalId);
         String actionsHash = codec.hash(codec.actions(plan));
         if (!planHash.equals(approval.get("plan_hash")) || !actionsHash.equals(approval.get("actions_hash"))) throw new IllegalStateException("APPROVAL_PAYLOAD_OR_ACTION_LIST_MISMATCH");
@@ -329,6 +340,9 @@ public class CommercialImportAdapter {
     private void requireExecutionEnabled() {
         if (!executionEnabled) throw new AccessDeniedException("COMMERCIAL_IMPORT_EXECUTE_DISABLED");
         if (!compatibleTransactionManager) throw new IllegalStateException("JPA_AND_JDBC_DATASOURCE_MUST_MATCH");
+    }
+    private void requireOperatorTransaction(UUID actor) {
+        if (actor == null || !store.hasSerializableWriteTransaction()) throw new IllegalStateException("AUTHENTICATED_OPERATOR_AND_SERIALIZABLE_TRANSACTION_REQUIRED");
     }
     private static UUID actorWithPermission(String permission) {
         if (!SecurityUtils.isSuperAdmin() || !SecurityUtils.hasPermission(permission)) throw new AccessDeniedException("EXPLICIT_COMMERCIAL_IMPORT_PERMISSION_REQUIRED");
