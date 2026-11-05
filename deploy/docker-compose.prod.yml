@@ -1,11 +1,10 @@
-# Box 1 "app": Api-Gateway + 9 service Java + web POS.
+# Box 1 "app": Api-Gateway + 9 service Java + Recommendation-Service + web POS.
 #
 # KHONG deploy:
 #   - Organization-Service: module chi co Application + SecurityConfig + GlobalException,
 #     khong controller/entity/migration nao. Route /api/organizations/** cung da bo khoi
 #     gateway. Code van o trong repo va van build/test binh thuong.
-#   - Recommendation-Service: de sau. Co Dockerfile rieng, se them ~700MB.
-#     Route /api/recommendation/** se tra 503 cho den khi deploy.
+#   - Organization-Service la service duy nhat khong deploy (module rong).
 # Ha tang (MySQL, Kafka, Redis, MinIO, Keycloak) chay o box 2, khong khai o day.
 #
 # Chay tu thu muc deploy/ de compose tu doc file .env:
@@ -235,6 +234,54 @@ services:
       order-service:
         condition: service_healthy
 
+  # Python/FastAPI, khong dung anchor x-java (khac base image, khac bien moi truong).
+  recommendation-service:
+    build:
+      context: ../services/Recommendation-Service
+    image: hvtra/recommendation-service:latest
+    env_file:
+      - .env
+    restart: unless-stopped
+    # Image la python:3.11-slim, khong co curl/wget. Dung chinh Python de kiem.
+    # /health tra 503 khi mat DB -> urlopen nem HTTPError -> exit khac 0, dung y muon.
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8090/health', timeout=4)\""]
+      interval: 15s
+      timeout: 8s
+      retries: 10
+      start_period: 60s
+    mem_limit: 768m
+    mem_reservation: 384m
+    environment:
+      # Ten bien theo app/core/settings.py (pydantic-settings), KHONG phai SPRING_*.
+      APP_PORT: "8090"
+      APP_ENVIRONMENT: production
+      MYSQL_HOST: "${MYSQL_HOST}"
+      MYSQL_PORT: "3306"
+      MYSQL_DATABASE: "${RECOMMEND_DB_NAME}"
+      MYSQL_USER: "${RECOMMEND_DB_USER}"
+      MYSQL_PASSWORD: "${RECOMMEND_DB_PASSWORD}"
+      MYSQL_ECHO_SQL: "false"
+      # Bat buoc o che do production: thieu la cac lenh goi noi bo tra 503.
+      INTERNAL_REPLAY_BACKEND: redis
+      INTERNAL_REPLAY_REDIS_URL: "${RECOMMEND_REDIS_URL}"
+      INTERNAL_SERVICE_NAME: recommendation-service
+      CATALOG_SYNC_INTERNAL_CALLERS: catalog-Service
+      CATALOG_SERVICE_URL: http://catalog-service:8081
+      FILE_SERVICE_URL: http://file-service:8101
+      AI_REPORT_STORAGE_ORIGINS: "${MINIO_PUBLIC_ENDPOINT}"
+      KAFKA_BOOTSTRAP_SERVERS: "${KAFKA_BOOTSTRAP_SERVERS}"
+      KAFKA_AUTO_OFFSET_RESET: "${RECOMMEND_KAFKA_AUTO_OFFSET_RESET}"
+    volumes:
+      # Model do train sinh ra (artifacts/v1_hybrid_model.npz) KHONG nam trong image.
+      # Khong co volume thi train xong, restart la mat.
+      - hvtra-recommend-artifacts:/app/artifacts
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
   pos-web:
     build:
       context: ../web-app
@@ -263,3 +310,4 @@ services:
 
 volumes:
   hvtra-logs:
+  hvtra-recommend-artifacts:

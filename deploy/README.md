@@ -1,13 +1,17 @@
 # Deploy box 1 "app"
 
-Box 1 chạy **Api-Gateway + 9 service Java + web POS** trên một EC2 bằng docker compose.
+Box 1 chạy **Api-Gateway + 9 service Java + Recommendation-Service + web POS** trên một EC2 bằng docker compose.
 
 > **Kiến trúc image**: image mang kiến trúc của máy build. Box 1 là EC2 t3 (**amd64**), nên
 > image build trên Mac Apple Silicon ra **arm64** và sẽ không chạy. Build trên box 1, trên
 > Jenkins (box 3, amd64), hoặc thêm `--platform=linux/amd64` (chậm vì phải giả lập).
 
-> **Không deploy**: Organization-Service (module rỗng, route cũng đã bỏ khỏi gateway) và
-> Recommendation-Service (để sau; route `/api/recommendation/**` sẽ trả 503).
+> **Không deploy**: chỉ Organization-Service (module rỗng, route cũng đã bỏ khỏi gateway).
+
+> **Recommendation-Service cần model**: `/health`, `/ai-reports` và `/catalog-sync` chạy
+> ngay, nhưng `/api/recommendation/recommendations/*` cần file `artifacts/v1_hybrid_model.npz`
+> do `app/training/train_v1_hybrid.py` sinh ra. File này **không có trong image**; nó nằm
+> trên volume `hvtra-recommend-artifacts` nên train một lần là giữ được qua restart.
 Không có Eureka: service gọi nhau qua DNS của compose network, khai tĩnh trong
 `application-prod.yml` của từng module.
 
