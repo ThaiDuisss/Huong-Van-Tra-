@@ -4,6 +4,7 @@ import jakarta.validation.Valid;
 import org.hvtra.commonservice.common_core.logging.action.UserAction;
 import org.hvtra.iventoryservice.location.dto.request.InventoryLocationRequest;
 import org.hvtra.iventoryservice.shared.web.InventoryStatusRequest;
+import org.hvtra.iventoryservice.location.dto.response.InventoryLocationHierarchyResponse;
 import org.hvtra.iventoryservice.location.dto.response.InventoryLocationResponse;
 import org.hvtra.iventoryservice.location.dto.response.LookupResponse;
 import org.hvtra.iventoryservice.shared.pagination.PageResponse;
@@ -47,6 +48,15 @@ public class InventoryLocationController {
             @RequestParam(name = "ids", required = false) List<UUID> ids,
             @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
         return service.lookup(search, type, status, ids, pageable);
+    }
+
+    @GetMapping("/all")
+    public List<InventoryLocationHierarchyResponse> getAll(
+            @RequestParam(name = "branchId", required = false) UUID branchId,
+            @RequestParam(name = "query", required = false) String query,
+            @RequestParam(name = "type", required = false) InventoryLocationType type,
+            @RequestParam(name = "status", required = false) InventoryStatus status) {
+        return service.getAll(branchId, query, type, status);
     }
 
     @GetMapping("/{id}")

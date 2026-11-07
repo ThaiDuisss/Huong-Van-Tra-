@@ -50,6 +50,10 @@ export const INVENTORY_ROLES: AppRole[] = [
     ROLES.QC
 ];
 
+export const INVENTORY_LOCATION_ROLES: AppRole[] = [
+    ROLES.SUPER_ADMIN
+];
+
 export const INVENTORY_OPERATION_ROLES: AppRole[] = [
     ROLES.SUPER_ADMIN,
     ROLES.MANAGER,

@@ -1,18 +1,19 @@
-import { X } from "lucide-react";
-import { useCallback, useState } from "react";
+import { ChevronDown, ChevronRight, X } from "lucide-react";
+import { useCallback, useMemo, useState } from "react";
 
 import {
-    InventoryResourceManagement,
-    TableCell,
+    InventoryTreeResourceManagement,
+    TreeTableCell,
     type Column
-} from "../components/InventoryResourceManagement";
+} from "../components/InventoryTreeResourceManagement";
 import {
     InventoryStatusBadge,
     LocationTypeBadge
 } from "../components/InventoryBadges";
-import { useInventoryPage } from "../hooks/useInventoryResource";
+import { useInventoryResource } from "../hooks/useInventoryResource";
 import { inventoryLocationApi } from "../services/inventoryLocation.api";
 import type {
+    InventoryLocationHierarchyResponse,
     InventoryLocationRequest,
     InventoryLocationResponse,
     InventoryLocationType,
@@ -28,27 +29,59 @@ export function InventoryLocationPage() {
     const [type, setType] = useState<"ALL" | InventoryLocationType>("ALL");
     const [status, setStatus] = useState<"ALL" | InventoryStatus>("ALL");
     const [query, setQuery] = useState("");
-    const [page, setPage] = useState(1);
-    const [pageSize, setPageSize] = useState(10);
     
-    const [editing, setEditing] = useState<InventoryLocationResponse | null>(null);
+    const [editing, setEditing] = useState<InventoryLocationHierarchyResponse | InventoryLocationResponse | null>(null);
     const [showForm, setShowForm] = useState(false);
+    const [collapsedIds, setCollapsedIds] = useState<Set<string>>(new Set());
 
     const load = useCallback(
         () =>
-            inventoryLocationApi.list({
-                page: page - 1,
-                size: pageSize,
+            inventoryLocationApi.getAll({
                 branchId: branchId ? branchId : undefined,
                 type: type === "ALL" ? undefined : type,
                 status: status === "ALL" ? undefined : status,
                 query: query.trim() || undefined
             }),
-        [branchId, page, pageSize, status, type, query]
+        [branchId, status, type, query]
     );
 
-    const resource = useInventoryPage(load);
-    const locations = resource.data?.content ?? [];
+    const resource = useInventoryResource(load);
+    const locations = resource.data ?? [];
+
+    const locationMap = useMemo(() => {
+        const map = new Map<string, InventoryLocationHierarchyResponse>();
+        for (const loc of locations) {
+            map.set(String(loc.id), loc);
+        }
+        return map;
+    }, [locations]);
+
+    // Lọc các vị trí hiển thị dựa theo trạng thái đóng/mở của các vị trí cha
+    const visibleLocations = useMemo(() => {
+        return locations.filter((loc) => {
+            let parentId = loc.parentLocationId;
+            while (parentId) {
+                if (collapsedIds.has(String(parentId))) {
+                    return false;
+                }
+                const parent = locationMap.get(String(parentId));
+                parentId = parent?.parentLocationId ?? null;
+            }
+            return true;
+        });
+    }, [locations, collapsedIds, locationMap]);
+
+    const toggleCollapse = (id: string) => {
+        setCollapsedIds((prev) => {
+            const next = new Set(prev);
+            if (next.has(id)) {
+                next.delete(id);
+            } else {
+                next.add(id);
+            }
+            return next;
+        });
+    };
 
     const handleFormSubmit = async (input: InventoryLocationRequest) => {
         if (editing) {
@@ -62,97 +95,208 @@ export function InventoryLocationPage() {
     const handleToggleStatus = async (item: any) => {
         const nextStatus = item.status === "ACTIVE" ? "INACTIVE" : "ACTIVE";
         await inventoryLocationApi.updateStatus(item.id, nextStatus);
+        resource.refresh();
     };
 
     const columns: Column[] = [
-        { key: "code", label: "Mã kệ" },
+        { key: "code", label: "Mã vị trí", width: "170px" },
         { key: "name", label: "Tên vị trí" },
-        { key: "type", label: "Loại vị trí" },
-        { key: "parent", label: "Vị trí cha" },
-        { key: "status", label: "Trạng thái" }
+        { key: "type", label: "Loại vị trí", width: "160px" },
+        { key: "status", label: "Trạng thái", width: "150px" }
     ];
 
     return (
-        <InventoryResourceManagement
-            title="Quản lý kệ hàng"
-            description="Quản lý kệ, quầy thu ngân và các vị trí lưu trữ tại cửa hàng."
+        <InventoryTreeResourceManagement
+            title="Quản lý vị trí lưu kho"
+            description="Quản lý vị trí lưu kho, phân cấp khu vực và các vị trí lưu trữ trong kho."
             createLabel="Tạo vị trí"
-            searchPlaceholder="Tìm theo tên vị trí, mã kệ..."
+            searchPlaceholder="Tìm theo tên vị trí, mã vị trí..."
             totalItemsLabel="Tổng số vị trí"
-            items={locations}
+            items={visibleLocations}
             loading={resource.loading}
             error={resource.error || ""}
             query={query}
             status={status}
-            page={page}
-            pageCount={resource.data?.totalPages ?? 1}
-            totalItems={resource.data?.totalElements ?? 0}
-            pageSize={pageSize}
             onQueryChange={(val) => {
                 setQuery(val);
-                setPage(1);
-            }}
-            onStatusChange={(val) => {
-                setStatus(val as any);
-                setPage(1);
-            }}
-            onPageChange={setPage}
-            onPageSizeChange={(val) => {
-                setPageSize(val);
-                setPage(1);
             }}
             onRefresh={resource.refresh}
             onSubmit={async () => {}} // customForm handles onSubmit
             onChangeStatus={handleToggleStatus}
-            controlledEditingItem={editing}
+            controlledEditingItem={editing as any}
             controlledShowForm={showForm}
             onControlledShowFormChange={setShowForm}
-            onControlledEditingItemChange={(item) => setEditing(item as InventoryLocationResponse | null)}
+            onControlledEditingItemChange={(item) => setEditing(item as InventoryLocationHierarchyResponse | null)}
             columns={columns}
             filters={[
                 {
-                    label: "Loại vị trí",
-                    value: type,
+                    label: "Bộ lọc",
+                    value: "FILTER",
                     options: [],
                     onChange: () => {},
                     render: (
-                        <select
-                            value={type}
-                            onChange={(e) => {
-                                setType(e.target.value as any);
-                                setPage(1);
-                            }}
-                            className="h-10 rounded-xl border border-pos-border px-3 text-sm outline-none focus:border-hvt-green-700 bg-white text-[#172317] cursor-pointer min-w-[150px] truncate"
-                        >
-                            <option value="ALL">Loại vị trí</option>
-                            {Object.entries(locationTypeLabels).map(([val, label]) => (
-                                <option key={val} value={val}>
-                                    {label}
-                                </option>
-                            ))}
-                        </select>
+                        <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-y-3 gap-x-6 pt-1 w-full">
+                            {/* Loại vị trí (bên trái) */}
+                            <div className="flex flex-wrap items-center gap-2">
+                                <span className="text-[13px] font-[900] text-[#536078] mr-2 shrink-0">
+                                    Loại vị trí:
+                                </span>
+                                <div className="flex flex-wrap gap-2 items-center">
+                                    <button
+                                        type="button"
+                                        onClick={() => setType("ALL")}
+                                        className={`h-[30px] px-3 rounded-full text-[13px] font-[850] border transition-all cursor-pointer ${
+                                            type === "ALL"
+                                                ? "bg-[#07883a] border-[#07883a] text-white shadow-sm"
+                                                : "bg-white border-[#dfe6ee] text-[#536078] hover:bg-neutral-50"
+                                        }`}
+                                    >
+                                        Tất cả
+                                    </button>
+                                    {Object.entries(locationTypeLabels).map(([val, label]) => {
+                                        const isActive = type === val;
+                                        return (
+                                            <button
+                                                key={val}
+                                                type="button"
+                                                onClick={() => setType(val as any)}
+                                                className={`h-[30px] px-3 rounded-full text-[13px] font-[850] border transition-all cursor-pointer ${
+                                                    isActive
+                                                        ? "bg-[#07883a] border-[#07883a] text-white shadow-sm"
+                                                        : "bg-white border-[#dfe6ee] text-[#536078] hover:bg-neutral-50"
+                                                }`}
+                                            >
+                                                {label}
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+
+                            {/* Trạng thái (bên phải) */}
+                            <div className="flex flex-wrap items-center gap-2 md:ml-auto">
+                                <span className="text-[13px] font-[900] text-[#536078] mr-2 shrink-0">
+                                    Trạng thái:
+                                </span>
+                                <div className="flex flex-wrap gap-2 items-center">
+                                    <button
+                                        type="button"
+                                        onClick={() => setStatus("ALL")}
+                                        className={`h-[30px] px-3 rounded-full text-[13px] font-[850] border transition-all cursor-pointer ${
+                                            status === "ALL"
+                                                ? "bg-[#07883a] border-[#07883a] text-white shadow-sm"
+                                                : "bg-white border-[#dfe6ee] text-[#536078] hover:bg-neutral-50"
+                                        }`}
+                                    >
+                                        Tất cả
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setStatus("ACTIVE")}
+                                        className={`h-[30px] px-3 rounded-full text-[13px] font-[850] border transition-all cursor-pointer ${
+                                            status === "ACTIVE"
+                                                ? "bg-[#07883a] border-[#07883a] text-white shadow-sm"
+                                                : "bg-white border-[#dfe6ee] text-[#536078] hover:bg-neutral-50"
+                                        }`}
+                                    >
+                                        Đang hoạt động
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setStatus("INACTIVE")}
+                                        className={`h-[30px] px-3 rounded-full text-[13px] font-[850] border transition-all cursor-pointer ${
+                                            status === "INACTIVE"
+                                                ? "bg-[#07883a] border-[#07883a] text-white shadow-sm"
+                                                : "bg-white border-[#dfe6ee] text-[#536078] hover:bg-neutral-50"
+                                        }`}
+                                    >
+                                        Ngừng hoạt động
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
                     )
                 }
             ]}
-            renderCells={(item: any) => (
-                <>
-                    <TableCell strong>{item.code}</TableCell>
-                    <TableCell>{item.name}</TableCell>
-                    <TableCell>
-                        <LocationTypeBadge type={item.type} />
-                    </TableCell>
-                    <TableCell>
-                        {item.parentLocationId ? `#${item.parentLocationId}` : "-"}
-                    </TableCell>
-                    <TableCell>
-                        <InventoryStatusBadge status={item.status} />
-                    </TableCell>
-                </>
-            )}
+            renderCells={(item: InventoryLocationHierarchyResponse) => {
+                const isParent = (item.level ?? 0) === 0;
+                const isCollapsed = collapsedIds.has(String(item.id));
+                const indentPx = (item.level ?? 0) * 28;
+
+                return (
+                    <>
+                        <TreeTableCell strong={isParent}>
+                            {item.code}
+                        </TreeTableCell>
+                        <TreeTableCell>
+                            <div
+                                className="flex items-center gap-1.5 py-0.5"
+                                style={{ paddingLeft: `${indentPx}px` }}
+                            >
+                                {item.hasChildren ? (
+                                    <button
+                                        type="button"
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            toggleCollapse(String(item.id));
+                                        }}
+                                        className="grid size-6 place-items-center rounded hover:bg-black/10 text-gray-600 transition-colors cursor-pointer shrink-0"
+                                        title={isCollapsed ? "Mở rộng vị trí con" : "Thu gọn vị trí con"}
+                                    >
+                                        {isCollapsed ? (
+                                            <ChevronRight size={16} />
+                                        ) : (
+                                            <ChevronDown size={16} />
+                                        )}
+                                    </button>
+                                ) : (
+                                    <span className="inline-block w-6 shrink-0" />
+                                )}
+
+                                <span
+                                    className={
+                                        isParent
+                                            ? "font-bold text-[#14532d]"
+                                            : "font-medium text-gray-700"
+                                    }
+                                >
+                                    {item.name}
+                                </span>
+
+                                {item.hasChildren && (
+                                    <span className="text-xs text-gray-400 font-medium">
+                                        ({item.childrenCount})
+                                    </span>
+                                )}
+                            </div>
+                        </TreeTableCell>
+                        <TreeTableCell>
+                            <LocationTypeBadge type={item.type} />
+                        </TreeTableCell>
+                        <TreeTableCell>
+                            <InventoryStatusBadge status={item.status} />
+                        </TreeTableCell>
+                    </>
+                );
+            }}
             renderDetail={(item: any) => (
                 <dl className="grid gap-4 text-sm">
-                    <DetailItem label="Mã kệ" value={item.code} />
+                    <DetailItem label="Mã vị trí" value={item.code} />
                     <DetailItem label="Tên vị trí" value={item.name} />
+                    <DetailItem
+                        label="Phân cấp vị trí"
+                        value={
+                            (item.level ?? 0) === 0
+                                ? "Vị trí cha (gốc)"
+                                : `Vị trí con (Cấp ${(item.level ?? 0) + 1})`
+                        }
+                    />
+                    {item.parentLocationName && (
+                        <DetailItem
+                            label="Vị trí cha"
+                            value={`${item.parentLocationCode ? `[${item.parentLocationCode}] ` : ""}${item.parentLocationName}`}
+                        />
+                    )}
                     <DetailItem
                         label="Loại vị trí"
                         value={locationTypeLabels[item.type as InventoryLocationType]}
@@ -165,7 +309,7 @@ export function InventoryLocationPage() {
             )}
             customForm={(editingItem, onClose) => (
                 <LocationForm
-                    item={editingItem as InventoryLocationResponse | null}
+                    item={editingItem as InventoryLocationHierarchyResponse | null}
                     locations={locations}
                     onClose={onClose}
                     onSubmit={async (input) => {
@@ -188,8 +332,8 @@ function DetailItem({ label, value }: { label: string; value: string }) {
 }
 
 interface LocationFormProps {
-    item: InventoryLocationResponse | null;
-    locations: InventoryLocationResponse[];
+    item: InventoryLocationHierarchyResponse | InventoryLocationResponse | null;
+    locations: InventoryLocationHierarchyResponse[];
     onClose(): void;
     onSubmit(input: InventoryLocationRequest): Promise<void>;
 }
@@ -228,7 +372,7 @@ function LocationForm({ item, locations, onClose, onSubmit }: LocationFormProps)
             >
                 <header className="mb-5 flex items-center justify-between border-b border-pos-border pb-3">
                     <h2 className="text-xl font-bold text-gray-700">
-                        {item ? "Chỉnh sửa vị trí" : "Tạo vị trí mới"}
+                        {item ? "Chỉnh sửa vị trí lưu kho" : "Tạo vị trí lưu kho mới"}
                     </h2>
                     <button
                         type="button"
@@ -242,7 +386,7 @@ function LocationForm({ item, locations, onClose, onSubmit }: LocationFormProps)
 
                 {item ? (
                     <div className="mb-4 flex items-center gap-2 rounded-xl bg-neutral-50 px-4 py-3 text-sm border border-neutral-200">
-                        <span className="font-semibold text-gray-500">Mã kệ:</span>
+                        <span className="font-semibold text-gray-500">Mã vị trí:</span>
                         <span className="font-black text-[#07883a] tracking-wide">
                             {item.code}
                         </span>
@@ -253,7 +397,7 @@ function LocationForm({ item, locations, onClose, onSubmit }: LocationFormProps)
                 ) : (
                     <div className="mb-4 flex items-center gap-2 rounded-xl bg-green-50 px-4 py-3 text-sm border border-green-100">
                         <span className="text-green-700 font-semibold text-xs">
-                            ✦ Mã kệ sẽ được hệ thống tự động tạo khi lưu
+                            ✦ Mã vị trí sẽ được hệ thống tự động tạo khi lưu
                         </span>
                     </div>
                 )}
@@ -266,12 +410,12 @@ function LocationForm({ item, locations, onClose, onSubmit }: LocationFormProps)
                             defaultValue={String(item?.parentLocationId ?? "")}
                             className="h-10 w-full rounded-xl border border-pos-border bg-white px-3 font-medium text-gray-700 focus:outline-none"
                         >
-                            <option value="">Không có</option>
+                            <option value="">Không có (Vị trí cha)</option>
                             {locations
                                 .filter((location) => location.id !== item?.id)
                                 .map((location) => (
                                     <option key={location.id} value={location.id}>
-                                        {location.code} - {location.name}
+                                        {"— ".repeat(location.level || 0)}{location.code} - {location.name}
                                     </option>
                                 ))}
                         </select>

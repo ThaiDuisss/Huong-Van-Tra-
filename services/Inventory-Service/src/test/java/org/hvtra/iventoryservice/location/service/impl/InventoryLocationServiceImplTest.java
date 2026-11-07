@@ -4,6 +4,7 @@ import org.hvtra.iventoryservice.domain.entity.InventoryLocation;
 import org.hvtra.iventoryservice.domain.enums.InventoryLocationType;
 import org.hvtra.iventoryservice.domain.enums.InventoryStatus;
 import org.hvtra.iventoryservice.location.dto.request.InventoryLocationRequest;
+import org.hvtra.iventoryservice.location.dto.response.InventoryLocationHierarchyResponse;
 import org.hvtra.iventoryservice.location.dto.response.InventoryLocationResponse;
 import org.hvtra.iventoryservice.location.dto.response.LookupResponse;
 import org.hvtra.iventoryservice.location.mapper.InventoryLocationMapper;
@@ -24,6 +25,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
 
 import java.util.Collections;
@@ -252,6 +254,150 @@ class InventoryLocationServiceImplTest {
         assertThatThrownBy(() -> service.findDefaultWarehouse(branchId))
                 .isInstanceOf(ResourceNotFoundException.class)
                 .hasMessageContaining("No WAREHOUSE location found at all");
+    }
+
+    @Test
+    @DisplayName("getHierarchy - Success with depth-first ordering and level computation")
+    void getHierarchy_Success_DepthFirstOrder() {
+        InventoryLocation root1 = new InventoryLocation();
+        root1.setId(UUID.randomUUID());
+        root1.setBranchId(branchId);
+        root1.setCode("KHO-01");
+        root1.setName("Kho Tổng");
+        root1.setType(InventoryLocationType.WAREHOUSE);
+        root1.setStatus(InventoryStatus.ACTIVE);
+        root1.setIsDeleted(false);
+
+        InventoryLocation child1 = new InventoryLocation();
+        child1.setId(UUID.randomUUID());
+        child1.setBranchId(branchId);
+        child1.setParentLocation(root1);
+        child1.setCode("KV-01");
+        child1.setName("Khu Vực A");
+        child1.setType(InventoryLocationType.WAREHOUSE);
+        child1.setStatus(InventoryStatus.ACTIVE);
+        child1.setIsDeleted(false);
+
+        InventoryLocation grandchild1 = new InventoryLocation();
+        grandchild1.setId(UUID.randomUUID());
+        grandchild1.setBranchId(branchId);
+        grandchild1.setParentLocation(child1);
+        grandchild1.setCode("KE-01");
+        grandchild1.setName("Kệ A1");
+        grandchild1.setType(InventoryLocationType.SHELF);
+        grandchild1.setStatus(InventoryStatus.ACTIVE);
+        grandchild1.setIsDeleted(false);
+
+        InventoryLocation child2 = new InventoryLocation();
+        child2.setId(UUID.randomUUID());
+        child2.setBranchId(branchId);
+        child2.setParentLocation(root1);
+        child2.setCode("KV-02");
+        child2.setName("Khu Vực B");
+        child2.setType(InventoryLocationType.WAREHOUSE);
+        child2.setStatus(InventoryStatus.ACTIVE);
+        child2.setIsDeleted(false);
+
+        InventoryLocation root2 = new InventoryLocation();
+        root2.setId(UUID.randomUUID());
+        root2.setBranchId(branchId);
+        root2.setCode("HL-01");
+        root2.setName("Kho Hàng Hỏng");
+        root2.setType(InventoryLocationType.DAMAGED);
+        root2.setStatus(InventoryStatus.ACTIVE);
+        root2.setIsDeleted(false);
+
+        when(repository.findAll(any(Specification.class), any(Sort.class)))
+                .thenReturn(List.of(root1, child1, grandchild1, child2, root2));
+
+        List<InventoryLocationHierarchyResponse> result = service.getAll(branchId, null, null, null);
+
+        assertThat(result).hasSize(5);
+
+        // Root 1
+        assertThat(result.get(0).id()).isEqualTo(root1.getId());
+        assertThat(result.get(0).level()).isEqualTo(0);
+        assertThat(result.get(0).tier()).isEqualTo(1);
+        assertThat(result.get(0).hasChildren()).isTrue();
+        assertThat(result.get(0).childrenCount()).isEqualTo(2);
+        assertThat(result.get(0).parentLocationId()).isNull();
+
+        // Child 1
+        assertThat(result.get(1).id()).isEqualTo(child1.getId());
+        assertThat(result.get(1).level()).isEqualTo(1);
+        assertThat(result.get(1).tier()).isEqualTo(2);
+        assertThat(result.get(1).hasChildren()).isTrue();
+        assertThat(result.get(1).childrenCount()).isEqualTo(1);
+        assertThat(result.get(1).parentLocationId()).isEqualTo(root1.getId());
+        assertThat(result.get(1).parentLocationName()).isEqualTo("Kho Tổng");
+
+        // Grandchild 1
+        assertThat(result.get(2).id()).isEqualTo(grandchild1.getId());
+        assertThat(result.get(2).level()).isEqualTo(2);
+        assertThat(result.get(2).tier()).isEqualTo(3);
+        assertThat(result.get(2).hasChildren()).isFalse();
+        assertThat(result.get(2).childrenCount()).isEqualTo(0);
+        assertThat(result.get(2).parentLocationId()).isEqualTo(child1.getId());
+        assertThat(result.get(2).parentLocationName()).isEqualTo("Khu Vực A");
+
+        // Child 2
+        assertThat(result.get(3).id()).isEqualTo(child2.getId());
+        assertThat(result.get(3).level()).isEqualTo(1);
+        assertThat(result.get(3).tier()).isEqualTo(2);
+        assertThat(result.get(3).hasChildren()).isFalse();
+        assertThat(result.get(3).childrenCount()).isEqualTo(0);
+        assertThat(result.get(3).parentLocationId()).isEqualTo(root1.getId());
+
+        // Root 2
+        assertThat(result.get(4).id()).isEqualTo(root2.getId());
+        assertThat(result.get(4).level()).isEqualTo(0);
+        assertThat(result.get(4).tier()).isEqualTo(1);
+        assertThat(result.get(4).hasChildren()).isFalse();
+        assertThat(result.get(4).childrenCount()).isEqualTo(0);
+        assertThat(result.get(4).parentLocationId()).isNull();
+    }
+
+    @Test
+    @DisplayName("getAll - Empty result when no locations match criteria")
+    void getAll_EmptyResult_ReturnsEmptyList() {
+        when(repository.findAll(any(Specification.class), any(Sort.class)))
+                .thenReturn(Collections.emptyList());
+
+        List<InventoryLocationHierarchyResponse> result = service.getAll(
+                branchId, "NonExistentKeyword", InventoryLocationType.WAREHOUSE, InventoryStatus.INACTIVE);
+
+        assertThat(result).isNotNull().isEmpty();
+    }
+
+    @Test
+    @DisplayName("getAll - Child returned without parent is treated as root level zero")
+    void getAll_OrphanChild_TreatedAsRootLevelZero() {
+        InventoryLocation parent = new InventoryLocation();
+        parent.setId(UUID.randomUUID());
+        parent.setCode("KHO-P");
+        parent.setName("Parent Warehouse");
+
+        InventoryLocation orphanChild = new InventoryLocation();
+        orphanChild.setId(UUID.randomUUID());
+        orphanChild.setBranchId(branchId);
+        orphanChild.setParentLocation(parent);
+        orphanChild.setCode("KV-01");
+        orphanChild.setName("Khu Vực Con");
+        orphanChild.setType(InventoryLocationType.WAREHOUSE);
+        orphanChild.setStatus(InventoryStatus.ACTIVE);
+        orphanChild.setIsDeleted(false);
+
+        when(repository.findAll(any(Specification.class), any(Sort.class)))
+                .thenReturn(List.of(orphanChild));
+
+        List<InventoryLocationHierarchyResponse> result = service.getAll(branchId, "Khu Vực Con", null, null);
+
+        assertThat(result).hasSize(1);
+        assertThat(result.getFirst().id()).isEqualTo(orphanChild.getId());
+        assertThat(result.getFirst().level()).isEqualTo(0);
+        assertThat(result.getFirst().tier()).isEqualTo(1);
+        assertThat(result.getFirst().parentLocationId()).isEqualTo(parent.getId());
+        assertThat(result.getFirst().parentLocationName()).isEqualTo("Parent Warehouse");
     }
 }
 

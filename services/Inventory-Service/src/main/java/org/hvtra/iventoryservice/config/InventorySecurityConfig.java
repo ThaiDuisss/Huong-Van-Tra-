@@ -14,6 +14,8 @@ public class InventorySecurityConfig extends BaseSecurityConfig {
 
     /** Role được duyệt phiếu kho — khớp với isSuperAdmin()/isManager() ở FE. */
     private static final String[] APPROVER_ROLES = Role.names(Role.SUPER_ADMIN, Role.MANAGER);
+    /** Role được quản lý vị trí lưu kho. */
+    private static final String[] SUPER_ADMIN_ROLES = Role.names(Role.SUPER_ADMIN);
     /** Role được lập yêu cầu chuyển kho lên kệ (thủ kho, và nhân viên bán tạo từ POS khi kệ thiếu hàng). */
     private static final String[] SHELF_REQUEST_ROLES =
             Role.names(Role.SUPER_ADMIN, Role.MANAGER, Role.INVENTORY_STAFF, Role.SALE_STAFF);
@@ -48,5 +50,9 @@ public class InventorySecurityConfig extends BaseSecurityConfig {
                 .hasAnyRole(SHELF_REQUEST_ROLES);
         auth.requestMatchers(HttpMethod.PUT, "/api/inventory/shelf-replenishments/*")
                 .hasAnyRole(SHELF_REQUEST_ROLES);
+
+        // Quản lý vị trí lưu kho: chỉ SUPER_ADMIN
+        auth.requestMatchers("/api/inventory/inventory-locations/all")
+                .hasAnyRole(SUPER_ADMIN_ROLES);
     }
 }

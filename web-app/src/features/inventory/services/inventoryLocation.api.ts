@@ -1,6 +1,7 @@
 import { apiClient } from "../../../api/api-client";
 import type {
     EntityId,
+    InventoryLocationHierarchyResponse,
     InventoryLocationQuery,
     InventoryLocationRequest,
     InventoryLocationResponse,
@@ -10,6 +11,17 @@ import type {
 } from "../types/inventory.types";
 
 export const inventoryLocationApi = {
+    getAll(query: {
+        branchId?: string;
+        query?: string;
+        type?: InventoryLocationType;
+        status?: InventoryStatus;
+    } = {}) {
+        return apiClient.get<InventoryLocationHierarchyResponse[]>(
+            "/inventory/inventory-locations/all",
+            { query }
+        );
+    },
     list(query: InventoryLocationQuery = {}) {
         return apiClient.get<PageResponse<InventoryLocationResponse>>(
             "/inventory/inventory-locations",

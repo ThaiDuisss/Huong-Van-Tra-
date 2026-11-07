@@ -11,6 +11,7 @@ import {
   History,
   Home,
   Layers3,
+  MapPin,
   MapPinned,
   Package,
   PackagePlus,
@@ -308,6 +309,13 @@ export const systemNavigationItems: SystemNavigationItem[] = [
             roles: INVENTORY_OPERATION_ROLES,
           },
         ],
+      },
+      {
+        key: "inventory-locations",
+        label: "Vị trí lưu kho",
+        icon: MapPin,
+        to: routePaths.inventoryLocations,
+        roles: [ROLES.SUPER_ADMIN],
       },
       {
         key: "inventory-shelves",
