@@ -1,9 +1,7 @@
 import {
     ChevronDown,
     ChevronRight,
-    ReceiptText,
-    RefreshCw,
-    Search
+    RefreshCw
 } from "lucide-react";
 import {
     Fragment,
@@ -16,6 +14,18 @@ import {
 } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 
+import { ListPageHeader } from "../../../components/shared/list/ListPageHeader";
+import { Button, IconButton } from "../../../components/ui/Button";
+import { buttonClassName } from "../../../components/ui/button-styles";
+import { SearchInput } from "../../../components/ui/SearchInput";
+import { StatusBadge } from "../../../components/ui/StatusBadge";
+import {
+    Table,
+    TableCell,
+    TableHead,
+    TableHeaderCell,
+    TableRow
+} from "../../../components/ui/Table";
 import { MarketingPagination } from "../components/MarketingPagination";
 import {
     MarketingTableSkeleton,
@@ -29,6 +39,7 @@ import type {
     CouponUsageResponse
 } from "../types/coupon.types";
 import { formatDiscountDateTimeCompact } from "../utils/discount-programs";
+import { getMarketingStatusTone } from "../utils/event-labels";
 import { routePaths } from "../../../routes/path";
 
 const usageStatusLabels: Record<string, string> = {
@@ -37,14 +48,6 @@ const usageStatusLabels: Record<string, string> = {
     RELEASED: "Đã nhả",
     EXPIRED: "Hết hạn",
     CANCELLED: "Đã hủy"
-};
-
-const statusClassNames: Record<string, string> = {
-    RESERVED: styles.statusScheduled,
-    APPLIED: styles.statusActive,
-    RELEASED: styles.statusPaused,
-    EXPIRED: styles.statusExpired,
-    CANCELLED: styles.statusCancelled
 };
 
 export function CouponUsageListPage() {
@@ -144,8 +147,24 @@ export function CouponUsageListPage() {
 
     return (
         <section className={styles.page}>
-            <header className={styles.header}>
-                <div className={styles.titleBlock}>
+            <ListPageHeader
+                actions={
+                    <>
+                        {couponId ? (
+                            <Link
+                                to={routePaths.discountHistory}
+                                className={buttonClassName({ variant: "secondary" })}
+                            >
+                                Xem tất cả lịch sử
+                            </Link>
+                        ) : null}
+                        <Button disabled={loading} onClick={reload}>
+                            <RefreshCw size={17} aria-hidden="true" />
+                            Tải lại
+                        </Button>
+                    </>
+                }
+                breadcrumb={
                     <nav className="flex items-center gap-2 text-sm" aria-label="Breadcrumb">
                         <span className="font-bold text-[#009b4d]">Marketing</span>
                         <span aria-hidden="true">›</span>
@@ -153,36 +172,16 @@ export function CouponUsageListPage() {
                             Lịch sử coupon
                         </span>
                     </nav>
-                    <h1 className={styles.title}>Lịch sử sử dụng coupon</h1>
-                    <p className={styles.description}>
-                        {couponId
-                            ? `Đang xem lịch sử sử dụng của coupon ${
-                                  couponCode || couponId
-                              }.`
-                            : "Theo dõi các lượt giữ, áp dụng, nhả và hủy coupon."}
-                    </p>
-                </div>
-
-                <div className={styles.actions}>
-                    {couponId ? (
-                        <Link
-                            to={routePaths.discountHistory}
-                            className={styles.secondaryButton}
-                        >
-                            Xem tất cả lịch sử
-                        </Link>
-                    ) : null}
-                    <button
-                        className={styles.secondaryButton}
-                        type="button"
-                        disabled={loading}
-                        onClick={reload}
-                    >
-                        <RefreshCw size={17} aria-hidden="true" />
-                        Tải lại
-                    </button>
-                </div>
-            </header>
+                }
+                description={
+                    couponId
+                        ? `Đang xem lịch sử sử dụng của coupon ${
+                              couponCode || couponId
+                          }.`
+                        : "Theo dõi các lượt giữ, áp dụng, nhả và hủy coupon."
+                }
+                title="Lịch sử sử dụng coupon"
+            />
 
             {error ? (
                 <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">
@@ -191,24 +190,19 @@ export function CouponUsageListPage() {
             ) : null}
 
             <section className={styles.filtersCard}>
-                <label className={styles.search}>
-                    <Search size={18} aria-hidden="true" />
-                    <span className="sr-only">Tìm lịch sử sử dụng coupon</span>
-                    <input
-                        className={styles.searchInput}
-                        value={query}
-                        placeholder="Tìm mã coupon, đơn hàng, khách hàng, kênh..."
-                        onChange={(event) => {
-                            setQuery(event.currentTarget.value);
-                            setPage(1);
-                        }}
-                    />
-                </label>
+                <SearchInput
+                    value={query}
+                    placeholder="Tìm mã coupon, đơn hàng, khách hàng, kênh..."
+                    onChange={(value) => {
+                        setQuery(value);
+                        setPage(1);
+                    }}
+                />
             </section>
 
             <section className={styles.tableCard}>
                 <div className={styles.tableScroll}>
-                    <table className={styles.table}>
+                    <Table className={styles.table}>
                         <colgroup>
                             <col className={styles.usageExpandColumn} />
                             <col className={styles.usageCouponColumn} />
@@ -217,16 +211,16 @@ export function CouponUsageListPage() {
                             <col className={styles.usageStatusColumn} />
                             <col className={styles.usageTimeColumn} />
                         </colgroup>
-                        <thead>
-                            <tr>
-                                <th aria-label="Xem chi tiết" />
-                                <th>Mã coupon</th>
-                                <th>Đơn hàng</th>
-                                <th>Số tiền giảm</th>
-                                <th>Trạng thái</th>
-                                <th>Thời gian</th>
-                            </tr>
-                        </thead>
+                        <TableHead>
+                            <TableRow>
+                                <TableHeaderCell aria-label="Xem chi tiết" />
+                                <TableHeaderCell>Mã coupon</TableHeaderCell>
+                                <TableHeaderCell>Đơn hàng</TableHeaderCell>
+                                <TableHeaderCell>Số tiền giảm</TableHeaderCell>
+                                <TableHeaderCell>Trạng thái</TableHeaderCell>
+                                <TableHeaderCell>Thời gian</TableHeaderCell>
+                            </TableRow>
+                        </TableHead>
                         <tbody>
                             {loading ? (
                                 <MarketingTableSkeleton columns={6} />
@@ -238,7 +232,7 @@ export function CouponUsageListPage() {
                                         : styles.rowEven;
                                 return (
                                     <Fragment key={usage.id}>
-                                        <tr
+                                        <TableRow
                                             className={`${zebraClass} ${styles.summaryRow}`}
                                             aria-expanded={expanded}
                                             onClick={() =>
@@ -247,10 +241,8 @@ export function CouponUsageListPage() {
                                                 )
                                             }
                                         >
-                                            <td>
-                                                <button
-                                                    type="button"
-                                                    className={styles.tableIconButton}
+                                            <TableCell>
+                                                <IconButton
                                                     aria-label={
                                                         expanded
                                                             ? "Thu gọn chi tiết"
@@ -262,30 +254,36 @@ export function CouponUsageListPage() {
                                                     ) : (
                                                         <ChevronRight size={18} />
                                                     )}
-                                                </button>
-                                            </td>
-                                            <td>
+                                                </IconButton>
+                                            </TableCell>
+                                            <TableCell>
                                                 <strong>{formatText(usage.couponCode)}</strong>
-                                            </td>
-                                            <td>{formatText(usage.orderId)}</td>
-                                            <td>{formatMoney(usage.discountAmount)}</td>
-                                            <td>
-                                                <StatusBadge value={usage.status} />
-                                            </td>
-                                            <td>{formatDate(getUsageEventTime(usage))}</td>
-                                        </tr>
+                                            </TableCell>
+                                            <TableCell>{formatText(usage.orderId)}</TableCell>
+                                            <TableCell>{formatMoney(usage.discountAmount)}</TableCell>
+                                            <TableCell>
+                                                <StatusBadge
+                                                    dot
+                                                    tone={getMarketingStatusTone(usage.status)}
+                                                >
+                                                    {usageStatusLabels[usage.status] ??
+                                                        usage.status.replaceAll("_", " ")}
+                                                </StatusBadge>
+                                            </TableCell>
+                                            <TableCell>{formatDate(getUsageEventTime(usage))}</TableCell>
+                                        </TableRow>
                                         {expanded ? (
-                                            <tr className={styles.expandedDetailRow}>
-                                                <td colSpan={6}>
+                                            <TableRow className={styles.expandedDetailRow}>
+                                                <TableCell colSpan={6}>
                                                     <UsageDetail usage={usage} />
-                                                </td>
-                                            </tr>
+                                                </TableCell>
+                                            </TableRow>
                                         ) : null}
                                     </Fragment>
                                 );
                             })}
                         </tbody>
-                    </table>
+                    </Table>
                 </div>
 
                 {!loading && usages.length === 0 ? (
@@ -309,19 +307,6 @@ export function CouponUsageListPage() {
                 onClose={() => setNotice(null)}
             />
         </section>
-    );
-}
-
-function StatusBadge({ value }: { value: string }) {
-    return (
-        <span
-            className={`${styles.statusBadge} ${
-                statusClassNames[value] ?? styles.statusInactive
-            }`}
-        >
-            <ReceiptText size={13} aria-hidden="true" />
-            {usageStatusLabels[value] ?? value.replaceAll("_", " ")}
-        </span>
     );
 }
 

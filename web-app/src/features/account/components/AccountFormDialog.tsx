@@ -1,5 +1,5 @@
 import { AlertCircle, Eye, EyeOff, LoaderCircle } from "lucide-react";
-import { type FormEvent, type ReactNode, useState } from "react";
+import { type FormEvent, useState } from "react";
 
 import {
   DialogContent,
@@ -8,6 +8,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "../../../components/ui/dialog";
+import { Button, IconButton } from "../../../components/ui/Button";
+import { Field, TextInput } from "../../../components/ui/Field";
 import { accountApi, describeAccountError } from "../services/account.api";
 import type { AccountResponse, StaffRole } from "../types/account.types";
 import {
@@ -16,11 +18,6 @@ import {
   isStaffRole,
   validateAccountForm,
 } from "../utils/account.utils";
-
-const fieldClass =
-  "h-11 w-full rounded-lg border border-[#dce5e1] bg-white px-3 text-sm font-semibold text-[#273a2b] outline-none focus:border-[#159734] focus:ring-2 focus:ring-[#159734]/10 disabled:bg-[#f4f6f5] disabled:text-[#697684]";
-const buttonBase =
-  "inline-flex h-11 items-center justify-center gap-2 whitespace-nowrap rounded-xl px-4 text-sm font-bold shadow-sm transition-colors";
 
 interface AccountFormDraft {
   username: string;
@@ -120,16 +117,15 @@ export function AccountFormDialog({
 
       <form noValidate onSubmit={(event) => void submit(event)}>
         <div className="grid max-h-[68vh] grid-cols-2 gap-x-5 gap-y-5 overflow-y-auto p-6 max-sm:grid-cols-1">
-          <FormField
+          <Field
             hint={isEdit ? "Tên đăng nhập không thể thay đổi." : "3–50 ký tự: chữ không dấu, số và . _ - @"}
             label="Tên đăng nhập"
             required={!isEdit}
           >
-            <input
+            <TextInput
               autoCapitalize="none"
               autoComplete="off"
               autoFocus={!isEdit}
-              className={fieldClass}
               disabled={isEdit}
               maxLength={50}
               onChange={(event) => update("username", event.target.value)}
@@ -137,67 +133,63 @@ export function AccountFormDialog({
               spellCheck={false}
               value={draft.username}
             />
-          </FormField>
+          </Field>
 
-          <FormField label="Email" required>
-            <input
+          <Field label="Email" required>
+            <TextInput
               autoComplete="off"
-              className={fieldClass}
               maxLength={150}
               onChange={(event) => update("email", event.target.value)}
               placeholder="nhanvien@example.com"
               type="email"
               value={draft.email}
             />
-          </FormField>
+          </Field>
 
-          <FormField label="Họ" required>
-            <input
+          <Field label="Họ" required>
+            <TextInput
               autoFocus={isEdit}
-              className={fieldClass}
               maxLength={100}
               onChange={(event) => update("lastName", event.target.value)}
               placeholder="Nguyễn Thị"
               value={draft.lastName}
             />
-          </FormField>
+          </Field>
 
-          <FormField label="Tên" required>
-            <input
-              className={fieldClass}
+          <Field label="Tên" required>
+            <TextInput
               maxLength={100}
               onChange={(event) => update("firstName", event.target.value)}
               placeholder="Lan"
               value={draft.firstName}
             />
-          </FormField>
+          </Field>
 
           {!isEdit ? (
             <div className="col-span-full">
-              <FormField
+              <Field
                 hint={`Tối thiểu ${ACCOUNT_PASSWORD_MIN_LENGTH} ký tự. Đây là mật khẩu tạm thời, hãy gửi cho nhân viên qua kênh an toàn.`}
                 label="Mật khẩu khởi tạo"
                 required
               >
                 <span className="relative block">
-                  <input
+                  <TextInput
                     autoComplete="new-password"
-                    className={`${fieldClass} pr-11`}
+                    className="pr-11"
                     maxLength={128}
                     onChange={(event) => update("password", event.target.value)}
                     type={showPassword ? "text" : "password"}
                     value={draft.password}
                   />
-                  <button
+                  <IconButton
                     aria-label={showPassword ? "Ẩn mật khẩu" : "Hiện mật khẩu"}
-                    className="absolute right-1.5 top-1/2 grid size-8 -translate-y-1/2 place-items-center rounded-lg text-[#697684] transition-colors hover:bg-[#f1f5f3] hover:text-[#172317]"
+                    className="absolute right-1 top-1/2 -translate-y-1/2"
                     onClick={() => setShowPassword((value) => !value)}
-                    type="button"
                   >
                     {showPassword ? <EyeOff size={16} aria-hidden="true" /> : <Eye size={16} aria-hidden="true" />}
-                  </button>
+                  </IconButton>
                 </span>
-              </FormField>
+              </Field>
             </div>
           ) : null}
 
@@ -251,47 +243,15 @@ export function AccountFormDialog({
         </div>
 
         <DialogFooter>
-          <button
-            className={`${buttonBase} border border-[#dce5e1] bg-white text-[#273a2b] hover:bg-[#f7fbf8]`}
-            disabled={submitting}
-            onClick={onCancel}
-            type="button"
-          >
+          <Button disabled={submitting} onClick={onCancel}>
             Hủy
-          </button>
-          <button
-            className={`${buttonBase} bg-[#159734] text-white hover:bg-[#12862d] disabled:cursor-not-allowed disabled:opacity-60`}
-            disabled={submitting}
-            type="submit"
-          >
+          </Button>
+          <Button disabled={submitting} type="submit" variant="primary">
             {submitting ? <LoaderCircle className="animate-spin" size={16} aria-hidden="true" /> : null}
             {submitting ? "Đang lưu..." : isEdit ? "Lưu thay đổi" : "Tạo tài khoản"}
-          </button>
+          </Button>
         </DialogFooter>
       </form>
     </DialogContent>
-  );
-}
-
-function FormField({
-  children,
-  hint,
-  label,
-  required = false,
-}: {
-  children: ReactNode;
-  hint?: string;
-  label: string;
-  required?: boolean;
-}) {
-  return (
-    <label className="grid content-start gap-2">
-      <span className="text-xs font-bold text-[#536171]">
-        {label}
-        {required ? <span className="ml-1 text-[#c4422e]">*</span> : null}
-      </span>
-      {children}
-      {hint ? <span className="text-xs font-semibold text-[#8793a1]">{hint}</span> : null}
-    </label>
   );
 }

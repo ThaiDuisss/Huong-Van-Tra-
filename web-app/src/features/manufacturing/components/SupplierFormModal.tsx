@@ -1,6 +1,11 @@
-import { Check, Plus, Search, X } from "lucide-react";
+import { Check, Plus, X } from "lucide-react";
 import { useEffect, useState, type FormEvent, type MouseEvent } from "react";
 
+import { Button, IconButton } from "../../../components/ui/Button";
+import { Field, NativeSelect, TextArea, TextInput } from "../../../components/ui/Field";
+import { ModalShell } from "../../../components/ui/Overlay";
+import { SearchInput } from "../../../components/ui/SearchInput";
+import { StatusBadge } from "../../../components/ui/StatusBadge";
 import { ingredientApi } from "../../product/services/ingredient.api";
 import type { Ingredient } from "../../product/types/product.types";
 import type { SupplierRequest, SupplierResponse, SupplierStatus } from "../types/supplier.types";
@@ -138,12 +143,18 @@ export function SupplierFormModal({
     };
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-xs animate-in fade-in duration-200">
-            <div className="flex max-h-[90vh] w-full max-w-2xl flex-col rounded-2xl bg-white shadow-2xl overflow-hidden">
+        <ModalShell
+            className="w-[min(672px,calc(100vw-32px))]"
+            closeOnBackdrop={false}
+            closeOnEscape={false}
+            labelledBy="supplier-form-title"
+            onClose={onClose}
+        >
+            <div className="flex max-h-[85vh] flex-col overflow-hidden">
                 {/* Header */}
                 <header className="flex items-center justify-between border-b border-neutral-100 px-6 py-4">
                     <div>
-                        <h2 className="text-lg font-black text-neutral-800">
+                        <h2 className="text-lg font-black text-neutral-800" id="supplier-form-title">
                             {isEdit ? "Cập nhật Nhà cung cấp" : "Thêm mới Nhà cung cấp"}
                         </h2>
                         {isEdit && supplier?.supplierCode && (
@@ -152,13 +163,9 @@ export function SupplierFormModal({
                             </p>
                         )}
                     </div>
-                    <button
-                        onClick={onClose}
-                        className="rounded-lg p-2 text-neutral-400 hover:bg-neutral-100 hover:text-neutral-600 transition-colors cursor-pointer"
-                        type="button"
-                    >
+                    <IconButton aria-label="Đóng" onClick={onClose} size="md">
                         <X size={20} />
-                    </button>
+                    </IconButton>
                 </header>
 
                 {/* Body Form */}
@@ -171,111 +178,79 @@ export function SupplierFormModal({
 
                     {/* Basic Info */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div className="md:col-span-2">
-                            <label className="block text-xs font-black text-neutral-600 uppercase tracking-wider mb-1.5">
-                                Tên nhà cung cấp <span className="text-red-500">*</span>
-                            </label>
-                            <input
+                        <Field className="md:col-span-2" label="Tên nhà cung cấp" required>
+                            <TextInput
                                 type="text"
                                 value={name}
                                 onChange={(e) => setName(e.target.value)}
                                 placeholder="Ví dụ: Công ty TNHH Trà Thái Nguyên"
-                                className="w-full h-10 rounded-xl border border-neutral-200 px-3.5 text-sm font-semibold text-neutral-800 focus:border-emerald-500 focus:outline-hidden transition-all"
                                 required
                             />
-                        </div>
+                        </Field>
 
-                        <div>
-                            <label className="block text-xs font-black text-neutral-600 uppercase tracking-wider mb-1.5">
-                                Người liên hệ
-                            </label>
-                            <input
+                        <Field label="Người liên hệ">
+                            <TextInput
                                 type="text"
                                 value={contactName}
                                 onChange={(e) => setContactName(e.target.value)}
                                 placeholder="Nguyễn Văn A"
-                                className="w-full h-10 rounded-xl border border-neutral-200 px-3.5 text-sm font-semibold text-neutral-800 focus:border-emerald-500 focus:outline-hidden transition-all"
                             />
-                        </div>
+                        </Field>
 
-                        <div>
-                            <label className="block text-xs font-black text-neutral-600 uppercase tracking-wider mb-1.5">
-                                Số điện thoại
-                            </label>
-                            <input
+                        <Field label="Số điện thoại">
+                            <TextInput
                                 type="tel"
                                 value={phone}
                                 onChange={(e) => setPhone(e.target.value)}
                                 placeholder="0987 654 321"
-                                className="w-full h-10 rounded-xl border border-neutral-200 px-3.5 text-sm font-semibold text-neutral-800 focus:border-emerald-500 focus:outline-hidden transition-all"
                             />
-                        </div>
+                        </Field>
 
-                        <div>
-                            <label className="block text-xs font-black text-neutral-600 uppercase tracking-wider mb-1.5">
-                                Email
-                            </label>
-                            <input
+                        <Field label="Email">
+                            <TextInput
                                 type="email"
                                 value={email}
                                 onChange={(e) => setEmail(e.target.value)}
                                 placeholder="supplier@example.com"
-                                className="w-full h-10 rounded-xl border border-neutral-200 px-3.5 text-sm font-semibold text-neutral-800 focus:border-emerald-500 focus:outline-hidden transition-all"
                             />
-                        </div>
+                        </Field>
 
-                        <div>
-                            <label className="block text-xs font-black text-neutral-600 uppercase tracking-wider mb-1.5">
-                                Mã số thuế
-                            </label>
-                            <input
+                        <Field label="Mã số thuế">
+                            <TextInput
                                 type="text"
                                 value={taxCode}
                                 onChange={(e) => setTaxCode(e.target.value)}
                                 placeholder="0102345678"
-                                className="w-full h-10 rounded-xl border border-neutral-200 px-3.5 text-sm font-semibold text-neutral-800 focus:border-emerald-500 focus:outline-hidden transition-all"
                             />
-                        </div>
+                        </Field>
 
-                        <div className="md:col-span-2">
-                            <label className="block text-xs font-black text-neutral-600 uppercase tracking-wider mb-1.5">
-                                Địa chỉ
-                            </label>
-                            <input
+                        <Field className="md:col-span-2" label="Địa chỉ">
+                            <TextInput
                                 type="text"
                                 value={address}
                                 onChange={(e) => setAddress(e.target.value)}
                                 placeholder="Số 123 đường ABC, Quận XYZ, TP. Hà Nội"
-                                className="w-full h-10 rounded-xl border border-neutral-200 px-3.5 text-sm font-semibold text-neutral-800 focus:border-emerald-500 focus:outline-hidden transition-all"
                             />
-                        </div>
+                        </Field>
 
-                        <div>
-                            <label className="block text-xs font-black text-neutral-600 uppercase tracking-wider mb-1.5">
-                                Trạng thái
-                            </label>
-                            <select
+                        <Field label="Trạng thái">
+                            <NativeSelect
                                 value={status}
                                 onChange={(e) => setStatus(e.target.value as SupplierStatus)}
-                                className="w-full h-10 rounded-xl border border-neutral-200 px-3.5 text-sm font-bold text-neutral-800 focus:border-emerald-500 focus:outline-hidden transition-all bg-white cursor-pointer"
                             >
                                 <option value="ACTIVE">Đang hoạt động</option>
                                 <option value="INACTIVE">Ngừng hoạt động</option>
-                            </select>
-                        </div>
+                            </NativeSelect>
+                        </Field>
 
-                        <div className="md:col-span-2">
-                            <label className="block text-xs font-black text-neutral-600 uppercase tracking-wider mb-1.5">
-                                Ghi chú
-                            </label>
-                            <textarea
+                        <Field className="md:col-span-2" label="Ghi chú">
+                            <TextArea
                                 value={notes}
                                 onChange={(e) => setNotes(e.target.value)}
                                 rows={2}
                                 placeholder="Thông tin bổ sung về nhà cung cấp..."
-                                className="w-full rounded-xl border border-neutral-200 p-3 text-sm font-semibold text-neutral-800 focus:border-emerald-500 focus:outline-hidden transition-all"
                             />
-                        </div>
+                        </Field>
                     </div>
 
                     {/* Multi-select Ingredient Selection */}
@@ -283,18 +258,12 @@ export function SupplierFormModal({
                         <div className="flex items-center justify-between mb-2">
                             <label className="text-xs font-black text-neutral-700 uppercase tracking-wider flex items-center gap-1.5">
                                 Nguyên liệu cung cấp
-                                <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-black text-emerald-700">
-                                    Đã chọn: {selectedIngredientIds.length}
-                                </span>
+                                <StatusBadge tone="success">Đã chọn: {selectedIngredientIds.length}</StatusBadge>
                             </label>
                             {selectedIngredientIds.length > 0 && (
-                                <button
-                                    type="button"
-                                    onClick={() => setSelectedIngredientIds([])}
-                                    className="text-xs font-bold text-neutral-400 hover:text-red-500 transition-colors cursor-pointer"
-                                >
+                                <Button onClick={() => setSelectedIngredientIds([])} size="sm" variant="link">
                                     Bỏ chọn tất cả
-                                </button>
+                                </Button>
                             )}
                         </div>
 
@@ -324,14 +293,12 @@ export function SupplierFormModal({
                         )}
 
                         {/* Search & Pick Box */}
-                        <div className="relative mb-2">
-                            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400" />
-                            <input
+                        <div className="mb-2 flex">
+                            <SearchInput
+                                onChange={setIngredientSearch}
+                                placeholder="Tìm kiếm nguyên liệu theo tên hoặc mã..."
                                 type="text"
                                 value={ingredientSearch}
-                                onChange={(e) => setIngredientSearch(e.target.value)}
-                                placeholder="Tìm kiếm nguyên liệu theo tên hoặc mã..."
-                                className="w-full h-9 rounded-lg border border-neutral-200 pl-9 pr-3 text-xs font-semibold text-neutral-800 bg-white focus:border-emerald-500 focus:outline-hidden transition-all"
                             />
                         </div>
 
@@ -383,24 +350,15 @@ export function SupplierFormModal({
 
                     {/* Footer Actions */}
                     <div className="flex justify-end gap-3 pt-2 border-t border-neutral-100">
-                        <button
-                            type="button"
-                            onClick={onClose}
-                            disabled={submitting}
-                            className="h-10 rounded-xl border border-neutral-200 px-5 text-sm font-bold text-neutral-600 hover:bg-neutral-50 transition-colors cursor-pointer"
-                        >
+                        <Button disabled={submitting} onClick={onClose}>
                             Hủy
-                        </button>
-                        <button
-                            type="submit"
-                            disabled={submitting}
-                            className="h-10 rounded-xl bg-emerald-600 px-6 text-sm font-bold text-white shadow-md shadow-emerald-600/20 hover:bg-emerald-700 transition-all disabled:opacity-50 cursor-pointer"
-                        >
+                        </Button>
+                        <Button disabled={submitting} type="submit" variant="primary">
                             {submitting ? "Đang lưu..." : isEdit ? "Lưu thay đổi" : "Tạo nhà cung cấp"}
-                        </button>
+                        </Button>
                     </div>
                 </form>
             </div>
-        </div>
+        </ModalShell>
     );
 }

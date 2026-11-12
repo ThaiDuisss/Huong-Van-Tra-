@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { Button } from "../../../components/ui/Button";
 import { formatCurrency } from "../../sales/services/money";
 import { PosVariantSelector } from "../../sales/components/product/PosVariantSelector";
 import {
@@ -199,24 +200,24 @@ function RecommendedProductCard({
               : "Cần chọn biến thể / đơn vị bán.")}
         </span>
         {(details.error || error) && (
-          <button
-            type="button"
+          <Button
+            className="justify-self-start"
             disabled={disabled || refreshing}
             onClick={() => void reloadMetadata()}
-            className="justify-self-start text-sm font-semibold text-[#159734] disabled:opacity-50"
+            size="sm"
           >
             {refreshing ? "Đang tải lại..." : "Tải lại thông tin bán hàng"}
-          </button>
+          </Button>
         )}
         {onAdd && (
-          <button
-            type="button"
+          <Button
+            className="justify-self-start"
             disabled={disabled || !selected || Boolean(posVariantSelectionError(selected))}
             onClick={() => void add()}
-            className="justify-self-start rounded-lg bg-[#159734] px-3 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
+            variant="primary"
           >
             Thêm vào đơn
-          </button>
+          </Button>
         )}
         {added && (
           <span role="status" className="text-xs text-[#159734]">

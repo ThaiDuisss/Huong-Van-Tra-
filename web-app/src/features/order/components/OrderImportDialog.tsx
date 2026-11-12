@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import { type DragEvent, useRef, useState } from "react";
 
+import { Button } from "../../../components/ui/Button";
 import {
     Dialog,
     DialogContent,
@@ -16,6 +17,14 @@ import {
     DialogHeader,
     DialogTitle
 } from "../../../components/ui/dialog";
+import { StatusBadge, type BadgeTone } from "../../../components/ui/StatusBadge";
+import {
+    Table,
+    TableCell,
+    TableHead,
+    TableHeaderCell,
+    TableRow
+} from "../../../components/ui/Table";
 import { importOrders } from "../services/order.api";
 import type {
     OrderImportOrderResult,
@@ -33,12 +42,6 @@ import {
 
 type Phase = "idle" | "checking" | "checked" | "importing" | "done";
 
-const BUTTON_BASE =
-    "inline-flex h-11 items-center justify-center gap-2 whitespace-nowrap rounded-xl px-4 text-sm font-bold shadow-sm transition-colors disabled:cursor-not-allowed disabled:opacity-60";
-const OUTLINE_BUTTON = "border border-[#bfd5c6] bg-white text-[#159734] hover:bg-[#f7fff9]";
-const COMPACT_BUTTON = "border border-[#dce5e1] bg-white text-[#273a2b] hover:bg-[#f7fbf8]";
-const PRIMARY_BUTTON = "bg-[#159734] text-white hover:bg-[#12862d]";
-
 const STATUS_LABELS: Record<OrderImportStatus, string> = {
     VALID: "Hợp lệ",
     IMPORTED: "Đã nhập",
@@ -47,12 +50,12 @@ const STATUS_LABELS: Record<OrderImportStatus, string> = {
     FAILED: "Nhập thất bại"
 };
 
-const STATUS_TONES: Record<OrderImportStatus, string> = {
-    VALID: "bg-[#e9f8ed] text-[#159734]",
-    IMPORTED: "bg-[#e9f8ed] text-[#159734]",
-    DUPLICATE: "bg-[#fff6e5] text-[#8a5a12]",
-    INVALID: "bg-[#fff0ed] text-[#c4422e]",
-    FAILED: "bg-[#fff0ed] text-[#c4422e]"
+const STATUS_TONES: Record<OrderImportStatus, BadgeTone> = {
+    VALID: "success",
+    IMPORTED: "success",
+    DUPLICATE: "warning",
+    INVALID: "danger",
+    FAILED: "danger"
 };
 
 function isErrorStatus(status: OrderImportStatus) {
@@ -165,14 +168,10 @@ export function OrderImportDialog({
                                 Mã đơn tham chiếu đã nhập trước đó sẽ được bỏ qua.
                             </p>
                         </div>
-                        <button
-                            className={`${BUTTON_BASE} ${OUTLINE_BUTTON} h-9 text-xs`}
-                            onClick={downloadOrderImportTemplate}
-                            type="button"
-                        >
+                        <Button onClick={downloadOrderImportTemplate} size="sm">
                             <Download size={15} aria-hidden="true" />
                             Tải file mẫu
-                        </button>
+                        </Button>
                     </div>
 
                     {phase !== "done" && (
@@ -194,15 +193,14 @@ export function OrderImportDialog({
                             <p className="text-xs font-semibold text-[#697684]">
                                 Hỗ trợ .xlsx, .xls, .csv - tối đa 5MB
                             </p>
-                            <button
-                                className={`${BUTTON_BASE} ${COMPACT_BUTTON} h-9 text-xs`}
+                            <Button
                                 disabled={busy}
                                 onClick={() => inputRef.current?.click()}
-                                type="button"
+                                size="sm"
                             >
                                 <Upload size={15} aria-hidden="true" />
                                 {fileName ? "Chọn file khác" : "Chọn file"}
-                            </button>
+                            </Button>
                             <input
                                 accept=".xlsx,.xls,.csv"
                                 className="hidden"
@@ -281,9 +279,9 @@ export function OrderImportDialog({
                             )}
 
                             <div className="overflow-auto rounded-xl border border-[#e4ece8]">
-                                <table className="w-full min-w-[900px] border-separate border-spacing-0 text-xs text-[#233025]">
-                                    <thead>
-                                        <tr>
+                                <Table className="min-w-[900px] text-xs">
+                                    <TableHead>
+                                        <TableRow>
                                             {[
                                                 "Dòng",
                                                 "Mã tham chiếu",
@@ -294,15 +292,10 @@ export function OrderImportDialog({
                                                 "Trạng thái",
                                                 "Chi tiết"
                                             ].map((header) => (
-                                                <th
-                                                    className="sticky top-0 h-9 whitespace-nowrap border-b border-[#e4ece8] bg-[#f8faf9] px-3 text-left text-[11px] font-black uppercase text-[#556477]"
-                                                    key={header}
-                                                >
-                                                    {header}
-                                                </th>
+                                                <TableHeaderCell key={header}>{header}</TableHeaderCell>
                                             ))}
-                                        </tr>
-                                    </thead>
+                                        </TableRow>
+                                    </TableHead>
                                     <tbody>
                                         {visibleResults.map((result, index) => (
                                             <ResultRow
@@ -311,27 +304,21 @@ export function OrderImportDialog({
                                             />
                                         ))}
                                     </tbody>
-                                </table>
+                                </Table>
                             </div>
                         </>
                     )}
                 </div>
 
                 <DialogFooter>
-                    <button
-                        className={`${BUTTON_BASE} ${COMPACT_BUTTON}`}
-                        disabled={busy}
-                        onClick={close}
-                        type="button"
-                    >
+                    <Button disabled={busy} onClick={close}>
                         {phase === "done" ? "Đóng" : "Hủy"}
-                    </button>
+                    </Button>
                     {phase !== "done" && (
-                        <button
-                            className={`${BUTTON_BASE} ${PRIMARY_BUTTON}`}
+                        <Button
                             disabled={phase !== "checked" || successCount === 0}
                             onClick={() => void importValidOrders()}
-                            type="button"
+                            variant="primary"
                         >
                             {phase === "importing" && (
                                 <LoaderCircle className="animate-spin" size={16} aria-hidden="true" />
@@ -341,7 +328,7 @@ export function OrderImportDialog({
                                 : successCount > 0
                                   ? `Nhập ${successCount.toLocaleString("vi-VN")} đơn hợp lệ`
                                   : "Nhập đơn hàng"}
-                        </button>
+                        </Button>
                     )}
                 </DialogFooter>
             </DialogContent>
@@ -357,38 +344,33 @@ function formatRowNumbers(rowNumbers: number[]) {
 
 function ResultRow({ result }: { result: OrderImportOrderResult }) {
     const error = isErrorStatus(result.status);
-    const cell = "border-b border-[#eef2f0] px-3 py-2 align-top";
     const customer = [result.customerName, result.customerPhone].filter(Boolean).join(" - ");
     return (
-        <tr className={error ? "bg-[#fffaf9]" : "bg-white"}>
-            <td className={`${cell} whitespace-nowrap font-black`}>
+        <TableRow className={error ? "bg-[#fffaf9]" : "bg-white"}>
+            <TableCell className="whitespace-nowrap font-black">
                 {formatRowNumbers(result.rowNumbers)}
-            </td>
-            <td className={`${cell} font-bold`}>{result.orderReference || "-"}</td>
-            <td className={`${cell} whitespace-nowrap`}>
+            </TableCell>
+            <TableCell className="font-bold">{result.orderReference || "-"}</TableCell>
+            <TableCell className="whitespace-nowrap">
                 {result.soldAt ? formatDateTime(result.soldAt) : "Lúc nhập"}
-            </td>
-            <td className={cell}>{customer || "Khách lẻ"}</td>
-            <td className={`${cell} whitespace-nowrap`}>{result.itemCount}</td>
-            <td className={`${cell} whitespace-nowrap font-bold`}>
+            </TableCell>
+            <TableCell>{customer || "Khách lẻ"}</TableCell>
+            <TableCell className="whitespace-nowrap">{result.itemCount}</TableCell>
+            <TableCell className="whitespace-nowrap font-bold">
                 {error ? "-" : formatCurrency(result.totalAmount)}
-            </td>
-            <td className={`${cell} whitespace-nowrap`}>
-                <span
-                    className={`inline-flex h-6 items-center rounded-full px-2 text-[11px] font-black ${STATUS_TONES[result.status]}`}
-                >
-                    {STATUS_LABELS[result.status]}
-                </span>
-            </td>
-            <td className={`${cell} ${error ? "font-bold text-[#a43a2a]" : "text-[#697684]"}`}>
+            </TableCell>
+            <TableCell className="whitespace-nowrap">
+                <StatusBadge tone={STATUS_TONES[result.status]}>{STATUS_LABELS[result.status]}</StatusBadge>
+            </TableCell>
+            <TableCell className={error ? "font-bold text-[#a43a2a]" : "text-[#697684]"}>
                 {result.orderCode && result.status === "IMPORTED" && (
                     <p className="font-bold text-[#159734]">Mã đơn: {result.orderCode}</p>
                 )}
                 {result.messages.map((message) => (
                     <p key={message}>{message}</p>
                 ))}
-            </td>
-        </tr>
+            </TableCell>
+        </TableRow>
     );
 }
 
@@ -401,15 +383,9 @@ function SummaryChip({
     tone?: "neutral" | "success" | "warning" | "danger";
     value: number;
 }) {
-    const toneClass = {
-        neutral: "bg-[#f1f3f5] text-[#536171]",
-        success: "bg-[#e9f8ed] text-[#159734]",
-        warning: "bg-[#fff6e5] text-[#8a5a12]",
-        danger: "bg-[#fff0ed] text-[#c4422e]"
-    }[tone];
     return (
-        <span className={`inline-flex h-7 items-center gap-1.5 rounded-full px-3 ${toneClass}`}>
+        <StatusBadge tone={tone}>
             {label}: {value.toLocaleString("vi-VN")}
-        </span>
+        </StatusBadge>
     );
 }

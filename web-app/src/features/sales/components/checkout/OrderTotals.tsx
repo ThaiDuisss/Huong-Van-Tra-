@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { Pencil, RotateCcw } from "lucide-react";
 
+import { Button } from "../../../../components/ui/Button";
+import { TextArea, TextInput } from "../../../../components/ui/Field";
 import {
     formatCurrency,
     parseCurrencyInput
@@ -121,8 +123,8 @@ export function OrderTotals({
             {editingDiscount ? (
                 <div className="grid gap-2 rounded-xl border border-amber-200 bg-amber-50/60 p-3">
                     <div className="grid grid-cols-[1fr_auto] gap-2">
-                        <input
-                            className="h-10 min-w-0 rounded-lg border border-pos-border bg-white px-3 text-sm outline-none focus:border-hvt-green-700"
+                        <TextInput
+                            className="min-w-0"
                             inputMode={draftType === "PERCENTAGE" ? "decimal" : "numeric"}
                             placeholder={
                                 draftType === "PERCENTAGE"
@@ -161,8 +163,7 @@ export function OrderTotals({
                     </div>
                     <label className="grid gap-1 text-xs font-semibold text-gray-500">
                         Mã lý do
-                        <input
-                            className="h-10 rounded-lg border border-pos-border bg-white px-3 text-sm outline-none focus:border-hvt-green-700"
+                        <TextInput
                             value={draftReason}
                             onChange={(event) =>
                                 setDraftReason(event.currentTarget.value)
@@ -171,8 +172,8 @@ export function OrderTotals({
                     </label>
                     <label className="grid gap-1 text-xs font-semibold text-gray-500">
                         Ghi chú
-                        <textarea
-                            className="min-h-16 resize-none rounded-lg border border-pos-border bg-white px-3 py-2 text-sm outline-none focus:border-hvt-green-700"
+                        <TextArea
+                            className="resize-none"
                             placeholder="Nhập ghi chú giảm giá"
                             value={draftNote}
                             onChange={(event) =>
@@ -181,21 +182,12 @@ export function OrderTotals({
                         />
                     </label>
                     <div className="flex justify-end gap-2">
-                        <button
-                            type="button"
-                            onClick={() => setEditingDiscount(false)}
-                            className="h-9 rounded-lg px-3 text-xs font-semibold text-pos-muted hover:bg-white"
-                        >
+                        <Button onClick={() => setEditingDiscount(false)} size="sm" variant="ghost">
                             Hủy
-                        </button>
-                        <button
-                            type="button"
-                            onClick={saveDiscount}
-                            disabled={!canSave}
-                            className="h-9 rounded-lg bg-hvt-green-900 px-3 text-xs font-bold text-white disabled:bg-neutral-300"
-                        >
+                        </Button>
+                        <Button disabled={!canSave} onClick={saveDiscount} size="sm" variant="primary">
                             Lưu thay đổi
-                        </button>
+                        </Button>
                     </div>
                 </div>
             ) : null}

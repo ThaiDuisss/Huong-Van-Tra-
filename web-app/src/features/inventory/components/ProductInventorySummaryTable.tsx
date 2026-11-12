@@ -1,5 +1,8 @@
 import { ChevronDown, ChevronUp } from "lucide-react";
-import { useCallback, useState } from "react";
+import { Fragment, useCallback, useState } from "react";
+
+import { Table, TableCell, TableHead, TableHeaderCell, TableRow } from "@/components/ui/Table";
+
 import type { WarehouseInventorySummary, LocationInventoryDetail } from "../services/warehouseInventory.api";
 import { warehouseInventoryApi } from "../services/warehouseInventory.api";
 import { getLocationTypeLabel } from "../utils/inventory-labels";
@@ -51,63 +54,63 @@ export function ProductInventorySummaryTable({
 
     return (
         <div className="overflow-x-auto min-h-[280px]">
-            <table className="w-full text-left text-[13px] border-separate border-spacing-0">
-                <thead className="bg-[#eaf7ec] text-[13px] font-[950] text-[#172317] border-b border-[#edf0f4]">
-                    <tr>
-                        <th className="h-[52px] align-middle px-4 py-0 border-b border-[#edf0f4] first:pl-[18px] w-8"></th>
-                        <th className="h-[52px] align-middle px-4 py-0 border-b border-[#edf0f4]">SKU</th>
+            <Table>
+                <TableHead>
+                    <TableRow>
+                        <TableHeaderCell className="w-8" />
+                        <TableHeaderCell>SKU</TableHeaderCell>
                         {!isDetailPanelOpen && (
                             <>
-                                <th className="h-[52px] align-middle px-4 py-0 border-b border-[#edf0f4]">Tên mặt hàng</th>
-                                <th className="h-[52px] align-middle px-4 py-0 border-b border-[#edf0f4] text-right pr-[18px]">Kệ POS</th>
-                                <th className="h-[52px] align-middle px-4 py-0 border-b border-[#edf0f4] text-right pr-[18px]">Kho tổng</th>
-                                <th className="h-[52px] align-middle px-4 py-0 border-b border-[#edf0f4] text-right pr-[18px]">Tổng tồn</th>
-                                <th className="h-[52px] align-middle px-4 py-0 border-b border-[#edf0f4] text-center">Đơn vị</th>
+                                <TableHeaderCell>Tên mặt hàng</TableHeaderCell>
+                                <TableHeaderCell className="text-right">Kệ POS</TableHeaderCell>
+                                <TableHeaderCell className="text-right">Kho tổng</TableHeaderCell>
+                                <TableHeaderCell className="text-right">Tổng tồn</TableHeaderCell>
+                                <TableHeaderCell className="text-center">Đơn vị</TableHeaderCell>
                             </>
                         )}
-                    </tr>
-                </thead>
+                    </TableRow>
+                </TableHead>
                 <tbody>
                     {products.map((product, idx) => {
                         const isEven = idx % 2 === 1;
                         const rowBgClass = isEven ? "bg-[#f2faf1]/50" : "bg-white";
 
                         return (
-                            <div key={product.inventoryItemId} className="contents">
+                            <Fragment key={product.inventoryItemId}>
                                 {/* Level 1: Item Row */}
-                                <tr
-                                    className={`cursor-pointer hover:bg-[#f8faf8] transition-all border-b border-[#f2f4f2] ${rowBgClass}`}
+                                <TableRow
+                                    className={`cursor-pointer transition-all hover:bg-[#f8faf8] ${rowBgClass}`}
                                     onClick={() => handleExpandItem(product.inventoryItemId)}
                                 >
-                                    <td className="px-4 py-3 text-center">
+                                    <TableCell className="text-center">
                                         {expandedItemId === product.inventoryItemId ? (
                                             <ChevronUp size={16} className="inline" />
                                         ) : (
                                             <ChevronDown size={16} className="inline" />
                                         )}
-                                    </td>
-                                    <td className="px-4 py-3 font-mono text-[#172317]">{product.sku}</td>
+                                    </TableCell>
+                                    <TableCell className="font-mono text-[#172317]">{product.sku}</TableCell>
                                     {!isDetailPanelOpen && (
                                         <>
-                                            <td className="px-4 py-3 font-semibold text-[#172317]">{product.itemName}</td>
-                                            <td className="px-4 py-3 text-right text-blue-600 font-semibold">
+                                            <TableCell className="font-semibold text-[#172317]">{product.itemName}</TableCell>
+                                            <TableCell className="text-right text-blue-600 font-semibold">
                                                 {product.shelfQuantity.toFixed(2)}
-                                            </td>
-                                            <td className="px-4 py-3 text-right text-purple-600 font-semibold">
+                                            </TableCell>
+                                            <TableCell className="text-right text-purple-600 font-semibold">
                                                 {product.warehouseQuantity.toFixed(2)}
-                                            </td>
-                                            <td className="px-4 py-3 text-right text-gray-900 font-bold">
+                                            </TableCell>
+                                            <TableCell className="text-right text-gray-900 font-bold">
                                                 {product.totalQuantity.toFixed(2)}
-                                            </td>
-                                            <td className="px-4 py-3 text-center text-gray-700 font-medium">{product.unitSymbol}</td>
+                                            </TableCell>
+                                            <TableCell className="text-center text-gray-700 font-medium">{product.unitSymbol}</TableCell>
                                         </>
                                     )}
-                                </tr>
+                                </TableRow>
 
                                 {/* Level 2: Locations (Expanded) */}
                                 {expandedItemId === product.inventoryItemId && (
-                                    <tr className="bg-gray-50 border-b border-[#f2f4f2]">
-                                        <td colSpan={isDetailPanelOpen ? 2 : 8} className="p-4">
+                                    <TableRow className="bg-gray-50">
+                                        <TableCell className="p-4" colSpan={isDetailPanelOpen ? 2 : 8}>
                                             <div className="space-y-2">
                                                 <div className="text-sm font-semibold text-gray-700 mb-3">Tồn kho theo vị trí:</div>
 
@@ -165,14 +168,14 @@ export function ProductInventorySummaryTable({
                                                     <div className="text-sm text-gray-500 italic">Không có thông tin vị trí tồn kho</div>
                                                 )}
                                             </div>
-                                        </td>
-                                    </tr>
+                                        </TableCell>
+                                    </TableRow>
                                 )}
-                            </div>
+                            </Fragment>
                         );
                     })}
                 </tbody>
-            </table>
+            </Table>
         </div>
     );
 }

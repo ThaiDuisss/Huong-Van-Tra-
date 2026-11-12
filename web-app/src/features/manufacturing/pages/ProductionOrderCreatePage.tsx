@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 
+import { Button } from "../../../components/ui/Button";
+import { TextInput } from "../../../components/ui/Field";
+import { Table, TableCell, TableHead, TableHeaderCell, TableRow } from "../../../components/ui/Table";
 import { routePaths } from "../../../routes/path";
 import { inventoryLocationApi } from "../../inventory/services/inventoryLocation.api";
 import { productVariantApi } from "../../product/services/productVariant.api";
@@ -273,8 +276,7 @@ export function ProductionOrderCreatePage() {
                     </div>
                     <div className="grid gap-1.5">
                         <label className="text-xs font-bold text-[#536078]">Số lượng kế hoạch</label>
-                        <input
-                            className="h-10 rounded-xl border border-pos-border px-3 text-sm outline-none focus:border-hvt-green-600 focus:ring-1 focus:ring-hvt-green-600"
+                        <TextInput
                             min={0.01}
                             step="0.01"
                             type="number"
@@ -284,8 +286,7 @@ export function ProductionOrderCreatePage() {
                     </div>
                     <div className="grid gap-1.5">
                         <label className="text-xs font-bold text-[#536078]">Ghi chú</label>
-                        <input
-                            className="h-10 rounded-xl border border-pos-border px-3 text-sm outline-none focus:border-hvt-green-600 focus:ring-1 focus:ring-hvt-green-600"
+                        <TextInput
                             placeholder="Không bắt buộc"
                             type="text"
                             value={note}
@@ -304,13 +305,9 @@ export function ProductionOrderCreatePage() {
                     ) : bomFetchError ? (
                         <div className="grid gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm font-bold text-red-700">
                             <span>Không thể tải định mức nguyên liệu: {bomFetchError}</span>
-                            <button
-                                className="w-fit rounded-lg border border-red-300 bg-white px-3 py-1.5 text-xs font-black text-red-700 hover:bg-red-100"
-                                onClick={() => fetchBomItems(variantId)}
-                                type="button"
-                            >
+                            <Button className="w-fit" onClick={() => fetchBomItems(variantId)} size="sm" variant="dangerOutline">
                                 Thử lại
-                            </button>
+                            </Button>
                         </div>
                     ) : noBomAvailable ? (
                         <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm font-bold text-amber-700">
@@ -320,26 +317,26 @@ export function ProductionOrderCreatePage() {
                         <div className="grid gap-2">
                             <h3 className="text-sm font-black text-[#172317]">Nguyên liệu dự kiến tiêu thụ</h3>
                             <div className="overflow-hidden rounded-xl border border-[#e8eef0]">
-                                <table className="w-full text-sm">
-                                    <thead className="bg-neutral-50 text-xs font-bold uppercase text-[#697684]">
-                                        <tr>
-                                            <th className="px-3 py-2 text-left">Nguyên liệu</th>
-                                            <th className="px-3 py-2 text-right">Số lượng cần</th>
-                                            <th className="px-3 py-2 text-left">Đơn vị</th>
-                                        </tr>
-                                    </thead>
+                                <Table>
+                                    <TableHead>
+                                        <TableRow>
+                                            <TableHeaderCell>Nguyên liệu</TableHeaderCell>
+                                            <TableHeaderCell className="text-right">Số lượng cần</TableHeaderCell>
+                                            <TableHeaderCell>Đơn vị</TableHeaderCell>
+                                        </TableRow>
+                                    </TableHead>
                                     <tbody>
                                         {materialPreviewRows.map((row) => (
-                                            <tr key={row.id} className="border-t border-[#e8eef0]">
-                                                <td className="px-3 py-2 font-semibold text-[#172317]">{row.name}</td>
-                                                <td className="px-3 py-2 text-right font-mono">
+                                            <TableRow key={row.id}>
+                                                <TableCell className="font-semibold">{row.name}</TableCell>
+                                                <TableCell className="text-right font-mono">
                                                     {row.requiredQuantity.toLocaleString("vi-VN", { maximumFractionDigits: 4 })}
-                                                </td>
-                                                <td className="px-3 py-2 text-[#536078]">{row.unit}</td>
-                                            </tr>
+                                                </TableCell>
+                                                <TableCell className="text-[#536078]">{row.unit}</TableCell>
+                                            </TableRow>
                                         ))}
                                     </tbody>
-                                </table>
+                                </Table>
                             </div>
                             <p className="text-xs font-semibold italic text-[#697684]">
                                 Số liệu chỉ để xem trước — số lượng chính thức sẽ được hệ thống tính lại khi tạo lệnh.
@@ -350,22 +347,12 @@ export function ProductionOrderCreatePage() {
             ) : null}
 
             <div className="flex flex-wrap items-center justify-end gap-2">
-                <button
-                    className="inline-flex h-10 items-center rounded-lg border border-pos-border bg-white px-4 text-sm font-black text-[#536078] hover:bg-neutral-50 disabled:opacity-50"
-                    disabled={!canSubmit}
-                    onClick={() => void handleSave(false)}
-                    type="button"
-                >
+                <Button disabled={!canSubmit} onClick={() => void handleSave(false)}>
                     Lưu bản nháp
-                </button>
-                <button
-                    className="inline-flex h-10 items-center rounded-lg bg-[#159734] px-4 text-sm font-black text-white hover:bg-[#12802c] shadow-sm disabled:opacity-50"
-                    disabled={!canSubmit}
-                    onClick={() => void handleSave(true)}
-                    type="button"
-                >
+                </Button>
+                <Button disabled={!canSubmit} onClick={() => void handleSave(true)} variant="primary">
                     {submitting ? "Đang xử lý..." : "Lưu & Gửi duyệt"}
-                </button>
+                </Button>
             </div>
         </section>
     );

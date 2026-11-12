@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { ChevronDown, ChevronRight, ExternalLink, PackageOpen, Search, X } from "lucide-react";
 
+import { Button, IconButton } from "../../../components/ui/Button";
+import { buttonClassName } from "../../../components/ui/button-styles";
 import { routePaths } from "../../../routes/path";
 import { ShelfReplenishmentStatusBadge } from "../../inventory/components/ShelfReplenishmentStatusBadge";
 import { shelfReplenishmentApi } from "../../inventory/services/shelfReplenishment.api";
@@ -117,7 +119,7 @@ export function PosShelfReplenishmentPage() {
                     </p>
                 </div>
                 <a
-                    className="flex h-10 items-center gap-2 rounded-lg border border-[#dce5e1] bg-white px-3 text-sm font-black text-[#536078] hover:border-[#159734] hover:text-[#159734]"
+                    className={buttonClassName({ variant: "secondary" })}
                     href={routePaths.shelfReplenishments}
                     rel="noreferrer"
                     target="_blank"
@@ -257,7 +259,7 @@ export function PosShelfReplenishmentPage() {
                                                 <p className="text-xs font-semibold text-[#697684]">{slip.note}</p>
                                             ) : null}
                                             <a
-                                                className="inline-flex w-fit items-center gap-1 text-sm font-black text-[#159734] hover:underline"
+                                                className={buttonClassName({ variant: "link", size: "sm", className: "-ml-3 w-fit" })}
                                                 href={shelfReplenishmentDetailPath(slip.id)}
                                                 rel="noreferrer"
                                                 target="_blank"
@@ -369,14 +371,9 @@ function ManualIssueForm({
                                 Trên kệ {selected.shelfQuantity} · Trong kho {selected.warehouseQuantity}
                             </small>
                         </span>
-                        <button
-                            aria-label="Chọn mặt hàng khác"
-                            className="grid size-8 place-items-center rounded-lg text-[#536078] hover:bg-white"
-                            onClick={() => setSelected(null)}
-                            type="button"
-                        >
+                        <IconButton aria-label="Chọn mặt hàng khác" onClick={() => setSelected(null)}>
                             <X aria-hidden="true" size={16} />
-                        </button>
+                        </IconButton>
                     </div>
                     <div className="flex gap-2">
                         <input
@@ -393,16 +390,15 @@ function ManualIssueForm({
                             placeholder="Số lượng"
                             value={draft}
                         />
-                        <button
-                            className="h-10 rounded-lg bg-[#159734] px-4 text-sm font-black text-white disabled:opacity-60"
+                        <Button
                             disabled={!canIssue}
                             onClick={() => {
                                 void issue();
                             }}
-                            type="button"
+                            variant="primary"
                         >
                             {submitting ? "Đang chuyển..." : "Đưa lên kệ ngay"}
-                        </button>
+                        </Button>
                     </div>
                     {overWarehouse ? (
                         <p className="text-xs font-semibold text-amber-700">

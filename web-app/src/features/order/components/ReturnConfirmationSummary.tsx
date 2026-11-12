@@ -1,4 +1,13 @@
 import { Info } from "lucide-react";
+
+import { StatusBadge } from "../../../components/ui/StatusBadge";
+import {
+    Table,
+    TableCell,
+    TableHead,
+    TableHeaderCell,
+    TableRow
+} from "../../../components/ui/Table";
 import type { OrderDetailResponse, OrderItemResponse } from "../types/order.types";
 import type { OrderReturnEligibilityResponse } from "../types/order-return.types";
 import {
@@ -79,13 +88,13 @@ export function ReturnConfirmationSummary({
                 </div>
                 <div className={styles.confirmOrderField}>
                     <span className={styles.confirmLabel}>Yêu cầu hoàn tiền</span>
-                    <span
-                        className={`${styles.refundBadge} ${
-                            refundRequired ? styles.refundBadgeYes : styles.refundBadgeNo
-                        }`}
+                    <StatusBadge
+                        className="w-fit"
+                        shape="tag"
+                        tone={refundRequired ? "success" : "warning"}
                     >
                         {refundRequired ? "Có hoàn tiền" : "Không hoàn tiền"}
-                    </span>
+                    </StatusBadge>
                 </div>
                 {returnNote.trim() ? (
                     <div className={`${styles.confirmOrderField} ${styles.fullWidthField}`}>
@@ -97,23 +106,23 @@ export function ReturnConfirmationSummary({
 
             {/* 2. Danh sách sản phẩm hoàn */}
             <div className={styles.confirmTableContainer}>
-                <table className={styles.confirmTable}>
-                    <thead>
-                        <tr>
-                            <th>Sản phẩm</th>
-                            <th style={{ width: "90px", textAlign: "center" }}>SL hoàn</th>
-                            <th style={{ width: "190px" }}>Lý do hoàn</th>
-                            <th style={{ width: "150px" }}>Tình trạng</th>
-                            <th>Ghi chú</th>
-                        </tr>
-                    </thead>
+                <Table className={styles.confirmTable}>
+                    <TableHead>
+                        <TableRow>
+                            <TableHeaderCell>Sản phẩm</TableHeaderCell>
+                            <TableHeaderCell style={{ width: "90px", textAlign: "center" }}>SL hoàn</TableHeaderCell>
+                            <TableHeaderCell style={{ width: "190px" }}>Lý do hoàn</TableHeaderCell>
+                            <TableHeaderCell style={{ width: "150px" }}>Tình trạng</TableHeaderCell>
+                            <TableHeaderCell>Ghi chú</TableHeaderCell>
+                        </TableRow>
+                    </TableHead>
                     <tbody>
                         {selectedEntries.map(({ item, itemKey }) => {
                             const draft = draftItems[itemKey];
 
                             return (
-                                <tr key={itemKey}>
-                                    <td>
+                                <TableRow key={itemKey}>
+                                    <TableCell>
                                         <div className={styles.confirmItemBlock}>
                                             <strong className={styles.confirmItemTitle}>
                                                 {getItemName(item)}
@@ -129,26 +138,26 @@ export function ReturnConfirmationSummary({
                                                 </span>
                                             </div>
                                         </div>
-                                    </td>
-                                    <td style={{ textAlign: "center" }}>
+                                    </TableCell>
+                                    <TableCell style={{ textAlign: "center" }}>
                                         <span className={styles.confirmQuantityBadge}>
                                             {formatReturnQuantity(draft.quantity)}
                                         </span>
-                                    </td>
-                                    <td className={styles.confirmCellText}>
+                                    </TableCell>
+                                    <TableCell className={styles.confirmCellText}>
                                         {getReturnReasonLabel(draft.reason || null)}
-                                    </td>
-                                    <td className={styles.confirmCellText}>
+                                    </TableCell>
+                                    <TableCell className={styles.confirmCellText}>
                                         {getReturnConditionLabel(draft.condition)}
-                                    </td>
-                                    <td className={styles.confirmCellNote}>
+                                    </TableCell>
+                                    <TableCell className={styles.confirmCellNote}>
                                         {draft.note.trim() ? draft.note.trim() : "—"}
-                                    </td>
-                                </tr>
+                                    </TableCell>
+                                </TableRow>
                             );
                         })}
                     </tbody>
-                </table>
+                </Table>
             </div>
 
             {/* 3. Một dòng tổng kết */}

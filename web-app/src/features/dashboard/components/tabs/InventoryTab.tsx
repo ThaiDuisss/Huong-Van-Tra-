@@ -17,6 +17,9 @@ import {
 } from "lucide-react";
 import { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
+import { Button } from "../../../../components/ui/Button";
+import { StatusBadge } from "../../../../components/ui/StatusBadge";
+import { Table, TableCell, TableHead, TableHeaderCell, TableRow } from "../../../../components/ui/Table";
 import { routePaths } from "../../../../routes/path";
 
 import type { DashboardDomain } from "../../hooks/useDashboardData";
@@ -146,14 +149,10 @@ function CardHeader({
 
 function CardAction({ label, onClick }: { label: string; onClick?: () => void }) {
   return (
-    <button
-      type="button"
-      className="inline-flex shrink-0 items-center gap-1 text-xs font-medium text-slate-500 transition hover:text-slate-800 hover:underline cursor-pointer"
-      onClick={onClick}
-    >
+    <Button onClick={onClick} size="sm" variant="ghost">
       {label}
       <ArrowRight size={12} />
-    </button>
+    </Button>
   );
 }
 
@@ -317,13 +316,9 @@ export function InventoryTab({
         <AlertTriangle className="mx-auto size-8 text-red-500 mb-2" />
         <h3 className="text-base font-bold text-red-800">Không thể tải dữ liệu phân tích kho</h3>
         <p className="text-xs text-red-600 mt-1">{inventory.message || "Vui lòng kiểm tra kết nối và thử lại."}</p>
-        <button
-          type="button"
-          onClick={() => retry("inventory")}
-          className="mt-4 inline-flex items-center gap-2 rounded-lg bg-red-600 px-4 py-2 text-xs font-semibold text-white hover:bg-red-700 transition cursor-pointer"
-        >
+        <Button className="mt-4" onClick={() => retry("inventory")} size="sm" variant="danger">
           <RefreshCw size={14} /> Thử lại
-        </button>
+        </Button>
       </div>
     );
   }
@@ -359,16 +354,10 @@ export function InventoryTab({
               : "Tất cả các mặt hàng hiện đều đạt ngưỡng tồn an toàn."}
           </span>
         </div>
-        <button
-          type="button"
-          onClick={onShowAlerts}
-          className={`inline-flex shrink-0 items-center gap-1 rounded-md px-3 py-1.5 text-xs font-medium text-white transition cursor-pointer ${
-            belowReorderCount > 0 ? "bg-amber-500 hover:bg-amber-600" : "bg-emerald-600 hover:bg-emerald-700"
-          }`}
-        >
+        <Button onClick={onShowAlerts} size="sm" variant={belowReorderCount > 0 ? "warning" : "primary"}>
           Xem chi tiết
           <ArrowRight size={12} />
-        </button>
+        </Button>
       </div>
 
       {/* ────────────────────────────────────────────────────
@@ -730,23 +719,17 @@ export function InventoryTab({
           <div className="grid gap-2.5">
             {expiringBatches.length > 0 ? (
               expiringBatches.map((item) => {
-                const urgencyStyle =
-                  item.urgency === "CRITICAL"
-                    ? "text-red-700 bg-red-50 border-red-200"
-                    : item.urgency === "HIGH"
-                      ? "text-orange-700 bg-orange-50 border-orange-200"
-                      : "text-amber-700 bg-amber-50 border-amber-200";
+                const urgencyTone =
+                  item.urgency === "CRITICAL" ? "danger" : item.urgency === "HIGH" ? "pending" : "warning";
 
                 return (
                   <div
                     key={item.id}
                     className="flex items-start gap-3 rounded-lg border border-slate-100 p-3 transition hover:bg-slate-50"
                   >
-                    <span
-                      className={`mt-0.5 shrink-0 rounded border px-2 py-1 text-xs font-medium ${urgencyStyle}`}
-                    >
+                    <StatusBadge className="mt-0.5 shrink-0" shape="tag" tone={urgencyTone}>
                       {item.urgencyLabel}
-                    </span>
+                    </StatusBadge>
                     <div className="min-w-0 grid gap-0.5">
                       <span className="font-semibold text-sm text-slate-800 truncate">
                         {item.productName}
@@ -768,14 +751,10 @@ export function InventoryTab({
 
           {expiringBatches.length > 0 && (
             <div className="flex justify-center pt-1">
-              <button
-                type="button"
-                onClick={() => navigate(routePaths.warehouseInventory)}
-                className="inline-flex items-center gap-1 text-xs font-medium text-slate-500 transition hover:text-slate-700 hover:underline cursor-pointer"
-              >
+              <Button onClick={() => navigate(routePaths.warehouseInventory)} size="sm" variant="ghost">
                 Xem thêm các lô hàng khác
                 <ArrowRight size={12} />
-              </button>
+              </Button>
             </div>
           )}
         </Card>
@@ -820,14 +799,10 @@ export function InventoryTab({
             </div>
 
             {/* Nút CTA */}
-            <button
-              type="button"
-              onClick={() => navigate(routePaths.inventoryStockCounts)}
-              className="mt-4 inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-5 py-2.5 text-sm font-medium text-white transition hover:bg-emerald-700 cursor-pointer"
-            >
+            <Button className="mt-4" onClick={() => navigate(routePaths.inventoryStockCounts)} variant="primary">
               <CalendarPlus size={16} />
               Tạo đợt kiểm kê mới
-            </button>
+            </Button>
           </div>
         </Card>
       </div>
@@ -849,36 +824,34 @@ export function InventoryTab({
         />
 
         <div className="overflow-x-auto -mx-4 -mb-4">
-          <table className="w-full text-left text-sm">
-            <thead>
-              <tr className="bg-slate-50 text-xs font-semibold text-slate-500">
-                <th className="whitespace-nowrap px-4 py-3">Mã / Tên sản phẩm</th>
-                <th className="whitespace-nowrap px-4 py-3 text-center">Nhóm danh mục</th>
-                <th className="whitespace-nowrap px-4 py-3 text-right">Tồn kho / Giá trị đọng</th>
-                <th className="whitespace-nowrap px-4 py-3 text-right">Thao tác</th>
-              </tr>
-            </thead>
+          <Table>
+            <TableHead>
+              <TableRow>
+                <TableHeaderCell>Mã / Tên sản phẩm</TableHeaderCell>
+                <TableHeaderCell className="text-center">Nhóm danh mục</TableHeaderCell>
+                <TableHeaderCell className="text-right">Tồn kho / Giá trị đọng</TableHeaderCell>
+                <TableHeaderCell className="text-right">Thao tác</TableHeaderCell>
+              </TableRow>
+            </TableHead>
             <tbody>
               {slowMovingItems.length > 0 ? (
                 slowMovingItems.map((item) => (
-                  <tr key={item.id} className="border-t border-slate-100 transition hover:bg-slate-50/50">
+                  <TableRow key={item.id} className="transition hover:bg-slate-50/50">
                     {/* Cột 1: Mã / Tên SP */}
-                    <td className="px-4 py-3">
+                    <TableCell>
                       <div className="grid gap-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
                           <span className="font-semibold text-slate-800 font-mono">{item.code}</span>
                         </div>
                         <span className="text-xs text-slate-400 truncate max-w-xs">{item.name}</span>
                       </div>
-                    </td>
+                    </TableCell>
                     {/* Cột 2: Nhóm danh mục */}
-                    <td className="px-4 py-3 text-center">
-                      <span className="inline-flex items-center rounded px-2 py-0.5 text-xs font-medium bg-slate-100 text-slate-700">
-                        {item.category}
-                      </span>
-                    </td>
+                    <TableCell className="text-center">
+                      <StatusBadge shape="tag">{item.category}</StatusBadge>
+                    </TableCell>
                     {/* Cột 3: Tồn kho / Giá trị */}
-                    <td className="px-4 py-3 text-right">
+                    <TableCell className="text-right">
                       <div className="grid gap-0.5">
                         <span className="font-semibold text-slate-800">
                           {item.quantity.toLocaleString("vi-VN")} {item.unit}
@@ -887,29 +860,25 @@ export function InventoryTab({
                           {fmtVnd(item.value)}
                         </span>
                       </div>
-                    </td>
+                    </TableCell>
                     {/* Cột 4: Thao tác */}
-                    <td className="px-4 py-3 text-right">
-                      <button
-                        type="button"
-                        onClick={() => navigate(routePaths.stockCategoryAnalysis)}
-                        className="inline-flex items-center gap-1 rounded-lg border border-emerald-300 px-3 py-1.5 text-xs font-medium text-emerald-700 transition hover:bg-emerald-600 hover:text-white hover:border-emerald-600 cursor-pointer"
-                      >
+                    <TableCell className="text-right">
+                      <Button onClick={() => navigate(routePaths.stockCategoryAnalysis)} size="sm">
                         <TrendingDown size={12} />
                         Chi tiết
-                      </button>
-                    </td>
-                  </tr>
+                      </Button>
+                    </TableCell>
+                  </TableRow>
                 ))
               ) : (
-                <tr>
-                  <td colSpan={4} className="py-8 text-center text-xs text-slate-400">
-                    Chưa có mặt hàng nào trong kho.
-                  </td>
-                </tr>
+                <TableRow>
+                  <TableCell colSpan={4}>
+                    <div className="py-5 text-center text-xs text-slate-400">Chưa có mặt hàng nào trong kho.</div>
+                  </TableCell>
+                </TableRow>
               )}
             </tbody>
-          </table>
+          </Table>
         </div>
       </Card>
     </div>

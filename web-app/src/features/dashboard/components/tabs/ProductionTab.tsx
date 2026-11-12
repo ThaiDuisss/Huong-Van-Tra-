@@ -1,5 +1,7 @@
 import { AlertTriangle, Factory, PackageSearch, Scale } from "lucide-react";
 
+import { Button } from "../../../../components/ui/Button";
+import { StatusBadge, type BadgeTone } from "../../../../components/ui/StatusBadge";
 import { routePaths } from "../../../../routes/path";
 import { formatVietnamNumber } from "../../../inventory/utils/inventory-format";
 import type { DashboardDomain } from "../../hooks/useDashboardData";
@@ -19,11 +21,11 @@ import { isResourceLoading, resourceData, timeRangeLabels } from "./dashboard-ta
 
 const wastageStatusMeta: Record<
   DashboardProductionWastage["status"],
-  { label: string; tone: string }
+  { label: string; tone: BadgeTone }
 > = {
-  NORMAL: { label: "Bình thường", tone: "border-green-200 bg-green-50 text-green-700" },
-  OVER_THRESHOLD: { label: "Vượt ngưỡng", tone: "border-red-200 bg-red-50 text-red-700" },
-  WATCH: { label: "Theo dõi", tone: "border-amber-200 bg-amber-50 text-amber-700" },
+  NORMAL: { label: "Bình thường", tone: "success" },
+  OVER_THRESHOLD: { label: "Vượt ngưỡng", tone: "danger" },
+  WATCH: { label: "Theo dõi", tone: "warning" },
 };
 
 export function ProductionTab({
@@ -112,13 +114,9 @@ export function ProductionTab({
         ) : production.status === "error" ? (
           <DashboardGapState
             action={
-              <button
-                className="rounded-lg border border-[#d8eadc] px-3 py-1.5 text-xs font-black text-[#159734]"
-                onClick={() => retry("production")}
-                type="button"
-              >
+              <Button onClick={() => retry("production")} size="sm">
                 Thử lại
-              </button>
+              </Button>
             }
             message={production.message}
           />
@@ -172,11 +170,9 @@ export function ProductionTab({
                   header: "Trạng thái",
                   key: "status",
                   render: (item) => (
-                    <span
-                      className={`inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-black ${wastageStatusMeta[item.status].tone}`}
-                    >
+                    <StatusBadge tone={wastageStatusMeta[item.status].tone}>
                       {wastageStatusMeta[item.status].label}
-                    </span>
+                    </StatusBadge>
                   ),
                 },
               ]}

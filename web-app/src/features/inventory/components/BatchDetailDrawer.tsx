@@ -1,5 +1,8 @@
 import { X } from "lucide-react";
 import { useEffect, useState } from "react";
+
+import { IconButton } from "@/components/ui/Button";
+import { Drawer } from "@/components/ui/Overlay";
 import { warehouseBatchApi, type WarehouseBatchResponse } from "../services/warehouseBatch.api";
 import { WarehouseBatchTable } from "./WarehouseBatchTable";
 
@@ -44,39 +47,13 @@ export function BatchDetailDrawer({
         loadBatches();
     }, [open, itemId, locationId]);
 
-    useEffect(() => {
-        if (!open) return;
-
-        const handleKeyDown = (event: KeyboardEvent) => {
-            if (event.key === "Escape") onClose();
-        };
-        window.addEventListener("keydown", handleKeyDown);
-        return () => window.removeEventListener("keydown", handleKeyDown);
-    }, [open, onClose]);
-
     return (
-        <>
-            {/* Backdrop - Click outside to close */}
-            <div
-                aria-label="Đóng chi tiết lô hàng"
-                className={`fixed inset-0 bg-black/40 backdrop-blur-xs z-40 transition-opacity duration-300 ${
-                    open ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"
-                }`}
-                onClick={onClose}
-                role="button"
-                tabIndex={-1}
-            />
-
-            {/* Drawer - Slide in từ phải */}
-            <div
-                className={`fixed right-0 top-0 bottom-0 w-[65vw] max-w-[65%] bg-white border-l border-gray-200 shadow-2xl flex flex-col transition-all duration-300 transform z-50 overflow-y-auto ${
-                    open ? "translate-x-0" : "translate-x-full pointer-events-none"
-                }`}
-            >
+        <Drawer className="max-w-[65vw]" labelledBy="batch-detail-drawer-title" onClose={onClose} open={open}>
+            <div className="flex min-h-0 flex-1 flex-col overflow-y-auto border-l border-gray-200 bg-white">
                 {/* Header */}
                 <div className="flex items-center justify-between p-4 border-b border-gray-200">
                     <div>
-                        <h2 className="text-xl font-bold text-gray-900">
+                        <h2 className="text-xl font-bold text-gray-900" id="batch-detail-drawer-title">
                             Chi tiết lô hàng
                         </h2>
 
@@ -88,12 +65,9 @@ export function BatchDetailDrawer({
                             {itemName}
                         </p>
                     </div>
-                    <button
-                        onClick={onClose}
-                        className="p-1 hover:bg-gray-100 rounded transition"
-                    >
+                    <IconButton aria-label="Đóng chi tiết lô hàng" onClick={onClose}>
                         <X size={20} />
-                    </button>
+                    </IconButton>
                 </div>
 
                 {/* Content */}
@@ -140,6 +114,6 @@ export function BatchDetailDrawer({
                     </div>
                 )}
             </div>
-        </>
+        </Drawer>
     );
 }

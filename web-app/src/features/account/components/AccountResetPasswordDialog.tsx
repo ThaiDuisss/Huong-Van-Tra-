@@ -8,16 +8,15 @@ import {
   DialogHeader,
   DialogTitle,
 } from "../../../components/ui/dialog";
+import { Button, IconButton } from "../../../components/ui/Button";
+import { TextInput } from "../../../components/ui/Field";
 import { accountApi, describeAccountError } from "../services/account.api";
 import type { AccountResponse } from "../types/account.types";
 import { getAccountDisplayName } from "../utils/account.utils";
 
 const MIN_LENGTH = 8;
 const MAX_LENGTH = 128;
-const buttonBase =
-  "inline-flex h-11 items-center justify-center gap-2 whitespace-nowrap rounded-xl px-4 text-sm font-bold shadow-sm transition-colors";
-const iconButton =
-  "grid size-9 shrink-0 place-items-center rounded-lg border border-[#dce5e1] bg-white text-[#425047] hover:bg-[#f7fbf8]";
+
 
 // Bỏ các ký tự dễ nhầm khi đọc cho nhân viên (0/O, 1/l/I).
 const ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789@#%";
@@ -93,10 +92,10 @@ export function AccountResetPasswordDialog({
         <label className="grid gap-1.5">
           <span className="text-xs font-black text-[#425047]">Mật khẩu mới</span>
           <span className="flex items-center gap-2">
-            <input
+            <TextInput
               aria-invalid={tooShort}
               autoComplete="new-password"
-              className="h-11 min-w-0 flex-1 rounded-xl border border-[#dce5e1] bg-white px-3 text-sm font-bold text-[#172317] outline-none focus:border-[#159734]"
+              className="min-w-0 flex-1"
               maxLength={MAX_LENGTH}
               onChange={(event) => {
                 setPassword(event.target.value);
@@ -106,38 +105,38 @@ export function AccountResetPasswordDialog({
               type={visible ? "text" : "password"}
               value={password}
             />
-            <button
+            <IconButton
               aria-label={visible ? "Ẩn mật khẩu" : "Hiện mật khẩu"}
-              className={iconButton}
               onClick={() => setVisible((current) => !current)}
+              size="md"
               title={visible ? "Ẩn mật khẩu" : "Hiện mật khẩu"}
-              type="button"
+              variant="secondary"
             >
               {visible ? <EyeOff size={16} aria-hidden="true" /> : <Eye size={16} aria-hidden="true" />}
-            </button>
-            <button
+            </IconButton>
+            <IconButton
               aria-label="Tạo mật khẩu ngẫu nhiên"
-              className={iconButton}
               onClick={() => {
                 setPassword(generatePassword());
                 setVisible(true);
                 setError("");
               }}
+              size="md"
               title="Tạo mật khẩu ngẫu nhiên"
-              type="button"
+              variant="secondary"
             >
               <Shuffle size={16} aria-hidden="true" />
-            </button>
-            <button
+            </IconButton>
+            <IconButton
               aria-label="Sao chép mật khẩu"
-              className={iconButton}
               disabled={!password}
               onClick={() => void copyPassword()}
+              size="md"
               title="Sao chép mật khẩu"
-              type="button"
+              variant="secondary"
             >
               {copied ? <Check size={16} aria-hidden="true" /> : <Copy size={16} aria-hidden="true" />}
-            </button>
+            </IconButton>
           </span>
           {tooShort ? (
             <span className="text-xs font-bold text-[#a43a2a]">Mật khẩu mới phải từ {MIN_LENGTH} ký tự.</span>
@@ -154,23 +153,13 @@ export function AccountResetPasswordDialog({
         ) : null}
       </div>
       <DialogFooter>
-        <button
-          className={`${buttonBase} border border-[#dce5e1] bg-white text-[#273a2b] hover:bg-[#f7fbf8]`}
-          disabled={submitting}
-          onClick={onCancel}
-          type="button"
-        >
+        <Button disabled={submitting} onClick={onCancel}>
           Hủy
-        </button>
-        <button
-          className={`${buttonBase} bg-[#159734] text-white hover:bg-[#12862d] disabled:opacity-60`}
-          disabled={submitting || !valid}
-          onClick={() => void confirm()}
-          type="button"
-        >
+        </Button>
+        <Button disabled={submitting || !valid} onClick={() => void confirm()} variant="primary">
           {submitting ? <LoaderCircle className="animate-spin" size={16} aria-hidden="true" /> : null}
           {submitting ? "Đang xử lý..." : "Đặt lại mật khẩu"}
-        </button>
+        </Button>
       </DialogFooter>
     </DialogContent>
   );

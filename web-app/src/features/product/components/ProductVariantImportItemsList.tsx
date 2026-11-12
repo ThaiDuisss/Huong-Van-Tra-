@@ -1,6 +1,10 @@
 import { ChevronDown, ChevronUp, Plus, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
+import { Button, IconButton } from "../../../components/ui/Button";
+import { NativeSelect, TextInput } from "../../../components/ui/Field";
+import { StatusBadge } from "../../../components/ui/StatusBadge";
+import { Table, TableCell, TableHead, TableHeaderCell, TableRow } from "../../../components/ui/Table";
 import { SearchableDropdown } from "../../manufacturing/components/shared/SearchableDropdown";
 import type { LookupItem } from "../../manufacturing/components/shared/SearchableDropdown";
 import { useLookupDropdown } from "../../manufacturing/components/shared/useLookupDropdown";
@@ -158,17 +162,13 @@ function ItemRow({
                 </div>
                 <div className="flex shrink-0 items-center gap-1.5">
                     {item.occurrenceCount > 1 ? (
-                        <span className="inline-flex h-6 items-center rounded-full bg-amber-50 px-2 text-[11px] font-bold text-amber-700">
+                        <StatusBadge tone="warning">
                             Trùng {item.occurrenceCount} dòng — đã gộp
-                        </span>
+                        </StatusBadge>
                     ) : null}
-                    <span
-                        className={`inline-flex h-6 items-center rounded-full px-2 text-[11px] font-bold ${
-                            isValid ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-700"
-                        }`}
-                    >
+                    <StatusBadge tone={isValid ? "success" : "danger"}>
                         {isValid ? "Hợp lệ" : `${item.validationErrors.length} lỗi`}
-                    </span>
+                    </StatusBadge>
                 </div>
             </button>
 
@@ -202,8 +202,7 @@ function ItemRow({
 
                         <div className="grid gap-1.5">
                             <label className="text-xs font-bold text-[#536078]">Định lượng *</label>
-                            <input
-                                className="h-10 rounded-lg border border-pos-border px-3 text-sm outline-none focus:border-hvt-green-600"
+                            <TextInput
                                 disabled={!editable}
                                 onChange={(e) => setQuantity(Number(e.target.value))}
                                 step="any"
@@ -236,8 +235,7 @@ function ItemRow({
 
                         <div className="grid gap-1.5">
                             <label className="text-xs font-bold text-[#536078]">Giá bán</label>
-                            <input
-                                className="h-10 rounded-lg border border-pos-border px-3 text-sm outline-none focus:border-hvt-green-600"
+                            <TextInput
                                 disabled={!editable}
                                 onChange={(e) => setSellingPrice(Number(e.target.value))}
                                 type="number"
@@ -250,8 +248,7 @@ function ItemRow({
 
                         <div className="grid gap-1.5">
                             <label className="text-xs font-bold text-[#536078]">Giá vốn</label>
-                            <input
-                                className="h-10 rounded-lg border border-pos-border px-3 text-sm outline-none focus:border-hvt-green-600"
+                            <TextInput
                                 disabled={!editable}
                                 onChange={(e) => setCostPrice(Number(e.target.value))}
                                 type="number"
@@ -264,28 +261,26 @@ function ItemRow({
 
                         <div className="grid gap-1.5">
                             <label className="text-xs font-bold text-[#536078]">Chính sách tồn kho</label>
-                            <select
-                                className="h-10 rounded-lg border border-pos-border px-3 text-sm outline-none focus:border-hvt-green-600"
+                            <NativeSelect
                                 disabled={!editable}
                                 onChange={(e) => setInventoryPolicy(e.target.value)}
                                 value={inventoryPolicy}
                             >
                                 <option value="TRACK_STOCK">Theo dõi tồn kho</option>
                                 <option value="DO_NOT_TRACK">Không theo dõi</option>
-                            </select>
+                            </NativeSelect>
                         </div>
 
                         <div className="grid gap-1.5">
                             <label className="text-xs font-bold text-[#536078]">Trạng thái</label>
-                            <select
-                                className="h-10 rounded-lg border border-pos-border px-3 text-sm outline-none focus:border-hvt-green-600"
+                            <NativeSelect
                                 disabled={!editable}
                                 onChange={(e) => setStatus(e.target.value)}
                                 value={status}
                             >
                                 <option value="ACTIVE">Đang hoạt động</option>
                                 <option value="INACTIVE">Ngừng hoạt động</option>
-                            </select>
+                            </NativeSelect>
                         </div>
                     </div>
 
@@ -293,14 +288,10 @@ function ItemRow({
                         <div className="flex items-center justify-between">
                             <label className="text-xs font-bold text-[#536078]">Định mức nguyên liệu (BOM)</label>
                             {editable ? (
-                                <button
-                                    className="inline-flex h-8 items-center gap-1 rounded-lg border border-[#07883a] bg-white px-2.5 text-xs font-bold text-[#07883a] hover:bg-green-50"
-                                    onClick={addBomLine}
-                                    type="button"
-                                >
+                                <Button onClick={addBomLine} size="sm">
                                     <Plus size={13} aria-hidden="true" />
                                     Thêm dòng
-                                </button>
+                                </Button>
                             ) : null}
                         </div>
 
@@ -310,20 +301,20 @@ function ItemRow({
                             </div>
                         ) : (
                             <div className="overflow-x-auto rounded-lg border border-pos-border">
-                                <table className="w-full text-left text-xs">
-                                    <thead className="bg-neutral-50 text-[11px] font-bold uppercase text-gray-500">
-                                        <tr>
-                                            <th className="p-2 w-5/12">Nguyên liệu *</th>
-                                            <th className="p-2 w-2/12">Định lượng *</th>
-                                            <th className="p-2 w-2/12">Đơn vị *</th>
-                                            <th className="p-2 w-2/12">Hao hụt (%)</th>
-                                            <th className="p-2 w-1/12 text-center">Xóa</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-pos-border bg-white">
+                                <Table>
+                                    <TableHead>
+                                        <TableRow>
+                                            <TableHeaderCell className="w-5/12">Nguyên liệu *</TableHeaderCell>
+                                            <TableHeaderCell className="w-2/12">Định lượng *</TableHeaderCell>
+                                            <TableHeaderCell className="w-2/12">Đơn vị *</TableHeaderCell>
+                                            <TableHeaderCell className="w-2/12">Hao hụt (%)</TableHeaderCell>
+                                            <TableHeaderCell className="w-1/12 text-center">Xóa</TableHeaderCell>
+                                        </TableRow>
+                                    </TableHead>
+                                    <tbody>
                                         {bomItems.map((line, index) => (
-                                            <tr key={index}>
-                                                <td className="p-2 align-top">
+                                            <TableRow key={index}>
+                                                <TableCell className="align-top">
                                                     <SearchableDropdown
                                                         disabled={!editable}
                                                         emptyText="Không tìm thấy nguyên liệu"
@@ -341,10 +332,9 @@ function ItemRow({
                                                             {errorByField.get(`bomItems[${index}].ingredientId`)}
                                                         </p>
                                                     ) : null}
-                                                </td>
-                                                <td className="p-2 align-top">
-                                                    <input
-                                                        className="h-9 w-full rounded-lg border border-pos-border px-2 text-xs outline-none"
+                                                </TableCell>
+                                                <TableCell className="align-top">
+                                                    <TextInput
                                                         disabled={!editable}
                                                         onChange={(e) => updateBomLine(index, "quantity", Number(e.target.value))}
                                                         step="any"
@@ -356,8 +346,8 @@ function ItemRow({
                                                             {errorByField.get(`bomItems[${index}].quantity`)}
                                                         </p>
                                                     ) : null}
-                                                </td>
-                                                <td className="p-2 align-top">
+                                                </TableCell>
+                                                <TableCell className="align-top">
                                                     <SearchableDropdown
                                                         disabled={!editable}
                                                         emptyText="Không tìm thấy đơn vị"
@@ -375,10 +365,9 @@ function ItemRow({
                                                             {errorByField.get(`bomItems[${index}].unitId`)}
                                                         </p>
                                                     ) : null}
-                                                </td>
-                                                <td className="p-2 align-top">
-                                                    <input
-                                                        className="h-9 w-full rounded-lg border border-pos-border px-2 text-xs outline-none"
+                                                </TableCell>
+                                                <TableCell className="align-top">
+                                                    <TextInput
                                                         disabled={!editable}
                                                         min={0}
                                                         max={100}
@@ -387,45 +376,31 @@ function ItemRow({
                                                         type="number"
                                                         value={line.wasteRate}
                                                     />
-                                                </td>
-                                                <td className="p-2 text-center align-top">
+                                                </TableCell>
+                                                <TableCell className="text-center align-top">
                                                     {editable ? (
-                                                        <button
-                                                            aria-label="Xóa dòng"
-                                                            className="grid size-8 place-items-center rounded-lg text-red-500 hover:bg-red-50"
-                                                            onClick={() => removeBomLine(index)}
-                                                            type="button"
-                                                        >
+                                                        <IconButton aria-label="Xóa dòng" onClick={() => removeBomLine(index)} tone="danger">
                                                             <Trash2 size={14} aria-hidden="true" />
-                                                        </button>
+                                                        </IconButton>
                                                     ) : null}
-                                                </td>
-                                            </tr>
+                                                </TableCell>
+                                            </TableRow>
                                         ))}
                                     </tbody>
-                                </table>
+                                </Table>
                             </div>
                         )}
                     </div>
 
                     {editable ? (
                         <div className="flex items-center justify-between pt-1">
-                            <button
-                                className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-red-200 bg-white px-3 text-xs font-bold text-red-600 hover:bg-red-50"
-                                onClick={() => void onDelete()}
-                                type="button"
-                            >
+                            <Button onClick={() => void onDelete()} size="sm" variant="dangerOutline">
                                 <Trash2 size={14} aria-hidden="true" />
                                 Xóa dòng
-                            </button>
-                            <button
-                                className="inline-flex h-9 items-center rounded-lg bg-[#159734] px-4 text-xs font-black text-white hover:bg-[#12802c] disabled:opacity-50"
-                                disabled={saving}
-                                onClick={() => void handleSave()}
-                                type="button"
-                            >
+                            </Button>
+                            <Button disabled={saving} onClick={() => void handleSave()} size="sm" variant="primary">
                                 {saving ? "Đang lưu..." : "Lưu dòng này"}
-                            </button>
+                            </Button>
                         </div>
                     ) : null}
                 </div>

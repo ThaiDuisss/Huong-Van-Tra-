@@ -1,6 +1,9 @@
 import { AlertTriangle, Download, FileText, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 
+import { Button } from "../../../components/ui/Button";
+import { StatusBadge } from "../../../components/ui/StatusBadge";
+import { Table, TableCell, TableHead, TableHeaderCell, TableRow } from "../../../components/ui/Table";
 import { toast } from "../../../components/ui/Toast";
 import { InventoryPageHeader } from "../components/InventoryManagementComponents";
 import { inventoryReportApi, type DisposalSummaryReportResponse } from "../services/inventoryReport.api";
@@ -34,14 +37,10 @@ export function DisposalSummaryReportPage() {
     <section className="grid gap-5">
       <InventoryPageHeader
         actions={
-          <button
-            className="inline-flex h-10 items-center gap-2 rounded-lg border border-[#d8eadc] bg-white px-4 text-sm font-black text-[#159734] transition hover:bg-[#f4faf5]"
-            onClick={() => toast.success("Xuất báo cáo thành công.")}
-            type="button"
-          >
+          <Button onClick={() => toast.success("Xuất báo cáo thành công.")}>
             <Download size={16} />
             Xuất Excel
-          </button>
+          </Button>
         }
         description="Báo cáo tổng hợp tổn thất từ các nguyên nhân: hàng hết hạn, hàng hỏng hóc, trả lại nhà cung cấp, khách trả hàng và phiếu tiêu hủy (Write-off)."
         eyebrow="Báo cáo / Kho hàng"
@@ -96,34 +95,34 @@ export function DisposalSummaryReportPage() {
           <div className="p-4 text-sm font-bold text-red-700 bg-red-50 rounded-lg">{error}</div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm">
-              <thead className="bg-[#eaf7ec] text-xs font-black uppercase text-[#172317]">
-                <tr>
-                  <th className="px-4 py-3">Mã phiếu</th>
-                  <th>Loại nghiệp vụ</th>
-                  <th>Số lượng</th>
-                  <th>Giá trị thiệt hại</th>
-                  <th>Lý do tiêu hủy</th>
-                  <th>Thời gian</th>
-                </tr>
-              </thead>
+            <Table>
+              <TableHead>
+                <TableRow>
+                  <TableHeaderCell>Mã phiếu</TableHeaderCell>
+                  <TableHeaderCell>Loại nghiệp vụ</TableHeaderCell>
+                  <TableHeaderCell>Số lượng</TableHeaderCell>
+                  <TableHeaderCell>Giá trị thiệt hại</TableHeaderCell>
+                  <TableHeaderCell>Lý do tiêu hủy</TableHeaderCell>
+                  <TableHeaderCell>Thời gian</TableHeaderCell>
+                </TableRow>
+              </TableHead>
               <tbody>
                 {data?.items.map((item, idx) => (
-                  <tr className="hover:bg-[#f8fbf8]" key={idx}>
-                    <td className="border-t border-[#edf0f4] px-4 py-3 font-black text-[#159734]">{item.code}</td>
-                    <td className="border-t border-[#edf0f4]">
-                      <span className="inline-block px-2 py-0.5 rounded text-xs bg-red-100 text-red-800 font-bold">
+                  <TableRow className="hover:bg-[#f8fbf8]" key={idx}>
+                    <TableCell className="font-black text-[#159734]">{item.code}</TableCell>
+                    <TableCell>
+                      <StatusBadge shape="tag" tone="danger">
                         {item.type}
-                      </span>
-                    </td>
-                    <td className="border-t border-[#edf0f4] font-black">{formatVietnamNumber(item.quantity)} {item.unitSymbol}</td>
-                    <td className="border-t border-[#edf0f4] font-black text-red-600">{formatVnd(item.estimatedValue)}</td>
-                    <td className="border-t border-[#edf0f4] font-semibold">{item.reason}</td>
-                    <td className="border-t border-[#edf0f4] text-xs">{formatVietnamDateTime(item.date)}</td>
-                  </tr>
+                      </StatusBadge>
+                    </TableCell>
+                    <TableCell className="font-black">{formatVietnamNumber(item.quantity)} {item.unitSymbol}</TableCell>
+                    <TableCell className="font-black text-red-600">{formatVnd(item.estimatedValue)}</TableCell>
+                    <TableCell className="font-semibold">{item.reason}</TableCell>
+                    <TableCell className="text-xs">{formatVietnamDateTime(item.date)}</TableCell>
+                  </TableRow>
                 ))}
               </tbody>
-            </table>
+            </Table>
           </div>
         )}
       </section>

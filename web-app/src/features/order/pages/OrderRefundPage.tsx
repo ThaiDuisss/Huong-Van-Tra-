@@ -1,4 +1,3 @@
-import orderUiStyles from "../components/shared/OrderListUI.module.css";
 import {
   OrderPageLayout,
   OrderListWorkspace,
@@ -16,6 +15,9 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 
 import { TimeSidebar } from "../../../components/shared/TimeSidebar";
+import { Button, IconButton } from "../../../components/ui/Button";
+import { ModalShell } from "../../../components/ui/Overlay";
+import { StatusBadge, type BadgeTone } from "../../../components/ui/StatusBadge";
 import {
   buildTodayTimeNode,
   getDateRangeFromTimeNode,
@@ -217,22 +219,22 @@ export type RefundDisplayStatusKey =
 export interface RefundProgressInfo {
   key: RefundDisplayStatusKey;
   label: string;
-  className: string;
+  tone: BadgeTone;
 }
 
 function getRefundProgress(row: OrderRefundSummaryResponse): RefundProgressInfo {
   // 1. Refunded
   if (row.refundStatus === "REFUNDED" || row.refundBlockReason === "ALREADY_REFUNDED") {
-    return { key: "REFUNDED", label: "Đã hoàn tiền", className: styles.refundedBadge };
+    return { key: "REFUNDED", label: "Đã hoàn tiền", tone: "success" };
   }
 
   // 2. Refund Failed
   if (row.refundStatus === "FAILED" || row.refundBlockReason === "REFUND_FAILED") {
-    return { key: "FAILED", label: "Có lỗi", className: styles.failedBadge };
+    return { key: "FAILED", label: "Có lỗi", tone: "danger" };
   }
 
   if (row.inventoryProcessingStatus === "FAILED" || row.displayStatus === "PROCESSING_FAILED") {
-    return { key: "INVENTORY_FAILED", label: "Xử lý kho thất bại", className: styles.failedBadge };
+    return { key: "INVENTORY_FAILED", label: "Xử lý kho thất bại", tone: "danger" };
   }
 
   // 3. Not Required
@@ -241,15 +243,15 @@ function getRefundProgress(row: OrderRefundSummaryResponse): RefundProgressInfo 
     row.refundRequired === false ||
     row.refundBlockReason === "REFUND_NOT_REQUIRED"
   ) {
-    return { key: "NOT_REQUIRED", label: "Không hoàn tiền", className: styles.notRequiredBadge };
+    return { key: "NOT_REQUIRED", label: "Không hoàn tiền", tone: "neutral" };
   }
   if (row.returnStatus === "CANCELLED") {
-    return { key: "CANCELLED", label: "Đã hủy", className: styles.neutralBadge };
+    return { key: "CANCELLED", label: "Đã hủy", tone: "neutral" };
   }
 
   // 4. Waiting Refund (Eligible)
   if (row.refundStatus === "PENDING" || row.refundEligible === true) {
-    return { key: "WAITING_REFUND", label: "Chờ hoàn tiền", className: styles.pendingRefundBadge };
+    return { key: "WAITING_REFUND", label: "Chờ hoàn tiền", tone: "warning" };
   }
 
   // 5. Waiting Receipt / Inspection (Pre-refund physical progress)
@@ -257,7 +259,7 @@ function getRefundProgress(row: OrderRefundSummaryResponse): RefundProgressInfo 
     return {
       key: "WAITING_RECEIPT",
       label: "Chờ nhận hàng",
-      className: styles.waitingReceiptBadge,
+      tone: "info",
     };
   }
   if (
@@ -269,7 +271,7 @@ function getRefundProgress(row: OrderRefundSummaryResponse): RefundProgressInfo 
       row.inventoryProcessingStatus === "PENDING" ||
       row.inventoryProcessingStatus === "PROCESSING")
   ) {
-    return { key: "WAITING_INSPECTION", label: "Chờ kiểm hàng", className: styles.waitingQcBadge };
+    return { key: "WAITING_INSPECTION", label: "Chờ kiểm hàng", tone: "warning" };
   }
 
   // 6. Payment block reasons (Pre-refund payment conditions)
@@ -277,39 +279,39 @@ function getRefundProgress(row: OrderRefundSummaryResponse): RefundProgressInfo 
     return {
       key: "UNSUPPORTED_METHOD",
       label: "Phương thức chưa hỗ trợ",
-      className: styles.neutralBadge,
+      tone: "neutral",
     };
   }
   if (row.refundBlockReason === "PAYMENT_NOT_FOUND") {
-    return { key: "NO_PAYMENT", label: "Chưa có thanh toán", className: styles.neutralBadge };
+    return { key: "NO_PAYMENT", label: "Chưa có thanh toán", tone: "neutral" };
   }
   if (row.refundBlockReason === "PAYMENT_SERVICE_UNAVAILABLE") {
     return {
       key: "PAYMENT_UNAVAILABLE",
       label: "Dịch vụ thanh toán bận",
-      className: styles.neutralBadge,
+      tone: "neutral",
     };
   }
   if (row.refundBlockReason === "PAYMENT_NOT_REFUNDABLE") {
-    return { key: "FAILED", label: "Không thể hoàn tiền", className: styles.failedBadge };
+    return { key: "FAILED", label: "Không thể hoàn tiền", tone: "danger" };
   }
   if (row.refundBlockReason === "REFUND_AMOUNT_EXCEEDS_REMAINING") {
-    return { key: "FAILED", label: "Vượt tiền có thể hoàn", className: styles.failedBadge };
+    return { key: "FAILED", label: "Vượt tiền có thể hoàn", tone: "danger" };
   }
   if (row.refundBlockReason === "NO_REFUND_AMOUNT") {
     return {
       key: "NOT_REQUIRED",
       label: "Số tiền hoàn bằng 0",
-      className: styles.notRequiredBadge,
+      tone: "neutral",
     };
   }
 
   // 7. In processing
   if (row.inventoryProcessingStatus === "PROCESSING" || row.displayStatus === "PROCESSING") {
-    return { key: "PROCESSING", label: "Chờ xử lý", className: styles.waitingReceiptBadge };
+    return { key: "PROCESSING", label: "Chờ xử lý", tone: "info" };
   }
 
-  return { key: "PROCESSING", label: "Chờ xử lý", className: styles.waitingReceiptBadge };
+  return { key: "PROCESSING", label: "Chờ xử lý", tone: "info" };
 }
 
 function canRefund(row: OrderRefundSummaryResponse | OrderRefundDetailResponse) {
@@ -622,8 +624,8 @@ export function OrderRefundPage() {
         <OrderToolbar
           search={{
             "aria-label": "Tìm kiếm phiếu hoàn tiền",
-            onChange: (event) => {
-              setSearchTerm(event.target.value);
+            onChange: (value) => {
+              setSearchTerm(value);
               setCurrentPage(0);
             },
             onKeyDown: (event) => {
@@ -783,7 +785,7 @@ export function OrderRefundPage() {
 function RefundStatusBadge({ row }: { row: OrderRefundSummaryResponse }) {
   const progress = getRefundProgress(row);
 
-  return <span className={`${styles.statusBadge} ${progress.className}`}>{progress.label}</span>;
+  return <StatusBadge tone={progress.tone}>{progress.label}</StatusBadge>;
 }
 
 function RefundDetailModal({
@@ -800,21 +802,15 @@ function RefundDetailModal({
   onRefund: (row: OrderRefundDetailResponse) => void;
 }) {
   return (
-    <div className={styles.modalBackdrop} onClick={onClose} role="presentation">
-      <aside
-        aria-modal="true"
-        className={styles.detailModal}
-        onClick={(event) => event.stopPropagation()}
-        role="dialog"
-      >
+    <ModalShell className={styles.detailModal} onClose={onClose}>
         <div className={styles.modalHeader}>
           <div>
             <h2>Chi tiết hoàn tiền</h2>
             <p>{displayText(detail?.returnCode, "Đang tải phiếu hoàn")}</p>
           </div>
-          <button className={styles.iconButton} onClick={onClose} type="button">
+          <IconButton aria-label="Đóng" onClick={onClose}>
             <X size={18} aria-hidden="true" />
-          </button>
+          </IconButton>
         </div>
 
         {loading ? <div className={styles.modalState}>Đang tải chi tiết...</div> : null}
@@ -900,24 +896,17 @@ function RefundDetailModal({
             </section>
 
             <div className={styles.detailActions}>
-              <button className={orderUiStyles.secondaryButton} onClick={onClose} type="button">
-                Đóng
-              </button>
+              <Button onClick={onClose}>Đóng</Button>
               {canRefund(detail) ? (
-                <button
-                  className={styles.refundButton}
-                  onClick={() => onRefund(detail)}
-                  type="button"
-                >
+                <Button onClick={() => onRefund(detail)} variant="primary">
                   <WalletCards size={16} aria-hidden="true" />
                   Thực hiện hoàn tiền
-                </button>
+                </Button>
               ) : null}
             </div>
           </div>
         ) : null}
-      </aside>
-    </div>
+    </ModalShell>
   );
 }
 
@@ -942,13 +931,7 @@ function RefundConfirmModal({
   const canSubmit = Boolean(preview?.eligible) && !loading && !refunding;
 
   return (
-    <div className={styles.modalBackdrop} onClick={onCancel} role="presentation">
-      <section
-        aria-modal="true"
-        className={styles.confirmModal}
-        onClick={(event) => event.stopPropagation()}
-        role="dialog"
-      >
+    <ModalShell className={styles.confirmModal} onClose={onCancel}>
         <div className={styles.modalHeader}>
           <div>
             <h2>Xác nhận hoàn tiền?</h2>
@@ -972,20 +955,10 @@ function RefundConfirmModal({
         {error ? <div className={styles.errorBox}>{error}</div> : null}
 
         <div className={styles.modalFooter}>
-          <button
-            className={orderUiStyles.secondaryButton}
-            disabled={refunding}
-            onClick={onCancel}
-            type="button"
-          >
+          <Button disabled={refunding} onClick={onCancel}>
             Đóng
-          </button>
-          <button
-            className={orderUiStyles.primaryButton}
-            disabled={!canSubmit}
-            onClick={onConfirm}
-            type="button"
-          >
+          </Button>
+          <Button disabled={!canSubmit} onClick={onConfirm} variant="primary">
             {refunding ? (
               <>
                 <RefreshCw size={16} aria-hidden="true" />
@@ -994,10 +967,9 @@ function RefundConfirmModal({
             ) : (
               "Xác nhận hoàn tiền"
             )}
-          </button>
+          </Button>
         </div>
-      </section>
-    </div>
+    </ModalShell>
   );
 }
 

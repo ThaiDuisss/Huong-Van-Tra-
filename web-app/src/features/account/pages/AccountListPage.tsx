@@ -2,6 +2,7 @@ import { CheckCircle2, RefreshCw, UserPlus, X } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 
 import { useAuthorization } from "../../../auth/useAuthorization";
+import { Button, IconButton } from "../../../components/ui/Button";
 import { Dialog } from "../../../components/ui/dialog";
 import { ActionLogPagination } from "../../action-log/components/ActionLogPagination";
 import { DashboardListSkeleton } from "../../dashboard/components/DashboardStates";
@@ -83,24 +84,14 @@ export function AccountListPage() {
       <InventoryPageHeader
         actions={
           <>
-            <button
-              aria-label="Làm mới dữ liệu"
-              className="inline-flex h-10 items-center gap-2 rounded-lg border border-[#d8eadc] bg-white px-4 text-sm font-black text-[#159734] transition hover:bg-[#f4faf5] disabled:opacity-60"
-              disabled={accounts.isLoading}
-              onClick={accounts.refresh}
-              type="button"
-            >
+            <Button aria-label="Làm mới dữ liệu" disabled={accounts.isLoading} onClick={accounts.refresh}>
               <RefreshCw className={accounts.isLoading ? "animate-spin" : ""} size={16} aria-hidden="true" />
               Làm mới
-            </button>
-            <button
-              className="inline-flex h-10 items-center gap-2 rounded-lg bg-[#159734] px-4 text-sm font-black text-white transition hover:bg-[#12862d]"
-              onClick={() => setCreating(true)}
-              type="button"
-            >
+            </Button>
+            <Button onClick={() => setCreating(true)} variant="primary">
               <UserPlus size={16} aria-hidden="true" />
               Tạo tài khoản
-            </button>
+            </Button>
           </>
         }
         description="Tạo, phân quyền và khóa/mở khóa tài khoản đăng nhập của nhân viên."
@@ -115,14 +106,9 @@ export function AccountListPage() {
         >
           <CheckCircle2 className="shrink-0" size={16} aria-hidden="true" />
           <span className="min-w-0 flex-1">{notice}</span>
-          <button
-            aria-label="Đóng thông báo"
-            className="grid size-6 place-items-center rounded text-[#1b6b35] hover:bg-[#dff0e4]"
-            onClick={() => setNotice(null)}
-            type="button"
-          >
+          <IconButton aria-label="Đóng thông báo" onClick={() => setNotice(null)}>
             <X size={14} aria-hidden="true" />
-          </button>
+          </IconButton>
         </div>
       ) : null}
 
@@ -147,21 +133,13 @@ export function AccountListPage() {
               <InventoryEmptyState
                 action={
                   defaultFilters ? (
-                    <button
-                      className="text-sm font-black text-[#159734] hover:underline"
-                      onClick={() => setCreating(true)}
-                      type="button"
-                    >
+                    <Button onClick={() => setCreating(true)} size="sm" variant="link">
                       Tạo tài khoản đầu tiên
-                    </button>
+                    </Button>
                   ) : (
-                    <button
-                      className="text-sm font-black text-[#159734] hover:underline"
-                      onClick={resetFilters}
-                      type="button"
-                    >
+                    <Button onClick={resetFilters} size="sm" variant="link">
                       Xóa bộ lọc
-                    </button>
+                    </Button>
                   )
                 }
                 message={

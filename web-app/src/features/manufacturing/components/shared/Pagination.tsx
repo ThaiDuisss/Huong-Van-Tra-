@@ -1,4 +1,7 @@
+import { TablePagination } from "../../../../components/shared/list/TablePagination";
+
 interface PaginationProps {
+    /** Trang hiện tại, tính từ 1. */
     page: number;
     pageCount: number;
     totalItems: number;
@@ -10,6 +13,7 @@ interface PaginationProps {
 
 const pageSizeOptions = [5, 10, 20] as const;
 
+/** Phân trang của các màn danh sách; giao diện lấy từ `TablePagination` dùng chung. */
 export function Pagination({
     page,
     pageCount,
@@ -19,57 +23,21 @@ export function Pagination({
     onPageSizeChange,
     totalItemsLabel = "Tổng số BOM"
 }: PaginationProps) {
-    const safePageCount = Math.max(1, pageCount);
-
     return (
-        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-pos-border px-4 py-3 text-sm">
-            <p className="text-gray-500">
-                {totalItemsLabel}{" "}
-                <strong className="text-gray-500">
-                    {totalItems}
-                </strong>
-            </p>
-            <div className="flex min-w-0 flex-wrap items-center gap-3">
-                <label className="flex items-center gap-2 text-gray-400">
-                    Hiển thị
-                    <select
-                        className="h-9 rounded-lg border border-pos-border bg-white px-2 text-gray-500"
-                        value={pageSize}
-                        onChange={(event) =>
-                            onPageSizeChange(
-                                Number(event.currentTarget.value)
-                            )
-                        }
-                    >
-                        {pageSizeOptions.map((option) => (
-                            <option key={option} value={option}>
-                                {option}
-                            </option>
-                        ))}
-                    </select>
-                </label>
-                <div className="flex max-w-full items-center gap-1 overflow-x-auto pb-1">
-                    {Array.from(
-                        { length: safePageCount },
-                        (_, index) => index + 1
-                    ).map((pageNumber) => (
-                        <button
-                            key={pageNumber}
-                            type="button"
-                            onClick={() =>
-                                onPageChange(pageNumber)
-                            }
-                            className={`grid size-8 place-items-center rounded-lg text-sm font-black transition-all cursor-pointer ${
-                                pageNumber === page
-                                    ? "bg-[#07883a] text-white"
-                                    : "text-[#172317] hover:bg-neutral-100"
-                            }`}
-                        >
-                            {pageNumber}
-                        </button>
-                    ))}
-                </div>
-            </div>
-        </div>
+        <TablePagination
+            itemLabel=""
+            onPageChange={(zeroBased) => onPageChange(zeroBased + 1)}
+            onPageSizeChange={onPageSizeChange}
+            page={page - 1}
+            pageSize={pageSize}
+            pageSizeOptions={pageSizeOptions}
+            summary={
+                <>
+                    {totalItemsLabel} <strong>{totalItems.toLocaleString("vi-VN")}</strong>
+                </>
+            }
+            totalItems={totalItems}
+            totalPages={pageCount}
+        />
     );
 }

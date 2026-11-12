@@ -3,6 +3,8 @@ import { useCallback, useEffect, useState } from "react";
 import { Link, Navigate, useParams } from "react-router-dom";
 
 import { useAuthorization } from "../../../auth/role-utils";
+import { Button } from "../../../components/ui/Button";
+import { buttonClassName } from "../../../components/ui/button-styles";
 import {
     Dialog,
     DialogContent,
@@ -11,6 +13,7 @@ import {
     DialogHeader,
     DialogTitle
 } from "../../../components/ui/dialog";
+import { TextArea } from "../../../components/ui/Field";
 import {
     GoodsReceiptAuditTimeline,
     GoodsReceiptLifecycleStepper,
@@ -372,13 +375,9 @@ export function GoodsReceiptDetailPage() {
             <section className="grid gap-3 rounded-xl border border-red-200 bg-red-50 p-6 text-sm font-bold text-red-700">
                 <div>{error || "Không tìm thấy dữ liệu phiếu nhập."}</div>
                 <div>
-                    <button
-                        className="rounded-lg bg-red-600 px-4 py-2 text-white hover:bg-red-700"
-                        onClick={loadReceipt}
-                        type="button"
-                    >
+                    <Button onClick={loadReceipt} variant="danger">
                         Tải lại
-                    </button>
+                    </Button>
                 </div>
             </section>
         );
@@ -456,8 +455,7 @@ export function GoodsReceiptDetailPage() {
                     {/* VÙNG NÚT HÀNH ĐỘNG THEO TỪNG BƯỚC VÒNG ĐỜI */}
                     <div className="flex flex-wrap items-center gap-2">
                         {receipt.status === "POSTED" && receipt.lines.some(hasLineException) ? (
-                            <button
-                                className="inline-flex h-10 items-center gap-1.5 rounded-lg border border-[#d8eadc] bg-white px-4 text-sm font-black text-[#159734] hover:bg-[#f4faf5]"
+                            <Button
                                 onClick={() => {
                                     try {
                                         printExceptionReport(receipt);
@@ -465,17 +463,16 @@ export function GoodsReceiptDetailPage() {
                                         showToast(printError instanceof Error ? printError.message : "Không thể in biên bản.", false);
                                     }
                                 }}
-                                type="button"
                             >
                                 <Printer size={15} aria-hidden="true" />
                                 In biên bản ngoại lệ
-                            </button>
+                            </Button>
                         ) : null}
                         {/* Chỉnh sửa: phiếu DRAFT/REJECTED, chỉ ADMIN hoặc người tạo (createdBy = Keycloak subject) */}
                         {(receipt.status === "DRAFT" || receipt.status === "REJECTED")
                             && (isSuperAdmin() || (Boolean(keycloakSubject) && receipt.createdBy.id === keycloakSubject)) ? (
                             <Link
-                                className="inline-flex h-10 items-center gap-1.5 rounded-lg border border-[#d8eadc] bg-white px-4 text-sm font-black text-[#159734] hover:bg-[#f4faf5]"
+                                className={buttonClassName({ variant: "secondary" })}
                                 state={{ receipt }}
                                 to={`/management/inventory/receipts/${receipt.id}/edit`}
                             >
@@ -484,82 +481,47 @@ export function GoodsReceiptDetailPage() {
                             </Link>
                         ) : null}
                         {receipt.status === "DRAFT" ? (
-                            <button
-                                className="inline-flex h-10 items-center rounded-lg bg-[#159734] px-4 text-sm font-black text-white hover:bg-[#12802c] shadow-sm disabled:opacity-50"
-                                disabled={mutationLoading}
-                                onClick={submitReceipt}
-                                type="button"
-                            >
+                            <Button disabled={mutationLoading} onClick={submitReceipt} variant="primary">
                                 Gửi phê duyệt
-                            </button>
+                            </Button>
                         ) : null}
 
                         {receipt.status === "PENDING_APPROVAL" && (isManager() || isSuperAdmin()) ? (
                             <>
-                                <button
-                                    className="inline-flex h-10 items-center rounded-lg bg-[#159734] px-4 text-sm font-black text-white hover:bg-[#12802c] shadow-sm disabled:opacity-50"
-                                    disabled={mutationLoading}
-                                    onClick={approveReceipt}
-                                    type="button"
-                                >
+                                <Button disabled={mutationLoading} onClick={approveReceipt} variant="primary">
                                     Phê duyệt
-                                </button>
-                                <button
-                                    className="inline-flex h-10 items-center rounded-lg border border-red-200 bg-white px-4 text-sm font-black text-red-600 hover:bg-red-50 disabled:opacity-50"
-                                    disabled={mutationLoading}
-                                    onClick={() => setRejectOpen(true)}
-                                    type="button"
-                                >
+                                </Button>
+                                <Button disabled={mutationLoading} onClick={() => setRejectOpen(true)} variant="dangerOutline">
                                     Từ chối duyệt
-                                </button>
+                                </Button>
                             </>
                         ) : null}
 
                         {receipt.status === "APPROVED" && (isInventoryStaff() || isManager() || isSuperAdmin()) ? (
-                            <button
-                                className="inline-flex h-10 items-center rounded-lg bg-[#159734] px-4 text-sm font-black text-white hover:bg-[#12802c] shadow-sm disabled:opacity-50"
-                                disabled={mutationLoading}
-                                onClick={startReceiving}
-                                type="button"
-                            >
+                            <Button disabled={mutationLoading} onClick={startReceiving} variant="primary">
                                 Tiếp nhận kiểm đếm thực tế
-                            </button>
+                            </Button>
                         ) : null}
 
                         {receipt.status === "RECEIVING" && isQc() ? (
-                            <button
-                                className="inline-flex h-10 items-center rounded-lg bg-[#159734] px-4 text-sm font-black text-white hover:bg-[#12802c] shadow-sm disabled:opacity-50"
-                                disabled={mutationLoading}
-                                onClick={openInspectionModal}
-                                type="button"
-                            >
+                            <Button disabled={mutationLoading} onClick={openInspectionModal} variant="primary">
                                 Kiểm định số lượng & Chất lượng
-                            </button>
+                            </Button>
                         ) : null}
 
                         {receipt.status === "PENDING_EXCEPTION_APPROVAL" && (isManager() || isSuperAdmin()) ? (
-                            <button
-                                className="inline-flex h-10 items-center rounded-lg bg-[#d97706] px-4 text-sm font-black text-white hover:bg-[#b45309] shadow-sm disabled:opacity-50"
-                                disabled={mutationLoading}
-                                onClick={() => setPostOpen(true)}
-                                type="button"
-                            >
+                            <Button disabled={mutationLoading} onClick={() => setPostOpen(true)} variant="warning">
                                 Duyệt ngoại lệ & Ghi sổ
-                            </button>
+                            </Button>
                         ) : null}
 
                         {receipt.status !== "POSTED" &&
                             receipt.status !== "CANCELLED" &&
                             receipt.status !== "REJECTED" &&
                             (isSuperAdmin() || isManager()) ? (
-                            <button
-                                className="inline-flex h-10 items-center rounded-lg border border-[#e8eef0] bg-white px-3 text-sm font-bold text-[#697684] hover:bg-[#f7f8fb] disabled:opacity-50"
-                                disabled={mutationLoading}
-                                onClick={() => setCancelOpen(true)}
-                                type="button"
-                            >
+                            <Button disabled={mutationLoading} onClick={() => setCancelOpen(true)} variant="dangerOutline">
                                 Hủy phiếu
-                            </button>
+                            </Button>
                         ) : null}
                     </div>
                 </div>
@@ -681,8 +643,7 @@ export function GoodsReceiptDetailPage() {
                         <DialogDescription>Nhập lý do từ chối phiếu nhập nguyên liệu này.</DialogDescription>
                     </DialogHeader>
                     <div className="px-6 py-4">
-                        <textarea
-                            className="w-full rounded-lg border border-[#dce5e1] p-3 text-sm outline-none focus:border-red-500"
+                        <TextArea
                             placeholder="Ví dụ: Sai số lượng đặt, nhà cung cấp chưa xác nhận..."
                             rows={3}
                             value={rejectionReason}
@@ -690,22 +651,12 @@ export function GoodsReceiptDetailPage() {
                         />
                     </div>
                     <DialogFooter>
-                        <button
-                            className="h-10 rounded-lg border border-[#dce5e1] px-4 text-sm font-bold text-[#536078]"
-                            disabled={mutationLoading}
-                            onClick={() => setRejectOpen(false)}
-                            type="button"
-                        >
+                        <Button disabled={mutationLoading} onClick={() => setRejectOpen(false)}>
                             Hủy
-                        </button>
-                        <button
-                            className="h-10 rounded-lg bg-red-600 px-4 text-sm font-black text-white hover:bg-red-700 disabled:opacity-60"
-                            disabled={mutationLoading}
-                            onClick={() => void rejectReceipt()}
-                            type="button"
-                        >
+                        </Button>
+                        <Button disabled={mutationLoading} onClick={() => void rejectReceipt()} variant="danger">
                             {mutationLoading ? "Đang xử lý..." : "Xác nhận từ chối"}
-                        </button>
+                        </Button>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
@@ -720,8 +671,7 @@ export function GoodsReceiptDetailPage() {
                         <DialogDescription>Bạn có chắc chắn muốn hủy phiếu nhập này không?</DialogDescription>
                     </DialogHeader>
                     <div className="px-6 py-4">
-                        <textarea
-                            className="w-full rounded-lg border border-[#dce5e1] p-3 text-sm outline-none focus:border-red-500"
+                        <TextArea
                             placeholder="Nhập lý do hủy phiếu (tùy chọn)..."
                             rows={3}
                             value={cancelNote}
@@ -729,22 +679,12 @@ export function GoodsReceiptDetailPage() {
                         />
                     </div>
                     <DialogFooter>
-                        <button
-                            className="h-10 rounded-lg border border-[#dce5e1] px-4 text-sm font-bold text-[#536078]"
-                            disabled={mutationLoading}
-                            onClick={() => setCancelOpen(false)}
-                            type="button"
-                        >
+                        <Button disabled={mutationLoading} onClick={() => setCancelOpen(false)}>
                             Quay lại
-                        </button>
-                        <button
-                            className="h-10 rounded-lg bg-red-600 px-4 text-sm font-black text-white hover:bg-red-700 disabled:opacity-60"
-                            disabled={mutationLoading}
-                            onClick={() => void cancelReceipt()}
-                            type="button"
-                        >
+                        </Button>
+                        <Button disabled={mutationLoading} onClick={() => void cancelReceipt()} variant="danger">
                             {mutationLoading ? "Đang xử lý..." : "Xác nhận hủy phiếu"}
-                        </button>
+                        </Button>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>

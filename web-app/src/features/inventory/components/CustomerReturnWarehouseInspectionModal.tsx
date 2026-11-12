@@ -1,6 +1,11 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { AlertCircle, CheckCircle2, PackageCheck, RotateCw, X } from "lucide-react";
 import { CUSTOMER_RETURN_QC_ROLES, useAuthorization } from "@/auth/role-utils";
+
+import { Button, IconButton } from "@/components/ui/Button";
+import { ModalShell } from "@/components/ui/Overlay";
+import { StatusBadge } from "@/components/ui/StatusBadge";
+import { Table, TableCell, TableHead, TableHeaderCell, TableRow } from "@/components/ui/Table";
 
 import { OrderStatusBadge } from "../../order/components/OrderStatusBadge";
 import { getOrderReturnDetail } from "../../order/services/order-return.api";
@@ -82,7 +87,6 @@ export function CustomerReturnWarehouseInspectionModal({
 }: CustomerReturnWarehouseInspectionModalProps) {
     const { hasAnyRole } = useAuthorization();
     const canExecuteQc = hasAnyRole(CUSTOMER_RETURN_QC_ROLES);
-    const dialogRef = useRef<HTMLElement | null>(null);
 
     const [loading, setLoading] = useState(true);
     const [submitting, setSubmitting] = useState(false);
@@ -182,15 +186,6 @@ export function CustomerReturnWarehouseInspectionModal({
             window.clearTimeout(timerId);
         };
     }, [isOpen, loadData]);
-
-    useEffect(() => {
-        if (!isOpen) return;
-        const handleKeyDown = (e: KeyboardEvent) => {
-            if (e.key === "Escape") onClose();
-        };
-        window.addEventListener("keydown", handleKeyDown);
-        return () => window.removeEventListener("keydown", handleKeyDown);
-    }, [isOpen, onClose]);
 
     if (!isOpen) return null;
 
@@ -315,17 +310,9 @@ export function CustomerReturnWarehouseInspectionModal({
     };
 
     return (
-        <div className={styles.modalBackdrop} onClick={onClose} role="presentation" style={{ zIndex: 60 }}>
-            <aside
-                aria-label="Phiếu kiểm định kho"
-                aria-modal="true"
-                className={styles.modalCard}
-                onClick={(e) => e.stopPropagation()}
-                ref={dialogRef}
-                role="dialog"
-                style={{ width: "min(1080px, 96vw)", maxHeight: "min(900px, calc(100vh - 24px))" }}
-                tabIndex={-1}
-            >
+        <ModalShell className="w-[min(1080px,96vw)]" onClose={onClose}>
+            {/* Kit gap: ModalShell chưa nhận aria-label nên tên hộp thoại đặt ở vùng bên trong. */}
+            <section aria-label="Phiếu kiểm định kho" className={styles.modalCard}>
                 {/* Header */}
                 <div className={styles.modalHeader}>
                     <div className={styles.headerTitleGroup}>
@@ -338,24 +325,19 @@ export function CustomerReturnWarehouseInspectionModal({
                                 {inspectionDetail?.inspectionCode || qcSummary?.inspectionId || effectiveReturnCode}
                             </span>
                         </div>
-                        <button
-                            className={`${styles.headerInfoToggle} ${showInfoDrawer ? styles.headerInfoToggleActive : ""}`}
+                        <Button
+                            aria-pressed={showInfoDrawer}
                             onClick={() => setShowInfoDrawer((prev) => !prev)}
-                            type="button"
+                            size="sm"
                         >
                             <Info size={14} aria-hidden="true" />
                             Thông tin phiếu
                             {showInfoDrawer ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-                        </button>
+                        </Button>
                     </div>
-                    <button
-                        aria-label="Đóng kiểm định kho"
-                        className={styles.closeButton}
-                        onClick={onClose}
-                        type="button"
-                    >
+                    <IconButton aria-label="Đóng kiểm định kho" onClick={onClose}>
                         <X size={18} />
-                    </button>
+                    </IconButton>
                 </div>
 
                 {/* Body */}
@@ -512,16 +494,16 @@ export function CustomerReturnWarehouseInspectionModal({
                                     </h4>
                                 </div>
                                 <div className={styles.itemsTableWrap}>
-                                    <table className={styles.itemsTable}>
-                                        <thead>
-                                            <tr>
-                                                <th>Sản phẩm</th>
-                                                <th>SL trả</th>
-                                                <th>Tình trạng khai báo</th>
-                                                <th>Lý do trả</th>
-                                                <th>Trạng thái QC</th>
-                                            </tr>
-                                        </thead>
+                                    <Table>
+                                        <TableHead>
+                                            <TableRow>
+                                                <TableHeaderCell>Sản phẩm</TableHeaderCell>
+                                                <TableHeaderCell>SL trả</TableHeaderCell>
+                                                <TableHeaderCell>Tình trạng khai báo</TableHeaderCell>
+                                                <TableHeaderCell>Lý do trả</TableHeaderCell>
+                                                <TableHeaderCell>Trạng thái QC</TableHeaderCell>
+                                            </TableRow>
+                                        </TableHead>
                                         <tbody>
                                             {lines.length > 0 ? (
                                                 lines.map((line, idx) => {
@@ -529,40 +511,40 @@ export function CustomerReturnWarehouseInspectionModal({
                                                     const prodName = matchedItem?.productNameSnapshot || "Sản phẩm hoàn";
                                                     const sku = matchedItem?.skuSnapshot || "--";
                                                     return (
-                                                        <tr key={line.returnItemId || idx}>
-                                                            <td className={styles.productCell}>
+                                                        <TableRow key={line.returnItemId || idx}>
+                                                            <TableCell className={styles.productCell}>
                                                                 <strong>{prodName}</strong>
                                                                 <span className={styles.skuText}>{sku}</span>
-                                                            </td>
-                                                            <td>
+                                                            </TableCell>
+                                                            <TableCell>
                                                                 <strong>{formatReturnQuantity(line.returnedQuantity)}</strong>
-                                                            </td>
-                                                            <td>{getReturnConditionLabel(line.condition)}</td>
-                                                            <td>{getReturnReasonLabel(line.reason as ReturnReason) || "--"}</td>
-                                                            <td>
+                                                            </TableCell>
+                                                            <TableCell>{getReturnConditionLabel(line.condition)}</TableCell>
+                                                            <TableCell>{getReturnReasonLabel(line.reason as ReturnReason) || "--"}</TableCell>
+                                                            <TableCell>
                                                                 <OrderStatusBadge label="Chờ kiểm hàng" status="PENDING" />
-                                                            </td>
-                                                        </tr>
+                                                            </TableCell>
+                                                        </TableRow>
                                                     );
                                                 })
                                             ) : (orderDetail?.items ?? returnItem?.items ?? []).map((item, idx) => (
-                                                <tr key={item.id || idx}>
-                                                    <td className={styles.productCell}>
+                                                <TableRow key={item.id || idx}>
+                                                    <TableCell className={styles.productCell}>
                                                         <strong>{item.productNameSnapshot || "Sản phẩm hoàn"}</strong>
                                                         <span className={styles.skuText}>{item.skuSnapshot || "--"}</span>
-                                                    </td>
-                                                    <td>
+                                                    </TableCell>
+                                                    <TableCell>
                                                         <strong>{formatReturnQuantity(item.quantity)}</strong>
-                                                    </td>
-                                                    <td>{getReturnConditionLabel(item.condition)}</td>
-                                                    <td>{getReturnReasonLabel(item.reason) || "--"}</td>
-                                                    <td>
+                                                    </TableCell>
+                                                    <TableCell>{getReturnConditionLabel(item.condition)}</TableCell>
+                                                    <TableCell>{getReturnReasonLabel(item.reason) || "--"}</TableCell>
+                                                    <TableCell>
                                                         <OrderStatusBadge label="Chờ kiểm hàng" status="PENDING" />
-                                                    </td>
-                                                </tr>
+                                                    </TableCell>
+                                                </TableRow>
                                             ))}
                                         </tbody>
-                                    </table>
+                                    </Table>
                                 </div>
                             </div>
                         </div>
@@ -578,19 +560,16 @@ export function CustomerReturnWarehouseInspectionModal({
                                         Sản phẩm kiểm định ({inspectionDetail?.lines?.length || lines.length})
                                     </h4>
                                     {isEditable ? (
-                                        <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
-                                            Chế độ kiểm tra &amp; phân bổ kho
-                                        </span>
+                                        <StatusBadge shape="tag" tone="success">Chế độ kiểm tra &amp; phân bổ kho</StatusBadge>
                                     ) : (
-                                        <span className="text-xs font-semibold text-slate-600 bg-slate-100 px-2 py-0.5 rounded">
-                                            Chế độ xem kết quả
-                                        </span>
+                                        <StatusBadge shape="tag">Chế độ xem kết quả</StatusBadge>
                                     )}
                                 </div>
 
                                 {inspectionDetail && inspectionDetail.lines.length > 1 ? (
-                                    <button
-                                        className={styles.expandAllButton}
+                                    <Button
+                                        size="xs"
+                                        variant="link"
                                         onClick={() => {
                                             const anyCollapsed = inspectionDetail.lines.some(
                                                 (l) => expandedCards[l.id] === false
@@ -608,7 +587,7 @@ export function CustomerReturnWarehouseInspectionModal({
                                         {inspectionDetail.lines.some((l) => expandedCards[l.id] === false)
                                             ? "Mở rộng tất cả"
                                             : "Thu gọn tất cả"}
-                                    </button>
+                                    </Button>
                                 ) : null}
                             </div>
 
@@ -723,12 +702,9 @@ export function CustomerReturnWarehouseInspectionModal({
                         ) : null}
                     </div>
                     <div className="flex items-center gap-2">
-                        <button className={styles.secondaryButton} onClick={onClose} type="button">
-                            Đóng
-                        </button>
+                        <Button onClick={onClose}>Đóng</Button>
                         {isEditable && pendingLines.length > 0 ? (
-                            <button
-                                className={styles.primaryButton}
+                            <Button
                                 disabled={submitting}
                                 onClick={() => {
                                     if (validationErrors.length > 0) {
@@ -748,7 +724,7 @@ export function CustomerReturnWarehouseInspectionModal({
                                     }
                                     void handlePostInspection();
                                 }}
-                                type="button"
+                                variant="primary"
                             >
                                 {submitting ? (
                                     <>
@@ -758,11 +734,11 @@ export function CustomerReturnWarehouseInspectionModal({
                                 ) : (
                                     "Xác nhận xử lý"
                                 )}
-                            </button>
+                            </Button>
                         ) : null}
                     </div>
                 </div>
-            </aside>
-        </div>
+            </section>
+        </ModalShell>
     );
 }

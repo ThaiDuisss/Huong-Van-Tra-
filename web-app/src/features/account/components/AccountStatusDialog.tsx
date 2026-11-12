@@ -8,12 +8,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from "../../../components/ui/dialog";
+import { Button } from "../../../components/ui/Button";
 import { accountApi, describeAccountError } from "../services/account.api";
 import type { AccountResponse } from "../types/account.types";
 import { getAccountDisplayName } from "../utils/account.utils";
 
-const buttonBase =
-  "inline-flex h-11 items-center justify-center gap-2 whitespace-nowrap rounded-xl px-4 text-sm font-bold shadow-sm transition-colors";
+
 
 /** Xác nhận khóa / mở khóa tài khoản. */
 export function AccountStatusDialog({
@@ -75,25 +75,13 @@ export function AccountStatusDialog({
         ) : null}
       </div>
       <DialogFooter>
-        <button
-          className={`${buttonBase} border border-[#dce5e1] bg-white text-[#273a2b] hover:bg-[#f7fbf8]`}
-          disabled={submitting}
-          onClick={onCancel}
-          type="button"
-        >
+        <Button disabled={submitting} onClick={onCancel}>
           Hủy
-        </button>
-        <button
-          className={`${buttonBase} text-white disabled:opacity-60 ${
-            disabling ? "bg-[#c4422e] hover:bg-[#a93425]" : "bg-[#159734] hover:bg-[#12862d]"
-          }`}
-          disabled={submitting}
-          onClick={() => void confirm()}
-          type="button"
-        >
+        </Button>
+        <Button disabled={submitting} onClick={() => void confirm()} variant={disabling ? "danger" : "primary"}>
           {submitting ? <LoaderCircle className="animate-spin" size={16} aria-hidden="true" /> : null}
           {submitting ? "Đang xử lý..." : disabling ? "Khóa tài khoản" : "Mở khóa tài khoản"}
-        </button>
+        </Button>
       </DialogFooter>
     </DialogContent>
   );

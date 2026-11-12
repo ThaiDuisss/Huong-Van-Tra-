@@ -26,6 +26,8 @@ interface DataTableProps<T> {
     rowActions?: (row: T) => ReactNode;
     emptyTitle: string;
     emptyDescription?: string;
+    /** Nút trong trạng thái rỗng (ví dụ "Xóa bộ lọc", "Tạo mới"). */
+    emptyAction?: ReactNode;
     caption: string;
     minWidth?: number;
     pagination?: ReactNode;
@@ -59,6 +61,7 @@ export function DataTable<T>({
     rowActions,
     emptyTitle,
     emptyDescription,
+    emptyAction,
     caption,
     minWidth = 880,
     pagination
@@ -88,6 +91,7 @@ export function DataTable<T>({
         />
     ) : showEmpty ? (
         <TableState
+            action={emptyAction ? <div className="mt-4 flex justify-center">{emptyAction}</div> : undefined}
             description={emptyDescription}
             icon={<Search size={20} aria-hidden="true" />}
             title={emptyTitle}

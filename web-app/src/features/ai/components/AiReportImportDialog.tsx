@@ -1,6 +1,7 @@
 import { FileText, Upload, X } from "lucide-react";
 import { useId, useRef, useState } from "react";
 
+import { Button, IconButton } from "../../../components/ui/Button";
 import type { AiReport, AiReportImportOperation, AiReportImportProgress } from "../types/ai-report.types";
 import type { AiReportApi } from "../services/aiReport.api";
 import { AiReportImportError } from "../utils/ai-report.errors";
@@ -128,14 +129,9 @@ export function AiReportImportDialog({
             tabIndex={-1}
             type="file"
           />
-          <button
-            className="mx-auto h-10 rounded-lg border border-[#d8eadc] bg-white px-4 text-sm font-bold text-[#159734] hover:bg-[#edf8ef] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#159734]"
-            onClick={() => inputRef.current?.click()}
-            disabled={Boolean(operation)}
-            type="button"
-          >
+          <Button className="mx-auto" disabled={Boolean(operation)} onClick={() => inputRef.current?.click()}>
             Chọn file
-          </button>
+          </Button>
           <p className="text-xs font-semibold text-[#697684]" id={`${id}-hint`}>
             PDF hoặc XLSX · Tối đa 10 MiB · Một file mỗi báo cáo
           </p>
@@ -153,18 +149,16 @@ export function AiReportImportDialog({
                   ? `${(file.size / 1024).toLocaleString("vi-VN", { maximumFractionDigits: 2 })} KiB`
                   : `${(file.size / 1024 / 1024).toLocaleString("vi-VN", { maximumFractionDigits: 2 })} MiB`}
             </span>
-            <button
+            <IconButton
               aria-label="Bỏ file đã chọn"
               disabled={Boolean(operation)}
-              className="rounded-lg p-1 hover:bg-[#f4faf5]"
               onClick={() => {
                 setFile(null);
                 setFileError(null);
               }}
-              type="button"
             >
               <X aria-hidden="true" size={16} />
-            </button>
+            </IconButton>
           </div>
         ) : null}
         {fileError ? (
@@ -172,11 +166,11 @@ export function AiReportImportDialog({
             {fileError}
           </p>
         ) : null}
-        {operation ? <button type="button" className="text-sm font-semibold text-[#159734] hover:underline" onClick={() => {
+        {operation ? <Button className="justify-self-start" size="sm" variant="link" onClick={() => {
           saveAiReportRecovery(actor, null);
           setOperation(null); setRecovery(null); setProgress(null); setFile(null);
           setFileError(null); setRetryable(true); setFormKey((value) => value + 1);
-        }}>Chọn file khác</button> : null}
+        }}>Chọn file khác</Button> : null}
         {operation ? <p className="text-xs text-[#697684]">Chọn file khác sẽ bắt đầu lượt nhập mới. File đã tải lên được giữ lại.</p> : null}
       </div>
     </AiReportFormDialog>

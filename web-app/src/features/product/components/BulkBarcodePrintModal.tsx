@@ -1,5 +1,9 @@
 import { useState, useMemo, useEffect } from "react";
 import { X, Printer, Plus, Minus, Sliders, Eye } from "lucide-react";
+import { Button, IconButton } from "../../../components/ui/Button";
+import { ModalShell } from "../../../components/ui/Overlay";
+import { StatusBadge } from "../../../components/ui/StatusBadge";
+import { Table, TableCell, TableHead, TableHeaderCell, TableRow } from "../../../components/ui/Table";
 import { toast } from "../../../components/ui/Toast";
 import type { ProductVariant } from "../types/product.types";
 import { BarcodeSvg } from "./BarcodeSvg";
@@ -188,8 +192,14 @@ export function BulkBarcodePrintModal({
     if (!isOpen) return null;
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs">
-            <div className="flex flex-col w-full max-w-5xl h-[88vh] bg-white rounded-2xl shadow-2xl border border-neutral-100 overflow-hidden animate-in fade-in-50 zoom-in-95 duration-200">
+        <ModalShell
+            className="w-[min(1024px,calc(100vw-32px))]"
+            closeOnBackdrop={false}
+            closeOnEscape={false}
+            labelledBy="bulk-barcode-print-title"
+            onClose={onClose}
+        >
+            <div className="flex h-[88vh] flex-col overflow-hidden">
                 {/* Header */}
                 <div className="flex items-center justify-between px-6 py-4 border-b border-neutral-200 bg-linear-to-r from-emerald-50/50 to-white">
                     <div className="flex items-center gap-3">
@@ -197,7 +207,7 @@ export function BulkBarcodePrintModal({
                             <Printer size={22} />
                         </div>
                         <div>
-                            <h2 className="text-lg font-bold text-gray-900">
+                            <h2 className="text-lg font-bold text-gray-900" id="bulk-barcode-print-title">
                                 In mã
                             </h2>
                             <p className="text-xs font-medium text-gray-500">
@@ -233,13 +243,9 @@ export function BulkBarcodePrintModal({
                                 Xem trước ({totalLabels})
                             </button>
                         </div>
-                        <button
-                            type="button"
-                            onClick={onClose}
-                            className="grid w-9 h-9 rounded-xl text-gray-400 hover:text-gray-700 hover:bg-neutral-100 place-items-center transition-all cursor-pointer"
-                        >
+                        <IconButton aria-label="Đóng" onClick={onClose} size="md">
                             <X size={20} />
-                        </button>
+                        </IconButton>
                     </div>
                 </div>
 
@@ -264,20 +270,16 @@ export function BulkBarcodePrintModal({
                                         onChange={(e) => setBatchQty(parseInt(e.target.value) || 1)}
                                         className="w-18 h-8 px-2 text-center text-sm font-bold border border-gray-300 rounded-lg bg-white focus:outline-hidden focus:ring-2 focus:ring-pos-primary"
                                     />
-                                    <button
-                                        type="button"
-                                        onClick={handleApplyAll}
-                                        className="ml-2 px-3 h-8 text-xs font-bold text-white bg-pos-primary rounded-lg hover:bg-hvt-green-700 transition-all cursor-pointer shadow-xs active:scale-95"
-                                    >
+                                    <Button className="ml-2" onClick={handleApplyAll} size="sm" variant="primary">
                                         Áp dụng tất cả
-                                    </button>
+                                    </Button>
                                 </div>
                             </div>
                             <div className="flex items-center gap-1.5">
                                 {[1, 5, 10, 20].map((num) => (
-                                    <button
+                                    <Button
                                         key={num}
-                                        type="button"
+                                        size="sm"
                                         onClick={() => {
                                             setBatchQty(num);
                                             const updated: Record<string, number> = {};
@@ -286,62 +288,61 @@ export function BulkBarcodePrintModal({
                                             });
                                             setQuantities(updated);
                                         }}
-                                        className="px-2 py-1 text-xs font-semibold rounded-md border border-gray-200 bg-white text-gray-700 hover:bg-neutral-100 hover:border-gray-300 cursor-pointer active:scale-95 transition-all"
                                     >
                                         {num} tem
-                                    </button>
+                                    </Button>
                                 ))}
                             </div>
                         </div>
 
                         {/* List items table */}
                         <div className="flex-1 overflow-y-auto">
-                            <table className="min-w-full border-separate border-spacing-0 text-left text-sm">
-                                <thead className="sticky top-0 z-10 bg-white shadow-xs text-xs font-bold text-gray-500 uppercase tracking-wider">
-                                    <tr>
-                                        <th className="px-4 py-3 border-b border-neutral-200">Mặt hàng</th>
-                                        <th className="px-4 py-3 border-b border-neutral-200">Mã vạch (Barcode)</th>
-                                        <th className="px-4 py-3 border-b border-neutral-200 text-right">Giá bán</th>
-                                        <th className="px-4 py-3 border-b border-neutral-200 text-center w-36">Số tem</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-neutral-100">
+                            <Table>
+                                <TableHead className="sticky top-0 z-10">
+                                    <TableRow>
+                                        <TableHeaderCell>Mặt hàng</TableHeaderCell>
+                                        <TableHeaderCell>Mã vạch (Barcode)</TableHeaderCell>
+                                        <TableHeaderCell className="text-right">Giá bán</TableHeaderCell>
+                                        <TableHeaderCell className="w-36 text-center">Số tem</TableHeaderCell>
+                                    </TableRow>
+                                </TableHead>
+                                <tbody>
                                     {variants.map((v) => {
                                         const qty = quantities[String(v.id)] ?? 1;
                                         const hasBarcode = Boolean(v.barcode && v.barcode.trim());
                                         return (
-                                            <tr key={v.id} className="hover:bg-neutral-50/70 transition-colors">
-                                                <td className="px-4 py-3 align-middle">
+                                            <TableRow key={v.id} className="hover:bg-neutral-50/70 transition-colors">
+                                                <TableCell>
                                                     <div className="font-bold text-gray-900 leading-snug">
                                                         {v.variantName}
                                                     </div>
                                                     <div className="text-xs text-gray-500">
                                                         {v.productName}
                                                     </div>
-                                                </td>
-                                                <td className="px-4 py-3 align-middle">
+                                                </TableCell>
+                                                <TableCell>
                                                     {hasBarcode ? (
-                                                        <span className="text-xs font-mono text-emerald-700 font-bold bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 inline-block">
+                                                        <StatusBadge className="font-mono" shape="tag" tone="success">
                                                             {v.barcode}
-                                                        </span>
+                                                        </StatusBadge>
                                                     ) : (
-                                                        <span className="text-[11px] font-medium text-amber-600 bg-amber-50 px-2 py-0.5 rounded border border-amber-200 inline-block">
+                                                        <StatusBadge shape="tag" tone="warning">
                                                             Chưa có mã vạch
-                                                        </span>
+                                                        </StatusBadge>
                                                     )}
-                                                </td>
-                                                <td className="px-4 py-3 align-middle text-right font-bold text-gray-800">
+                                                </TableCell>
+                                                <TableCell className="text-right font-bold text-gray-800">
                                                     {formatCurrency(v.sellingPrice)}
-                                                </td>
-                                                <td className="px-4 py-3 align-middle">
+                                                </TableCell>
+                                                <TableCell>
                                                     <div className="flex items-center justify-center gap-1">
-                                                        <button
-                                                            type="button"
+                                                        <IconButton
+                                                            aria-label="Giảm số tem"
                                                             onClick={() => handleQuantityChange(String(v.id), qty - 1)}
-                                                            className="w-7 h-7 rounded-lg border border-gray-200 bg-white text-gray-600 hover:bg-neutral-100 flex items-center justify-center cursor-pointer active:scale-95"
+                                                            variant="secondary"
                                                         >
                                                             <Minus size={13} />
-                                                        </button>
+                                                        </IconButton>
                                                         <input
                                                             type="number"
                                                             min={0}
@@ -350,22 +351,22 @@ export function BulkBarcodePrintModal({
                                                             onChange={(e) =>
                                                                 handleQuantityChange(String(v.id), parseInt(e.target.value) || 0)
                                                             }
-                                                            className="w-12 h-7 text-center font-bold text-sm border border-gray-300 rounded-md focus:ring-1 focus:ring-pos-primary focus:outline-hidden"
+                                                            className="w-12 h-8 text-center font-bold text-sm border border-gray-300 rounded-lg focus:ring-1 focus:ring-pos-primary focus:outline-hidden"
                                                         />
-                                                        <button
-                                                            type="button"
+                                                        <IconButton
+                                                            aria-label="Tăng số tem"
                                                             onClick={() => handleQuantityChange(String(v.id), qty + 1)}
-                                                            className="w-7 h-7 rounded-lg border border-gray-200 bg-white text-gray-600 hover:bg-neutral-100 flex items-center justify-center cursor-pointer active:scale-95"
+                                                            variant="secondary"
                                                         >
                                                             <Plus size={13} />
-                                                        </button>
+                                                        </IconButton>
                                                     </div>
-                                                </td>
-                                            </tr>
+                                                </TableCell>
+                                            </TableRow>
                                         );
                                     })}
                                 </tbody>
-                            </table>
+                            </Table>
                         </div>
                     </div>
 
@@ -442,29 +443,16 @@ export function BulkBarcodePrintModal({
                         Tổng số tem cần in: <span className="font-bold text-pos-primary text-base">{totalLabels}</span> tem
                     </div>
                     <div className="flex items-center gap-3">
-                        <button
-                            type="button"
-                            onClick={onClose}
-                            className="px-4 py-2.5 text-sm font-bold text-gray-700 bg-white border border-gray-300 rounded-xl hover:bg-neutral-50 active:scale-95 transition-all cursor-pointer"
-                        >
+                        <Button onClick={onClose}>
                             Đóng
-                        </button>
-                        <button
-                            type="button"
-                            onClick={handlePrint}
-                            disabled={totalLabels === 0}
-                            className={`flex items-center gap-2 px-5 py-2.5 text-sm font-bold text-white rounded-xl shadow-md transition-all active:scale-95 cursor-pointer ${
-                                totalLabels === 0
-                                    ? "bg-gray-300 cursor-not-allowed shadow-none"
-                                    : "bg-pos-primary hover:bg-hvt-green-700"
-                            }`}
-                        >
+                        </Button>
+                        <Button disabled={totalLabels === 0} onClick={handlePrint} variant="primary">
                             <Printer size={18} />
                             In {totalLabels > 0 ? `(${totalLabels} tem)` : ""}
-                        </button>
+                        </Button>
                     </div>
                 </div>
             </div>
-        </div>
+        </ModalShell>
     );
 }

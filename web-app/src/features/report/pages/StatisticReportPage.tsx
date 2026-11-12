@@ -1,5 +1,8 @@
 import { useState } from "react";
 
+import { ListPageHeader } from "../../../components/shared/list/ListPageHeader";
+import { Button } from "../../../components/ui/Button";
+import { Field, NativeSelect, TextInput } from "../../../components/ui/Field";
 import { TopSalesStaffPanel } from "../components/TopSalesStaffPanel";
 import { TopSellingProductsPanel } from "../components/TopSellingProductsPanel";
 import { getMonthRange } from "../utils/statistic-report.utils";
@@ -18,6 +21,8 @@ const TABS: Array<{ key: StatisticReportTab; label: string }> = [
 ];
 
 const LIMIT_OPTIONS = [10, 20, 50, 100];
+/** Bề rộng ô lọc; dưới 720px các ô co giãn đều theo hàng. */
+const FIELD_CLASS = "min-w-[170px] max-[720px]:min-w-0 max-[720px]:flex-[1_1_140px]";
 
 export function StatisticReportPage({ initialTab = "staff" }: StatisticReportPageProps) {
     const [tab, setTab] = useState<StatisticReportTab>(initialTab);
@@ -34,11 +39,8 @@ export function StatisticReportPage({ initialTab = "staff" }: StatisticReportPag
 
     return (
         <section className={styles.page}>
-            <header className={styles.header}>
-                <div className={styles.title}>
-                    <h1>Báo cáo thống kê</h1>
-                    <p>Xếp hạng nhân viên bán hàng và sản phẩm bán chạy theo kỳ.</p>
-                </div>
+            <ListPageHeader
+                actions={
                 <div className={styles.tabs} role="tablist">
                     {TABS.map((item) => (
                         <button
@@ -53,12 +55,14 @@ export function StatisticReportPage({ initialTab = "staff" }: StatisticReportPag
                         </button>
                     ))}
                 </div>
-            </header>
+                }
+                description="Xếp hạng nhân viên bán hàng và sản phẩm bán chạy theo kỳ."
+                title="Báo cáo thống kê"
+            />
 
             <section className={styles.filterPanel}>
-                <label className={styles.field}>
-                    Từ ngày
-                    <input
+                <Field className={FIELD_CLASS} label="Từ ngày">
+                    <TextInput
                         max={toDate || undefined}
                         onChange={(event) =>
                             setRange((current) => ({ ...current, fromDate: event.target.value }))
@@ -66,10 +70,9 @@ export function StatisticReportPage({ initialTab = "staff" }: StatisticReportPag
                         type="date"
                         value={fromDate}
                     />
-                </label>
-                <label className={styles.field}>
-                    Đến ngày
-                    <input
+                </Field>
+                <Field className={FIELD_CLASS} label="Đến ngày">
+                    <TextInput
                         min={fromDate || undefined}
                         onChange={(event) =>
                             setRange((current) => ({ ...current, toDate: event.target.value }))
@@ -77,24 +80,19 @@ export function StatisticReportPage({ initialTab = "staff" }: StatisticReportPag
                         type="date"
                         value={toDate}
                     />
-                </label>
-                <label className={styles.field}>
-                    Số dòng xếp hạng
-                    <select onChange={(event) => setLimit(Number(event.target.value))} value={limit}>
+                </Field>
+                <Field className={FIELD_CLASS} label="Số dòng xếp hạng">
+                    <NativeSelect onChange={(event) => setLimit(Number(event.target.value))} value={limit}>
                         {LIMIT_OPTIONS.map((option) => (
                             <option key={option} value={option}>
                                 Top {option}
                             </option>
                         ))}
-                    </select>
-                </label>
+                    </NativeSelect>
+                </Field>
                 <div className={styles.presets}>
-                    <button onClick={() => setRange(getMonthRange(new Date()))} type="button">
-                        Tháng này
-                    </button>
-                    <button onClick={() => setRange(getMonthRange(new Date(), -1))} type="button">
-                        Tháng trước
-                    </button>
+                    <Button onClick={() => setRange(getMonthRange(new Date()))}>Tháng này</Button>
+                    <Button onClick={() => setRange(getMonthRange(new Date(), -1))}>Tháng trước</Button>
                 </div>
             </section>
 

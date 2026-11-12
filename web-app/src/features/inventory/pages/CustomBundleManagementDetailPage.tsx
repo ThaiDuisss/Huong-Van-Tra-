@@ -1,6 +1,10 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 
+import { Button } from "../../../components/ui/Button";
+import { Field, NativeSelect, TextInput } from "../../../components/ui/Field";
+import { StatusBadge } from "../../../components/ui/StatusBadge";
+import { Table, TableCell, TableHead, TableHeaderCell, TableRow } from "../../../components/ui/Table";
 import {
     customBundlePackagingTypes,
     customBundlePackingStatusLabels,
@@ -142,9 +146,9 @@ export function CustomBundleManagementDetailPage() {
                         Đơn {packing.orderCode ?? "-"} · {packing.bundleName ?? "Trà đóng theo yêu cầu"}
                     </p>
                 </div>
-                <span className={`rounded-full px-3 py-1 text-sm font-black ${customBundlePackingStatusTones[packing.status]}`}>
+                <StatusBadge tone={customBundlePackingStatusTones[packing.status]}>
                     {customBundlePackingStatusLabels[packing.status]}
-                </span>
+                </StatusBadge>
             </header>
 
             {packing.status === "WAITING_MATERIAL" ? (
@@ -154,31 +158,26 @@ export function CustomBundleManagementDetailPage() {
                         {packing.expectedAvailableAt ? formatVietnamDateTime(packing.expectedAvailableAt) : "chưa xác định"}.
                         Khi phiếu nhập về, bấm kiểm tra lại để giữ nguyên liệu.
                     </span>
-                    <button
-                        className="h-10 rounded-lg bg-amber-600 px-4 text-sm font-black text-white disabled:opacity-60"
-                        disabled={submitting}
-                        onClick={() => void recheck()}
-                        type="button"
-                    >
+                    <Button disabled={submitting} onClick={() => void recheck()} variant="warning">
                         Kiểm tra lại
-                    </button>
+                    </Button>
                 </div>
             ) : null}
 
             <div className="overflow-x-auto rounded-xl border border-[#e8eef0] bg-white shadow-pos-card">
-                <table className="w-full min-w-[640px] text-left text-sm">
-                    <thead className="bg-[#eaf7ec] text-xs font-black text-[#172317]">
-                        <tr>
-                            <th className="px-4 py-3">Đã lấy</th>
-                            <th>Mã nguyên liệu</th>
-                            <th>Nguyên liệu</th>
-                            <th>Khối lượng</th>
-                        </tr>
-                    </thead>
+                <Table className="min-w-[640px]">
+                    <TableHead>
+                        <TableRow>
+                            <TableHeaderCell>Đã lấy</TableHeaderCell>
+                            <TableHeaderCell>Mã nguyên liệu</TableHeaderCell>
+                            <TableHeaderCell>Nguyên liệu</TableHeaderCell>
+                            <TableHeaderCell>Khối lượng</TableHeaderCell>
+                        </TableRow>
+                    </TableHead>
                     <tbody>
                         {packing.lines.map((line) => (
-                            <tr key={line.id}>
-                                <td className="border-t border-[#edf0f4] px-4 py-3">
+                            <TableRow key={line.id}>
+                                <TableCell>
                                     <input
                                         aria-label={`Đã lấy ${line.ingredientName ?? ""}`}
                                         checked={picked.has(line.id)}
@@ -187,68 +186,55 @@ export function CustomBundleManagementDetailPage() {
                                         onChange={() => togglePicked(line.id)}
                                         type="checkbox"
                                     />
-                                </td>
-                                <td className="border-t border-[#edf0f4] font-bold text-[#536078]">{line.ingredientCode ?? "-"}</td>
-                                <td className="border-t border-[#edf0f4] font-black text-[#172317]">{line.ingredientName ?? "-"}</td>
-                                <td className="border-t border-[#edf0f4]">{formatVietnamNumber(line.requiredQuantity)}</td>
-                            </tr>
+                                </TableCell>
+                                <TableCell className="font-bold text-[#536078]">{line.ingredientCode ?? "-"}</TableCell>
+                                <TableCell className="font-black text-[#172317]">{line.ingredientName ?? "-"}</TableCell>
+                                <TableCell>{formatVietnamNumber(line.requiredQuantity)}</TableCell>
+                            </TableRow>
                         ))}
                     </tbody>
-                </table>
+                </Table>
             </div>
 
             {editable ? (
                 <div className="grid gap-3 rounded-xl border border-[#e8eef0] bg-white p-4 shadow-pos-card md:grid-cols-4">
-                    <label className="grid gap-1 text-xs font-black text-[#536078]">
-                        Bao bì
-                        <select
-                            className="h-10 rounded-lg border border-pos-border px-3 text-sm font-bold"
+                    <Field label="Bao bì">
+                        <NativeSelect
                             onChange={(event) => setPackagingType(event.currentTarget.value)}
                             value={packagingType}
                         >
                             {customBundlePackagingTypes.map((type) => (
                                 <option key={type}>{type}</option>
                             ))}
-                        </select>
-                    </label>
-                    <label className="grid gap-1 text-xs font-black text-[#536078]">
-                        Số gói
-                        <input
-                            className="h-10 rounded-lg border border-pos-border px-3 text-sm font-bold"
+                        </NativeSelect>
+                    </Field>
+                    <Field label="Số gói">
+                        <TextInput
                             min={1}
                             onChange={(event) => setNumberOfPackages(event.currentTarget.value)}
                             type="number"
                             value={numberOfPackages}
                         />
-                    </label>
-                    <label className="grid gap-1 text-xs font-black text-[#536078]">
-                        Khối lượng thực (kể cả bao bì)
-                        <input
-                            className="h-10 rounded-lg border border-pos-border px-3 text-sm font-bold"
+                    </Field>
+                    <Field label="Khối lượng thực (kể cả bao bì)">
+                        <TextInput
                             onChange={(event) => setActualTotalWeight(event.currentTarget.value)}
                             placeholder={formatVietnamNumber(packing.expectedTotalWeight)}
                             type="number"
                             value={actualTotalWeight}
                         />
-                    </label>
-                    <label className="grid gap-1 text-xs font-black text-[#536078]">
-                        Ghi chú
-                        <input
-                            className="h-10 rounded-lg border border-pos-border px-3 text-sm font-bold"
+                    </Field>
+                    <Field label="Ghi chú">
+                        <TextInput
                             maxLength={1000}
                             onChange={(event) => setNote(event.currentTarget.value)}
                             value={note}
                         />
-                    </label>
+                    </Field>
                     <div className="md:col-span-4 flex justify-end">
-                        <button
-                            className="h-11 rounded-lg bg-[#159734] px-5 text-sm font-black text-white disabled:opacity-60"
-                            disabled={submitting}
-                            onClick={() => void confirm()}
-                            type="button"
-                        >
+                        <Button disabled={submitting} onClick={() => void confirm()} size="lg" variant="primary">
                             {submitting ? "Đang xác nhận..." : "Xác nhận đóng gói"}
-                        </button>
+                        </Button>
                     </div>
                 </div>
             ) : null}

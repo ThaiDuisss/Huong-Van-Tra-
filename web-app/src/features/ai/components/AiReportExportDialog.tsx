@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "../../../components/ui/dialog";
+import { Button } from "../../../components/ui/Button";
+import { Field, TextInput } from "../../../components/ui/Field";
 import { ApiError } from "@/lib/api-client";
 import type { AiReportApi } from "../services/aiReport.api";
 import { aiReportErrorMessage } from "../utils/ai-report.errors";
@@ -104,12 +106,12 @@ export function AiReportExportDialog({api, actor, onClose, onExported}: {
               </label>)}
           </fieldset>
           {kind === "PRODUCT" ? <div className="grid grid-cols-2 gap-4">
-            <label className="grid gap-2 text-sm font-semibold">Từ ngày
-              <input aria-label="Từ ngày" type="date" value={fromDate} max={today} disabled={busy || retrying}
-                className="h-10 rounded-lg border border-pos-border px-3" onChange={(event) => setFromDate(event.target.value)} /></label>
-            <label className="grid gap-2 text-sm font-semibold">Đến ngày
-              <input aria-label="Đến ngày" type="date" value={toDate} min={fromDate} max={today} disabled={busy || retrying}
-                className="h-10 rounded-lg border border-pos-border px-3" onChange={(event) => setToDate(event.target.value)} /></label>
+            <Field label="Từ ngày">
+              <TextInput aria-label="Từ ngày" type="date" value={fromDate} max={today} disabled={busy || retrying}
+                onChange={(event) => setFromDate(event.target.value)} /></Field>
+            <Field label="Đến ngày">
+              <TextInput aria-label="Đến ngày" type="date" value={toDate} min={fromDate} max={today} disabled={busy || retrying}
+                onChange={(event) => setToDate(event.target.value)} /></Field>
           </div> : <div className="grid gap-3">
             <p className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm font-semibold text-amber-950">
               DỮ LIỆU MÔ PHỎNG (SYNTHETIC) — KHÔNG PHẢI BÁO CÁO KINH DOANH THỰC TẾ.
@@ -123,13 +125,13 @@ export function AiReportExportDialog({api, actor, onClose, onExported}: {
           {kind === "PRODUCT" && retrying ? <p className="text-sm text-[#536078]">Thử lại sẽ dùng cùng lượt xuất để tránh tạo file trùng.</p> : null}
         </div>
         <DialogFooter>
-          <button type="button" disabled={busy} onClick={onClose} className="h-10 rounded-lg border border-pos-border px-4 text-sm font-bold disabled:opacity-50">Đóng</button>
-          {kind === "PRODUCT" && retrying ? <button type="button" disabled={busy} className="h-10 rounded-lg border border-pos-border px-4 text-sm font-bold"
-            onClick={() => {attempt.current = null; saveBusinessExportRecovery(actor, null); setRetrying(false); setError(null);}}>Chọn kỳ khác</button> : null}
-          {kind === "CUSTOM_BOM" && bomRetrying ? <button type="button" disabled={busy} className="h-10 rounded-lg border border-pos-border px-4 text-sm font-bold"
-            onClick={() => {bomAttempt.current = null; saveBomExportRecovery(actor, null); setBomRetrying(false); setError(null);}}>Tạo lượt xuất BOM mới</button> : null}
-          <button type="submit" disabled={busy} className="h-10 rounded-lg bg-[#159734] px-4 text-sm font-bold text-white disabled:opacity-50">
-            {busy ? stage : "Xuất báo cáo"}</button>
+          <Button disabled={busy} onClick={onClose}>Đóng</Button>
+          {kind === "PRODUCT" && retrying ? <Button disabled={busy}
+            onClick={() => {attempt.current = null; saveBusinessExportRecovery(actor, null); setRetrying(false); setError(null);}}>Chọn kỳ khác</Button> : null}
+          {kind === "CUSTOM_BOM" && bomRetrying ? <Button disabled={busy}
+            onClick={() => {bomAttempt.current = null; saveBomExportRecovery(actor, null); setBomRetrying(false); setError(null);}}>Tạo lượt xuất BOM mới</Button> : null}
+          <Button type="submit" disabled={busy} variant="primary">
+            {busy ? stage : "Xuất báo cáo"}</Button>
         </DialogFooter>
       </form>
     </DialogContent>

@@ -1,6 +1,9 @@
 import { ChevronDown, ChevronUp, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 
+import { Button } from "../../../components/ui/Button";
+import { NativeSelect, TextArea, TextInput } from "../../../components/ui/Field";
+import { StatusBadge } from "../../../components/ui/StatusBadge";
 import { SearchableDropdown } from "../../manufacturing/components/shared/SearchableDropdown";
 import type { LookupItem } from "../../manufacturing/components/shared/SearchableDropdown";
 import type { ImportItemsListProps } from "./ImportBatchPanel";
@@ -83,17 +86,13 @@ function ItemRow({
                 </div>
                 <div className="flex shrink-0 items-center gap-1.5">
                     {item.occurrenceCount > 1 ? (
-                        <span className="inline-flex h-6 items-center rounded-full bg-amber-50 px-2 text-[11px] font-bold text-amber-700">
+                        <StatusBadge tone="warning">
                             Trùng {item.occurrenceCount} dòng — đã gộp
-                        </span>
+                        </StatusBadge>
                     ) : null}
-                    <span
-                        className={`inline-flex h-6 items-center rounded-full px-2 text-[11px] font-bold ${
-                            isValid ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-700"
-                        }`}
-                    >
+                    <StatusBadge tone={isValid ? "success" : "danger"}>
                         {isValid ? "Hợp lệ" : `${item.validationErrors.length} lỗi`}
-                    </span>
+                    </StatusBadge>
                 </div>
             </button>
 
@@ -125,8 +124,7 @@ function ItemRow({
 
                     <div className="grid gap-1.5">
                         <label className="text-xs font-bold text-[#536078]">Tên sản phẩm *</label>
-                        <input
-                            className="h-10 rounded-lg border border-pos-border px-3 text-sm outline-none focus:border-hvt-green-600"
+                        <TextInput
                             disabled={!editable}
                             onChange={(e) => setName(e.target.value)}
                             type="text"
@@ -139,8 +137,7 @@ function ItemRow({
 
                     <div className="grid gap-1.5">
                         <label className="text-xs font-bold text-[#536078]">Mô tả</label>
-                        <textarea
-                            className="rounded-lg border border-pos-border px-3 py-2 text-sm outline-none focus:border-hvt-green-600"
+                        <TextArea
                             disabled={!editable}
                             onChange={(e) => setDescription(e.target.value)}
                             rows={2}
@@ -150,35 +147,25 @@ function ItemRow({
 
                     <div className="grid gap-1.5">
                         <label className="text-xs font-bold text-[#536078]">Trạng thái</label>
-                        <select
-                            className="h-10 rounded-lg border border-pos-border px-3 text-sm outline-none focus:border-hvt-green-600"
+                        <NativeSelect
                             disabled={!editable}
                             onChange={(e) => setStatus(e.target.value)}
                             value={status}
                         >
                             <option value="ACTIVE">Đang hoạt động</option>
                             <option value="INACTIVE">Ngừng hoạt động</option>
-                        </select>
+                        </NativeSelect>
                     </div>
 
                     {editable ? (
                         <div className="flex items-center justify-between pt-1">
-                            <button
-                                className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-red-200 bg-white px-3 text-xs font-bold text-red-600 hover:bg-red-50"
-                                onClick={() => void onDelete()}
-                                type="button"
-                            >
+                            <Button onClick={() => void onDelete()} size="sm" variant="dangerOutline">
                                 <Trash2 size={14} aria-hidden="true" />
                                 Xóa dòng
-                            </button>
-                            <button
-                                className="inline-flex h-9 items-center rounded-lg bg-[#159734] px-4 text-xs font-black text-white hover:bg-[#12802c] disabled:opacity-50"
-                                disabled={saving}
-                                onClick={() => void handleSave()}
-                                type="button"
-                            >
+                            </Button>
+                            <Button disabled={saving} onClick={() => void handleSave()} size="sm" variant="primary">
                                 {saving ? "Đang lưu..." : "Lưu dòng này"}
-                            </button>
+                            </Button>
                         </div>
                     ) : null}
                 </div>

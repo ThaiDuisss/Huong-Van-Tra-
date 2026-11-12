@@ -1,4 +1,3 @@
-import orderUiStyles from "../components/shared/OrderListUI.module.css";
 import {
   OrderPageLayout,
   OrderListWorkspace,
@@ -11,6 +10,7 @@ import { Plus, RefreshCw } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 
+import { Button } from "../../../components/ui/Button";
 import { TimeSidebar } from "../../../components/shared/TimeSidebar";
 import { useTimeFilter } from "../../../components/shared/useTimeFilter";
 import { routePaths } from "../../../routes/path";
@@ -238,23 +238,18 @@ export function OrderReturnPage() {
       }
       actions={
         <>
-          <button
-            className={orderUiStyles.secondaryButton}
+          <Button
             disabled={isRowsLoading}
             onClick={() => setReloadKey((key) => key + 1)}
-            type="button"
+            size="lg"
           >
             <RefreshCw size={17} aria-hidden="true" />
             Làm mới
-          </button>
-          <button
-            className={orderUiStyles.primaryButton}
-            onClick={() => navigate(routePaths.returnCreate)}
-            type="button"
-          >
+          </Button>
+          <Button onClick={() => navigate(routePaths.returnCreate)} size="lg" variant="primary">
             <Plus size={17} aria-hidden="true" />
             Tạo phiếu hoàn hàng
-          </button>
+          </Button>
         </>
       }
     >
@@ -262,7 +257,7 @@ export function OrderReturnPage() {
         <OrderToolbar
           search={{
             "aria-label": "Tìm kiếm phiếu hoàn hàng",
-            onChange: (event) => handleSearchChange(event.target.value),
+            onChange: handleSearchChange,
             onKeyDown: (event) => {
               if (event.key === "Escape") {
                 handleSearchChange("");

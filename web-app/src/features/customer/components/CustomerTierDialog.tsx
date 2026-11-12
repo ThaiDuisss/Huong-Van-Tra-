@@ -1,6 +1,6 @@
-import { AlertCircle } from "lucide-react";
 import { type FormEvent, useMemo, useState } from "react";
 
+import { Button } from "../../../components/ui/Button";
 import {
     DialogContent,
     DialogDescription,
@@ -8,6 +8,7 @@ import {
     DialogHeader,
     DialogTitle
 } from "../../../components/ui/dialog";
+import { Field, TextInput } from "../../../components/ui/Field";
 import type {
     CustomerTierRequest,
     CustomerTierResponse,
@@ -156,19 +157,10 @@ export function CustomerTierDialog({
                 </div>
 
                 <DialogFooter>
-                    <button
-                        className="inline-flex h-10 items-center justify-center rounded-xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 transition-colors hover:bg-slate-50"
-                        onClick={onCancel}
-                        type="button"
-                    >
-                        Hủy
-                    </button>
-                    <button
-                        className="inline-flex h-10 items-center justify-center rounded-xl bg-[#159734] px-4 text-sm font-bold text-white shadow-sm transition-colors hover:bg-[#12862d]"
-                        type="submit"
-                    >
+                    <Button onClick={onCancel}>Hủy</Button>
+                    <Button variant="primary" type="submit">
                         {editing ? "Lưu thay đổi" : "Tạo hạng"}
-                    </button>
+                    </Button>
                 </DialogFooter>
             </form>
         </DialogContent>
@@ -193,14 +185,9 @@ function TextField({
     value: string;
 }) {
     return (
-        <label className="grid gap-1.5 text-sm font-bold text-slate-700">
-            <span>{label}</span>
-            <input
-                className={`h-11 rounded-xl border bg-white px-3 text-sm font-semibold text-slate-900 outline-none transition-colors placeholder:text-slate-400 focus:ring-2 ${
-                    error
-                        ? "border-red-300 focus:border-red-400 focus:ring-red-100"
-                        : "border-slate-200 focus:border-emerald-500 focus:ring-emerald-100"
-                }`}
+        <Field error={error} label={label}>
+            <TextInput
+                aria-invalid={error ? true : undefined}
                 inputMode={inputMode}
                 min={type === "number" ? 0 : undefined}
                 onChange={(event) => onChange(event.currentTarget.value)}
@@ -208,8 +195,7 @@ function TextField({
                 type={type}
                 value={value}
             />
-            {error ? <FieldError message={error} /> : null}
-        </label>
+        </Field>
     );
 }
 
@@ -223,9 +209,8 @@ function ColorField({
     value: string;
 }) {
     return (
-        <label className="grid gap-1.5 text-sm font-bold text-slate-700">
-            <span>{label}</span>
-            <span className="flex h-11 items-center gap-3 rounded-xl border border-slate-200 bg-white px-3">
+        <Field label={label}>
+            <span className="flex h-10 items-center gap-3 rounded-lg border border-[#dfe6ee] bg-white px-3">
                 <input
                     aria-label={label}
                     className="size-7 cursor-pointer rounded-md border border-slate-200 bg-transparent p-0"
@@ -239,7 +224,7 @@ function ColorField({
                     value={value}
                 />
             </span>
-        </label>
+        </Field>
     );
 }
 
@@ -260,7 +245,7 @@ function StatusField({
                     return (
                         <button
                             aria-pressed={active}
-                            className={`h-11 rounded-xl border px-3 text-sm font-bold transition-colors ${
+                            className={`h-10 rounded-lg border px-3 text-sm font-bold transition-colors ${
                                 active
                                     ? "border-emerald-500 bg-emerald-50 text-emerald-700"
                                     : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
@@ -275,15 +260,6 @@ function StatusField({
                 })}
             </div>
         </fieldset>
-    );
-}
-
-function FieldError({ message }: { message: string }) {
-    return (
-        <span className="inline-flex items-center gap-1 text-xs font-bold text-red-600">
-            <AlertCircle size={13} aria-hidden="true" />
-            {message}
-        </span>
     );
 }
 

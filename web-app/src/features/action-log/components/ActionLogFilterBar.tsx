@@ -1,6 +1,8 @@
 import { ChevronDown, Search, SlidersHorizontal } from "lucide-react";
 import { useState } from "react";
 
+import { Button } from "../../../components/ui/Button";
+import { Field, NativeSelect, TextInput } from "../../../components/ui/Field";
 import type { ActionLogFilters, ActionLogTimeRange } from "../types/action-log.types";
 import { ACTION_LOG_SERVICES, countAdvancedFilters, isDefaultFilters } from "../utils/action-log.utils";
 
@@ -11,10 +13,6 @@ const timeRangeOptions: Array<{ value: ActionLogTimeRange; label: string }> = [
   { value: "ALL", label: "Tất cả" },
   { value: "CUSTOM", label: "Tùy chọn" },
 ];
-
-const fieldClass =
-  "h-[34px] w-full rounded-lg border border-pos-border bg-white px-3 text-sm font-semibold text-[#172317] outline-none placeholder:font-medium placeholder:text-[#9aa5b1] focus:border-[#159734]";
-const labelClass = "grid gap-1 text-[12px] font-[900] text-[#536078]";
 
 export function ActionLogFilterBar({
   filters,
@@ -60,66 +58,63 @@ export function ActionLogFilterBar({
           <div className="flex flex-wrap items-center gap-2 text-[13px] font-[900] text-[#536078]">
             <label className="flex items-center gap-2">
               Từ
-              <input
-                className={`${fieldClass} w-[200px]`}
+              <span className="w-[200px]">
+              <TextInput
                 max={filters.customTo || undefined}
                 onChange={(event) => onChange({ customFrom: event.currentTarget.value })}
                 type="datetime-local"
                 value={filters.customFrom}
               />
+              </span>
             </label>
             <label className="flex items-center gap-2">
               đến
-              <input
-                className={`${fieldClass} w-[200px]`}
+              <span className="w-[200px]">
+              <TextInput
                 min={filters.customFrom || undefined}
                 onChange={(event) => onChange({ customTo: event.currentTarget.value })}
                 type="datetime-local"
                 value={filters.customTo}
               />
+              </span>
             </label>
           </div>
         ) : null}
 
         {!isDefaultFilters(filters) ? (
-          <button className="ml-auto text-[13px] font-black text-[#159734] hover:underline" onClick={onReset} type="button">
+          <Button className="ml-auto" onClick={onReset} size="sm" variant="link">
             Xóa bộ lọc
-          </button>
+          </Button>
         ) : null}
       </div>
 
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-[1.3fr_1.3fr_1fr_1fr_auto] xl:items-end">
-        <label className={labelClass}>
-          Hành động
+        <Field label="Hành động">
           <span className="relative">
             <Search
               aria-hidden="true"
               className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-[#9aa5b1]"
               size={15}
             />
-            <input
-              className={`${fieldClass} pl-8`}
+            <TextInput
+              className="pl-8"
               onChange={(event) => onChange({ action: event.currentTarget.value })}
               placeholder="VD: ORDER_CANCEL, PRODUCT"
               type="search"
               value={filters.action}
             />
           </span>
-        </label>
-        <label className={labelClass}>
-          Người thực hiện
-          <input
-            className={fieldClass}
+        </Field>
+        <Field label="Người thực hiện">
+          <TextInput
             onChange={(event) => onChange({ username: event.currentTarget.value })}
             placeholder="Tên đăng nhập"
             type="search"
             value={filters.username}
           />
-        </label>
-        <label className={labelClass}>
-          Phân hệ
-          <select
-            className={fieldClass}
+        </Field>
+        <Field label="Phân hệ">
+          <NativeSelect
             onChange={(event) => onChange({ service: event.currentTarget.value })}
             value={filters.service}
           >
@@ -129,26 +124,22 @@ export function ActionLogFilterBar({
                 {service.label}
               </option>
             ))}
-          </select>
-        </label>
-        <label className={labelClass}>
-          Kết quả
-          <select
-            className={fieldClass}
+          </NativeSelect>
+        </Field>
+        <Field label="Kết quả">
+          <NativeSelect
             onChange={(event) => onChange({ status: event.currentTarget.value })}
             value={filters.status}
           >
             <option value="">Tất cả</option>
             <option value="SUCCESS">Thành công</option>
             <option value="FAIL">Thất bại</option>
-          </select>
-        </label>
-        <button
+          </NativeSelect>
+        </Field>
+        <Button
           aria-controls="action-log-advanced-filters"
           aria-expanded={showAdvanced}
-          className="inline-flex h-[34px] items-center justify-center gap-2 rounded-lg border border-pos-border bg-white px-3 text-[13px] font-black text-[#536078] transition hover:border-[#159734] hover:text-[#159734]"
           onClick={() => setExpanded((value) => !value)}
-          type="button"
         >
           <SlidersHorizontal size={15} aria-hidden="true" />
           Nâng cao
@@ -158,51 +149,46 @@ export function ActionLogFilterBar({
             </span>
           ) : null}
           <ChevronDown className={`transition-transform ${showAdvanced ? "rotate-180" : ""}`} size={15} aria-hidden="true" />
-        </button>
+        </Button>
       </div>
 
       {showAdvanced ? (
         <div className="grid gap-3 border-t border-[#edf0f4] pt-3 md:grid-cols-2 xl:grid-cols-4" id="action-log-advanced-filters">
-          <label className={labelClass}>
-            Loại đối tượng
-            <input
-              className={fieldClass}
+          <Field label="Loại đối tượng">
+            <TextInput
               onChange={(event) => onChange({ entityType: event.currentTarget.value })}
               placeholder="VD: Order, Product"
               type="search"
               value={filters.entityType}
             />
-          </label>
-          <label className={labelClass}>
-            Mã đối tượng
-            <input
-              className={`${fieldClass} font-mono`}
+          </Field>
+          <Field label="Mã đối tượng">
+            <TextInput
+              className="font-mono"
               onChange={(event) => onChange({ entityId: event.currentTarget.value })}
               placeholder="ID đơn hàng, sản phẩm..."
               type="search"
               value={filters.entityId}
             />
-          </label>
-          <label className={labelClass}>
-            Mã request
-            <input
-              className={`${fieldClass} font-mono`}
+          </Field>
+          <Field label="Mã request">
+            <TextInput
+              className="font-mono"
               onChange={(event) => onChange({ requestId: event.currentTarget.value })}
               placeholder="requestId"
               type="search"
               value={filters.requestId}
             />
-          </label>
-          <label className={labelClass}>
-            Mã người dùng
-            <input
-              className={`${fieldClass} font-mono`}
+          </Field>
+          <Field label="Mã người dùng">
+            <TextInput
+              className="font-mono"
               onChange={(event) => onChange({ userId: event.currentTarget.value })}
               placeholder="userId (khớp chính xác)"
               type="search"
               value={filters.userId}
             />
-          </label>
+          </Field>
         </div>
       ) : null}
     </div>

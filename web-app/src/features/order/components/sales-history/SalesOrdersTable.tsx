@@ -1,14 +1,13 @@
-import {
-    Banknote,
-    ChevronLeft,
-    ChevronRight,
-    CreditCard,
-    Landmark,
-    MoreHorizontal,
-    ReceiptText
-} from "lucide-react";
-import { useState } from "react";
+import { Banknote, CreditCard, Landmark } from "lucide-react";
+import { useMemo, useState } from "react";
 
+import {
+    DataTable,
+    type DataTableColumn
+} from "../../../../components/shared/list/DataTable";
+import { TablePagination } from "../../../../components/shared/list/TablePagination";
+import { RowActionMenu } from "../../../../components/shared/RowActionMenu";
+import { StatusBadge, type BadgeTone } from "../../../../components/ui/StatusBadge";
 import type {
     SalesHistoryOrder,
     SalesPaymentMethod
@@ -47,25 +46,78 @@ function getPaymentIcon(method?: SalesPaymentMethod | null) {
     return CreditCard;
 }
 
-function getStatusClass(order: SalesHistoryOrder) {
+function getStatusTone(order: SalesHistoryOrder): BadgeTone {
     if (order.paymentStatus === "PAID" || order.status === "COMPLETED") {
-        return styles.statusPaid;
+        return "success";
     }
 
     if (order.status === "CANCELLED") {
-        return styles.statusCancelled;
+        return "danger";
     }
 
-    return styles.statusUnpaid;
+    return "pending";
 }
 
-function getPageNumbers(totalPages: number, currentPage: number) {
-    const pageCount = Math.max(totalPages, 1);
-    const start = Math.max(0, Math.min(currentPage - 2, pageCount - 5));
-    const length = Math.min(pageCount, 5);
+const COLUMNS: readonly DataTableColumn<SalesHistoryOrder>[] = [
+    {
+        key: "orderCode",
+        header: "Mã hóa đơn",
+        className: "font-black",
+        render: (order) => order.orderCode
+    },
+    {
+        key: "saleTime",
+        header: "Thời gian",
+        render: (order) => formatSaleTime(getOrderSaleTime(order))
+    },
+    {
+        key: "customer",
+        header: "Khách hàng",
+        render: (order) => (
+            <>
+                <strong>{getSalesOrderCustomer(order)}</strong>
+                {order.customerPhone ? (
+                    <span className={styles.mutedBlock}>
+                        {order.customerPhone}
+                    </span>
+                ) : null}
+            </>
+        )
+    },
+    {
+        key: "paymentMethod",
+        header: "Thanh toán",
+        render: (order) => {
+            const PaymentIcon = getPaymentIcon(order.paymentMethod);
 
-    return Array.from({ length }, (_, index) => start + index);
-}
+            return (
+                <StatusBadge shape="tag">
+                    <span className="inline-flex items-center gap-1.5 align-middle">
+                        <PaymentIcon size={14} aria-hidden="true" />
+                        {getSalesPaymentMethodLabel(
+                            order.paymentMethod,
+                            order.paymentMethodLabel
+                        )}
+                    </span>
+                </StatusBadge>
+            );
+        }
+    },
+    {
+        key: "finalAmount",
+        header: "Tổng tiền",
+        render: (order) => <strong>{formatCurrency(order.finalAmount)}</strong>
+    },
+    {
+        key: "status",
+        header: "Trạng thái",
+        render: (order) => (
+            <StatusBadge tone={getStatusTone(order)}>
+                {getSalesStatusLabel(order.status, order.statusLabel)}
+            </StatusBadge>
+        )
+    }
+];
 
 export function SalesOrdersTable({
     currentPage,
@@ -81,237 +133,54 @@ export function SalesOrdersTable({
     const [openActionOrderId, setOpenActionOrderId] = useState<string | null>(
         null
     );
-    const normalizedTotalPages = Math.max(totalPages, 1);
     const fromRecord = totalItems > 0 ? currentPage * pageSize + 1 : 0;
     const toRecord = Math.min((currentPage + 1) * pageSize, totalItems);
-    const isFirstPage = currentPage <= 0;
-    const isLastPage = currentPage >= normalizedTotalPages - 1;
-
-    const paginationFooter = (
-        <div className={styles.pagination}>
-            <span>
-                Hiển thị {fromRecord} - {toRecord} trong {totalItems} dòng
-            </span>
-            <div className={styles.pageTools}>
-                <button
-                    className={styles.pageButton}
-                    disabled={isFirstPage || totalItems === 0}
-                    onClick={() => onPageChange(Math.max(0, currentPage - 1))}
-                    type="button"
-                >
-                    <ChevronLeft size={15} aria-hidden="true" />
-                </button>
-                {getPageNumbers(normalizedTotalPages, currentPage).map(
-                    (page) => (
-                        <button
-                            className={`${styles.pageButton} ${
-                                page === currentPage ? styles.activePage : ""
-                            }`}
-                            key={page}
-                            onClick={() => onPageChange(page)}
-                            type="button"
-                        >
-                            {page + 1}
-                        </button>
-                    )
-                )}
-                <button
-                    className={styles.pageButton}
-                    disabled={isLastPage || totalItems === 0}
-                    onClick={() =>
-                        onPageChange(
-                            Math.min(normalizedTotalPages - 1, currentPage + 1)
-                        )
-                    }
-                    type="button"
-                >
-                    <ChevronRight size={15} aria-hidden="true" />
-                </button>
-            </div>
-        </div>
-    );
-
-    if (loading) {
-        return (
-            <div className={styles.tableCard}>
-                <div className={styles.tableSkeleton}>
-                    {Array.from({ length: 6 }, (_, index) => (
-                        <span key={index} />
-                    ))}
-                </div>
-                {paginationFooter}
-            </div>
-        );
-    }
-
-    if (orders.length === 0) {
-        return (
-            <div className={styles.tableCard}>
-                <div className={styles.emptyState}>
-                    <ReceiptText size={44} aria-hidden="true" />
-                    <strong>Chưa có hóa đơn nào trong ngày</strong>
-                    <span>Các đơn đã thanh toán sẽ hiển thị tại đây.</span>
-                </div>
-                {paginationFooter}
-            </div>
-        );
-    }
+    // Giữ hành vi cũ: đang tải thì thay toàn bộ dòng bằng khung chờ.
+    const rows = useMemo(() => (loading ? [] : orders), [loading, orders]);
 
     return (
-        <div className={styles.tableCard}>
-            <div className={styles.tableWrap}>
-                <table className={styles.salesTable}>
-                    <thead>
-                        <tr>
-                            <th>Mã hóa đơn</th>
-                            <th>Thời gian</th>
-                            <th>Khách hàng</th>
-                            <th>Thanh toán</th>
-                            <th>Tổng tiền</th>
-                            <th>Trạng thái</th>
-                            <th>Thao tác</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {orders.map((order, index) => {
-                            const PaymentIcon = getPaymentIcon(
-                                order.paymentMethod
-                            );
-
-                            return (
-                                <tr
-                                    className={
-                                        index % 2 === 0
-                                            ? styles.zebraFirstRow
-                                            : styles.zebraSecondRow
-                                    }
-                                    key={order.orderId}
-                                    onClick={() => onOpenDetail(order.orderId)}
-                                >
-                                    <td>
-                                        <button
-                                            className={styles.invoiceLink}
-                                            type="button"
-                                        >
-                                            {order.orderCode}
-                                        </button>
-                                    </td>
-                                    <td>
-                                        {formatSaleTime(
-                                            getOrderSaleTime(order)
-                                        )}
-                                    </td>
-                                    <td>
-                                        <strong>
-                                            {getSalesOrderCustomer(order)}
-                                        </strong>
-                                        {order.customerPhone ? (
-                                            <span className={styles.mutedBlock}>
-                                                {order.customerPhone}
-                                            </span>
-                                        ) : null}
-                                    </td>
-                                    <td>
-                                        <span className={styles.paymentBadge}>
-                                            <PaymentIcon
-                                                size={14}
-                                                aria-hidden="true"
-                                            />
-                                            {getSalesPaymentMethodLabel(
-                                                order.paymentMethod,
-                                                order.paymentMethodLabel
-                                            )}
-                                        </span>
-                                    </td>
-                                    <td>
-                                        <strong>
-                                            {formatCurrency(order.finalAmount)}
-                                        </strong>
-                                    </td>
-                                    <td>
-                                        <span
-                                            className={`${styles.statusBadge} ${getStatusClass(
-                                                order
-                                            )}`}
-                                        >
-                                            {getSalesStatusLabel(
-                                                order.status,
-                                                order.statusLabel
-                                            )}
-                                        </span>
-                                    </td>
-                                    <td>
-                                        <div className={styles.tableActions}>
-                                            <button
-                                                aria-expanded={
-                                                    openActionOrderId ===
-                                                    order.orderId
-                                                }
-                                                aria-label={`Mở thao tác cho hóa đơn ${order.orderCode}`}
-                                                className={
-                                                    styles.rowActionButton
-                                                }
-                                                onClick={(event) => {
-                                                    event.stopPropagation();
-                                                    setOpenActionOrderId(
-                                                        (current) =>
-                                                            current ===
-                                                            order.orderId
-                                                                ? null
-                                                                : order.orderId
-                                                    );
-                                                }}
-                                                type="button"
-                                            >
-                                                <MoreHorizontal
-                                                    size={17}
-                                                    aria-hidden="true"
-                                                />
-                                            </button>
-                                            {openActionOrderId ===
-                                            order.orderId ? (
-                                                <div
-                                                    className={
-                                                        styles.actionMenu
-                                                    }
-                                                >
-                                                    <button
-                                                        onClick={(event) => {
-                                                            event.stopPropagation();
-                                                            setOpenActionOrderId(
-                                                                null
-                                                            );
-                                                            onOpenDetail(
-                                                                order.orderId
-                                                            );
-                                                        }}
-                                                        type="button"
-                                                    >
-                                                        Xem chi tiết
-                                                    </button>
-                                                    <button
-                                                        onClick={(event) => {
-                                                            event.stopPropagation();
-                                                            setOpenActionOrderId(
-                                                                null
-                                                            );
-                                                            onPrint(order);
-                                                        }}
-                                                        type="button"
-                                                    >
-                                                        In hóa đơn
-                                                    </button>
-                                                </div>
-                                            ) : null}
-                                        </div>
-                                    </td>
-                                </tr>
-                            );
-                        })}
-                    </tbody>
-                </table>
-            </div>
-            {paginationFooter}
-        </div>
+        <DataTable
+            caption="Hóa đơn bán hàng hôm nay"
+            columns={COLUMNS}
+            emptyDescription="Các đơn đã thanh toán sẽ hiển thị tại đây."
+            emptyTitle="Chưa có hóa đơn nào trong ngày"
+            getRowKey={(order) => order.orderId}
+            loading={loading}
+            minWidth={920}
+            onRowClick={(order) => onOpenDetail(order.orderId)}
+            pagination={
+                <TablePagination
+                    itemLabel="dòng"
+                    onPageChange={onPageChange}
+                    page={currentPage}
+                    pageSize={pageSize}
+                    summary={
+                        <>
+                            Hiển thị {fromRecord} - {toRecord} trong {totalItems} dòng
+                        </>
+                    }
+                    totalItems={totalItems}
+                    totalPages={totalPages}
+                />
+            }
+            rowActions={(order) => (
+                <RowActionMenu
+                    actions={[
+                        {
+                            label: "Xem chi tiết",
+                            onSelect: () => onOpenDetail(order.orderId)
+                        },
+                        { label: "In hóa đơn", onSelect: () => onPrint(order) }
+                    ]}
+                    isOpen={openActionOrderId === order.orderId}
+                    menuLabel={`Thao tác cho hóa đơn ${order.orderCode}`}
+                    onOpenChange={(open) =>
+                        setOpenActionOrderId(open ? order.orderId : null)
+                    }
+                    triggerLabel={`Mở thao tác cho hóa đơn ${order.orderCode}`}
+                />
+            )}
+            rows={rows}
+        />
     );
 }

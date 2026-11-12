@@ -1,5 +1,6 @@
-import { Search } from "lucide-react";
 import type { ReactNode } from "react";
+
+import { SearchInput } from "../../ui/SearchInput";
 
 export interface ListFilterChip {
     key: string;
@@ -34,17 +35,13 @@ export function ListFilterToolbar({
     return (
         <div className="grid gap-3 rounded-2xl bg-white p-3 shadow-pos-card">
             <div className="flex flex-wrap items-center gap-2.5">
-                <label className="flex h-11 min-w-[240px] flex-1 items-center gap-3 rounded-xl border border-pos-border bg-white px-4 text-sm shadow-sm focus-within:border-hvt-green-700 md:max-w-[420px]">
-                    <Search size={18} className="text-gray-500" aria-hidden="true" />
-                    <span className="sr-only">{search.placeholder}</span>
-                    <input
-                        className="min-w-0 flex-1 bg-transparent outline-none placeholder:text-gray-500"
-                        onChange={(event) => search.onChange(event.currentTarget.value)}
-                        placeholder={search.placeholder}
-                        type="search"
-                        value={search.value}
-                    />
-                </label>
+                <SearchInput
+                    className="min-w-[240px] md:max-w-[420px]"
+                    onChange={search.onChange}
+                    placeholder={search.placeholder}
+                    type="search"
+                    value={search.value}
+                />
                 {children ? (
                     <div className="flex flex-wrap items-center gap-2.5">{children}</div>
                 ) : null}

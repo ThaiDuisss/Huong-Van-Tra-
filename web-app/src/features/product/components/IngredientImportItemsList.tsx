@@ -1,6 +1,9 @@
 import { ChevronDown, ChevronUp, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 
+import { Button } from "../../../components/ui/Button";
+import { NativeSelect, TextInput } from "../../../components/ui/Field";
+import { StatusBadge } from "../../../components/ui/StatusBadge";
 import type { ImportItemsListProps } from "./ImportBatchPanel";
 import { unitApi } from "../services/unit.api";
 import type { ImportBatchItem } from "../types/import-batch.types";
@@ -64,17 +67,13 @@ function ItemRow({ item, editable, expanded, onToggle, onSave, onDelete, units }
                 </div>
                 <div className="flex shrink-0 items-center gap-1.5">
                     {item.occurrenceCount > 1 ? (
-                        <span className="inline-flex h-6 items-center rounded-full bg-amber-50 px-2 text-[11px] font-bold text-amber-700">
+                        <StatusBadge tone="warning">
                             Trùng {item.occurrenceCount} dòng — đã gộp
-                        </span>
+                        </StatusBadge>
                     ) : null}
-                    <span
-                        className={`inline-flex h-6 items-center rounded-full px-2 text-[11px] font-bold ${
-                            isValid ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-700"
-                        }`}
-                    >
+                    <StatusBadge tone={isValid ? "success" : "danger"}>
                         {isValid ? "Hợp lệ" : `${item.validationErrors.length} lỗi`}
-                    </span>
+                    </StatusBadge>
                 </div>
             </button>
 
@@ -89,8 +88,7 @@ function ItemRow({ item, editable, expanded, onToggle, onSave, onDelete, units }
 
                     <div className="grid gap-1.5">
                         <label className="text-xs font-bold text-[#536078]">Tên nguyên liệu *</label>
-                        <input
-                            className="h-10 rounded-lg border border-pos-border px-3 text-sm outline-none focus:border-hvt-green-600"
+                        <TextInput
                             disabled={!editable}
                             onChange={(e) => setName(e.target.value)}
                             type="text"
@@ -104,8 +102,7 @@ function ItemRow({ item, editable, expanded, onToggle, onSave, onDelete, units }
                     <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                         <div className="grid gap-1.5">
                             <label className="text-xs font-bold text-[#536078]">Đơn vị</label>
-                            <select
-                                className="h-10 rounded-lg border border-pos-border px-3 text-sm outline-none focus:border-hvt-green-600"
+                            <NativeSelect
                                 disabled={!editable}
                                 onChange={(e) => setUnitId(e.target.value)}
                                 value={unitId}
@@ -116,7 +113,7 @@ function ItemRow({ item, editable, expanded, onToggle, onSave, onDelete, units }
                                         {u.symbol}
                                     </option>
                                 ))}
-                            </select>
+                            </NativeSelect>
                             {errorByField.get("unitId") ? (
                                 <p className="text-xs font-bold text-red-600">{errorByField.get("unitId")}</p>
                             ) : null}
@@ -124,8 +121,7 @@ function ItemRow({ item, editable, expanded, onToggle, onSave, onDelete, units }
 
                         <div className="grid gap-1.5">
                             <label className="text-xs font-bold text-[#536078]">Điểm đặt lại</label>
-                            <input
-                                className="h-10 rounded-lg border border-pos-border px-3 text-sm outline-none focus:border-hvt-green-600"
+                            <TextInput
                                 disabled={!editable}
                                 onChange={(e) => setReorderPoint(Number(e.target.value))}
                                 type="number"
@@ -139,35 +135,25 @@ function ItemRow({ item, editable, expanded, onToggle, onSave, onDelete, units }
 
                     <div className="grid gap-1.5">
                         <label className="text-xs font-bold text-[#536078]">Trạng thái</label>
-                        <select
-                            className="h-10 rounded-lg border border-pos-border px-3 text-sm outline-none focus:border-hvt-green-600"
+                        <NativeSelect
                             disabled={!editable}
                             onChange={(e) => setStatus(e.target.value)}
                             value={status}
                         >
                             <option value="ACTIVE">Đang hoạt động</option>
                             <option value="INACTIVE">Ngừng hoạt động</option>
-                        </select>
+                        </NativeSelect>
                     </div>
 
                     {editable ? (
                         <div className="flex items-center justify-between pt-1">
-                            <button
-                                className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-red-200 bg-white px-3 text-xs font-bold text-red-600 hover:bg-red-50"
-                                onClick={() => void onDelete()}
-                                type="button"
-                            >
+                            <Button onClick={() => void onDelete()} size="sm" variant="dangerOutline">
                                 <Trash2 size={14} aria-hidden="true" />
                                 Xóa dòng
-                            </button>
-                            <button
-                                className="inline-flex h-9 items-center rounded-lg bg-[#159734] px-4 text-xs font-black text-white hover:bg-[#12802c] disabled:opacity-50"
-                                disabled={saving}
-                                onClick={() => void handleSave()}
-                                type="button"
-                            >
+                            </Button>
+                            <Button disabled={saving} onClick={() => void handleSave()} size="sm" variant="primary">
                                 {saving ? "Đang lưu..." : "Lưu dòng này"}
-                            </button>
+                            </Button>
                         </div>
                     ) : null}
                 </div>

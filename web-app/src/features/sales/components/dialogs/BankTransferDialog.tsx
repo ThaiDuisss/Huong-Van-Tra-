@@ -10,6 +10,8 @@ import {
   X
 } from "lucide-react";
 
+import { Button, IconButton } from "../../../../components/ui/Button";
+import { ModalShell } from "../../../../components/ui/Overlay";
 import { formatCurrency } from "../../services/money";
 import type { PosCheckoutPaymentResult } from "../../services/posCheckout.service";
 import { type PaymentStatusValue } from "./PaymentStatus";
@@ -127,11 +129,12 @@ export function BankTransferDialog({
         };
 
   return (
-    <section
-      aria-labelledby="bank-transfer-dialog-title"
-      className="w-[680px] max-w-[calc(100vw-32px)] rounded-xl bg-white p-0 shadow-[0_26px_80px_rgba(10,25,18,0.28)]"
-      role="dialog"
-      aria-modal="true"
+    <ModalShell
+      className="w-[680px] max-w-[calc(100vw-32px)]"
+      closeOnBackdrop={false}
+      closeOnEscape={false}
+      labelledBy="bank-transfer-dialog-title"
+      onClose={onClose}
     >
       <header className="flex h-12 items-center justify-between border-b border-[#edf0f4] px-5">
         <h2
@@ -140,14 +143,9 @@ export function BankTransferDialog({
         >
           Thanh toán QR
         </h2>
-        <button
-          type="button"
-          onClick={onClose}
-          className="grid size-8 place-items-center rounded-lg text-[#5f6b7a] hover:bg-[#f4f6f8]"
-          aria-label="Đóng thanh toán chuyển khoản"
-        >
+        <IconButton aria-label="Đóng thanh toán chuyển khoản" onClick={onClose}>
           <X size={17} aria-hidden="true" />
-        </button>
+        </IconButton>
       </header>
 
       <div className="grid grid-cols-[300px_minmax(0,1fr)] gap-5 px-5 py-5 max-[700px]:grid-cols-1">
@@ -255,30 +253,24 @@ export function BankTransferDialog({
           ) : null}
 
           <div className="grid grid-cols-2 gap-2 pt-1">
-          <button
-            type="button"
-            onClick={() => {
-              onCancel();
-              onClose();
-            }}
-            disabled={loading || received}
-            className="h-10 rounded-lg border border-[#edf0f4] text-[12px] font-bold text-[#5f6b7a] hover:bg-[#f4f6f8] disabled:opacity-50"
-          >
-            Hủy thanh toán
-          </button>
-          <button
-            type="button"
-            onClick={onRefreshStatus}
-            disabled={loading || terminal}
-            className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-[#159734] text-[12px] font-extrabold text-white shadow-[0_8px_18px_rgba(21,151,52,0.22)] disabled:opacity-60"
-          >
-            <RefreshCw size={15} aria-hidden="true" />
-            Kiểm tra tiền về
-          </button>
+            <Button
+              disabled={loading || received}
+              onClick={() => {
+                onCancel();
+                onClose();
+              }}
+              size="sm"
+            >
+              Hủy thanh toán
+            </Button>
+            <Button disabled={loading || terminal} onClick={onRefreshStatus} size="sm" variant="primary">
+              <RefreshCw size={15} aria-hidden="true" />
+              Kiểm tra tiền về
+            </Button>
           </div>
         </div>
       </div>
-    </section>
+    </ModalShell>
   );
 }
 

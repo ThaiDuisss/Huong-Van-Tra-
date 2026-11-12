@@ -3,6 +3,16 @@ import { useCallback, useState, useEffect, useMemo } from "react";
 import type { FormEvent } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 
+import { Button, IconButton } from "../../../components/ui/Button";
+import { NativeSelect, TextInput } from "../../../components/ui/Field";
+import { ModalShell } from "../../../components/ui/Overlay";
+import {
+    Table,
+    TableCell as UiTableCell,
+    TableHead,
+    TableHeaderCell,
+    TableRow
+} from "../../../components/ui/Table";
 import { toast } from "../../../components/ui/Toast";
 import { routePaths } from "../../../routes/path";
 import { ActionButton } from "../../manufacturing/components/shared/ActionButton";
@@ -216,23 +226,21 @@ function ProductVariantFormWrapper({
     }
 
     return (
-        <div className="fixed inset-0 z-40 grid place-items-center bg-black/40 p-6 overflow-y-auto">
-            <form
-                onSubmit={handleSubmit}
-                className="my-8 w-full max-w-4xl rounded-3xl bg-white p-6 shadow-pos-panel border border-pos-border max-h-[90vh] overflow-y-auto animate-in fade-in zoom-in-95 duration-150"
-            >
+        <ModalShell
+            className="w-[min(896px,calc(100vw-32px))] p-6"
+            closeOnBackdrop={false}
+            closeOnEscape={false}
+            labelledBy="product-variant-form-title"
+            onClose={onClose}
+        >
+            <form onSubmit={handleSubmit}>
                 <header className="mb-5 flex items-center justify-between border-b border-pos-border pb-3">
-                    <h2 className="text-xl font-bold text-gray-700">
+                    <h2 className="text-xl font-bold text-gray-700" id="product-variant-form-title">
                         {isEditMode ? "Chỉnh sửa Mặt hàng" : "Tạo Mặt hàng mới"}
                     </h2>
-                    <button
-                        type="button"
-                        onClick={onClose}
-                        className="grid size-9 place-items-center rounded-lg hover:bg-neutral-100 transition-all focus:outline-none cursor-pointer"
-                        aria-label="Đóng biểu mẫu"
-                    >
+                    <IconButton aria-label="Đóng biểu mẫu" onClick={onClose} size="md">
                         <X size={20} />
-                    </button>
+                    </IconButton>
                 </header>
 
                 {formError && (
@@ -259,11 +267,11 @@ function ProductVariantFormWrapper({
 
                         <label className="grid gap-1.5 text-sm font-bold text-gray-500">
                             Định lượng *
-                            <input
+                            <TextInput
                                 type="number"
                                 min={0}
                                 step="any"
-                                className="h-10 w-full rounded-xl border border-pos-border bg-white px-3 font-medium text-gray-700 focus:outline-none"
+                                className="font-medium"
                                 placeholder="Ví dụ: 100, 250, 500"
                                 value={formQuantity}
                                 onChange={(e) => setFormQuantity(Number(e.target.value))}
@@ -272,9 +280,9 @@ function ProductVariantFormWrapper({
 
                         <label className="grid gap-1.5 text-sm font-bold text-gray-500">
                             Giá bán *
-                            <input
+                            <TextInput
                                 type="number"
-                                className="h-10 w-full rounded-xl border border-pos-border bg-white px-3 font-medium text-gray-700 focus:outline-none"
+                                className="font-medium"
                                 value={formSellingPrice}
                                 onChange={(e) => setFormSellingPrice(Number(e.target.value))}
                             />
@@ -282,9 +290,9 @@ function ProductVariantFormWrapper({
 
                         <label className="grid gap-1.5 text-sm font-bold text-gray-500">
                             Giá vốn *
-                            <input
+                            <TextInput
                                 type="number"
-                                className="h-10 w-full rounded-xl border border-pos-border bg-white px-3 font-medium text-gray-700 focus:outline-none"
+                                className="font-medium"
                                 value={formCostPrice}
                                 onChange={(e) => setFormCostPrice(Number(e.target.value))}
                             />
@@ -307,10 +315,10 @@ function ProductVariantFormWrapper({
 
                         <label className="grid gap-1.5 text-sm font-bold text-gray-500">
                             Mã vạch (Barcode)
-                            <input
+                            <TextInput
                                 type="text"
                                 placeholder="Nhập mã vạch hoặc để trống"
-                                className="h-10 w-full rounded-xl border border-pos-border bg-white px-3 font-mono font-medium text-gray-700 focus:outline-none"
+                                className="font-mono font-medium"
                                 value={formBarcode}
                                 onChange={(e) => setFormBarcode(e.target.value)}
                             />
@@ -318,26 +326,26 @@ function ProductVariantFormWrapper({
 
                         <label className="grid gap-1.5 text-sm font-bold text-gray-500">
                             Chính sách tồn kho *
-                            <select
-                                className="h-10 w-full rounded-xl border border-pos-border bg-white px-3 font-medium text-gray-700 focus:outline-none"
+                            <NativeSelect
+                                className="font-medium"
                                 value={formInventoryPolicy}
                                 onChange={(e) => setFormInventoryPolicy(e.target.value as InventoryPolicy)}
                             >
                                 <option value="TRACK_STOCK">Theo dõi tồn kho</option>
                                 <option value="DO_NOT_TRACK">Không theo dõi</option>
-                            </select>
+                            </NativeSelect>
                         </label>
 
                         <label className="grid gap-1.5 text-sm font-bold text-gray-500">
                             Trạng thái *
-                            <select
-                                className="h-10 w-full rounded-xl border border-pos-border bg-white px-3 font-medium text-gray-700 focus:outline-none"
+                            <NativeSelect
+                                className="font-medium"
                                 value={formStatus}
                                 onChange={(e) => setFormStatus(e.target.value as CatalogStatus)}
                             >
                                 <option value="ACTIVE">Đang hoạt động</option>
                                 <option value="INACTIVE">Ngừng hoạt động</option>
-                            </select>
+                            </NativeSelect>
                         </label>
                     </div>
 
@@ -356,14 +364,10 @@ function ProductVariantFormWrapper({
                                     Không bắt buộc — chỉ khai báo nếu Mặt hàng này cần sản xuất từ nguyên liệu.
                                 </p>
                             </div>
-                            <button
-                                type="button"
-                                onClick={addIngredientRow}
-                                className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg border border-[#07883a] bg-white px-3.5 text-xs font-bold text-[#07883a] hover:bg-green-50 transition-all cursor-pointer"
-                            >
+                            <Button onClick={addIngredientRow} size="sm">
                                 <Plus size={14} />
                                 Thêm dòng
-                            </button>
+                            </Button>
                         </div>
 
                         {itemsLoading ? (
@@ -374,20 +378,20 @@ function ProductVariantFormWrapper({
                             </div>
                         ) : (
                             <div className="max-h-[300px] overflow-y-auto rounded-xl border border-pos-border">
-                                <table className="w-full text-left text-xs">
-                                    <thead className="sticky top-0 bg-neutral-50 text-[11px] font-bold text-gray-500 uppercase z-10 border-b border-pos-border">
-                                        <tr>
-                                            <th className="p-3 w-5/12">Nguyên liệu *</th>
-                                            <th className="p-3 w-2/12">Định lượng *</th>
-                                            <th className="p-3 w-2/12">Đơn vị *</th>
-                                            <th className="p-3 w-2/12">Hao hụt (%)</th>
-                                            <th className="p-3 w-1/12 text-center">Xóa</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-pos-border bg-white">
+                                <Table>
+                                    <TableHead className="sticky top-0 z-10">
+                                        <TableRow>
+                                            <TableHeaderCell className="w-5/12">Nguyên liệu *</TableHeaderCell>
+                                            <TableHeaderCell className="w-2/12">Định lượng *</TableHeaderCell>
+                                            <TableHeaderCell className="w-2/12">Đơn vị *</TableHeaderCell>
+                                            <TableHeaderCell className="w-2/12">Hao hụt (%)</TableHeaderCell>
+                                            <TableHeaderCell className="w-1/12 text-center">Xóa</TableHeaderCell>
+                                        </TableRow>
+                                    </TableHead>
+                                    <tbody>
                                         {formItems.map((row, index) => (
-                                            <tr key={index} className="hover:bg-neutral-50/50">
-                                                <td className="p-2">
+                                            <TableRow key={index} className="hover:bg-neutral-50/50">
+                                                <UiTableCell>
                                                     <SearchableDropdown
                                                         emptyText="Không tìm thấy nguyên liệu"
                                                         hasMore={ingredientDropdown.hasMore}
@@ -399,18 +403,18 @@ function ProductVariantFormWrapper({
                                                         placeholder="-- Chọn nguyên liệu --"
                                                         value={row.ingredientId}
                                                     />
-                                                </td>
-                                                <td className="p-2">
-                                                    <input
+                                                </UiTableCell>
+                                                <UiTableCell>
+                                                    <TextInput
                                                         type="number"
                                                         step="any"
-                                                        className="h-9 w-full rounded-lg border border-pos-border bg-white px-2 font-semibold focus:outline-none"
+                                                        className="font-semibold"
                                                         placeholder="0.00"
                                                         value={row.quantity}
                                                         onChange={(e) => updateRowItem(index, "quantity", Number(e.target.value))}
                                                     />
-                                                </td>
-                                                <td className="p-2">
+                                                </UiTableCell>
+                                                <UiTableCell>
                                                     <SearchableDropdown
                                                         emptyText="Không tìm thấy đơn vị"
                                                         hasMore={unitDropdown.hasMore}
@@ -422,56 +426,42 @@ function ProductVariantFormWrapper({
                                                         placeholder="-- Đơn vị --"
                                                         value={row.unitId}
                                                     />
-                                                </td>
-                                                <td className="p-2">
-                                                    <input
+                                                </UiTableCell>
+                                                <UiTableCell>
+                                                    <TextInput
                                                         type="number"
                                                         step="any"
                                                         min={0}
                                                         max={100}
-                                                        className="h-9 w-full rounded-lg border border-pos-border bg-white px-2 focus:outline-none"
                                                         placeholder="0"
                                                         value={row.wasteRate}
                                                         onChange={(e) => updateRowItem(index, "wasteRate", Number(e.target.value))}
                                                     />
-                                                </td>
-                                                <td className="p-2 text-center">
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => removeIngredientRow(index)}
-                                                        className="grid size-8 place-items-center rounded-lg text-red-500 hover:bg-red-50 mx-auto transition-all cursor-pointer"
-                                                        aria-label="Xóa dòng"
-                                                    >
+                                                </UiTableCell>
+                                                <UiTableCell className="text-center">
+                                                    <IconButton aria-label="Xóa dòng" onClick={() => removeIngredientRow(index)}>
                                                         <Trash2 size={16} />
-                                                    </button>
-                                                </td>
-                                            </tr>
+                                                    </IconButton>
+                                                </UiTableCell>
+                                            </TableRow>
                                         ))}
                                     </tbody>
-                                </table>
+                                </Table>
                             </div>
                         )}
                     </div>
                 </div>
 
                 <footer className="mt-6 flex items-center justify-end gap-3 border-t border-pos-border pt-4">
-                    <button
-                        type="button"
-                        onClick={onClose}
-                        className="h-11 rounded-xl border border-pos-border bg-white px-6 font-bold text-gray-500 hover:bg-neutral-50 transition-all cursor-pointer focus:outline-none"
-                    >
+                    <Button onClick={onClose}>
                         Hủy bỏ
-                    </button>
-                    <button
-                        type="submit"
-                        disabled={formSubmitting}
-                        className="h-11 rounded-xl bg-[#07883a] px-6 font-bold text-white hover:bg-[#067331] transition-all disabled:opacity-50 cursor-pointer shadow-sm focus:outline-none"
-                    >
+                    </Button>
+                    <Button disabled={formSubmitting} type="submit" variant="primary">
                         {formSubmitting ? "Đang lưu..." : isEditMode ? "Lưu thay đổi" : "Tạo mới"}
-                    </button>
+                    </Button>
                 </footer>
             </form>
-        </div>
+        </ModalShell>
     );
 }
 
@@ -806,7 +796,13 @@ export function ProductVariantListPage() {
                 renderCells={(item) => (
                     <>
                         <TableCell>
-                            <div className="font-bold text-gray-900">{item.variantName}</div>
+                            <Link
+                                className="font-bold text-gray-900 hover:text-[#07883a] hover:underline"
+                                onClick={(event) => event.stopPropagation()}
+                                to={`/system/product-variants/${item.id}`}
+                            >
+                                {item.variantName}
+                            </Link>
                             <div className="text-xs text-gray-500">{item.productName}</div>
                         </TableCell>
                         <TableCell>
