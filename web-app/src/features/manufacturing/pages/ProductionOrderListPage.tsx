@@ -2,6 +2,8 @@ import { Plus } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
+import { Button } from "../../../components/ui/Button";
+import { type BadgeTone, StatusBadge } from "../../../components/ui/StatusBadge";
 import { routePaths } from "../../../routes/path";
 import {
     InventoryResourceManagement,
@@ -27,12 +29,12 @@ const STATUS_LABEL_MAP: Record<string, string> = {
     CANCELLED: "Đã hủy"
 };
 
-const STATUS_BADGE_CLASS: Record<string, string> = {
-    DRAFT: "bg-neutral-100 text-neutral-700",
-    PENDING_APPROVAL: "bg-purple-50 text-purple-700",
-    APPROVED: "bg-blue-50 text-blue-700",
-    REJECTED: "bg-red-50 text-red-700",
-    CANCELLED: "bg-red-100 text-red-700"
+const STATUS_BADGE_TONE: Record<string, BadgeTone> = {
+    DRAFT: "neutral",
+    PENDING_APPROVAL: "violet",
+    APPROVED: "info",
+    REJECTED: "danger",
+    CANCELLED: "danger"
 };
 
 function createStatusOptions(
@@ -49,9 +51,9 @@ function createStatusOptions(
 
 function StatusPill({ status }: { status: ProductionOrderApiStatus }) {
     return (
-        <span className={`inline-flex h-7 items-center rounded-full px-2.5 text-xs font-bold ${STATUS_BADGE_CLASS[status] || 'bg-gray-50 text-gray-700'}`}>
+        <StatusBadge tone={STATUS_BADGE_TONE[status] ?? "neutral"}>
             {STATUS_LABEL_MAP[status] || status}
-        </span>
+        </StatusBadge>
     );
 }
 
@@ -164,14 +166,10 @@ export function ProductionOrderListPage() {
             )}
             renderDetail={() => null}
             extraHeaderActions={
-                <button
-                    className="inline-flex h-12 items-center justify-center gap-[9px] rounded-lg border-0 bg-[#07883a] px-[22px] text-sm font-black text-white shadow-[0_10px_24px_rgba(7,136,58,0.24)] hover:opacity-90 transition-all cursor-pointer"
-                    onClick={() => navigate(routePaths.productionOrderCreate)}
-                    type="button"
-                >
+                <Button onClick={() => navigate(routePaths.productionOrderCreate)} size="lg" variant="primary">
                     <Plus size={17} aria-hidden="true" />
                     Tạo lệnh sản xuất
-                </button>
+                </Button>
             }
         />
     );

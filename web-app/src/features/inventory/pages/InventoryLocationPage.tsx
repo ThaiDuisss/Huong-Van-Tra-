@@ -1,6 +1,9 @@
 import { X } from "lucide-react";
 import { useCallback, useState } from "react";
 
+import { Button, IconButton } from "../../../components/ui/Button";
+import { Field, NativeSelect, TextInput } from "../../../components/ui/Field";
+import { ModalShell } from "../../../components/ui/Overlay";
 import {
     InventoryResourceManagement,
     TableCell,
@@ -221,23 +224,15 @@ function LocationForm({ item, locations, onClose, onSubmit }: LocationFormProps)
     };
 
     return (
-        <div className="fixed inset-0 z-40 grid place-items-center bg-black/45 p-6 overflow-y-auto">
-            <form
-                onSubmit={handleSubmit}
-                className="w-full max-w-xl rounded-3xl bg-white p-6 shadow-pos-panel border border-pos-border animate-in fade-in zoom-in-95 duration-150"
-            >
+        <ModalShell className="w-full max-w-xl p-6" closeOnBackdrop={false} labelledBy="location-form-title" onClose={onClose}>
+            <form onSubmit={handleSubmit}>
                 <header className="mb-5 flex items-center justify-between border-b border-pos-border pb-3">
-                    <h2 className="text-xl font-bold text-gray-700">
+                    <h2 className="text-xl font-bold text-gray-700" id="location-form-title">
                         {item ? "Chỉnh sửa vị trí" : "Tạo vị trí mới"}
                     </h2>
-                    <button
-                        type="button"
-                        onClick={onClose}
-                        className="grid size-9 place-items-center rounded-lg hover:bg-neutral-100 transition-all focus:outline-none cursor-pointer"
-                        aria-label="Đóng"
-                    >
+                    <IconButton aria-label="Đóng" onClick={onClose}>
                         <X size={20} />
-                    </button>
+                    </IconButton>
                 </header>
 
                 {item ? (
@@ -259,12 +254,10 @@ function LocationForm({ item, locations, onClose, onSubmit }: LocationFormProps)
                 )}
 
                 <div className="grid gap-4 sm:grid-cols-2">
-                    <label className="grid gap-1.5 text-sm font-bold text-gray-500">
-                        Vị trí cha
-                        <select
+                    <Field label="Vị trí cha">
+                        <NativeSelect
                             name="parentLocationId"
                             defaultValue={String(item?.parentLocationId ?? "")}
-                            className="h-10 w-full rounded-xl border border-pos-border bg-white px-3 font-medium text-gray-700 focus:outline-none"
                         >
                             <option value="">Không có</option>
                             {locations
@@ -274,50 +267,44 @@ function LocationForm({ item, locations, onClose, onSubmit }: LocationFormProps)
                                         {location.code} - {location.name}
                                     </option>
                                 ))}
-                        </select>
-                    </label>
+                        </NativeSelect>
+                    </Field>
 
-                    <label className="grid gap-1.5 text-sm font-bold text-gray-500">
-                        Tên vị trí *
-                        <input
+                    <Field label="Tên vị trí" required>
+                        <TextInput
                             name="name"
                             type="text"
                             required
                             placeholder="Nhập tên vị trí chi tiết..."
                             defaultValue={item?.name ?? ""}
-                            className="h-10 w-full rounded-xl border border-pos-border px-3 font-medium text-gray-700 focus:outline-none"
                         />
-                    </label>
+                    </Field>
 
-                    <label className="grid gap-1.5 text-sm font-bold text-gray-500">
-                        Loại vị trí
-                        <select
+                    <Field label="Loại vị trí">
+                        <NativeSelect
                             name="type"
                             defaultValue={item?.type ?? "WAREHOUSE"}
-                            className="h-10 w-full rounded-xl border border-pos-border bg-white px-3 font-medium text-gray-700 focus:outline-none"
                         >
                             {Object.entries(locationTypeLabels).map(([val, label]) => (
                                 <option key={val} value={val}>
                                     {label}
                                 </option>
                             ))}
-                        </select>
-                    </label>
+                        </NativeSelect>
+                    </Field>
 
-                    <label className="grid gap-1.5 text-sm font-bold text-gray-500">
-                        Trạng thái
-                        <select
+                    <Field label="Trạng thái">
+                        <NativeSelect
                             name="status"
                             defaultValue={item?.status ?? "ACTIVE"}
-                            className="h-10 w-full rounded-xl border border-pos-border bg-white px-3 font-medium text-gray-700 focus:outline-none"
                         >
                             {Object.entries(inventoryStatusLabels).map(([val, label]) => (
                                 <option key={val} value={val}>
                                     {label}
                                 </option>
                             ))}
-                        </select>
-                    </label>
+                        </NativeSelect>
+                    </Field>
                 </div>
 
                 {error && (
@@ -327,22 +314,12 @@ function LocationForm({ item, locations, onClose, onSubmit }: LocationFormProps)
                 )}
 
                 <footer className="mt-6 flex justify-end gap-3 border-t border-pos-border pt-4">
-                    <button
-                        type="button"
-                        onClick={onClose}
-                        className="h-11 rounded-xl border border-pos-border bg-white px-6 font-bold text-gray-500 hover:bg-neutral-50 transition-all cursor-pointer focus:outline-none"
-                    >
-                        Hủy
-                    </button>
-                    <button
-                        type="submit"
-                        disabled={submitting}
-                        className="h-11 rounded-xl bg-[#07883a] px-6 font-bold text-white hover:bg-[#067331] transition-all disabled:opacity-50 cursor-pointer shadow-sm focus:outline-none"
-                    >
+                    <Button onClick={onClose}>Hủy</Button>
+                    <Button disabled={submitting} type="submit" variant="primary">
                         {submitting ? "Đang lưu..." : item ? "Lưu thay đổi" : "Tạo mới"}
-                    </button>
+                    </Button>
                 </footer>
             </form>
-        </div>
+        </ModalShell>
     );
 }

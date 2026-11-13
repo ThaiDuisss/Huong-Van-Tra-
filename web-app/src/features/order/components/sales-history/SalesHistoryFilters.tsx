@@ -1,5 +1,4 @@
-import { Search } from "lucide-react";
-
+import { SearchInput } from "../../../../components/ui/SearchInput";
 import {
     SALES_PAYMENT_METHOD_OPTIONS,
     SALES_STATUS_FILTER_OPTIONS
@@ -63,22 +62,18 @@ export function SalesHistoryFilters({
             aria-label="Bộ lọc lịch sử bán hàng"
         >
             <div className={styles.filterTopRow}>
-                <label className={styles.searchBox}>
-                    <Search size={19} aria-hidden="true" />
-                    <input
-                        aria-label="Tìm kiếm hóa đơn bán hàng hôm nay"
-                        onChange={(event) =>
-                            onSearchChange(event.target.value)
+                <SearchInput
+                    aria-label="Tìm kiếm hóa đơn bán hàng hôm nay"
+                    className={styles.searchBox}
+                    onChange={onSearchChange}
+                    onKeyDown={(event) => {
+                        if (event.key === "Escape") {
+                            onSearchChange("");
                         }
-                        onKeyDown={(event) => {
-                            if (event.key === "Escape") {
-                                onSearchChange("");
-                            }
-                        }}
-                        placeholder="Tìm mã đơn, khách hàng, SĐT..."
-                        value={searchValue}
-                    />
-                </label>
+                    }}
+                    placeholder="Tìm mã đơn, khách hàng, SĐT..."
+                    value={searchValue}
+                />
 
                 <div className={styles.filterRow}>
                     <span className={styles.filterLabel}>Trạng thái:</span>

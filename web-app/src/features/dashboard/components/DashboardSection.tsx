@@ -1,5 +1,8 @@
 import type { ReactNode } from "react";
 
+import { Button } from "../../../components/ui/Button";
+import { buttonClassName } from "../../../components/ui/button-styles";
+
 /**
  * Card section dùng chung cho dashboard: cùng token với card của khu Management
  * (rounded-xl, border #e8eef0, shadow-pos-card). `flush` cho bảng tràn sát mép card.
@@ -58,19 +61,17 @@ export function DashboardSectionLink({
   onClick?: () => void;
   to?: string;
 }) {
-  const className = "text-sm font-black text-[#159734] hover:underline";
-
   if (to) {
     return (
-      <a className={className} href={to}>
+      <a className={buttonClassName({ variant: "link", size: "sm" })} href={to}>
         {children}
       </a>
     );
   }
 
   return (
-    <button className={className} onClick={onClick} type="button">
+    <Button onClick={onClick} size="sm" variant="link">
       {children}
-    </button>
+    </Button>
   );
 }

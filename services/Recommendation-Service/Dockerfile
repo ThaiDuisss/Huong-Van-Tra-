@@ -37,6 +37,10 @@ WORKDIR /app
 COPY --from=builder /opt/venv /opt/venv
 COPY app ./app
 COPY scripts ./scripts
+# app/service/report_data_source.py import offline_benchmark.evaluation.bundle, nen
+# package nay BAT BUOC phai co trong image - thieu no la container chet ngay luc
+# import voi ModuleNotFoundError, truoc ca khi uvicorn kip chay.
+COPY offline_benchmark ./offline_benchmark
 
 EXPOSE 8090
 

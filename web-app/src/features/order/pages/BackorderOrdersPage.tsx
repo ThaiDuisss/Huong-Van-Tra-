@@ -1,5 +1,11 @@
-import { CalendarClock, PackageCheck, RefreshCw, Search } from "lucide-react";
+import { CalendarClock, PackageCheck, RefreshCw } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+
+import { ListPageHeader } from "../../../components/shared/list/ListPageHeader";
+import { Button } from "../../../components/ui/Button";
+import { ModalShell } from "../../../components/ui/Overlay";
+import { SearchInput } from "../../../components/ui/SearchInput";
+import { StatusBadge } from "../../../components/ui/StatusBadge";
 
 import { ReceiptDialog } from "../../sales/components/dialogs/ReceiptDialog";
 import { formatCurrency, parseCurrencyInput } from "../../sales/services/money";
@@ -173,51 +179,37 @@ export function BackorderOrdersPage() {
 
     return (
         <div className="grid h-full min-h-0 grid-rows-[auto_1fr] gap-4 p-5">
-            <header className="flex flex-wrap items-center gap-3">
-                <div className="mr-auto grid gap-0.5">
-                    <h1 className="text-2xl font-black text-[#172317]">Đơn chờ hàng</h1>
-                    <p className="text-sm font-semibold text-[#697684]">
-                        Đơn đã thu tiền (đủ hoặc cọc), giao và trừ tồn khi có hàng. Đang chờ: {totalElements} đơn.
-                    </p>
-                </div>
-                <form
-                    className="flex items-center gap-2"
-                    onSubmit={(event) => {
-                        event.preventDefault();
-                        submitSearch();
-                    }}
-                >
-                    <label className="relative block">
-                        <Search
-                            aria-hidden="true"
-                            className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#697684]"
-                            size={16}
-                        />
-                        <input
-                            aria-label="Tìm đơn chờ hàng"
-                            className="h-10 w-64 rounded-lg border border-[#dce5e1] bg-white pl-9 pr-3 text-sm font-semibold text-[#172317]"
-                            onChange={(event) => setKeywordInput(event.target.value)}
-                            placeholder="Mã đơn, tên hoặc SĐT khách"
-                            value={keywordInput}
-                        />
-                    </label>
-                    <button
-                        className="h-10 rounded-lg border border-[#dce5e1] bg-white px-4 text-sm font-black text-[#536078]"
-                        type="submit"
-                    >
-                        Tìm
-                    </button>
-                </form>
-                <button
-                    className="flex h-10 items-center gap-2 rounded-lg border border-[#dce5e1] bg-white px-4 text-sm font-black text-[#536078] disabled:opacity-60"
-                    disabled={loading}
-                    onClick={reload}
-                    type="button"
-                >
-                    <RefreshCw aria-hidden="true" size={16} />
-                    Tải lại
-                </button>
-            </header>
+            <ListPageHeader
+                actions={
+                    <>
+                        <form
+                            className="flex items-center gap-2"
+                            onSubmit={(event) => {
+                                event.preventDefault();
+                                submitSearch();
+                            }}
+                        >
+                            <SearchInput
+                                aria-label="Tìm đơn chờ hàng"
+                                className="min-w-64"
+                                controlSize="md"
+                                onChange={setKeywordInput}
+                                placeholder="Mã đơn, tên hoặc SĐT khách"
+                                value={keywordInput}
+                            />
+                            <Button type="submit">
+                                Tìm
+                            </Button>
+                        </form>
+                        <Button disabled={loading} onClick={reload}>
+                            <RefreshCw aria-hidden="true" size={16} />
+                            Tải lại
+                        </Button>
+                    </>
+                }
+                description={`Đơn đã thu tiền (đủ hoặc cọc), giao và trừ tồn khi có hàng. Đang chờ: ${totalElements} đơn.`}
+                title="Đơn chờ hàng"
+            />
 
             <div className="grid min-h-0 content-start gap-3 overflow-y-auto pb-4">
                 {successMessage ? (
@@ -275,23 +267,25 @@ export function BackorderOrdersPage() {
                                         </p>
                                     </div>
                                     {state?.status === "checking" || !state ? (
-                                        <span className="rounded-md bg-neutral-100 px-2 py-1 text-xs font-bold text-[#536078]">
-                                            Đang kiểm tra hàng...
-                                        </span>
+                                        <StatusBadge shape="tag">Đang kiểm tra hàng...</StatusBadge>
                                     ) : ready ? (
-                                        <span className="flex items-center gap-1 rounded-md bg-hvt-green-50 px-2 py-1 text-xs font-bold text-hvt-green-900">
-                                            <PackageCheck aria-hidden="true" size={14} />
-                                            Đủ hàng, có thể giao
-                                        </span>
+                                        <StatusBadge shape="tag" tone="success">
+                                            <span className="inline-flex items-center gap-1 align-middle">
+                                                <PackageCheck aria-hidden="true" size={14} />
+                                                Đủ hàng, có thể giao
+                                            </span>
+                                        </StatusBadge>
                                     ) : state.status === "error" ? (
-                                        <span className="rounded-md bg-red-50 px-2 py-1 text-xs font-bold text-red-700">
+                                        <StatusBadge shape="tag" tone="danger">
                                             {state.message}
-                                        </span>
+                                        </StatusBadge>
                                     ) : (
-                                        <span className="flex items-center gap-1 rounded-md bg-amber-50 px-2 py-1 text-xs font-bold text-amber-800">
-                                            <CalendarClock aria-hidden="true" size={14} />
-                                            Chưa đủ hàng · dự kiến {formatAvailabilityDate(expectedAt)}
-                                        </span>
+                                        <StatusBadge shape="tag" tone="warning">
+                                            <span className="inline-flex items-center gap-1 align-middle">
+                                                <CalendarClock aria-hidden="true" size={14} />
+                                                Chưa đủ hàng · dự kiến {formatAvailabilityDate(expectedAt)}
+                                            </span>
+                                        </StatusBadge>
                                     )}
                                 </div>
 
@@ -348,24 +342,21 @@ export function BackorderOrdersPage() {
                                             </dd>
                                         </div>
                                     </dl>
-                                    <button
-                                        className="h-10 rounded-lg border border-[#dce5e1] px-4 text-sm font-black text-[#536078] disabled:opacity-60"
+                                    <Button
                                         disabled={state?.status === "checking"}
                                         onClick={() => {
                                             void checkOrder(order.id);
                                         }}
-                                        type="button"
                                     >
                                         Kiểm tra hàng
-                                    </button>
-                                    <button
-                                        className="h-10 rounded-lg bg-[#159734] px-4 text-sm font-black text-white disabled:cursor-not-allowed disabled:bg-neutral-300"
+                                    </Button>
+                                    <Button
                                         disabled={!ready}
                                         onClick={() => openFulfill(order)}
-                                        type="button"
+                                        variant="primary"
                                     >
                                         Giao hàng
-                                    </button>
+                                    </Button>
                                 </div>
                             </article>
                         );
@@ -374,13 +365,13 @@ export function BackorderOrdersPage() {
             </div>
 
             {fulfillOrder ? (
-                <div className="fixed inset-0 z-50 grid place-items-center bg-black/62 px-4" role="presentation">
-                    <section
-                        aria-labelledby="fulfill-backorder-title"
-                        aria-modal="true"
-                        className="grid w-full max-w-[460px] overflow-hidden rounded-2xl bg-white shadow-pos-panel"
-                        role="dialog"
-                    >
+                <ModalShell
+                    className="grid w-full max-w-[460px]"
+                    closeOnBackdrop={false}
+                    closeOnEscape={!fulfilling}
+                    labelledBy="fulfill-backorder-title"
+                    onClose={() => setFulfillOrder(null)}
+                >
                         <header className="border-b border-[#e8eef0] px-5 py-4">
                             <h2 className="text-xl font-black text-[#172317]" id="fulfill-backorder-title">
                                 Giao hàng đơn {fulfillOrder.orderCode}
@@ -428,27 +419,20 @@ export function BackorderOrdersPage() {
                         </div>
 
                         <footer className="flex justify-end gap-3 border-t border-[#e8eef0] px-5 py-4">
-                            <button
-                                className="h-10 rounded-lg border border-[#dce5e1] px-4 text-sm font-black text-[#536078] disabled:opacity-60"
-                                disabled={fulfilling}
-                                onClick={() => setFulfillOrder(null)}
-                                type="button"
-                            >
+                            <Button disabled={fulfilling} onClick={() => setFulfillOrder(null)}>
                                 Đóng
-                            </button>
-                            <button
-                                className="h-10 rounded-lg bg-[#159734] px-4 text-sm font-black text-white disabled:opacity-60"
+                            </Button>
+                            <Button
                                 disabled={fulfilling || (fulfillRemaining > 0 && cashReceived < fulfillRemaining)}
                                 onClick={() => {
                                     void confirmFulfill();
                                 }}
-                                type="button"
+                                variant="primary"
                             >
                                 {fulfilling ? "Đang xử lý..." : "Xác nhận giao hàng"}
-                            </button>
+                            </Button>
                         </footer>
-                    </section>
-                </div>
+                </ModalShell>
             ) : null}
 
             <ReceiptDialog orderId={receiptOrderId} onClose={() => setReceiptOrderId(null)} />

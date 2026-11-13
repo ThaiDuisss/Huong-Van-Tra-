@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Sparkles } from "lucide-react";
+import { Button } from "../../../components/ui/Button";
 import {
   Dialog,
   DialogContent,
@@ -54,15 +55,16 @@ export function ProductRecommendationLauncher({
         <Sparkles size={16} aria-hidden="true" />
         AI gợi ý sản phẩm
       </div>
-      <button
+      <Button
         ref={trigger}
-        type="button"
         disabled={disabled}
         onClick={() => setOpen(true)}
-        className="mt-2 text-sm font-semibold text-[#159734] disabled:opacity-50"
+        className="-ml-3 mt-1"
+        size="sm"
+        variant="link"
       >
         Xem sản phẩm gợi ý
-      </button>
+      </Button>
       <Dialog open={open} onOpenChange={changeOpen}>
         {open && (
           <DialogContent className="max-w-2xl">
@@ -76,14 +78,14 @@ export function ProductRecommendationLauncher({
                 </DialogDescription>
               </DialogHeader>
               <div className="grid max-h-[70vh] gap-3 overflow-y-auto px-5 pb-5">
-                <button
-                  type="button"
+                <Button
+                  className="justify-self-start"
                   disabled={disabled}
-                  className="justify-self-start text-sm font-semibold text-[#159734] disabled:opacity-50"
                   onClick={() => setRefresh((value) => value + 1)}
+                  size="sm"
                 >
                   Tải lại gợi ý
-                </button>
+                </Button>
                 <ProductRecommendationResults
                   key={refresh}
                   customerId={customerId}

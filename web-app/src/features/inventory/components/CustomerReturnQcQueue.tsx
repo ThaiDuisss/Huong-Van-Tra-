@@ -1,4 +1,3 @@
-import orderUiStyles from "@/features/order/components/shared/OrderListUI.module.css";
 import {
     OrderPageLayout,
     OrderListWorkspace,
@@ -11,6 +10,7 @@ import { RefreshCw } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { TimeSidebar } from "@/components/shared/TimeSidebar";
+import { Button } from "@/components/ui/Button";
 import { useTimeFilter } from "@/components/shared/useTimeFilter";
 import { ConfirmDialog } from "../../product/components/ConfirmDialog";
 import { ReturnDetailModal } from "../../order/components/return-detail/ReturnDetailModal";
@@ -287,15 +287,10 @@ export function CustomerReturnQcQueue({
                 />
             }
             actions={
-                <button
-                    className={orderUiStyles.secondaryButton}
-                    disabled={loading}
-                    onClick={reload}
-                    type="button"
-                >
+                <Button disabled={loading} onClick={reload}>
                     <RefreshCw size={17} aria-hidden="true" />
                     Làm mới
-                </button>
+                </Button>
             }
         >
             <OrderListWorkspace>
@@ -304,7 +299,7 @@ export function CustomerReturnQcQueue({
                         "aria-label": "Tìm kiếm phiếu khách trả hàng",
                         placeholder: "Tìm mã phiếu hoàn, mã đơn hàng, khách hàng...",
                         value: searchTerm,
-                        onChange: (event) => handleSearchChange(event.target.value),
+                        onChange: handleSearchChange,
                         onKeyDown: (event) => {
                             if (event.key === "Escape") {
                                 handleSearchChange("");
@@ -432,7 +427,7 @@ export function CustomerReturnQcQueue({
             {selectedId && (selectionLoading || selectionError) ? (
                 <div className="rounded-xl border border-[#e8eef0] bg-white p-4 text-sm font-semibold">
                     <p>{selectionLoading ? "Đang tải dữ liệu kiểm hàng..." : selectionError}</p>
-                    <button className="mt-2 text-[#159734]" onClick={closeSelection} type="button">Đóng</button>
+                    <Button className="mt-2" onClick={closeSelection} size="sm">Đóng</Button>
                 </div>
             ) : null}
 

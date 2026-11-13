@@ -1,6 +1,11 @@
 import { X } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 
+import { Button, IconButton } from "../../../components/ui/Button";
+import { Field, TextInput } from "../../../components/ui/Field";
+import { ModalShell } from "../../../components/ui/Overlay";
+import { type BadgeTone, StatusBadge } from "../../../components/ui/StatusBadge";
+import { Table, TableCell, TableHead, TableHeaderCell, TableRow } from "../../../components/ui/Table";
 import { Pagination } from "../../manufacturing/components/shared/Pagination";
 import { usePagedApiResource } from "../hooks/useApiResource";
 import { priceListApi } from "../services/priceList.api";
@@ -25,11 +30,11 @@ const changeTypeLabels: Record<PriceChangeType, string> = {
     STATUS_CHANGED: "Đổi trạng thái"
 };
 
-const changeTypeClasses: Record<PriceChangeType, string> = {
-    CREATED: "bg-emerald-50 text-emerald-700",
-    UPDATED: "bg-amber-50 text-amber-700",
-    REMOVED: "bg-red-50 text-red-600",
-    STATUS_CHANGED: "bg-sky-50 text-sky-700"
+const changeTypeTones: Record<PriceChangeType, BadgeTone> = {
+    CREATED: "success",
+    UPDATED: "warning",
+    REMOVED: "danger",
+    STATUS_CHANGED: "sky"
 };
 
 const statusLabels: Record<CatalogStatus, string> = {
@@ -41,12 +46,6 @@ const dateTimeFormatter = new Intl.DateTimeFormat("vi-VN", {
     dateStyle: "short",
     timeStyle: "short"
 });
-
-const headClass =
-    "sticky top-0 border-b border-pos-border bg-neutral-50 px-3 py-2.5 text-left text-xs font-bold uppercase text-gray-500";
-const cellClass = "border-b border-[#edf0f4] px-3 py-2.5 align-middle";
-const inputClass =
-    "h-9 rounded-lg border border-pos-border bg-white px-2 text-sm text-gray-700 focus:border-[#07883a] focus:outline-none";
 
 function formatPrice(value: number | null) {
     return value === null ? "—" : formatCurrency(value);
@@ -128,22 +127,14 @@ export function PriceChangeHistoryDialog({
     const resource = usePagedApiResource(loadHistory);
     const rows = resource.data?.content ?? [];
 
-    useEffect(() => {
-        function handleKeyDown(event: KeyboardEvent) {
-            if (event.key === "Escape") onClose();
-        }
-        window.addEventListener("keydown", handleKeyDown);
-        return () => window.removeEventListener("keydown", handleKeyDown);
-    }, [onClose]);
-
     return (
-        <div className="fixed inset-0 z-40 grid place-items-center overflow-y-auto bg-black/40 p-6">
-            <section
-                aria-labelledby="price-change-history-title"
-                aria-modal="true"
-                className="flex max-h-[calc(100vh-3rem)] w-full max-w-5xl flex-col rounded-3xl border border-pos-border bg-white shadow-pos-panel"
-                role="dialog"
-            >
+        <ModalShell
+            className="w-[min(1024px,calc(100vw-32px))]"
+            closeOnBackdrop={false}
+            labelledBy="price-change-history-title"
+            onClose={onClose}
+        >
+            <div className="flex max-h-[85vh] flex-col overflow-hidden">
                 <header className="flex items-start justify-between gap-3 border-b border-pos-border px-6 py-4">
                     <div className="grid gap-0.5">
                         <h2
@@ -156,21 +147,14 @@ export function PriceChangeHistoryDialog({
                             {priceList.name}
                         </p>
                     </div>
-                    <button
-                        aria-label="Đóng"
-                        className="grid size-9 shrink-0 cursor-pointer place-items-center rounded-lg transition-all hover:bg-neutral-100 focus:outline-none"
-                        onClick={onClose}
-                        type="button"
-                    >
+                    <IconButton aria-label="Đóng" onClick={onClose} size="md">
                         <X size={20} />
-                    </button>
+                    </IconButton>
                 </header>
 
                 <div className="flex flex-wrap items-end gap-3 border-b border-pos-border px-6 py-3 text-sm">
-                    <label className="grid gap-1 font-bold text-gray-500">
-                        Từ ngày
-                        <input
-                            className={inputClass}
+                    <Field label="Từ ngày">
+                        <TextInput
                             max={toDate || undefined}
                             onChange={(event) => {
                                 setFromDate(event.target.value);
@@ -179,11 +163,9 @@ export function PriceChangeHistoryDialog({
                             type="date"
                             value={fromDate}
                         />
-                    </label>
-                    <label className="grid gap-1 font-bold text-gray-500">
-                        Đến ngày
-                        <input
-                            className={inputClass}
+                    </Field>
+                    <Field label="Đến ngày">
+                        <TextInput
                             min={fromDate || undefined}
                             onChange={(event) => {
                                 setToDate(event.target.value);
@@ -192,19 +174,17 @@ export function PriceChangeHistoryDialog({
                             type="date"
                             value={toDate}
                         />
-                    </label>
+                    </Field>
                     {fromDate || toDate ? (
-                        <button
-                            className="h-9 cursor-pointer rounded-lg border border-pos-border px-3 font-bold text-gray-500 hover:bg-neutral-50"
+                        <Button
                             onClick={() => {
                                 setFromDate("");
                                 setToDate("");
                                 setPage(1);
                             }}
-                            type="button"
                         >
                             Xóa lọc
-                        </button>
+                        </Button>
                     ) : null}
                 </div>
 
@@ -224,25 +204,23 @@ export function PriceChangeHistoryDialog({
                                 : " được ghi nhận cho bảng giá này."}
                         </p>
                     ) : (
-                        <table
-                            className={`w-full border-collapse text-sm text-gray-700 ${resource.loading ? "opacity-60" : ""}`}
-                        >
-                            <thead>
-                                <tr>
-                                    <th className={headClass}>Mặt hàng</th>
-                                    <th className={headClass}>Loại thay đổi</th>
-                                    <th className={headClass}>
+                        <Table className={resource.loading ? "opacity-60" : ""}>
+                            <TableHead className="sticky top-0">
+                                <TableRow>
+                                    <TableHeaderCell>Mặt hàng</TableHeaderCell>
+                                    <TableHeaderCell>Loại thay đổi</TableHeaderCell>
+                                    <TableHeaderCell>
                                         Giá cũ → Giá mới
-                                    </th>
-                                    <th className={headClass}>Chênh lệch</th>
-                                    <th className={headClass}>Người thay đổi</th>
-                                    <th className={headClass}>Thời gian</th>
-                                </tr>
-                            </thead>
+                                    </TableHeaderCell>
+                                    <TableHeaderCell>Chênh lệch</TableHeaderCell>
+                                    <TableHeaderCell>Người thay đổi</TableHeaderCell>
+                                    <TableHeaderCell>Thời gian</TableHeaderCell>
+                                </TableRow>
+                            </TableHead>
                             <tbody>
                                 {rows.map((item) => (
-                                    <tr key={item.id}>
-                                        <td className={cellClass}>
+                                    <TableRow key={item.id}>
+                                        <TableCell>
                                             {item.changeType ===
                                             "STATUS_CHANGED" ? (
                                                 <span className="text-gray-500">
@@ -259,40 +237,36 @@ export function PriceChangeHistoryDialog({
                                                     </span>
                                                 </>
                                             )}
-                                        </td>
-                                        <td className={cellClass}>
-                                            <span
-                                                className={`inline-block whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-bold ${changeTypeClasses[item.changeType] ?? "bg-neutral-100 text-gray-500"}`}
-                                            >
+                                        </TableCell>
+                                        <TableCell>
+                                            <StatusBadge tone={changeTypeTones[item.changeType] ?? "neutral"}>
                                                 {changeTypeLabels[
                                                     item.changeType
                                                 ] ?? item.changeType}
-                                            </span>
-                                        </td>
-                                        <td className={cellClass}>
+                                            </StatusBadge>
+                                        </TableCell>
+                                        <TableCell>
                                             <PriceChange item={item} />
-                                        </td>
-                                        <td className={cellClass}>
+                                        </TableCell>
+                                        <TableCell>
                                             <PriceDifference
                                                 value={item.priceDifference}
                                             />
-                                        </td>
-                                        <td className={cellClass}>
+                                        </TableCell>
+                                        <TableCell>
                                             {item.changedByName ||
                                                 item.changedBy ||
                                                 "Hệ thống"}
-                                        </td>
-                                        <td
-                                            className={`${cellClass} whitespace-nowrap`}
-                                        >
+                                        </TableCell>
+                                        <TableCell className="whitespace-nowrap">
                                             {dateTimeFormatter.format(
                                                 new Date(item.changedAt)
                                             )}
-                                        </td>
-                                    </tr>
+                                        </TableCell>
+                                    </TableRow>
                                 ))}
                             </tbody>
-                        </table>
+                        </Table>
                     )}
                 </div>
 
@@ -308,7 +282,7 @@ export function PriceChangeHistoryDialog({
                     totalItems={resource.data?.totalElements ?? 0}
                     totalItemsLabel="Tổng số thay đổi"
                 />
-            </section>
-        </div>
+            </div>
+        </ModalShell>
     );
 }

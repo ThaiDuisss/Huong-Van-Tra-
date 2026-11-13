@@ -1,4 +1,3 @@
-import orderUiStyles from "@/features/order/components/shared/OrderListUI.module.css";
 import {
     OrderPageLayout,
     OrderListWorkspace,
@@ -14,6 +13,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { TimeSidebar } from "@/components/shared/TimeSidebar";
 import { useTimeFilter } from "@/components/shared/useTimeFilter";
 import { RowActionMenu, type RowAction } from "@/components/shared/RowActionMenu";
+import { Button } from "@/components/ui/Button";
 
 import { useAuthorization } from "../../../auth/useAuthorization";
 import { ROLES } from "../../../auth/roles";
@@ -202,15 +202,10 @@ export function DisposalListPage() {
                 />
             }
             actions={
-                <button
-                    className={orderUiStyles.secondaryButton}
-                    disabled={loading}
-                    onClick={() => setReloadKey((key) => key + 1)}
-                    type="button"
-                >
+                <Button disabled={loading} onClick={() => setReloadKey((key) => key + 1)} size="lg">
                     <RefreshCw size={17} aria-hidden="true" />
                     Làm mới
-                </button>
+                </Button>
             }
         >
             <OrderListWorkspace>
@@ -219,7 +214,7 @@ export function DisposalListPage() {
                         "aria-label": "Tìm kiếm yêu cầu tiêu hủy",
                         placeholder: "Tìm mã yêu cầu hoặc mã phiếu trả...",
                         value: searchTerm,
-                        onChange: (event) => handleSearchChange(event.target.value),
+                        onChange: handleSearchChange,
                         onKeyDown: (event) => {
                             if (event.key === "Escape") {
                                 handleSearchChange("");

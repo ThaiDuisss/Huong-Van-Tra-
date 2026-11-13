@@ -1,5 +1,7 @@
 import { AlertTriangle, LoaderCircle } from "lucide-react";
 
+import { Button } from "@/components/ui/Button";
+
 export function InventoryLoading() {
     return (
         <div className="grid min-h-80 place-items-center text-sm text-gray-500">
@@ -26,13 +28,9 @@ export function InventoryError({
                     Đã xảy ra lỗi. Vui lòng thử lại sau.
                 </p>
                 <p className="mt-1 text-sm text-gray-500">{message}</p>
-                <button
-                    type="button"
-                    onClick={onRetry}
-                    className="mt-4 rounded-xl bg-hvt-green-900 px-4 py-2 text-sm font-bold text-white"
-                >
+                <Button className="mt-4" onClick={onRetry} variant="primary">
                     Thử lại
-                </button>
+                </Button>
             </div>
         </div>
     );

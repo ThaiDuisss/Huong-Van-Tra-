@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 
+import { TableCell, TableRow } from "../../../components/ui/Table";
 import styles from "../pages/StatisticReportPage.module.css";
 
 export function Metric({
@@ -49,10 +50,10 @@ export function RankBadge({ rank }: { rank: number }) {
 
 export function StateRow({ colSpan, message }: { colSpan: number; message: string }) {
     return (
-        <tr>
-            <td className={styles.emptyCell} colSpan={colSpan}>
-                {message}
-            </td>
-        </tr>
+        <TableRow>
+            <TableCell colSpan={colSpan}>
+                <div className={styles.emptyCell}>{message}</div>
+            </TableCell>
+        </TableRow>
     );
 }

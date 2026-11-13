@@ -1,6 +1,8 @@
 import { Check, Copy, Filter, X } from "lucide-react";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 
+import { IconButton } from "../../../components/ui/Button";
+import { Drawer } from "../../../components/ui/Overlay";
 import type { ActionLogFilters, ActionLogResponse } from "../types/action-log.types";
 import { formatDuration, formatOccurredAt, getServiceLabel, humanizeAction } from "../utils/action-log.utils";
 import { ActionLogStatusBadge, HttpMethodTag } from "./ActionLogStatusBadge";
@@ -15,16 +17,16 @@ function CopyButton({ value }: { value: string }) {
   }, [copied]);
 
   return (
-    <button
+    <IconButton
       aria-label={copied ? "Đã sao chép" : "Sao chép"}
-      className="inline-flex size-6 shrink-0 items-center justify-center rounded text-[#8793a1] transition hover:bg-[#eef3ef] hover:text-[#159734]"
+      className="text-[#8793a1] hover:text-[#159734]"
       onClick={() => {
         void navigator.clipboard?.writeText(value).then(() => setCopied(true));
       }}
-      type="button"
+      size="xs"
     >
       {copied ? <Check size={14} aria-hidden="true" /> : <Copy size={14} aria-hidden="true" />}
-    </button>
+    </IconButton>
   );
 }
 
@@ -46,15 +48,15 @@ function Field({
         <span className="min-w-0 break-words">{children}</span>
         {copyValue ? <CopyButton value={copyValue} /> : null}
         {onFilter ? (
-          <button
+          <IconButton
             aria-label={`Lọc theo ${label.toLowerCase()} này`}
-            className="inline-flex size-6 shrink-0 items-center justify-center rounded text-[#8793a1] transition hover:bg-[#eef3ef] hover:text-[#159734]"
+            className="text-[#8793a1] hover:text-[#159734]"
             onClick={onFilter}
+            size="xs"
             title={`Lọc theo ${label.toLowerCase()} này`}
-            type="button"
           >
             <Filter size={14} aria-hidden="true" />
-          </button>
+          </IconButton>
         ) : null}
       </dd>
     </div>
@@ -81,19 +83,6 @@ export function ActionLogDetailDrawer({
   onApplyFilter: (patch: Partial<ActionLogFilters>) => void;
   onClose: () => void;
 }) {
-  const closeButtonRef = useRef<HTMLButtonElement>(null);
-
-  useEffect(() => {
-    if (!log) return;
-
-    closeButtonRef.current?.focus();
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose();
-    };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [log, onClose]);
-
   if (!log) return null;
 
   const applyFilter = (patch: Partial<ActionLogFilters>) => {
@@ -102,20 +91,7 @@ export function ActionLogDetailDrawer({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex justify-end">
-      <button
-        aria-label="Đóng chi tiết"
-        className="absolute inset-0 cursor-default bg-[#0d1b12]/30"
-        onClick={onClose}
-        tabIndex={-1}
-        type="button"
-      />
-      <aside
-        aria-labelledby="action-log-detail-title"
-        aria-modal="true"
-        className="relative flex h-full w-full max-w-[520px] flex-col bg-[#f7f8fb] shadow-pos-panel"
-        role="dialog"
-      >
+    <Drawer key={log.id} labelledBy="action-log-detail-title" onClose={onClose}>
         <header className="flex items-start justify-between gap-3 border-b border-[#e8eef0] bg-white px-5 py-4">
           <div className="grid min-w-0 gap-1.5">
             <p className="text-xs font-black uppercase text-[#159734]">Chi tiết hành động #{log.id}</p>
@@ -127,15 +103,9 @@ export function ActionLogDetailDrawer({
               <span className="text-xs font-semibold text-[#697684]">{formatOccurredAt(log.occurredAt)}</span>
             </div>
           </div>
-          <button
-            aria-label="Đóng"
-            className="inline-flex size-9 shrink-0 items-center justify-center rounded-lg border border-pos-border bg-white text-[#536078] transition hover:border-[#159734] hover:text-[#159734]"
-            onClick={onClose}
-            ref={closeButtonRef}
-            type="button"
-          >
+          <IconButton aria-label="Đóng" autoFocus onClick={onClose} size="md" variant="secondary">
             <X size={18} aria-hidden="true" />
-          </button>
+          </IconButton>
         </header>
 
         <div className="grid flex-1 content-start gap-4 overflow-y-auto px-5 py-4">
@@ -212,7 +182,6 @@ export function ActionLogDetailDrawer({
             </Field>
           </Section>
         </div>
-      </aside>
-    </div>
+    </Drawer>
   );
 }

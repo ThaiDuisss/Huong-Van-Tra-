@@ -1,5 +1,7 @@
-import { useEffect } from "react";
 import { X, ShieldCheck } from "lucide-react";
+
+import { Button, IconButton } from "../../../components/ui/Button";
+import { ModalShell } from "../../../components/ui/Overlay";
 import styles from "../pages/CreateReturnPage.module.css";
 
 interface ReturnPolicyModalProps {
@@ -20,52 +22,24 @@ export function ReturnPolicyModal({
     onClose,
     policies = []
 }: ReturnPolicyModalProps) {
-    useEffect(() => {
-        if (!isOpen) return;
-
-        const handleKeyDown = (event: KeyboardEvent) => {
-            if (event.key === "Escape") {
-                onClose();
-            }
-        };
-
-        window.addEventListener("keydown", handleKeyDown);
-        return () => window.removeEventListener("keydown", handleKeyDown);
-    }, [isOpen, onClose]);
-
     if (!isOpen) return null;
 
     const displayPolicies = policies.length > 0 ? policies : DEFAULT_POLICIES;
 
     return (
-        <div
-            className={styles.modalBackdrop}
-            onClick={(e) => {
-                if (e.target === e.currentTarget) {
-                    onClose();
-                }
-            }}
-            role="presentation"
+        <ModalShell
+            className={styles.modalDialog}
+            labelledBy="return-policy-modal-title"
+            onClose={onClose}
         >
-            <div
-                className={styles.modalDialog}
-                role="dialog"
-                aria-modal="true"
-                aria-labelledby="return-policy-modal-title"
-            >
                 <div className={styles.modalHeader}>
                     <div className={styles.modalTitleWrap}>
                         <ShieldCheck size={20} className={styles.modalIcon} aria-hidden="true" />
                         <h2 id="return-policy-modal-title">Chính sách hoàn hàng chi tiết</h2>
                     </div>
-                    <button
-                        type="button"
-                        className={styles.modalCloseButton}
-                        onClick={onClose}
-                        aria-label="Đóng chính sách"
-                    >
+                    <IconButton aria-label="Đóng chính sách" onClick={onClose}>
                         <X size={18} aria-hidden="true" />
-                    </button>
+                    </IconButton>
                 </div>
 
                 <div className={styles.modalBody}>
@@ -80,16 +54,11 @@ export function ReturnPolicyModal({
                 </div>
 
                 <div className={styles.modalFooter}>
-                    <button
-                        type="button"
-                        className={styles.primaryButton}
-                        onClick={onClose}
-                    >
+                    <Button onClick={onClose} variant="primary">
                         Đã hiểu
-                    </button>
+                    </Button>
                 </div>
-            </div>
-        </div>
+        </ModalShell>
     );
 }
 

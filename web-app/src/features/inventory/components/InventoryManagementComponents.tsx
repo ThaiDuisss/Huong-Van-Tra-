@@ -13,6 +13,10 @@ import {
 } from "lucide-react";
 import type { ReactNode } from "react";
 
+import { Button } from "../../../components/ui/Button";
+import { Field, NativeSelect, TextInput } from "../../../components/ui/Field";
+import { type BadgeTone, StatusBadge } from "../../../components/ui/StatusBadge";
+import { Table, TableCell, TableHead, TableHeaderCell, TableRow } from "../../../components/ui/Table";
 import {
     Dialog,
     DialogContent,
@@ -52,16 +56,16 @@ interface CommonOption {
     label: string;
 }
 
-const statusTone: Record<InventoryRecordStatus, string> = {
-    APPROVED: "border-emerald-200 bg-emerald-50 text-emerald-700",
-    BLOCKED: "border-red-200 bg-red-50 text-red-700",
-    CANCELLED: "border-slate-200 bg-slate-50 text-slate-600",
-    COMPLETED: "border-green-200 bg-green-50 text-green-700",
-    DRAFT: "border-slate-200 bg-slate-50 text-slate-700",
-    IN_PROGRESS: "border-blue-200 bg-blue-50 text-blue-700",
-    PENDING_APPROVAL: "border-amber-200 bg-amber-50 text-amber-700",
-    REJECTED: "border-red-200 bg-red-50 text-red-700",
-    WARNING: "border-orange-200 bg-orange-50 text-orange-700"
+const statusTone: Record<InventoryRecordStatus, BadgeTone> = {
+    APPROVED: "success",
+    BLOCKED: "danger",
+    CANCELLED: "neutral",
+    COMPLETED: "success",
+    DRAFT: "neutral",
+    IN_PROGRESS: "info",
+    PENDING_APPROVAL: "warning",
+    REJECTED: "danger",
+    WARNING: "pending"
 };
 
 function statusIcon(status: InventoryRecordStatus) {
@@ -86,12 +90,12 @@ export function InventoryStatusBadge({
     status: InventoryRecordStatus;
 }) {
     return (
-        <span
-            className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-black ${statusTone[status]}`}
-        >
-            {statusIcon(status)}
-            {inventoryStatusLabels[status]}
-        </span>
+        <StatusBadge tone={statusTone[status]}>
+            <span className="inline-flex items-center gap-1.5">
+                {statusIcon(status)}
+                {inventoryStatusLabels[status]}
+            </span>
+        </StatusBadge>
     );
 }
 
@@ -166,11 +170,9 @@ export function InventoryFilterBar({
     return (
         <section className="grid gap-3 rounded-xl border border-[#e8eef0] bg-white p-4 shadow-pos-card">
             <div className="grid gap-3 md:grid-cols-[minmax(240px,1fr)_180px_190px_170px]">
-                <label className="grid gap-1.5 text-xs font-black text-[#536078]">
-                    Tìm kiếm
-                    <input
+                <Field label="Tìm kiếm">
+                    <TextInput
                         aria-label="Tìm kiếm chứng từ kho"
-                        className="h-10 rounded-lg border border-pos-border px-3 text-sm font-semibold text-[#172317] outline-none focus:border-[#159734]"
                         onChange={(event) =>
                             onChange({
                                 page: 0,
@@ -181,13 +183,11 @@ export function InventoryFilterBar({
                         type="search"
                         value={query.search}
                     />
-                </label>
+                </Field>
 
-                <label className="grid gap-1.5 text-xs font-black text-[#536078]">
-                    Trạng thái
-                    <select
+                <Field label="Trạng thái">
+                    <NativeSelect
                         aria-label="Lọc theo trạng thái"
-                        className="h-10 rounded-lg border border-pos-border px-3 text-sm font-semibold text-[#172317] outline-none focus:border-[#159734]"
                         onChange={(event) =>
                             onChange({
                                 page: 0,
@@ -205,8 +205,8 @@ export function InventoryFilterBar({
                                 </option>
                             )
                         )}
-                    </select>
-                </label>
+                    </NativeSelect>
+                </Field>
 
                 <LocationSelect
                     label="Kho"
@@ -217,11 +217,9 @@ export function InventoryFilterBar({
                     value={query.locationId}
                 />
 
-                <label className="grid gap-1.5 text-xs font-black text-[#536078]">
-                    Sắp xếp
-                    <select
+                <Field label="Sắp xếp">
+                    <NativeSelect
                         aria-label="Sắp xếp danh sách"
-                        className="h-10 rounded-lg border border-pos-border px-3 text-sm font-semibold text-[#172317] outline-none focus:border-[#159734]"
                         onChange={(event) =>
                             onChange({
                                 page: 0,
@@ -235,8 +233,8 @@ export function InventoryFilterBar({
                         <option value="code">Mã chứng từ</option>
                         <option value="quantity">Số lượng</option>
                         <option value="value">Giá trị</option>
-                    </select>
-                </label>
+                    </NativeSelect>
+                </Field>
             </div>
         </section>
     );
@@ -257,31 +255,31 @@ export function InventoryDataTable({
 }) {
     return (
         <div className="overflow-x-auto rounded-xl border border-[#e8eef0] bg-white shadow-pos-card">
-            <table className="w-full min-w-[1120px] border-separate border-spacing-0 text-left text-sm">
-                <thead className="bg-[#eaf7ec] text-xs font-black text-[#172317]">
-                    <tr>
-                        <th className="border-b border-[#dce8df] px-4 py-3">
+            <Table className="min-w-[1120px]">
+                <TableHead>
+                    <TableRow>
+                        <TableHeaderCell>
                             Chứng từ
-                        </th>
-                        <th className="border-b border-[#dce8df] px-4 py-3">
+                        </TableHeaderCell>
+                        <TableHeaderCell>
                             Loại
-                        </th>
-                        <th className="border-b border-[#dce8df] px-4 py-3">
+                        </TableHeaderCell>
+                        <TableHeaderCell>
                             Mặt hàng
-                        </th>
-                        <th className="border-b border-[#dce8df] px-4 py-3">
+                        </TableHeaderCell>
+                        <TableHeaderCell>
                             Kho
-                        </th>
-                        <th className="border-b border-[#dce8df] px-4 py-3 text-right">
+                        </TableHeaderCell>
+                        <TableHeaderCell className="text-right">
                             Số lượng
-                        </th>
-                        <th className="border-b border-[#dce8df] px-4 py-3 text-right">
+                        </TableHeaderCell>
+                        <TableHeaderCell className="text-right">
                             Giá trị
-                        </th>
-                        <th className="border-b border-[#dce8df] px-4 py-3">
+                        </TableHeaderCell>
+                        <TableHeaderCell>
                             Trạng thái
-                        </th>
-                        <th className="border-b border-[#dce8df] px-4 py-3">
+                        </TableHeaderCell>
+                        <TableHeaderCell>
                             <button
                                 className="inline-flex items-center gap-1 font-black"
                                 onClick={onSortToggle}
@@ -298,15 +296,15 @@ export function InventoryDataTable({
                                     aria-hidden="true"
                                 />
                             </button>
-                        </th>
-                        <th className="border-b border-[#dce8df] px-4 py-3 text-right">
+                        </TableHeaderCell>
+                        <TableHeaderCell className="text-right">
                             Thao tác
-                        </th>
-                    </tr>
-                </thead>
+                        </TableHeaderCell>
+                    </TableRow>
+                </TableHead>
                 <tbody>
                     {records.map((record) => (
-                        <tr
+                        <TableRow
                             className={
                                 activeRecordId === String(record.id)
                                     ? "bg-[#f0fbef]"
@@ -314,17 +312,17 @@ export function InventoryDataTable({
                             }
                             key={String(record.id)}
                         >
-                            <td className="border-b border-[#edf0f4] px-4 py-3">
+                            <TableCell>
                                 <InventoryDocumentLink record={record} />
-                            </td>
-                            <td className="border-b border-[#edf0f4] px-4 py-3 font-semibold text-[#536078]">
+                            </TableCell>
+                            <TableCell className="font-semibold text-[#536078]">
                                 {
                                     inventoryDocumentTypeLabels[
                                         record.documentType
                                     ]
                                 }
-                            </td>
-                            <td className="border-b border-[#edf0f4] px-4 py-3">
+                            </TableCell>
+                            <TableCell>
                                 <div className="grid gap-1">
                                     <strong className="text-[#172317]">
                                         {record.itemName}
@@ -333,41 +331,37 @@ export function InventoryDataTable({
                                         {record.sku}
                                     </span>
                                 </div>
-                            </td>
-                            <td className="border-b border-[#edf0f4] px-4 py-3 font-semibold text-[#536078]">
+                            </TableCell>
+                            <TableCell className="font-semibold text-[#536078]">
                                 {record.targetLocationName
                                     ? `${record.locationName} -> ${record.targetLocationName}`
                                     : record.locationName}
-                            </td>
-                            <td className="border-b border-[#edf0f4] px-4 py-3 text-right font-black text-[#172317]">
+                            </TableCell>
+                            <TableCell className="text-right font-black text-[#172317]">
                                 {formatVietnamNumber(record.quantity)}{" "}
                                 {record.unit}
-                            </td>
-                            <td className="border-b border-[#edf0f4] px-4 py-3 text-right font-black text-[#172317]">
+                            </TableCell>
+                            <TableCell className="text-right font-black text-[#172317]">
                                 {formatVnd(record.value)}
-                            </td>
-                            <td className="border-b border-[#edf0f4] px-4 py-3">
+                            </TableCell>
+                            <TableCell>
                                 <InventoryStatusBadge
                                     status={record.status}
                                 />
-                            </td>
-                            <td className="border-b border-[#edf0f4] px-4 py-3 font-semibold text-[#536078]">
+                            </TableCell>
+                            <TableCell className="font-semibold text-[#536078]">
                                 {formatVietnamDateTime(record.updatedAt)}
-                            </td>
-                            <td className="border-b border-[#edf0f4] px-4 py-3 text-right">
-                                <button
-                                    className="inline-flex h-9 items-center gap-2 rounded-lg border border-[#d8eadc] px-3 text-xs font-black text-[#159734] hover:bg-[#f4faf5]"
-                                    onClick={() => onView(record)}
-                                    type="button"
-                                >
+                            </TableCell>
+                            <TableCell className="text-right">
+                                <Button onClick={() => onView(record)} size="sm">
                                     <Eye size={15} aria-hidden="true" />
                                     Xem nhanh
-                                </button>
-                            </td>
-                        </tr>
+                                </Button>
+                            </TableCell>
+                        </TableRow>
                     ))}
                 </tbody>
-            </table>
+            </Table>
         </div>
     );
 }
@@ -420,13 +414,9 @@ export function InventoryErrorState({
                 <p className="text-sm font-semibold leading-6 text-red-700">
                     {message}
                 </p>
-                <button
-                    className="rounded-lg bg-red-700 px-4 py-2 text-sm font-black text-white"
-                    onClick={onRetry}
-                    type="button"
-                >
+                <Button onClick={onRetry} variant="danger">
                     Thử lại
-                </button>
+                </Button>
             </div>
         </div>
     );
@@ -568,32 +558,32 @@ export function BatchAllocationTable({
 
     return (
         <div className="overflow-x-auto rounded-lg border border-[#e8eef0]">
-            <table className="w-full min-w-[460px] text-left text-sm">
-                <thead className="bg-[#f7f8fb] text-xs font-black text-[#536078]">
-                    <tr>
-                        <th className="px-3 py-2">Batch</th>
-                        <th className="px-3 py-2">Hạn dùng</th>
-                        <th className="px-3 py-2 text-right">Số lượng</th>
-                    </tr>
-                </thead>
+            <Table className="min-w-[460px]">
+                <TableHead>
+                    <TableRow>
+                        <TableHeaderCell>Batch</TableHeaderCell>
+                        <TableHeaderCell>Hạn dùng</TableHeaderCell>
+                        <TableHeaderCell className="text-right">Số lượng</TableHeaderCell>
+                    </TableRow>
+                </TableHead>
                 <tbody>
                     {allocations.map((allocation) => (
-                        <tr key={allocation.batchId}>
-                            <td className="border-t border-[#edf0f4] px-3 py-2 font-black text-[#172317]">
+                        <TableRow key={allocation.batchId}>
+                            <TableCell className="font-black text-[#172317]">
                                 {allocation.batchCode}
-                            </td>
-                            <td className="border-t border-[#edf0f4] px-3 py-2 font-semibold text-[#697684]">
+                            </TableCell>
+                            <TableCell className="font-semibold text-[#697684]">
                                 {formatVietnamDateTime(
                                     allocation.expiryDate
                                 )}
-                            </td>
-                            <td className="border-t border-[#edf0f4] px-3 py-2 text-right font-black text-[#172317]">
+                            </TableCell>
+                            <TableCell className="text-right font-black text-[#172317]">
                                 {formatVietnamNumber(allocation.quantity)}
-                            </td>
-                        </tr>
+                            </TableCell>
+                        </TableRow>
                     ))}
                 </tbody>
-            </table>
+            </Table>
         </div>
     );
 }
@@ -608,11 +598,9 @@ export function QuantityInput({
     value: number;
 }) {
     return (
-        <label className="grid gap-1.5 text-xs font-black text-[#536078]">
-            {label}
-            <input
+        <Field label={label}>
+            <TextInput
                 aria-label={label}
-                className="h-10 rounded-lg border border-pos-border px-3 text-sm font-semibold text-[#172317] outline-none focus:border-[#159734]"
                 min={0}
                 onChange={(event) =>
                     onChange(Number(event.currentTarget.value))
@@ -620,7 +608,7 @@ export function QuantityInput({
                 type="number"
                 value={value}
             />
-        </label>
+        </Field>
     );
 }
 
@@ -800,22 +788,12 @@ export function ConfirmInventoryActionDialog({
                     </p>
                 </div>
                 <DialogFooter>
-                    <button
-                        className="h-10 rounded-lg border border-[#dce5e1] px-4 text-sm font-black text-[#536078]"
-                        disabled={loading}
-                        onClick={onCancel}
-                        type="button"
-                    >
+                    <Button disabled={loading} onClick={onCancel}>
                         Hủy
-                    </button>
-                    <button
-                        className="h-10 rounded-lg bg-[#159734] px-4 text-sm font-black text-white disabled:cursor-not-allowed disabled:opacity-60"
-                        disabled={loading}
-                        onClick={onConfirm}
-                        type="button"
-                    >
+                    </Button>
+                    <Button disabled={loading} onClick={onConfirm} variant="primary">
                         {loading ? "Đang xử lý..." : "Xác nhận"}
-                    </button>
+                    </Button>
                 </DialogFooter>
             </DialogContent>
         </Dialog>
@@ -870,11 +848,9 @@ function SimpleSelect({
     value: string;
 }) {
     return (
-        <label className="grid gap-1.5 text-xs font-black text-[#536078]">
-            {label}
-            <select
+        <Field label={label}>
+            <NativeSelect
                 aria-label={label}
-                className="h-10 rounded-lg border border-pos-border px-3 text-sm font-semibold text-[#172317] outline-none focus:border-[#159734]"
                 onChange={(event) => onChange(event.currentTarget.value)}
                 value={value}
             >
@@ -883,7 +859,7 @@ function SimpleSelect({
                         {option.label}
                     </option>
                 ))}
-            </select>
-        </label>
+            </NativeSelect>
+        </Field>
     );
 }

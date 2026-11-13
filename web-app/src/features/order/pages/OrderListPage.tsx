@@ -1,4 +1,3 @@
-import orderUiStyles from "../components/shared/OrderListUI.module.css";
 import {
   OrderPageLayout,
   OrderListWorkspace,
@@ -13,6 +12,8 @@ import {
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
+import { ModalShell } from "../../../components/ui/Overlay";
+import { Button } from "../../../components/ui/Button";
 import { TimeSidebar } from "../../../components/shared/TimeSidebar";
 import {
   buildTodayTimeNode,
@@ -336,19 +337,14 @@ export function OrderListPage() {
       }
       actions={
         <>
-          <button
-            className={orderUiStyles.secondaryButton}
-            onClick={() => setIsImportOpen(true)}
-            type="button"
-          >
+          <Button onClick={() => setIsImportOpen(true)} size="lg">
             <Upload size={18} aria-hidden="true" />
             Nhập file
-          </button>
+          </Button>
           <ExportDropdown
             allDescription="Bỏ qua các bộ lọc hiện tại"
             allFilenamePrefix="tat-ca-don-hang"
             allLabel="Xuất toàn bộ đơn hàng"
-            buttonClassName={orderUiStyles.secondaryButton}
             emptyFilteredMessage="Không có đơn hàng phù hợp với bộ lọc để xuất file."
             fallbackErrorMessage="Không thể xuất file đơn hàng. Vui lòng thử lại."
             filteredDescription="Áp dụng thời gian, trạng thái và từ khóa đang chọn"
@@ -369,7 +365,7 @@ export function OrderListPage() {
         <OrderToolbar
           search={{
             "aria-label": "Tìm kiếm đơn hàng",
-            onChange: (event) => handleSearchChange(event.target.value),
+            onChange: handleSearchChange,
             onKeyDown: (event) => {
               if (event.key === "Escape") {
                 handleSearchChange("");
@@ -458,13 +454,7 @@ export function OrderListPage() {
         />
       </OrderListWorkspace>
       {isOrderDetailOpen ? (
-        <div className={styles.detailModalBackdrop} onClick={closeOrderDetail} role="presentation">
-          <div
-            aria-modal="true"
-            className={styles.detailModal}
-            onClick={(event) => event.stopPropagation()}
-            role="dialog"
-          >
+        <ModalShell className={styles.detailModal} onClose={closeOrderDetail}>
             <OrderDetailPanel
               order={activeOrder}
               summary={activeSummary}
@@ -475,8 +465,7 @@ export function OrderListPage() {
               }
               onClose={closeOrderDetail}
             />
-          </div>
-        </div>
+        </ModalShell>
       ) : null}
       {isImportOpen ? (
         <OrderImportDialog

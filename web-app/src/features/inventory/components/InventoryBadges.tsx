@@ -1,3 +1,5 @@
+import { StatusBadge, type BadgeTone } from "@/components/ui/StatusBadge";
+
 import type {
     InventoryLocationType,
     InventoryStatus,
@@ -8,61 +10,43 @@ import {
     locationTypeLabels
 } from "../utils/inventory-labels";
 
-export function InventoryStatusBadge({
-    status
-}: {
-    status: InventoryStatus;
-}) {
+export function InventoryStatusBadge({ status }: { status: InventoryStatus }) {
     return (
-        <span
-            className={`inline-flex rounded-lg px-2.5 py-1 text-xs font-bold ${
-                status === "ACTIVE"
-                    ? "bg-emerald-50 text-emerald-700"
-                    : "bg-neutral-100 text-neutral-600"
-            }`}
-        >
+        <StatusBadge dot tone={status === "ACTIVE" ? "success" : "neutral"}>
             {inventoryStatusLabels[status]}
-        </span>
+        </StatusBadge>
     );
 }
 
-export function LocationTypeBadge({
-    type
-}: {
-    type: InventoryLocationType;
-}) {
-    const tone = {
-        WAREHOUSE: "bg-emerald-50 text-emerald-700",
-        DAMAGED: "bg-red-50 text-red-700",
-        SHELF: "bg-blue-50 text-blue-700",
-        QUARANTINE: "bg-purple-50 text-purple-700"
-    }[type];
+const locationTone: Record<InventoryLocationType, BadgeTone> = {
+    WAREHOUSE: "success",
+    DAMAGED: "danger",
+    SHELF: "info",
+    QUARANTINE: "violet"
+};
 
+export function LocationTypeBadge({ type }: { type: InventoryLocationType }) {
     return (
-        <span className={`rounded-lg px-2.5 py-1 text-xs font-bold ${tone}`}>
+        <StatusBadge shape="tag" tone={locationTone[type] ?? "neutral"}>
             {locationTypeLabels[type]}
-        </span>
+        </StatusBadge>
     );
 }
 
-export function TransactionTypeBadge({
-    type
-}: {
-    type: InventoryTransactionType;
-}) {
-    const badgeConfig: Record<InventoryTransactionType, { label: string; tone: string }> = {
-        STOCK_IN: { label: "Nhập kho", tone: "bg-emerald-50 text-emerald-700 border-emerald-200" },
-        SALE_OUT: { label: "Xuất bán", tone: "bg-blue-50 text-blue-700 border-blue-200" },
-        RETURN_IN: { label: "Trả hàng", tone: "bg-amber-50 text-amber-700 border-amber-200" },
-        ADJUSTMENT: { label: "Kiểm kê", tone: "bg-purple-50 text-purple-700 border-purple-200" },
-        TRANSFER: { label: "Chuyển kho", tone: "bg-gray-100 text-gray-700 border-gray-200" },
-    };
+const transactionConfig: Record<InventoryTransactionType, { label: string; tone: BadgeTone }> = {
+    STOCK_IN: { label: "Nhập kho", tone: "success" },
+    SALE_OUT: { label: "Xuất bán", tone: "info" },
+    RETURN_IN: { label: "Trả hàng", tone: "warning" },
+    ADJUSTMENT: { label: "Kiểm kê", tone: "violet" },
+    TRANSFER: { label: "Chuyển kho", tone: "neutral" }
+};
 
-    const config = badgeConfig[type] ?? { label: type, tone: "bg-gray-100 text-gray-700 border-gray-200" };
+export function TransactionTypeBadge({ type }: { type: InventoryTransactionType }) {
+    const config = transactionConfig[type] ?? { label: type, tone: "neutral" as BadgeTone };
 
     return (
-        <span className={`inline-flex items-center rounded-md border px-2 py-0.5 text-xs font-bold ${config.tone}`}>
+        <StatusBadge shape="tag" tone={config.tone}>
             {config.label}
-        </span>
+        </StatusBadge>
     );
 }

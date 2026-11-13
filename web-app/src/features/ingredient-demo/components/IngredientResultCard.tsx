@@ -1,5 +1,8 @@
 import { Copy } from "lucide-react";
 import { useState } from "react";
+import { Button } from "../../../components/ui/Button";
+import { StatusBadge } from "../../../components/ui/StatusBadge";
+import { Table, TableCell, TableHead, TableHeaderCell, TableRow } from "../../../components/ui/Table";
 import type { IngredientRecommendation } from "../types/ingredientDemo.types";
 import { shortResearchId } from "../utils/ingredientDemo.display";
 
@@ -16,9 +19,9 @@ export function ResearchId({ label, value }: { label: string; value: string }) {
   return <div className="space-y-1 text-xs text-slate-600">
     <div className="flex flex-wrap items-center gap-2">
       <span className="font-semibold">{label}:</span><code>{shortResearchId(value)}</code>
-      <button type="button" onClick={() => void copy()} className="inline-flex items-center gap-1 rounded px-2 py-1 text-emerald-800 hover:bg-emerald-50" aria-label={`Sao chép ${label}`}>
+      <Button aria-label={`Sao chép ${label}`} onClick={() => void copy()} size="sm" variant="ghost">
         <Copy size={13} /> Sao chép
-      </button>
+      </Button>
     </div>
     <details><summary className="cursor-pointer">ID đầy đủ</summary><code className="block break-all py-1">{value}</code></details>
     {message && <p role="status">{message}</p>}
@@ -30,7 +33,7 @@ export function IngredientResultCard({ item }: { item: IngredientRecommendation 
   return <article className="space-y-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
     <div className="flex flex-wrap items-center justify-between gap-2">
       <h3 className="font-bold text-slate-900">#{item.rank} · {product ? "Sản phẩm nghiên cứu" : "Công thức nghiên cứu"}</h3>
-      <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-800">{item.recommendation_type}</span>
+      <StatusBadge tone="success">{item.recommendation_type}</StatusBadge>
     </div>
     <div className="flex flex-wrap gap-x-5 gap-y-2 text-sm">
       <p>Điểm: <strong className="text-slate-900">{item.score.toFixed(4)}</strong></p>
@@ -44,14 +47,14 @@ export function IngredientResultCard({ item }: { item: IngredientRecommendation 
       {product && <ResearchId label="Recipe ID liên kết (suy diễn)" value={item.recipe_id} />}
     </div>
     <div className="overflow-x-auto">
-      <table className="w-full text-left text-sm">
+      <Table>
         <caption className="mb-2 text-left font-semibold text-slate-800">Nguyên liệu và định lượng mô phỏng</caption>
-        <thead className="bg-slate-50 text-xs text-slate-600"><tr><th className="p-2">Nguyên liệu</th><th className="p-2">Vai trò</th><th className="p-2 text-right">Định lượng</th></tr></thead>
-        <tbody>{item.ingredient_summary.map((ingredient, index) => <tr key={`${ingredient.ingredient}-${index}`} className="border-t border-slate-100">
-          <td className="p-2 font-medium">{ingredient.ingredient}</td><td className="p-2">{ingredient.role}</td>
-          <td className="whitespace-nowrap p-2 text-right">{ingredient.quantity} {ingredient.unit}</td>
-        </tr>)}</tbody>
-      </table>
+        <TableHead><TableRow><TableHeaderCell>Nguyên liệu</TableHeaderCell><TableHeaderCell>Vai trò</TableHeaderCell><TableHeaderCell className="text-right">Định lượng</TableHeaderCell></TableRow></TableHead>
+        <tbody>{item.ingredient_summary.map((ingredient, index) => <TableRow key={`${ingredient.ingredient}-${index}`}>
+          <TableCell className="font-medium">{ingredient.ingredient}</TableCell><TableCell>{ingredient.role}</TableCell>
+          <TableCell className="whitespace-nowrap text-right">{ingredient.quantity} {ingredient.unit}</TableCell>
+        </TableRow>)}</tbody>
+      </Table>
     </div>
     {item.profile_signals && <p className="text-xs leading-5 text-slate-500">
       Nguồn tín hiệu: {item.profile_signals.product_inferred_orders} đơn có Product suy diễn; {item.profile_signals.custom_synthetic_orders} đơn có BOM mô phỏng; {item.profile_signals.orders} đơn trong hồ sơ. Một đơn có thể có cả hai nguồn.

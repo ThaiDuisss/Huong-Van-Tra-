@@ -1,5 +1,7 @@
 import { useState } from "react";
 
+import { Field, NativeSelect } from "../../../components/ui/Field";
+import { Table, TableCell, TableHead, TableHeaderCell, TableRow } from "../../../components/ui/Table";
 import { useStatisticReport } from "../hooks/useStatisticReport";
 import styles from "../pages/StatisticReportPage.module.css";
 import {
@@ -56,16 +58,15 @@ export function TopSalesStaffPanel({ enabled, fromDate, limit, toDate }: ReportP
                         </span>
                     </div>
                     <div className={styles.tableTools}>
-                        <label className={styles.inlineField}>
-                            Xếp hạng theo
-                            <select
+                        <Field label="Xếp hạng theo">
+                            <NativeSelect
                                 onChange={(event) => setSortBy(event.target.value as StaffSortBy)}
                                 value={sortBy}
                             >
                                 <option value="revenue">Doanh thu</option>
                                 <option value="orders">Số đơn hàng</option>
-                            </select>
-                        </label>
+                            </NativeSelect>
+                        </Field>
                         <ReportExportButton
                             disabled={!enabled || loading || rows.length === 0}
                             filenamePrefix="bao-cao-nhan-vien-ban-hang"
@@ -79,32 +80,32 @@ export function TopSalesStaffPanel({ enabled, fromDate, limit, toDate }: ReportP
                 {error ? <div className={styles.errorBox}>{error}</div> : null}
 
                 <div className={styles.tableWrap}>
-                    <table className={styles.reportTable}>
-                        <thead>
-                            <tr>
-                                <th className={styles.rankColumn}>Hạng</th>
-                                <th>Nhân viên</th>
-                                <th className={styles.numeric}>Số đơn</th>
-                                <th className={styles.numeric}>Doanh thu</th>
-                                <th className={styles.numeric}>Giá trị đơn TB</th>
-                                <th className={styles.numeric}>SL sản phẩm bán</th>
-                                <th className={styles.numeric}>Đơn có hoàn tiền</th>
-                            </tr>
-                        </thead>
+                    <Table className="min-w-[860px]">
+                        <TableHead>
+                            <TableRow>
+                                <TableHeaderCell className="w-16 text-center">Hạng</TableHeaderCell>
+                                <TableHeaderCell>Nhân viên</TableHeaderCell>
+                                <TableHeaderCell className="text-right">Số đơn</TableHeaderCell>
+                                <TableHeaderCell className="text-right">Doanh thu</TableHeaderCell>
+                                <TableHeaderCell className="text-right">Giá trị đơn TB</TableHeaderCell>
+                                <TableHeaderCell className="text-right">SL sản phẩm bán</TableHeaderCell>
+                                <TableHeaderCell className="text-right">Đơn có hoàn tiền</TableHeaderCell>
+                            </TableRow>
+                        </TableHead>
                         <tbody>
                             {loading ? (
                                 <StateRow colSpan={COLUMN_COUNT} message="Đang tải dữ liệu báo cáo..." />
                             ) : null}
                             {!loading && !error
                                 ? rows.map((row) => (
-                                      <tr key={row.cashierId ?? "unknown"}>
-                                          <td className={styles.rankColumn}>
+                                      <TableRow className="hover:bg-[#f8fbf8]" key={row.cashierId ?? "unknown"}>
+                                          <TableCell className="w-16 text-center">
                                               <RankBadge rank={row.rank} />
-                                          </td>
-                                          <td>
+                                          </TableCell>
+                                          <TableCell>
                                               <strong>{row.cashierName?.trim() || "Không xác định"}</strong>
-                                          </td>
-                                          <td className={styles.numeric}>
+                                          </TableCell>
+                                          <TableCell className="text-right tabular-nums">
                                               {sortBy === "orders" ? (
                                                   <BarValue max={maxOrders} value={row.orderCount}>
                                                       {formatCount(row.orderCount)}
@@ -112,8 +113,8 @@ export function TopSalesStaffPanel({ enabled, fromDate, limit, toDate }: ReportP
                                               ) : (
                                                   formatCount(row.orderCount)
                                               )}
-                                          </td>
-                                          <td className={styles.numeric}>
+                                          </TableCell>
+                                          <TableCell className="text-right tabular-nums">
                                               {sortBy === "revenue" ? (
                                                   <BarValue max={maxRevenue} value={toNumber(row.revenue)}>
                                                       {formatCurrency(row.revenue)}
@@ -121,11 +122,11 @@ export function TopSalesStaffPanel({ enabled, fromDate, limit, toDate }: ReportP
                                               ) : (
                                                   formatCurrency(row.revenue)
                                               )}
-                                          </td>
-                                          <td className={styles.numeric}>{formatCurrency(row.averageOrderValue)}</td>
-                                          <td className={styles.numeric}>{formatQuantity(row.itemsSold)}</td>
-                                          <td className={styles.numeric}>{formatCount(row.refundedOrderCount)}</td>
-                                      </tr>
+                                          </TableCell>
+                                          <TableCell className="text-right tabular-nums">{formatCurrency(row.averageOrderValue)}</TableCell>
+                                          <TableCell className="text-right tabular-nums">{formatQuantity(row.itemsSold)}</TableCell>
+                                          <TableCell className="text-right tabular-nums">{formatCount(row.refundedOrderCount)}</TableCell>
+                                      </TableRow>
                                   ))
                                 : null}
                             {!loading && !error && rows.length === 0 ? (
@@ -139,7 +140,7 @@ export function TopSalesStaffPanel({ enabled, fromDate, limit, toDate }: ReportP
                                 />
                             ) : null}
                         </tbody>
-                    </table>
+                    </Table>
                 </div>
             </section>
         </>

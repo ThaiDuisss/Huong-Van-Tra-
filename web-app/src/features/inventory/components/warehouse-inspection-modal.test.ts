@@ -11,6 +11,19 @@ vi.mock("@/auth/role-utils", () => ({
     })
 }));
 
+if (typeof document === "undefined") {
+    (globalThis as unknown as { document: unknown }).document = { body: {} };
+}
+
+// Hộp thoại nay dựng bằng ModalShell (createPortal); render portal tại chỗ để renderToStaticMarkup đọc được.
+vi.mock("react-dom", async () => {
+    const actual = await vi.importActual<typeof import("react-dom")>("react-dom");
+    return {
+        ...actual,
+        createPortal: (children: React.ReactNode) => children
+    };
+});
+
 import type { OrderReturnListRow } from "../../order/types/order-return.types";
 import { CustomerReturnWarehouseInspectionModal } from "./CustomerReturnWarehouseInspectionModal";
 import { customerReturnApi } from "../services/customerReturn.api";

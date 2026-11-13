@@ -1,5 +1,6 @@
 import { useState } from "react";
 
+import { Button } from "../../../../components/ui/Button";
 import { InventoryEmptyState } from "../../../inventory/components/InventoryManagementComponents";
 import { stockAlertSeverityLabels } from "../../../inventory/constants/stock-alert.constants";
 import { formatVietnamNumber } from "../../../inventory/utils/inventory-format";
@@ -105,9 +106,9 @@ export function AlertsTab({
               <span>
                 Không tải được {alerts.status === "error" ? "nguồn cảnh báo" : partErrors.join(", ")}.
               </span>
-              <button className="font-black underline" onClick={() => retry("alerts")} type="button">
+              <Button onClick={() => retry("alerts")} size="sm">
                 Thử lại
-              </button>
+              </Button>
             </div>
           ) : null}
 

@@ -1,6 +1,8 @@
 import { Leaf, Search, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
+import { Button, IconButton } from "../../../../components/ui/Button";
+import { TextInput } from "../../../../components/ui/Field";
 import { formatCurrency } from "../../services/money";
 import { formatAvailabilityDate } from "../../services/posBackorder.api";
 import {
@@ -218,14 +220,14 @@ export function CustomBundleBuilder({ branchId, submitLoading, onCancel, onSubmi
                                 <div className="grid gap-2 rounded-lg border border-[#e8eef0] p-3" key={line.ingredient.id}>
                                     <div className="flex items-start justify-between gap-2">
                                         <strong className="text-sm text-[#172317]">{line.ingredient.name}</strong>
-                                        <button
+                                        <IconButton
                                             aria-label={`Bỏ ${line.ingredient.name}`}
-                                            className="text-red-700"
                                             onClick={() => removeLine(line.ingredient.id)}
-                                            type="button"
+                                            size="xs"
+                                            tone="danger"
                                         >
                                             <Trash2 size={16} aria-hidden="true" />
-                                        </button>
+                                        </IconButton>
                                     </div>
                                     <div className="flex items-center gap-2">
                                         <input
@@ -256,15 +258,13 @@ export function CustomBundleBuilder({ branchId, submitLoading, onCancel, onSubmi
                     </div>
 
                     <div className="grid gap-2">
-                        <input
-                            className="h-10 rounded-lg border border-pos-border px-3 text-sm font-bold"
+                        <TextInput
                             maxLength={255}
                             onChange={(event) => setBundleName(event.currentTarget.value)}
                             placeholder="Tên bundle (tuỳ chọn)"
                             value={bundleName}
                         />
-                        <input
-                            className="h-10 rounded-lg border border-pos-border px-3 text-sm font-bold"
+                        <TextInput
                             maxLength={1000}
                             onChange={(event) => setNote(event.currentTarget.value)}
                             placeholder="Ghi chú đóng gói (tuỳ chọn)"
@@ -294,30 +294,15 @@ export function CustomBundleBuilder({ branchId, submitLoading, onCancel, onSubmi
             </div>
 
             <footer className="flex justify-end gap-3 border-t border-[#e8eef0] px-5 py-4">
-                <button
-                    className="h-10 rounded-lg border border-[#dce5e1] px-4 text-sm font-black text-[#536078]"
-                    disabled={submitLoading}
-                    onClick={onCancel}
-                    type="button"
-                >
+                <Button disabled={submitLoading} onClick={onCancel}>
                     Hủy
-                </button>
-                <button
-                    className="h-10 rounded-lg border border-[#159734] px-4 text-sm font-black text-[#159734] disabled:opacity-60"
-                    disabled={submitLoading || availabilityLoading}
-                    onClick={() => void checkAvailability()}
-                    type="button"
-                >
+                </Button>
+                <Button disabled={submitLoading || availabilityLoading} onClick={() => void checkAvailability()}>
                     {availabilityLoading ? "Đang kiểm tra..." : "Kiểm tra tồn"}
-                </button>
-                <button
-                    className="h-10 rounded-lg bg-[#159734] px-4 text-sm font-black text-white disabled:opacity-60"
-                    disabled={submitLoading}
-                    onClick={submit}
-                    type="button"
-                >
+                </Button>
+                <Button disabled={submitLoading} onClick={submit} variant="primary">
                     {submitLoading ? "Đang thêm..." : "Thêm vào đơn"}
-                </button>
+                </Button>
             </footer>
         </section>
     );

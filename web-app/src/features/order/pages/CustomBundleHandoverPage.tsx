@@ -1,5 +1,12 @@
-import { Leaf, PackageCheck, RefreshCw, Search } from "lucide-react";
+import { PackageCheck, RefreshCw } from "lucide-react";
 import { useEffect, useState } from "react";
+
+import { ListPageHeader } from "../../../components/shared/list/ListPageHeader";
+import { Button } from "../../../components/ui/Button";
+import { Field, TextInput } from "../../../components/ui/Field";
+import { ModalShell } from "../../../components/ui/Overlay";
+import { SearchInput } from "../../../components/ui/SearchInput";
+import { StatusBadge } from "../../../components/ui/StatusBadge";
 
 import { ReceiptDialog } from "../../sales/components/dialogs/ReceiptDialog";
 import { formatCurrency, parseCurrencyInput } from "../../sales/services/money";
@@ -133,26 +140,18 @@ export function CustomBundleHandoverPage() {
 
     return (
         <section className="grid h-full min-h-0 grid-rows-[auto_auto_minmax(0,1fr)] gap-4 overflow-hidden p-4">
-            <header className="flex flex-wrap items-end justify-between gap-3">
-                <div className="grid gap-1">
-                    <h1 className="flex items-center gap-2 text-2xl font-black text-[#172317]">
-                        <Leaf aria-hidden="true" className="text-[#159734]" size={22} />
-                        Bundle chờ giao
-                    </h1>
-                    <p className="text-sm font-semibold text-[#697684]">
-                        Đơn có trà đóng theo yêu cầu đã thu tiền. Giao khi kho báo đã đóng gói.
-                    </p>
-                </div>
-                <div className="relative w-full max-w-sm">
-                    <Search aria-hidden="true" className="absolute left-3 top-3 text-[#697684]" size={16} />
-                    <input
-                        className="h-10 w-full rounded-lg border border-pos-border pl-9 pr-3 text-sm font-bold"
-                        onChange={(event) => setKeywordInput(event.currentTarget.value)}
+            <ListPageHeader
+                actions={
+                    <SearchInput
+                        className="max-w-sm"
+                        onChange={setKeywordInput}
                         placeholder="Mã đơn, khách hàng, mã đóng gói"
                         value={keywordInput}
                     />
-                </div>
-            </header>
+                }
+                description="Đơn có trà đóng theo yêu cầu đã thu tiền. Giao khi kho báo đã đóng gói."
+                title="Bundle chờ giao"
+            />
 
             <div className="grid gap-2">
                 <nav className="flex gap-2 overflow-x-auto">
@@ -213,9 +212,9 @@ export function CustomBundleHandoverPage() {
                                                 <span className="ml-2 text-xs font-semibold text-[#697684]">{item.packingCode}</span>
                                             ) : null}
                                         </span>
-                                        <span className="rounded-full bg-[#f7f8fb] px-2 py-1 text-xs font-black text-[#536078]">
+                                        <StatusBadge>
                                             {item.packingStatus ? bundlePackingStatusLabels[item.packingStatus] : "Chưa gửi kho"}
-                                        </span>
+                                        </StatusBadge>
                                     </li>
                                 ))}
                             </ul>
@@ -225,28 +224,22 @@ export function CustomBundleHandoverPage() {
                                 </span>
                             ) : null}
                             <div className="flex justify-end gap-2">
-                                <button
-                                    className="flex h-10 items-center gap-2 rounded-lg border border-[#dce5e1] px-3 text-sm font-black text-[#536078] disabled:opacity-60"
-                                    disabled={busyOrderId === order.id}
-                                    onClick={() => void refresh(order)}
-                                    type="button"
-                                >
+                                <Button disabled={busyOrderId === order.id} onClick={() => void refresh(order)}>
                                     <RefreshCw aria-hidden="true" size={16} />
                                     Làm mới
-                                </button>
-                                <button
-                                    className="flex h-10 items-center gap-2 rounded-lg bg-[#159734] px-4 text-sm font-black text-white disabled:opacity-50"
+                                </Button>
+                                <Button
                                     disabled={!ready || busyOrderId === order.id}
                                     onClick={() => {
                                         setHandoverOrder(order);
                                         setCashReceived(0);
                                         setHandoverError("");
                                     }}
-                                    type="button"
+                                    variant="primary"
                                 >
                                     <PackageCheck aria-hidden="true" size={16} />
                                     Giao cho khách
-                                </button>
+                                </Button>
                             </div>
                         </article>
                     );
@@ -254,45 +247,43 @@ export function CustomBundleHandoverPage() {
             </div>
 
             {handoverOrder ? (
-                <div className="fixed inset-0 z-50 grid place-items-center bg-black/62 px-4" role="presentation">
-                    <section aria-modal="true" className="grid w-full max-w-md gap-4 rounded-2xl bg-white p-5 shadow-pos-panel" role="dialog">
-                        <h2 className="text-xl font-black text-[#172317]">Giao đơn {handoverOrder.orderCode}</h2>
-                        {handoverRemaining > 0 ? (
-                            <label className="grid gap-2 text-sm font-black text-[#536078]">
-                                Khách đưa (còn phải thu {formatCurrency(handoverRemaining)})
-                                <input
-                                    className="h-11 rounded-lg border border-pos-border px-3 text-sm font-bold"
-                                    inputMode="numeric"
-                                    onChange={(event) => setCashReceived(parseCurrencyInput(event.currentTarget.value))}
-                                    value={cashReceived > 0 ? cashReceived.toLocaleString("vi-VN") : ""}
-                                />
-                            </label>
-                        ) : (
-                            <p className="text-sm font-semibold text-[#536078]">Đơn đã thu đủ tiền. Xác nhận đã giao trà cho khách.</p>
-                        )}
-                        {handoverError ? (
-                            <p className="rounded-lg bg-red-50 px-3 py-2 text-sm font-semibold text-red-700">{handoverError}</p>
-                        ) : null}
-                        <div className="flex justify-end gap-2">
-                            <button
-                                className="h-10 rounded-lg border border-[#dce5e1] px-4 text-sm font-black text-[#536078]"
-                                disabled={busyOrderId === handoverOrder.id}
-                                onClick={() => setHandoverOrder(null)}
-                                type="button"
-                            >
-                                Huỷ
-                            </button>
-                            <button
-                                className="h-10 rounded-lg bg-[#159734] px-4 text-sm font-black text-white disabled:opacity-60"
-                                disabled={busyOrderId === handoverOrder.id}
-                                onClick={() => void handover()}
-                                type="button"
-                            >
-                                Xác nhận giao
-                            </button>
-                        </div>
-                    </section>
-                </div>
+                <ModalShell
+                    className="grid w-full max-w-md gap-4 p-5"
+                    closeOnBackdrop={false}
+                    closeOnEscape={busyOrderId !== handoverOrder.id}
+                    labelledBy="handover-bundle-title"
+                    onClose={() => setHandoverOrder(null)}
+                >
+                    <h2 className="text-xl font-black text-[#172317]" id="handover-bundle-title">
+                        Giao đơn {handoverOrder.orderCode}
+                    </h2>
+                    {handoverRemaining > 0 ? (
+                        <Field label={`Khách đưa (còn phải thu ${formatCurrency(handoverRemaining)})`}>
+                            <TextInput
+                                inputMode="numeric"
+                                onChange={(event) => setCashReceived(parseCurrencyInput(event.currentTarget.value))}
+                                value={cashReceived > 0 ? cashReceived.toLocaleString("vi-VN") : ""}
+                            />
+                        </Field>
+                    ) : (
+                        <p className="text-sm font-semibold text-[#536078]">Đơn đã thu đủ tiền. Xác nhận đã giao trà cho khách.</p>
+                    )}
+                    {handoverError ? (
+                        <p className="rounded-lg bg-red-50 px-3 py-2 text-sm font-semibold text-red-700">{handoverError}</p>
+                    ) : null}
+                    <div className="flex justify-end gap-2">
+                        <Button disabled={busyOrderId === handoverOrder.id} onClick={() => setHandoverOrder(null)}>
+                            Huỷ
+                        </Button>
+                        <Button
+                            disabled={busyOrderId === handoverOrder.id}
+                            onClick={() => void handover()}
+                            variant="primary"
+                        >
+                            Xác nhận giao
+                        </Button>
+                    </div>
+                </ModalShell>
             ) : null}
 
             <ReceiptDialog orderId={receiptOrderId} onClose={() => setReceiptOrderId(null)} />

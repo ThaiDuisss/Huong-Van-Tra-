@@ -198,34 +198,20 @@ export function ShelfReplenishmentListPage() {
                     )}
                 </dl>
             )}
-            renderExtraRowActions={(item, closeMenu) => (
-                <>
-                    <button
-                        className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-sm text-[#172317] hover:bg-[#f0fbef] hover:text-[#159734] font-medium transition-colors cursor-pointer"
-                        onClick={() => {
-                            closeMenu();
-                            navigate(shelfReplenishmentDetailPath(item.id));
-                        }}
-                        type="button"
-                    >
-                        <Eye size={14} />
-                        Xem chi tiết
-                    </button>
-                    {item.status === "DRAFT" && (
-                        <button
-                            className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-sm text-[#172317] hover:bg-[#f0fbef] hover:text-[#159734] font-medium transition-colors cursor-pointer"
-                            onClick={() => {
-                                closeMenu();
-                                navigate(shelfReplenishmentEditPath(item.id));
-                            }}
-                            type="button"
-                        >
-                            <Pencil size={14} />
-                            Chỉnh sửa
-                        </button>
-                    )}
-                </>
-            )}
+            getExtraRowActions={(item) => [
+                {
+                    icon: <Eye size={14} />,
+                    label: "Xem chi tiết",
+                    onSelect: () => navigate(shelfReplenishmentDetailPath(item.id))
+                },
+                ...(item.status === "DRAFT"
+                    ? [{
+                        icon: <Pencil size={14} />,
+                        label: "Chỉnh sửa",
+                        onSelect: () => navigate(shelfReplenishmentEditPath(item.id))
+                    }]
+                    : [])
+            ]}
             searchPlaceholder="Tìm theo mã phiếu, mã đơn tham chiếu, ghi chú..."
             status={status}
             statusOptions={statusOptions}

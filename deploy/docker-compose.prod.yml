@@ -1,11 +1,10 @@
-# Box 1 "app": Api-Gateway + 9 service Java + web POS.
+# Box 1 "app": Api-Gateway + 9 service Java + Recommendation-Service + web POS.
 #
 # KHONG deploy:
 #   - Organization-Service: module chi co Application + SecurityConfig + GlobalException,
 #     khong controller/entity/migration nao. Route /api/organizations/** cung da bo khoi
 #     gateway. Code van o trong repo va van build/test binh thuong.
-#   - Recommendation-Service: de sau. Co Dockerfile rieng, se them ~700MB.
-#     Route /api/recommendation/** se tra 503 cho den khi deploy.
+#   - Organization-Service la service duy nhat khong deploy (module rong).
 # Ha tang (MySQL, Kafka, Redis, MinIO, Keycloak) chay o box 2, khong khai o day.
 #
 # Chay tu thu muc deploy/ de compose tu doc file .env:
@@ -148,9 +147,9 @@ services:
         SERVICE_PATH: services/Promotion-Service
         SERVICE_PORT: "8088"
     image: hvtra/promotion-service:latest
-    # Do thuc te: 367MiB luc idle (72% cua 512m).
-    mem_limit: 576m
-    mem_reservation: 352m
+    # Do thuc te: 367MiB o local, 420MiB tren box 1 (73% cua 576m) -> nang cho bot sat.
+    mem_limit: 640m
+    mem_reservation: 384m
     environment:
       SERVER_PORT: "8088"
       SPRING_DATASOURCE_URL: "jdbc:mysql://${MYSQL_HOST}:3306/promotion_db?allowPublicKeyRetrieval=true&useSSL=false&serverTimezone=UTC"
@@ -235,6 +234,39 @@ services:
       order-service:
         condition: service_healthy
 
+  # Python/FastAPI, khong dung anchor x-java (khac base image, khac bien moi truong).
+  # Python/FastAPI, khong dung anchor x-java (khac base image, khac bien moi truong).
+  recommendation-service:
+    build:
+      context: ../services/Recommendation-Service
+    image: hvtra/recommendation-service:latest
+    # Thu tu quan trong: recommend.env nap SAU nen GHI DE .env chung. Service nay doc
+    # MYSQL_HOST/USER/PASSWORD..., trung ten voi vai bien trong .env chung cua cac
+    # service Java, nen phai de no thang.
+    env_file:
+      - .env
+      - recommend.env
+    restart: unless-stopped
+    # Image la python:3.11-slim, khong co curl/wget. Dung chinh Python de kiem.
+    # /health tra 503 khi mat DB -> urlopen nem HTTPError -> exit khac 0, dung y muon.
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8090/health', timeout=4)\""]
+      interval: 15s
+      timeout: 8s
+      retries: 10
+      start_period: 60s
+    mem_limit: 768m
+    mem_reservation: 384m
+    volumes:
+      # Model do train sinh ra (artifacts/v1_hybrid_model.npz) KHONG nam trong image.
+      # Khong co volume thi train xong, restart la mat.
+      - hvtra-recommend-artifacts:/app/artifacts
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
   pos-web:
     build:
       context: ../web-app
@@ -263,3 +295,4 @@ services:
 
 volumes:
   hvtra-logs:
+  hvtra-recommend-artifacts:

@@ -10,6 +10,8 @@ import {
 } from "lucide-react";
 import { useMemo, useState, type FormEvent } from "react";
 
+import { Button, IconButton } from "../../../../components/ui/Button";
+import { SearchInput } from "../../../../components/ui/SearchInput";
 import { MarketingSelectField } from "../MarketingSelectField";
 import styles from "./DiscountProgramPage.module.css";
 import {
@@ -80,31 +82,22 @@ export function DiscountProgramFilters({
         <section className={styles.filtersCard}>
             <form className={styles.filters} onSubmit={handleSubmit}>
                 <div className={styles.filterMainRow}>
-                    <label className={styles.search}>
-                        <Search size={18} aria-hidden="true" />
-                        <span className="sr-only">
-                            Tìm kiếm sự kiện khuyến mãi
-                        </span>
-                        <input
-                            className={styles.searchInput}
-                            value={filters.keyword}
-                            placeholder="Tìm kiếm sự kiện khuyến mãi..."
-                            onChange={(event) =>
-                                onFiltersChange({
-                                    ...filters,
-                                    keyword: event.currentTarget.value
-                                })
-                            }
-                        />
-                    </label>
+                    <SearchInput
+                        value={filters.keyword}
+                        placeholder="Tìm kiếm sự kiện khuyến mãi..."
+                        onChange={(keyword) =>
+                            onFiltersChange({ ...filters, keyword })
+                        }
+                    />
 
-                    <button
-                        className={`${styles.filterToggleButton} ${
+                    <IconButton
+                        size="search"
+                        className={`${
                             detailOpen || hasDetailFilters
                                 ? styles.filterToggleButtonActive
                                 : ""
                         }`}
-                        type="button"
+                        variant="secondary"
                         aria-label="Lọc chi tiết"
                         aria-expanded={detailOpen}
                         onClick={() =>
@@ -115,27 +108,29 @@ export function DiscountProgramFilters({
                             size={18}
                             aria-hidden="true"
                         />
-                    </button>
+                    </IconButton>
 
-                    <button
-                        className={styles.primaryButton}
+                    <Button
+                        className="max-[900px]:col-span-2 max-[900px]:w-full"
+                        size="search"
+                        variant="primary"
                         type="submit"
                         disabled={loading}
                     >
                         <Search size={17} aria-hidden="true" />
                         Tìm kiếm
-                    </button>
+                    </Button>
 
                     {showClear ? (
-                        <button
-                            className={styles.secondaryButton}
-                            type="button"
+                        <Button
+                            className="max-[900px]:col-span-2 max-[900px]:w-full"
+                        size="search"
                             disabled={loading}
                             onClick={onClear}
                         >
                             <X size={17} aria-hidden="true" />
                             Xóa lọc
-                        </button>
+                        </Button>
                     ) : null}
                 </div>
 

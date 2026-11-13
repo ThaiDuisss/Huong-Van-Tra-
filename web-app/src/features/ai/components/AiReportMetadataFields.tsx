@@ -1,5 +1,6 @@
 import { useId } from "react";
 
+import { Field, TextInput } from "../../../components/ui/Field";
 import type { AiReportMetadata } from "../types/ai-report.types";
 import {
   AI_REPORT_NAME_MAX_LENGTH,
@@ -39,14 +40,17 @@ export function AiReportMetadataFields({
           },
         ] as const
       ).map(({ field, label, placeholder, maxLength }) => (
-        <label className="grid content-start gap-1.5 text-xs font-bold text-[#536078]" key={field}>
-          <span>
-            {label} <span className="text-red-600">*</span>
-          </span>
-          <input
+        <Field
+          className="content-start"
+          error={errors[field]}
+          errorId={`${id}-${field}-error`}
+          key={field}
+          label={label}
+          required
+        >
+          <TextInput
             aria-describedby={errors[field] ? `${id}-${field}-error` : undefined}
-            aria-invalid={Boolean(errors[field])}
-            className="h-10 min-w-0 rounded-lg border border-pos-border bg-white px-3 text-sm font-semibold text-[#172317] outline-none focus:border-[#159734] focus:ring-2 focus:ring-[#159734]/15 disabled:opacity-60"
+            className="min-w-0"
             disabled={disabled}
             maxLength={maxLength}
             onBlur={() => onBlur(field)}
@@ -54,14 +58,10 @@ export function AiReportMetadataFields({
             placeholder={placeholder}
             required
             type="text"
+            invalid={Boolean(errors[field])}
             value={values[field]}
           />
-          {errors[field] ? (
-            <span className="text-xs text-red-700" id={`${id}-${field}-error`} role="alert">
-              {errors[field]}
-            </span>
-          ) : null}
-        </label>
+        </Field>
       ))}
     </div>
   );

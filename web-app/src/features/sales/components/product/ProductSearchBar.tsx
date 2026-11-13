@@ -1,6 +1,8 @@
 import { useEffect, useRef } from "react";
 import { Plus, ScanLine, Search } from "lucide-react";
 
+import { Button } from "@/components/ui/Button";
+import { StatusBadge } from "@/components/ui/StatusBadge";
 import { useBarcodeScanner } from "@/hooks/useBarcodeScanner";
 import type { SaleProductPreview } from "../../types/sale.types";
 
@@ -51,12 +53,7 @@ export function ProductSearchBar({
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
 
-  const stockChipClass = (quantity: number) =>
-    `rounded-md px-2 py-1 text-xs font-semibold ${
-      quantity <= 0
-        ? "bg-neutral-100 text-neutral-500"
-        : "bg-hvt-green-50 text-hvt-green-800"
-    }`;
+  const stockTone = (quantity: number) => (quantity <= 0 ? "neutral" : "success");
 
   return (
     <div className="relative">
@@ -161,17 +158,17 @@ export function ProductSearchBar({
                   </div>
 
                   {product.sellableQuantity <= 0 ? (
-                    <span className="rounded-md bg-red-50 px-2 py-1 text-xs font-semibold text-red-700">
+                    <StatusBadge shape="tag" tone="danger">
                       Hết hàng · có thể đặt trước
-                    </span>
+                    </StatusBadge>
                   ) : (
                     <div className="grid justify-items-end gap-1">
-                      <span className={stockChipClass(product.shelfQuantity)}>
+                      <StatusBadge shape="tag" tone={stockTone(product.shelfQuantity)}>
                         Trên kệ: {product.shelfQuantity}
-                      </span>
-                      <span className={stockChipClass(product.warehouseQuantity)}>
+                      </StatusBadge>
+                      <StatusBadge shape="tag" tone={stockTone(product.warehouseQuantity)}>
                         Trong kho: {product.warehouseQuantity}
-                      </span>
+                      </StatusBadge>
                     </div>
                   )}
 
@@ -211,12 +208,11 @@ export function ProductSearchBar({
           </div>
 
           {results.length > visibleResults.length ? (
-            <button
-              type="button"
-              className="mt-3 h-10 w-full rounded-xl border-t border-pos-border text-sm font-semibold text-hvt-green-800"
-            >
-              Xem tất cả {results.length} kết quả
-            </button>
+            <div className="mt-3 border-t border-pos-border">
+              <Button className="w-full" variant="link">
+                Xem tất cả {results.length} kết quả
+              </Button>
+            </div>
           ) : null}
         </div>
       ) : null}

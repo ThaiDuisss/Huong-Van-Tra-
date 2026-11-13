@@ -162,19 +162,13 @@ export function ImportBatchListPage({
             pageCount={resource.data?.totalPages ?? 1}
             pageSize={pageSize}
             query={searchTerm}
-            renderExtraRowActions={(item, closeMenu) => (
-                <button
-                    className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-sm text-[#172317] hover:bg-[#f0fbef] hover:text-[#159734] font-medium transition-colors cursor-pointer"
-                    onClick={() => {
-                        closeMenu();
-                        navigate(effectiveDetailRoute.replace(":batchId", String(item.id)));
-                    }}
-                    type="button"
-                >
-                    <Eye size={14} aria-hidden="true" />
-                    Xem chi tiết
-                </button>
-            )}
+            getExtraRowActions={(item) => [
+                {
+                    icon: <Eye size={14} aria-hidden="true" />,
+                    label: "Xem chi tiết",
+                    onSelect: () => navigate(effectiveDetailRoute.replace(":batchId", String(item.id)))
+                }
+            ]}
             renderCells={(item) => (
                 <>
                     {/* <TableCell strong>{item.batchCode}</TableCell> */}

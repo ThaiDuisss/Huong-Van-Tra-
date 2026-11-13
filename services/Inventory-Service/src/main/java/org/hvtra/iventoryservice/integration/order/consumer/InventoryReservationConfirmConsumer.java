@@ -16,7 +16,7 @@ public class InventoryReservationConfirmConsumer {
 
     @KafkaListener(
             topics = "${inventory.order.events.topics.reservation-confirm:inventory.reservation-confirm.requested}",
-            groupId = "${spring.application.name:inventory-service}-order-events"
+            groupId = "${kafka-consumer-config.group-id:Inventory-Service-order-events}"
     )
     public void handle(ConsumerRecord<String, String> record, Acknowledgment acknowledgment) {
         inventoryReservationConfirmInboxService.handle(record);

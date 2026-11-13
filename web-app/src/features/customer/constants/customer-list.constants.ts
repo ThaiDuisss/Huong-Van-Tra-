@@ -1,3 +1,4 @@
+import type { BadgeTone } from "../../../components/ui/StatusBadge";
 import type { CustomerSort, CustomerStatus } from "../types/customer.types";
 import type {
     CustomerFilterDraft,
@@ -96,10 +97,10 @@ export const CUSTOMER_STATUS_LABELS: Record<CustomerStatus, string> = {
     SUSPENDED: "Tạm khóa"
 };
 
-export const CUSTOMER_STATUS_CLASS_NAMES: Record<CustomerStatus, string> = {
-    ACTIVE: "bg-[#e9f8ed] text-[#159734]",
-    INACTIVE: "bg-[#f1f3f5] text-[#657282]",
-    SUSPENDED: "bg-[#fff0ed] text-[#c4422e]"
+export const CUSTOMER_STATUS_TONES: Record<CustomerStatus, BadgeTone> = {
+    ACTIVE: "success",
+    INACTIVE: "neutral",
+    SUSPENDED: "danger"
 };
 
 export const CUSTOMER_QUICK_VIEWS: Array<{
@@ -114,12 +115,3 @@ export const CUSTOMER_QUICK_VIEWS: Array<{
     { id: "birthday", label: "Sinh nhật tháng này" },
     { id: "inactive", label: "Không hoạt động" }
 ];
-
-export const CUSTOMER_BUTTON_BASE =
-    "inline-flex h-11 items-center justify-center gap-2 whitespace-nowrap rounded-xl px-4 text-sm font-bold shadow-sm transition-colors";
-export const CUSTOMER_OUTLINE_BUTTON =
-    "border border-[#bfd5c6] bg-white text-[#159734] hover:bg-[#f7fff9]";
-export const CUSTOMER_COMPACT_BUTTON =
-    "border border-[#dce5e1] bg-white text-[#273a2b] hover:bg-[#f7fbf8]";
-export const CUSTOMER_FIELD_CLASS_NAME =
-    "h-11 w-full rounded-lg border border-[#dce5e1] bg-white px-3 text-sm font-semibold text-[#273a2b] outline-none focus:border-[#159734] focus:ring-2 focus:ring-[#159734]/10";

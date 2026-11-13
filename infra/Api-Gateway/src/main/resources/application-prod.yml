@@ -64,7 +64,9 @@ spring:
                 # Danh sách YAML được ghép theo CHỈ SỐ, không thay thế cả list: application.yml
                 # có 2 phần tử (localhost, 127.0.0.1) nên ở đây phải khai báo đúng 2 phần tử,
                 # nếu không phần tử số [1] của dev sẽ còn lại trong prod.
-                # Thực tế prod gần như không cần CORS: pos-web gọi /api cùng origin qua nginx.
+                # Prod VẪN cần CORS dù pos-web gọi /api cùng origin: trình duyệt gửi header Origin
+                # cho mọi POST/PUT/DELETE, và gateway nhận HTTP từ nginx nên coi https origin là
+                # khác origin. GatewaySecurityConfig dùng chính danh sách này cho Spring Security.
                 allowed-origin-patterns:
                   - ${CORS_ORIGIN_1:https://pos.hvtra.id.vn}
                   - ${CORS_ORIGIN_2:https://pos.hvtra.id.vn}
@@ -74,6 +76,13 @@ spring:
       host: ${REDIS_HOST}
       port: ${REDIS_PORT:6379}
       password: ${REDIS_PASSWORD}
+
+server:
+  # Gateway đứng sau hai lớp nginx (host -> pos-web) và chỉ nhận HTTP. Tin X-Forwarded-Proto/Host
+  # để request URI thành https://pos.hvtra.id.vn, trùng Origin của web -> Spring coi là same-origin
+  # và bỏ qua CORS cho request từ POS. X-Forwarded-For được chuyển vào remoteAddress nên
+  # RateLimitKeyResolverConfig.getIp() vẫn lấy đúng IP client.
+  forward-headers-strategy: framework
 
 eureka:
   client:

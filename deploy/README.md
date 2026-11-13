@@ -1,13 +1,17 @@
 # Deploy box 1 "app"
 
-Box 1 chạy **Api-Gateway + 9 service Java + web POS** trên một EC2 bằng docker compose.
+Box 1 chạy **Api-Gateway + 9 service Java + Recommendation-Service + web POS** trên một EC2 bằng docker compose.
 
 > **Kiến trúc image**: image mang kiến trúc của máy build. Box 1 là EC2 t3 (**amd64**), nên
 > image build trên Mac Apple Silicon ra **arm64** và sẽ không chạy. Build trên box 1, trên
 > Jenkins (box 3, amd64), hoặc thêm `--platform=linux/amd64` (chậm vì phải giả lập).
 
-> **Không deploy**: Organization-Service (module rỗng, route cũng đã bỏ khỏi gateway) và
-> Recommendation-Service (để sau; route `/api/recommendation/**` sẽ trả 503).
+> **Không deploy**: chỉ Organization-Service (module rỗng, route cũng đã bỏ khỏi gateway).
+
+> **Recommendation-Service cần model**: `/health`, `/ai-reports` và `/catalog-sync` chạy
+> ngay, nhưng `/api/recommendation/recommendations/*` cần file `artifacts/v1_hybrid_model.npz`
+> do `app/training/train_v1_hybrid.py` sinh ra. File này **không có trong image**; nó nằm
+> trên volume `hvtra-recommend-artifacts` nên train một lần là giữ được qua restart.
 Không có Eureka: service gọi nhau qua DNS của compose network, khai tĩnh trong
 `application-prod.yml` của từng module.
 
@@ -73,6 +77,23 @@ Chưa có DNS cho web POS thì kiểm tra qua loopback:
 ```bash
 ssh -L 3000:127.0.0.1:3000 <box1>   # rồi mở http://localhost:3000
 ```
+
+## DNS
+
+Box 1 dùng **Elastic IP** + bản ghi `A` thẳng ở Mắt Bão (`ns1/ns2.matbao.vn`), không qua
+DuckDNS.
+
+Lý do: từ 02/2024 AWS tính tiền **mọi** IPv4 public đang dùng, kể cả IP tự cấp, khoảng
+$0.005/giờ ≈ $3.6/tháng — Elastic IP **cùng giá**, nên DuckDNS không tiết kiệm được gì.
+Mà IP tự cấp đổi sau mỗi lần stop/start, và DuckDNS chỉ vá được triệu chứng: vẫn còn một
+khoảng vài phút sau mỗi lần khởi động lại mà tên miền trỏ IP cũ. Rơi đúng lúc Let's
+Encrypt gia hạn thì cert hỏng.
+
+Lưu ý: Elastic IP **đã cấp phát mà không gắn vào instance nào vẫn bị tính tiền** — nhớ
+release khi bỏ máy.
+
+`auth.hvtra.id.vn` và `storage.hvtra.id.vn` của box 2 vẫn đang là CNAME tới
+`hvtra-infra.duckdns.org`; khi rảnh nên đổi sang A record thẳng cho bớt một mắt xích.
 
 ## Bật TLS bằng nginx
 
@@ -225,8 +246,12 @@ DB dùng chung, nên smoke test phải tắt.
 
 - Box 3 (Jenkins) + registry + pipeline — bước 7.
 - Recommendation-Service: có `Dockerfile` riêng, chưa đưa vào compose. Thêm ~700MB.
-- Debezium connector trên box 2 đang `snapshot.mode: initial`; nếu register lại sẽ phát
-  lại toàn bộ `outbox_events` lịch sử. Đổi sang `schema_only` trước khi chạy
-  `DB_HOST=<ten container mysql> bash infra/debezium/register-connectors.sh`.
+- Debezium connector trên box 2 vẫn đang đăng ký với `snapshot.mode: initial` (repo đã đổi
+  sang `no_data`). Lần tới đăng ký lại bằng
+  `DB_HOST=mysql CONNECT_URL=http://localhost:8083 bash infra/debezium/register-connectors.sh`
+  trên box 2 để áp dụng; offset cũ được giữ nên không replay.
+- Kafka Connect không tự khởi động lại task FAILED (đã gặp sau khi MySQL restart: 3 connector
+  chết lặng từ 30/10 đến 4/11). Cron trên box 2 mỗi 5 phút:
+  `for n in payment order inventory; do curl -s -o /dev/null -X POST "http://localhost:8083/connectors/$n-outbox-connector/restart?includeTasks=true&onlyFailed=true"; done`
 - Rotate 3 secret đã vào git history: `INTERNAL_HEADER_SECRET`, password Redis, password
   user `debezium`.

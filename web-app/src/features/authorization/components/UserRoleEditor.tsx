@@ -1,6 +1,9 @@
 import { AlertCircle, LoaderCircle, Save, Search } from "lucide-react";
 import { useEffect, useState } from "react";
 
+import { Button } from "../../../components/ui/Button";
+import { Field, TextInput } from "../../../components/ui/Field";
+import { StatusBadge } from "../../../components/ui/StatusBadge";
 import { useAuthorization } from "../../../auth/useAuthorization";
 import { accountApi } from "../../account/services/account.api";
 import type { AccountResponse, StaffRole } from "../../account/types/account.types";
@@ -9,7 +12,7 @@ import { DashboardListSkeleton } from "../../dashboard/components/DashboardState
 import { authorizationApi, describeAuthorizationError } from "../services/authorization.api";
 import type { UserRolesResponse } from "../types/authorization.types";
 import { diffSelection, hasSelectionChanged } from "../utils/authorization.utils";
-import { checkboxCard, fieldClass, primaryButton, secondaryButton } from "./authorization-ui";
+import { checkboxCard } from "./authorization-ui";
 
 const SEARCH_DEBOUNCE_MS = 350;
 
@@ -110,18 +113,17 @@ export function UserRoleEditor({
   return (
     <div className="grid gap-4 lg:grid-cols-[320px_minmax(0,1fr)]">
       <aside className="grid content-start gap-2">
-        <label className="grid gap-2">
-          <span className="text-xs font-bold text-[#536171]">Tìm tài khoản</span>
+        <Field label="Tìm tài khoản">
           <span className="relative block">
             <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#8793a1]" size={16} aria-hidden="true" />
-            <input
-              className={`${fieldClass} pl-9`}
+            <TextInput
+              className="pl-9"
               onChange={(event) => setKeyword(event.target.value)}
               placeholder="Tên đăng nhập, email, họ tên"
               value={keyword}
             />
           </span>
-        </label>
+        </Field>
         {searching && results === null ? (
           <DashboardListSkeleton rows={4} />
         ) : searchError ? (
@@ -214,9 +216,9 @@ export function UserRoleEditor({
                   <span className="text-xs font-semibold text-[#8793a1]">Chưa có quyền nào. Kiểm tra vai trò đã được gán quyền chưa.</span>
                 ) : (
                   detail.effectivePermissions.map((permission) => (
-                    <span className="rounded-md border border-[#d8eadc] bg-white px-1.5 py-0.5 font-mono text-[11px] font-bold text-[#1b583e]" key={permission}>
+                    <StatusBadge className="font-mono" key={permission} shape="tag" tone="success">
                       {permission}
-                    </span>
+                    </StatusBadge>
                   ))
                 )}
               </span>
@@ -231,19 +233,19 @@ export function UserRoleEditor({
 
             {editable ? (
               <div className="flex flex-wrap items-center justify-end gap-2 border-t border-[#edf0f4] pt-3">
-                <button className={secondaryButton} disabled={!changed || saving} onClick={() => setDraft(current)} type="button">
+                <Button disabled={!changed || saving} onClick={() => setDraft(current)}>
                   Hoàn tác
-                </button>
-                <button className={primaryButton} disabled={!changed || draft.length === 0 || saving} onClick={() => void save()} type="button">
+                </Button>
+                <Button disabled={!changed || draft.length === 0 || saving} onClick={() => void save()} variant="primary">
                   {saving ? <LoaderCircle className="animate-spin" size={16} aria-hidden="true" /> : <Save size={16} aria-hidden="true" />}
                   {saving ? "Đang lưu..." : "Lưu vai trò"}
-                </button>
+                </Button>
               </div>
             ) : isSelf ? (
               <div className="flex justify-end border-t border-[#edf0f4] pt-3">
-                <button className={secondaryButton} onClick={() => void refreshPermissions()} type="button">
+                <Button onClick={() => void refreshPermissions()}>
                   Làm mới quyền của tôi
-                </button>
+                </Button>
               </div>
             ) : null}
           </>

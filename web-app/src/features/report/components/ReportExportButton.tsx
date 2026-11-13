@@ -1,12 +1,15 @@
 import { FileSpreadsheet, LoaderCircle } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 
+import { Button } from "../../../components/ui/Button";
+import { toast } from "../../../components/ui/Toast";
 import {
     exportTimestamp,
     getErrorMessage,
     saveBlob
 } from "../utils/statistic-report.utils";
-import styles from "./ReportExportButton.module.css";
+
+const TOAST_DURATION_MS = 3200;
 
 interface ReportExportButtonProps {
     disabled?: boolean;
@@ -24,19 +27,6 @@ export function ReportExportButton({
 }: ReportExportButtonProps) {
     const inProgressRef = useRef(false);
     const [isExporting, setIsExporting] = useState(false);
-    const [toast, setToast] = useState<{
-        message: string;
-        type: "error" | "success";
-    } | null>(null);
-
-    useEffect(() => {
-        if (!toast) {
-            return;
-        }
-
-        const timerId = window.setTimeout(() => setToast(null), 3200);
-        return () => window.clearTimeout(timerId);
-    }, [toast]);
 
     const handleExport = async () => {
         if (inProgressRef.current) {
@@ -48,13 +38,13 @@ export function ReportExportButton({
         try {
             const blob = await onExport();
             saveBlob(blob, `${filenamePrefix}-${exportTimestamp(new Date())}.xlsx`);
-            setToast({ message: "Đã xuất file Excel thành công.", type: "success" });
+            toast.success("Đã xuất file Excel thành công.", TOAST_DURATION_MS);
         } catch (error) {
             console.error("Lỗi xuất file Excel báo cáo", error);
-            setToast({
-                message: getErrorMessage(error, "Không thể xuất file Excel. Vui lòng thử lại."),
-                type: "error"
-            });
+            toast.error(
+                getErrorMessage(error, "Không thể xuất file Excel. Vui lòng thử lại."),
+                TOAST_DURATION_MS
+            );
         } finally {
             inProgressRef.current = false;
             setIsExporting(false);
@@ -62,33 +52,18 @@ export function ReportExportButton({
     };
 
     return (
-        <>
-            <button
-                aria-busy={isExporting}
-                className={styles.exportButton}
-                disabled={disabled || isExporting}
-                onClick={() => void handleExport()}
-                type="button"
-            >
-                {isExporting ? (
-                    <LoaderCircle className={styles.spinIcon} size={18} aria-hidden="true" />
-                ) : (
-                    <FileSpreadsheet size={18} aria-hidden="true" />
-                )}
-                {isExporting ? "Đang xuất..." : label}
-            </button>
-
-            {toast ? (
-                <div
-                    aria-live="polite"
-                    className={`${styles.toast} ${
-                        toast.type === "success" ? styles.toastSuccess : styles.toastError
-                    }`}
-                    role="status"
-                >
-                    {toast.message}
-                </div>
-            ) : null}
-        </>
+        <Button
+            aria-busy={isExporting}
+            disabled={disabled || isExporting}
+            onClick={() => void handleExport()}
+            variant="primary"
+        >
+            {isExporting ? (
+                <LoaderCircle className="animate-spin" size={18} aria-hidden="true" />
+            ) : (
+                <FileSpreadsheet size={18} aria-hidden="true" />
+            )}
+            {isExporting ? "Đang xuất..." : label}
+        </Button>
     );
 }

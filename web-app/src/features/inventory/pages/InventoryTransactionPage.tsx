@@ -1,6 +1,13 @@
 import { useCallback, useState } from "react";
 
 import {
+    Table,
+    TableCell as UiTableCell,
+    TableHead,
+    TableHeaderCell,
+    TableRow
+} from "../../../components/ui/Table";
+import {
     InventoryResourceManagement,
     TableCell,
     type Column
@@ -239,16 +246,16 @@ export function InventoryTransactionPage() {
                             <DetailItem label="Thời gian tạo" value={formatInventoryDate(item.createdAt)} />
                         </dl>
                         <div className="overflow-x-auto rounded-xl border border-pos-border">
-                            <table className="min-w-[620px] w-full text-left text-xs">
-                                <thead className="bg-neutral-50">
-                                    <tr>
-                                        <th className="p-3">Mặt hàng</th>
-                                        <th className="p-3">Vị trí</th>
-                                        <th className="p-3">Số lượng thay đổi</th>
-                                        <th className="p-3">Tồn trước</th>
-                                        <th className="p-3">Tồn sau</th>
-                                    </tr>
-                                </thead>
+                            <Table className="min-w-[620px]">
+                                <TableHead>
+                                    <TableRow>
+                                        <TableHeaderCell>Mặt hàng</TableHeaderCell>
+                                        <TableHeaderCell>Vị trí</TableHeaderCell>
+                                        <TableHeaderCell>Số lượng thay đổi</TableHeaderCell>
+                                        <TableHeaderCell>Tồn trước</TableHeaderCell>
+                                        <TableHeaderCell>Tồn sau</TableHeaderCell>
+                                    </TableRow>
+                                </TableHead>
                                 <tbody>
                                     {item.lines.map((line: any) => {
                                         const itemName = line.itemName;
@@ -257,8 +264,8 @@ export function InventoryTransactionPage() {
                                         const locationCode = line.locationCode && !isUuid(line.locationCode) ? line.locationCode : null;
 
                                         return (
-                                            <tr key={line.id}>
-                                                <td className="border-t p-3">
+                                            <TableRow key={line.id}>
+                                                <UiTableCell>
                                                     {itemName ? (
                                                         <div>
                                                             <div className="font-semibold text-gray-900">{itemName}</div>
@@ -271,8 +278,8 @@ export function InventoryTransactionPage() {
                                                     ) : (
                                                         <span className="text-gray-400">-</span>
                                                     )}
-                                                </td>
-                                                <td className="border-t p-3">
+                                                </UiTableCell>
+                                                <UiTableCell>
                                                     {locationName ? (
                                                         <div>
                                                             <div className="font-medium text-gray-900">{locationName}</div>
@@ -285,19 +292,19 @@ export function InventoryTransactionPage() {
                                                     ) : (
                                                         <span className="text-gray-400">-</span>
                                                     )}
-                                                </td>
-                                                <td className="border-t p-3">
+                                                </UiTableCell>
+                                                <UiTableCell>
                                                     <span className={line.quantity > 0 ? "font-bold text-emerald-600" : line.quantity < 0 ? "font-bold text-rose-600" : "text-gray-700"}>
                                                         {line.quantity > 0 ? `+${formatQuantity(line.quantity)}` : formatQuantity(line.quantity)}
                                                     </span>
-                                                </td>
-                                                <td className="border-t p-3">{formatQuantity(line.beforeQuantity)}</td>
-                                                <td className="border-t p-3">{formatQuantity(line.afterQuantity)}</td>
-                                            </tr>
+                                                </UiTableCell>
+                                                <UiTableCell>{formatQuantity(line.beforeQuantity)}</UiTableCell>
+                                                <UiTableCell>{formatQuantity(line.afterQuantity)}</UiTableCell>
+                                            </TableRow>
                                         );
                                     })}
                                 </tbody>
-                            </table>
+                            </Table>
                         </div>
                     </div>
                 );
