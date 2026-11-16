@@ -1,8 +1,6 @@
 import { useEffect, useRef } from "react";
 import { Plus, ScanLine, Search } from "lucide-react";
 
-import { Button } from "@/components/ui/Button";
-import { StatusBadge } from "@/components/ui/StatusBadge";
 import { useBarcodeScanner } from "@/hooks/useBarcodeScanner";
 import type { SaleProductPreview } from "../../types/sale.types";
 
@@ -10,6 +8,10 @@ interface ProductSearchBarProps {
   value: string;
   results: SaleProductPreview[];
   loading?: boolean;
+  total?: number;
+  hasMore?: boolean;
+  loadingMore?: boolean;
+  onLoadMore?(): void;
   error?: string;
   addingProductId?: string | null;
   formatCurrency(value: number): string;
@@ -22,6 +24,10 @@ export function ProductSearchBar({
   value,
   results,
   loading = false,
+  total,
+  hasMore = false,
+  loadingMore = false,
+  onLoadMore,
   error = "",
   addingProductId = null,
   formatCurrency,
@@ -30,7 +36,9 @@ export function ProductSearchBar({
   onAdd
 }: ProductSearchBarProps) {
   const searchInputRef = useRef<HTMLInputElement | null>(null);
-  const visibleResults = results.slice(0, 5);
+  const visibleResults = results;
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
+  const listRef = useRef<HTMLDivElement | null>(null);
 
   // Lắng nghe máy quét mã vạch toàn cục (Global Keydown Listener)
   useBarcodeScanner({
@@ -53,7 +61,22 @@ export function ProductSearchBar({
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
 
-  const stockTone = (quantity: number) => (quantity <= 0 ? "neutral" : "success");
+  // Kéo xuống cuối danh sách thì tự tải trang kế tiếp.
+  useEffect(() => {
+    const sentinel = sentinelRef.current;
+    if (!sentinel || !hasMore || !onLoadMore) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) {
+          onLoadMore();
+        }
+      },
+      { root: listRef.current, rootMargin: "120px" }
+    );
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [hasMore, onLoadMore, visibleResults.length]);
 
   return (
     <div className="relative">
@@ -110,14 +133,14 @@ export function ProductSearchBar({
                 aria-hidden="true"
               />
               <strong className="text-gray-500">Kết quả tìm kiếm</strong>
-              <span>{results.length} sản phẩm phù hợp</span>
+              <span>{total ?? results.length} sản phẩm phù hợp</span>
             </div>
             <span className="text-xs text-neutral-500">
               {loading ? "Đang tìm..." : "Nhấn + để thêm sản phẩm vào đơn"}
             </span>
           </div>
 
-          <div className="max-h-[420px] overflow-y-auto">
+          <div ref={listRef} className="max-h-[630px] overflow-y-auto">
             {error ? (
               <div className="rounded-xl border border-dashed border-red-200 bg-red-50 px-4 py-3 text-center text-red-700">
                 {error}
@@ -129,7 +152,7 @@ export function ProductSearchBar({
             ) : visibleResults.length > 0 ? (
               visibleResults.map((product, index) => (
                 <article
-                  className={`grid cursor-pointer grid-cols-[64px_minmax(0,1fr)_auto_auto] items-center gap-4 border-b border-pos-border px-2 py-3 last:border-b-0 ${
+                  className={`grid cursor-pointer grid-cols-[64px_minmax(0,1fr)_auto] items-center gap-4 border-b border-pos-border px-2 py-3 last:border-b-0 ${
                     index === 0
                       ? "rounded-xl border border-hvt-green-300 bg-hvt-green-50/70"
                       : ""
@@ -143,34 +166,12 @@ export function ProductSearchBar({
                     alt={product.name}
                   />
 
-                  <div className="min-w-0">
-                    <h3 className="truncate text-base font-bold text-gray-500">
-                      {product.name}
-                    </h3>
-                    <p className="mt-1 text-sm text-neutral-600">
-                      {product.variant ? `${product.variant} · ` : null}
-                      SKU: {product.sku}
-                      {product.barcode ? ` · ${product.barcode}` : ""}
-                    </p>
-                    <p className="text-sm text-neutral-600">
-                      Danh mục: {product.category}
-                    </p>
-                  </div>
-
-                  {product.sellableQuantity <= 0 ? (
-                    <StatusBadge shape="tag" tone="danger">
-                      Hết hàng · có thể đặt trước
-                    </StatusBadge>
-                  ) : (
-                    <div className="grid justify-items-end gap-1">
-                      <StatusBadge shape="tag" tone={stockTone(product.shelfQuantity)}>
-                        Trên kệ: {product.shelfQuantity}
-                      </StatusBadge>
-                      <StatusBadge shape="tag" tone={stockTone(product.warehouseQuantity)}>
-                        Trong kho: {product.warehouseQuantity}
-                      </StatusBadge>
-                    </div>
-                  )}
+                  <h3
+                    className="min-w-0 truncate text-base font-bold text-gray-500"
+                    title={product.name}
+                  >
+                    {product.name}
+                  </h3>
 
                   <div className="grid justify-items-end gap-2">
                     <strong className="text-base text-hvt-green-900">
@@ -205,15 +206,16 @@ export function ProductSearchBar({
                 Không tìm thấy sản phẩm phù hợp.
               </div>
             )}
+            {hasMore ? (
+              <div
+                ref={sentinelRef}
+                className="py-3 text-center text-xs text-neutral-500"
+              >
+                {loadingMore ? "Đang tải thêm..." : ""}
+              </div>
+            ) : null}
           </div>
 
-          {results.length > visibleResults.length ? (
-            <div className="mt-3 border-t border-pos-border">
-              <Button className="w-full" variant="link">
-                Xem tất cả {results.length} kết quả
-              </Button>
-            </div>
-          ) : null}
         </div>
       ) : null}
     </div>

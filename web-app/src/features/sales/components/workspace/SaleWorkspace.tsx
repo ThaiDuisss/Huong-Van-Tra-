@@ -16,6 +16,10 @@ interface SaleWorkspaceProps {
     searchQuery: string;
     searchResults: SaleProductPreview[];
     searchLoading: boolean;
+    searchTotal: number;
+    searchHasMore: boolean;
+    searchLoadingMore: boolean;
+    onSearchLoadMore(): void;
     searchError: string;
     addingProductId: string | null;
     cartItems: SaleCartItem[];
@@ -45,6 +49,10 @@ export function SaleWorkspace({
     searchQuery,
     searchResults,
     searchLoading,
+    searchTotal,
+    searchHasMore,
+    searchLoadingMore,
+    onSearchLoadMore,
     searchError,
     addingProductId,
     cartItems,
@@ -76,6 +84,10 @@ export function SaleWorkspace({
                     value={searchQuery}
                     results={searchResults}
                     loading={searchLoading}
+                    total={searchTotal}
+                    hasMore={searchHasMore}
+                    loadingMore={searchLoadingMore}
+                    onLoadMore={onSearchLoadMore}
                     error={searchError}
                     addingProductId={addingProductId}
                     formatCurrency={formatCurrency}

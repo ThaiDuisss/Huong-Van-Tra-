@@ -496,6 +496,9 @@ export function PosSalePage() {
     const productSearch = useProductSearch(searchQuery);
     const searchResults = productSearch.products;
     const searchLoading = productSearch.loading;
+    const searchTotal = productSearch.total;
+    const searchHasMore = productSearch.hasMore;
+    const searchLoadingMore = productSearch.loadingMore;
     const searchError = productSearch.error
         ? getErrorMessage(productSearch.error)
         : "";
@@ -3080,6 +3083,10 @@ export function PosSalePage() {
                 searchQuery={searchQuery}
                 searchResults={searchResults}
                 searchLoading={searchLoading}
+                searchTotal={searchTotal}
+                searchHasMore={searchHasMore}
+                searchLoadingMore={searchLoadingMore}
+                onSearchLoadMore={productSearch.loadMore}
                 searchError={searchError}
                 addingProductId={addingProductId}
                 cartItems={cartItems}
