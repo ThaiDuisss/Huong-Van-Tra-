@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import { Plus, ScanLine, Search } from "lucide-react";
 
+import { StatusBadge } from "@/components/ui/StatusBadge";
 import { useBarcodeScanner } from "@/hooks/useBarcodeScanner";
 import type { SaleProductPreview } from "../../types/sale.types";
 
@@ -166,12 +167,28 @@ export function ProductSearchBar({
                     alt={product.name}
                   />
 
-                  <h3
-                    className="min-w-0 truncate text-base font-bold text-gray-500"
-                    title={product.name}
-                  >
-                    {product.name}
-                  </h3>
+                  <div className="min-w-0">
+                    <h3
+                      className="truncate text-base font-bold text-gray-500"
+                      title={product.name}
+                    >
+                      {product.name}
+                    </h3>
+                    <div className="mt-1 flex flex-wrap gap-1.5">
+                      <StatusBadge
+                        shape="tag"
+                        tone={product.shelfQuantity > 0 ? "success" : "danger"}
+                      >
+                        Trên kệ: {product.shelfQuantity}
+                      </StatusBadge>
+                      <StatusBadge
+                        shape="tag"
+                        tone={product.warehouseQuantity > 0 ? "success" : "neutral"}
+                      >
+                        Trong kho: {product.warehouseQuantity}
+                      </StatusBadge>
+                    </div>
+                  </div>
 
                   <div className="grid justify-items-end gap-2">
                     <strong className="text-base text-hvt-green-900">
