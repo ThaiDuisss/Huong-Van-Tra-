@@ -55,6 +55,82 @@ idp:
   # Service account cần thêm realm-management: view-clients, manage-clients, view-realm, manage-realm.
   permission-client-id: ${KEYCLOAK_PERMISSION_CLIENT_ID:hvtra-pos}
   admin-client-secret: ${KEYCLOAK_ADMIN_CLIENT_SECRET}
+  # Timeout của RestClient gọi Keycloak (token + Admin API). Giữ nguyên giá trị trước đây (5 s / 15 s).
+  admin-connect-timeout: 5s
+  admin-read-timeout: 15s
+
+# ===== Resilience4j cho mọi lời gọi tới Keycloak (KeycloakResilience bọc KeycloakAdminClient) =====
+# Thứ tự bọc (lập trình, tường minh): đọc = Retry( CircuitBreaker( Bulkhead( call ) ) ); ghi = CircuitBreaker( Bulkhead( call ) ).
+resilience4j:
+
+  retry:
+    instances:
+      # CHỈ áp dụng cho GET (đọc idempotent). POST/PUT/DELETE không bao giờ retry.
+      # Mỗi attempt thường là 1 request (token đã cache); trễ xấu nhất của một lời gọi đọc:
+      #   Keycloak không kết nối được: 2 x connect 5 s + chờ 300 ms = 10,3 s
+      #   Keycloak treo không trả lời:  2 x (connect 5 s + read 15 s) + 300 ms = 40,3 s
+      # Lời gọi ghi (không retry): tối đa connect 5 s + read 15 s = 20 s.
+      # Hết hạn token làm attempt có thêm 1 request xin token với cùng timeout.
+      keycloak:
+        maxAttempts: 2
+        waitDuration: 300ms
+        # Chỉ lỗi tạm thời: không kết nối được/timeout, HTTP 502/503/504. Không retry 4xx, 429, 500.
+        retryExceptionPredicate: org.hvtra.identityservice.account.resilience.KeycloakTransientFailurePredicate
+        eventConsumerBufferSize: 50
+
+  circuitbreaker:
+    instances:
+      keycloak:
+        registerHealthIndicator: true
+        slidingWindowType: COUNT_BASED
+        slidingWindowSize: 20
+        minimumNumberOfCalls: 10
+        failureRateThreshold: 50
+        # Phải thấp hơn idp.admin-read-timeout (15 s).
+        slowCallDurationThreshold: 10s
+        slowCallRateThreshold: 80
+        waitDurationInOpenState: 20s
+        permittedNumberOfCallsInHalfOpenState: 3
+        automaticTransitionFromOpenToHalfOpenEnabled: true
+        # Chỉ "không kết nối được/timeout" và HTTP 5xx tính là lỗi; 400/401/403/404/409 tính là thành công.
+        recordFailurePredicate: org.hvtra.identityservice.account.resilience.KeycloakFailurePredicate
+        ignoreExceptions:
+          - io.github.resilience4j.bulkhead.BulkheadFullException
+          - io.github.resilience4j.circuitbreaker.CallNotPermittedException
+        eventConsumerBufferSize: 100
+
+  bulkhead:
+    instances:
+      keycloak:
+        maxConcurrentCalls: 20
+        # Đầy thì từ chối ngay (503) thay vì giữ thread của request.
+        maxWaitDuration: 0ms
+        eventConsumerBufferSize: 50
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: >
+          health,
+          info,
+          metrics,
+          circuitbreakers,
+          circuitbreakerevents,
+          retries,
+          retryevents,
+          bulkheads,
+          bulkheadevents
+  endpoint:
+    health:
+      group:
+        # GET /actuator/health/resilience: chỉ trạng thái circuit breaker, không lộ chi tiết DB/disk.
+        resilience:
+          include: circuitBreakers
+          show-details: always
+  health:
+    circuitbreakers:
+      enabled: true
 
 
 # ===== Action log (nhận từ Kafka topic action.log, lưu bảng action_log) =====

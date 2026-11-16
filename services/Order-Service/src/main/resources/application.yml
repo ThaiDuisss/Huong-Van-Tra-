@@ -8,8 +8,26 @@ spring:
   cloud:
     openfeign:
       client:
+        # Keyed by contextId (the client name when no contextId is set). Every client is listed
+        # so none depends on the default by accident; "default" only covers clients added later.
         config:
           default:
+            connectTimeout: 1000
+            readTimeout: 5000
+
+          payment-service:
+            connectTimeout: 1000
+            readTimeout: 5000
+
+          catalog-service:
+            connectTimeout: 1000
+            readTimeout: 5000
+
+          customBundleCatalogClient:
+            connectTimeout: 1000
+            readTimeout: 5000
+
+          customer-service:
             connectTimeout: 1000
             readTimeout: 5000
 
@@ -18,6 +36,12 @@ spring:
           inventory-service:
             connectTimeout: 2000
             readTimeout: 20000
+
+          # Same service, own contextId: it never inherited the 20 s above and keeps the 1 s / 5 s
+          # it has always run with.
+          customBundleInventoryClient:
+            connectTimeout: 1000
+            readTimeout: 5000
 
 server:
   port: 8086
@@ -87,57 +111,100 @@ kafka-consumer-config:
 
 
 
+# Every Feign call runs as Retry( CircuitBreaker( Bulkhead( HTTP call ) ) ), applied inside the
+# Feign proxy by client.resilience.ResilientFeignInvocationHandler - one instance per downstream
+# service, shared by all Feign clients of that service.
+#   - Circuit breaker + bulkhead: every call.
+#   - Retry: only methods marked @IdempotentRead, only outside a DB transaction, one extra attempt,
+#     and only if the first attempt failed within order.feign-resilience.retry-budget. Writes
+#     (payment, stock, sellable quantity, loyalty) are sent exactly once.
+#   - Only network errors and HTTP 5xx count as breaker failures; 4xx counts as a success.
+#   - Breaker open / bulkhead full -> DownstreamUnavailableException -> HTTP 503, nothing sent.
+# No timelimiter or ratelimiter: the calls are synchronous, so the Feign connect/read timeouts
+# above are the time limit.
 resilience4j:
   circuitbreaker:
-    instances:
-      paymentService:
+    configs:
+      default:
         registerHealthIndicator: true
+        # An open breaker is reported in /actuator/health but must not turn it DOWN: Eureka uses
+        # this health check and would take Order-Service out of rotation.
+        allowHealthIndicatorToFail: false
         slidingWindowType: COUNT_BASED
-        slidingWindowSize: 10
-        minimumNumberOfCalls: 5
+        slidingWindowSize: 20
+        minimumNumberOfCalls: 10
         failureRateThreshold: 50
-        slowCallRateThreshold: 50
-        slowCallDurationThreshold: 2s
+        slowCallRateThreshold: 80
         waitDurationInOpenState: 10s
         permittedNumberOfCallsInHalfOpenState: 3
         automaticTransitionFromOpenToHalfOpenEnabled: true
+        recordFailurePredicate: org.hvtra.orderservice.client.resilience.DownstreamFailurePredicate
+        ignoreExceptions:
+          - io.github.resilience4j.bulkhead.BulkheadFullException
+          - io.github.resilience4j.circuitbreaker.CallNotPermittedException
+        eventConsumerBufferSize: 50
+    instances:
+      # Feign 1 s connect / 5 s read. Worst case per call:
+      #   write, or any call inside a DB transaction: 1 attempt <= 6 s (same as without Resilience4j)
+      #   read outside a transaction: <= 1.5 s budget + 0.2 s wait + 6 s second attempt = 7.7 s
+      #   breaker open or bulkhead full: immediate 503
+      paymentService:
+        baseConfig: default
+        slowCallDurationThreshold: 4s
+      catalogService:
+        baseConfig: default
+        slowCallDurationThreshold: 4s
+      customerService:
+        baseConfig: default
+        slowCallDurationThreshold: 4s
+      # Feign 2 s connect / 20 s read (custom-bundle client: 1 s / 5 s). Worst case per call:
+      #   write, or any call inside a DB transaction: 1 attempt <= 22 s (same as without Resilience4j)
+      #   read outside a transaction: <= 2.5 s budget + 0.2 s wait + 22 s second attempt = 24.7 s
+      #   breaker open or bulkhead full: immediate 503
+      # The breaker stays open longer because Inventory needs longer to recover from a pile-up.
+      inventoryService:
+        baseConfig: default
+        slowCallDurationThreshold: 15s
+        waitDurationInOpenState: 20s
 
   retry:
+    configs:
+      default:
+        maxAttempts: 2
+        waitDuration: 200ms
+        retryExceptionPredicate: org.hvtra.orderservice.client.resilience.TransientReadFailurePredicate
+        eventConsumerBufferSize: 50
     instances:
       paymentService:
-        maxAttempts: 3
-        waitDuration: 500ms
-        enableExponentialBackoff: true
-        exponentialBackoffMultiplier: 2
-        retry-exceptions:
-          - java.io.IOException
-          - java.net.SocketTimeoutException
-          - feign.RetryableException
-          - java.util.concurrent.TimeoutException
-          - org.hvtra.commonservice.common_core.exception.FeignClientException
-        ignore-exceptions:
-          - feign.FeignException$Unauthorized
+        baseConfig: default
+      catalogService:
+        baseConfig: default
+      customerService:
+        baseConfig: default
+      inventoryService:
+        baseConfig: default
 
   bulkhead:
+    configs:
+      default:
+        maxConcurrentCalls: 25
+        # Never queue: a caller may be holding a DB transaction.
+        maxWaitDuration: 0ms
+        eventConsumerBufferSize: 50
     instances:
       paymentService:
-        maxConcurrentCalls: 5
-        maxWaitDuration: 100ms
-
-  ratelimiter:
-    instances:
-      paymentService:
-        limitForPeriod: 20
-        limitRefreshPeriod: 1s
-        timeoutDuration: 0
-
-  timelimiter:
-    instances:
-      paymentService:
-        timeoutDuration: 2s
-        cancelRunningFuture: true
+        baseConfig: default
+      catalogService:
+        baseConfig: default
+      customerService:
+        baseConfig: default
+      inventoryService:
+        baseConfig: default
 
 management:
+  health:
+    circuitbreakers:
+      enabled: true
   endpoints:
     web:
       exposure:
@@ -149,12 +216,8 @@ management:
           - circuitbreakerevents
           - retries
           - retryevents
-          - ratelimiters
-          - ratelimiterevents
           - bulkheads
           - bulkheadevents
-          - timelimiters
-          - timelimiterevents
 
   endpoint:
     health:
@@ -165,6 +228,15 @@ clients:
   inventory-service:
     url: ${INVENTORY_SERVICE_URL:http://localhost:8084}
 order:
+  feign-resilience:
+    # A failed read is retried only if it failed within this time: just above the Feign connect
+    # timeout, so a refused/timed-out connection or a quick 502/503/504 is retried and a read
+    # timeout is not paid twice.
+    retry-budget:
+      paymentService: 1500ms
+      catalogService: 1500ms
+      customerService: 1500ms
+      inventoryService: 2500ms
   payment:
     events:
       topics:

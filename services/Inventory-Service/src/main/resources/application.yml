@@ -19,6 +19,37 @@ spring:
   flyway:
      baseline-on-migrate: true
      out-of-order: true
+  cloud:
+    openfeign:
+      # Resilience is applied explicitly by the Resilient*Client decorators (integration/*/client),
+      # not by Spring Cloud CircuitBreaker, and Common's FeignConfig sets Retryer.NEVER_RETRY, so
+      # Resilience4j is the only layer that retries.
+      circuitbreaker:
+        enabled: false
+      client:
+        config:
+          # Every Feign client name is listed so none runs on Feign's 10 s / 60 s defaults.
+          # No TimeLimiter is used on these synchronous calls: these timeouts are the time bound.
+          default:
+            connectTimeout: 2000
+            readTimeout: 5000
+          catalog-service:
+            connectTimeout: 2000
+            readTimeout: 5000
+          # Reading a return loads its items; Customer-Service measured 2-3 s for Order reads on
+          # the development database, hence the larger read timeout.
+          order-service:
+            connectTimeout: 2000
+            readTimeout: 6000
+          # Display names only (optional enrichment) - keep it short.
+          identity-service:
+            connectTimeout: 2000
+            readTimeout: 3000
+          # Common's FileClient: called by Common's ImportBatchServiceImpl (attach the source file
+          # of an import draft), through ResilientFileClient.
+          file-service:
+            connectTimeout: 2000
+            readTimeout: 10000
 server:
   port: 8084
 
@@ -86,3 +117,109 @@ inventory:
 security:
   internal:
       header-secret: ${INTERNAL_HEADER_SECRET}
+
+# ---------------------------------------------------------------------------------------------
+# Resilience4j - one instance per downstream service, applied by the Resilient*Client decorators.
+# Nesting (default aspect order, asserted in FeignResilienceTest): Retry( CircuitBreaker( Bulkhead( call ) ) )
+#   - Retry is only on idempotent reads and only for transport errors / HTTP 502, 503, 504.
+#   - 4xx and business errors are neither retried nor recorded as breaker failures.
+#   - An open breaker (CallNotPermittedException) or a full bulkhead (BulkheadFullException) is
+#     never retried or recorded; GlobalException answers both with HTTP 503.
+# Worst case per call = attempts x (connectTimeout + readTimeout) + backoff. Calls made inside a DB
+# transaction hold their connection (and any row locks) for that long, so attempts stay at 2.
+# ---------------------------------------------------------------------------------------------
+resilience4j:
+  retry:
+    configs:
+      default:
+        maxAttempts: 2            # 1 call + 1 retry
+        waitDuration: 200ms
+        retryExceptionPredicate: org.hvtra.iventoryservice.integration.resilience.TransientFeignFailurePredicate
+        eventConsumerBufferSize: 50
+    instances:
+      # Reads: 2 x (2 s + 5 s) + 0.2 s = 14.2 s worst case. Writes (createIngredient,
+      # addIngredientsToSupplier) are never retried: 7 s worst case.
+      catalogService:
+        baseConfig: default
+      # 2 x (2 s + 6 s) + 0.2 s = 16.2 s worst case (both endpoints are GETs).
+      orderService:
+        baseConfig: default
+      # 2 x (2 s + 3 s) + 0.2 s = 10.2 s worst case (display names only).
+      identityService:
+        baseConfig: default
+
+  circuitbreaker:
+    configs:
+      default:
+        slidingWindowType: COUNT_BASED
+        slidingWindowSize: 20
+        minimumNumberOfCalls: 10
+        failureRateThreshold: 50
+        slowCallRateThreshold: 80
+        waitDurationInOpenState: 15s
+        permittedNumberOfCallsInHalfOpenState: 3
+        automaticTransitionFromOpenToHalfOpenEnabled: true
+        # Only transport errors and HTTP 5xx count; 4xx / business errors are recorded as success.
+        recordFailurePredicate: org.hvtra.iventoryservice.integration.resilience.DownstreamFailurePredicate
+        ignoreExceptions:
+          - io.github.resilience4j.bulkhead.BulkheadFullException
+          - io.github.resilience4j.circuitbreaker.CallNotPermittedException
+        registerHealthIndicator: true
+        # Eureka health checks are on: an open breaker must be visible in /actuator/health but must
+        # not turn this instance DOWN and pull it out of the registry.
+        allowHealthIndicatorToFail: false
+        eventConsumerBufferSize: 100
+    instances:
+      # slowCallDurationThreshold stays below each client's Feign readTimeout, so a call that is
+      # about to time out is already counted as slow.
+      catalogService:
+        baseConfig: default
+        slowCallDurationThreshold: 3s   # readTimeout 5 s
+      orderService:
+        baseConfig: default
+        slowCallDurationThreshold: 4s   # readTimeout 6 s
+      identityService:
+        baseConfig: default
+        slowCallDurationThreshold: 2s   # readTimeout 3 s
+      # attachFile is a write: never retried, 2 s + 10 s = 12 s worst case.
+      fileService:
+        baseConfig: default
+        slowCallDurationThreshold: 6s   # readTimeout 10 s
+
+  bulkhead:
+    configs:
+      default:
+        maxWaitDuration: 0ms      # reject immediately rather than queue request threads
+        eventConsumerBufferSize: 50
+    instances:
+      # Catalog is called from most list screens, sometimes twice in parallel per request.
+      catalogService:
+        baseConfig: default
+        maxConcurrentCalls: 30
+      orderService:
+        baseConfig: default
+        maxConcurrentCalls: 10
+      identityService:
+        baseConfig: default
+        maxConcurrentCalls: 10
+      fileService:
+        baseConfig: default
+        maxConcurrentCalls: 10
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: >
+          health,
+          info,
+          metrics,
+          circuitbreakers,
+          circuitbreakerevents,
+          retries,
+          retryevents,
+          bulkheads,
+          bulkheadevents
+  health:
+    circuitbreakers:
+      enabled: true

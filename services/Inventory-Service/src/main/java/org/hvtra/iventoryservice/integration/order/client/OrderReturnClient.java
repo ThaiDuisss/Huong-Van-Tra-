@@ -8,8 +8,15 @@ import org.springframework.web.bind.annotation.PathVariable;
 
 import java.util.UUID;
 
-@FeignClient(name = "order-service")
+/**
+ * Raw Feign proxy. Application code must inject plain {@code OrderReturnClient}: the
+ * {@code @Primary} {@link ResilientOrderReturnClient} is what gets injected. This bean is
+ * non-primary and reachable only through its qualifier.
+ */
+@FeignClient(name = "order-service", primary = false, qualifiers = OrderReturnClient.FEIGN_QUALIFIER)
 public interface OrderReturnClient {
+
+    String FEIGN_QUALIFIER = "orderReturnFeignClient";
 
     @GetMapping("/api/orders/returns/{returnId}")
     OrderReturnResponse getReturnById(@PathVariable("returnId") UUID returnId);

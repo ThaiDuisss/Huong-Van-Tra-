@@ -1,7 +1,5 @@
 package org.hvtra.orderservice.service.impl;
 
-import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
-import io.github.resilience4j.retry.annotation.Retry;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.hvtra.orderservice.client.CustomerClient;
@@ -27,41 +25,37 @@ public class OrderCustomerServiceImpl implements OrderCustomerService {
         return customerClient.getCustomers(q);
     }
 
+    // Circuit breaker, bulkhead và retry của customerService nằm ngay trong Feign client
+    // (client.resilience); ở đây chỉ còn phần giảm cấp: lỗi Customer-Service không chặn đơn hàng.
     @Override
-    @CircuitBreaker(name = "customerService", fallbackMethod = "getCustomerByIdFallback")
-    @Retry(name = "customerService")
     public CustomerResponse getCustomerById(UUID customerId) {
         log.info("Lấy snapshot khách hàng từ Customer-Service, customerId={}", customerId);
 
-        return customerClient.getCustomerById(customerId);
-    }
-
-    public CustomerResponse getCustomerByIdFallback(UUID customerId, Throwable ex) {
-        log.error(
-                "Customer-Service lỗi khi lấy snapshot khách hàng customerId={}. Đơn hàng vẫn được tạo nếu customer không bắt buộc. Lỗi: {}",
-                customerId,
-                ex.getMessage()
-        );
-
-        return null;
+        try {
+            return customerClient.getCustomerById(customerId);
+        } catch (RuntimeException ex) {
+            log.error(
+                    "Customer-Service lỗi khi lấy snapshot khách hàng customerId={}. Đơn hàng vẫn được tạo nếu customer không bắt buộc. Lỗi: {}",
+                    customerId,
+                    ex.getMessage()
+            );
+            return null;
+        }
     }
 
     @Override
-    @CircuitBreaker(name = "customerService", fallbackMethod = "updateCustomerPurchaseFallback")
-    @Retry(name = "customerService")
     public CustomerPurchaseResponse updateCustomerPurchase(UUID orderId) {
         log.info("Gọi Customer-Service để cập nhật mua hàng/tích điểm cho orderId={}", orderId);
 
-        return customerClient.updateCustomerPurchase(orderId);
-    }
-
-    public CustomerPurchaseResponse updateCustomerPurchaseFallback(UUID orderId, Throwable ex) {
-        log.error(
-                "Customer-Service lỗi khi cập nhật mua hàng/tích điểm cho orderId={}. Order vẫn được thanh toán thành công. Lỗi: {}",
-                orderId,
-                ex.getMessage()
-        );
-
-        return null;
+        try {
+            return customerClient.updateCustomerPurchase(orderId);
+        } catch (RuntimeException ex) {
+            log.error(
+                    "Customer-Service lỗi khi cập nhật mua hàng/tích điểm cho orderId={}. Order vẫn được thanh toán thành công. Lỗi: {}",
+                    orderId,
+                    ex.getMessage()
+            );
+            return null;
+        }
     }
 }

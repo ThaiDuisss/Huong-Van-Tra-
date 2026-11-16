@@ -13,6 +13,7 @@ import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.server.ResponseStatusException;
 import org.springframework.util.StringUtils;
 
 import java.time.Instant;
@@ -59,6 +60,26 @@ public abstract class BaseGlobalExceptionHandler {
         return ResponseEntity
                 .status(exception.getStatus())
                 .body(response);
+    }
+
+    /**
+     * Spring's own {@link ResponseStatusException} already carries the status a controller meant to
+     * answer with (401 on a rejected webhook key, 404 on a foreign resource, ...). Without this
+     * handler it falls through to {@link #handleUnexpectedException} and the caller sees 500.
+     */
+    @ExceptionHandler(ResponseStatusException.class)
+    public ResponseEntity<ErrorResponse> handleResponseStatusException(ResponseStatusException exception) {
+        HttpStatus status = HttpStatus.resolve(exception.getStatusCode().value());
+        if (status == null) {
+            status = HttpStatus.INTERNAL_SERVER_ERROR;
+        }
+        String reason = StringUtils.hasText(exception.getReason())
+                ? exception.getReason()
+                : status.getReasonPhrase();
+        log.warn("Request rejected with {} at {}: {}", status.value(), Instant.now(), reason);
+        return ResponseEntity
+                .status(status)
+                .body(new ErrorResponse(status.name(), reason, status.value()));
     }
 
     @ExceptionHandler(Exception.class)

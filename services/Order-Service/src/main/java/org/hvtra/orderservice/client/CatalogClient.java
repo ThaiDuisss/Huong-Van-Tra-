@@ -3,6 +3,7 @@ package org.hvtra.orderservice.client;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import org.hvtra.orderservice.dto.response.CatalogVariantResponse;
 import org.hvtra.orderservice.dto.response.PageResponse;
+import org.hvtra.orderservice.client.resilience.IdempotentRead;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -17,6 +18,7 @@ import java.util.UUID;
 @FeignClient(name = "catalog-service")
 public interface CatalogClient {
 
+    @IdempotentRead
     @GetMapping("/api/catalog/product-variants")
     PageResponse<CatalogVariantResponse> findAll(
             @RequestParam(name = "keyword", required = false) String keyword,
@@ -30,16 +32,20 @@ public interface CatalogClient {
             @RequestParam(name = "size", required = false, defaultValue = "100") int size
     );
 
+    @IdempotentRead
     @GetMapping("/api/catalog/product-variants/{id}")
     CatalogVariantResponse findById(@PathVariable("id") UUID id);
 
+    @IdempotentRead
     @GetMapping("/api/catalog/product-variants/{variantId}")
     ProductVariantPosViewResponse getProductVariantPosView(@PathVariable("variantId") UUID variantId);
 
+    @IdempotentRead
     @GetMapping("/internal/catalog/product-variants/{variantId}/bom-items")
     List<BomItemResponse> getBomItemsByVariantId(@PathVariable("variantId") UUID variantId);
 
     /** Cấu hình tồn mục tiêu / ngưỡng sản xuất của mặt hàng (chỉ đọc, không bị trừ khi bán). */
+    @IdempotentRead
     @GetMapping("/api/catalog/product-variants/{variantId}")
     VariantStockConfigResponse getVariantStockConfig(@PathVariable("variantId") UUID variantId);
 

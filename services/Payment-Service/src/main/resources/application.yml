@@ -8,6 +8,19 @@ spring:
   flyway:
     baseline-on-migrate: true
     baseline-version: 0
+  cloud:
+    openfeign:
+      # Bảo vệ bằng annotation Resilience4j ở OrderGateway, không dùng Spring Cloud CircuitBreaker của Feign.
+      circuitbreaker:
+        enabled: false
+      client:
+        config:
+          # Tên phải trùng @FeignClient(name = "order-service") của OrderClient.
+          order-service:
+            connectTimeout: 2000
+            # Đọc đơn bên Order đo được 2-3 s trên DB dev (xem Customer-Service) nên để 6 s.
+            readTimeout: 6000
+            loggerLevel: basic
 #  jpa:
 #    hibernate:
 #      ddl-auto: validate
@@ -80,3 +93,75 @@ logging:
 security:
   internal:
       header-secret: ${INTERNAL_HEADER_SECRET}
+
+# ===== Resilience4j cho lời gọi sang Order-Service (OrderGateway) =====
+# Thứ tự aspect (mặc định của Resilience4j): Retry( CircuitBreaker( Bulkhead( Feign ) ) ).
+# Feign Retryer đã tắt (FeignConfig: NEVER_RETRY) nên chỉ có Retry dưới đây thử lại.
+resilience4j:
+
+  retry:
+    instances:
+      # CHỈ gắn cho lời gọi đọc idempotent (GET payment-info). PUT mark-paid không có @Retry.
+      # Trễ xấu nhất của lời gọi đọc: 2 lần x (connect 2 s + read 6 s) + chờ 200 ms = 16,2 s.
+      # Trễ xấu nhất của lời gọi ghi (không retry): connect 2 s + read 6 s = 8 s.
+      orderService:
+        maxAttempts: 2
+        waitDuration: 200ms
+        # Chỉ lỗi tạm thời: lỗi kết nối/IO, feign.RetryableException, HTTP 502/503/504.
+        # Không retry 4xx khác, 429 (không có backoff theo Retry-After), breaker OPEN, bulkhead đầy.
+        retryExceptionPredicate: org.hvtra.paymentservice.resilience.TransientFeignFailurePredicate
+        eventConsumerBufferSize: 50
+
+  circuitbreaker:
+    instances:
+      orderService:
+        registerHealthIndicator: true
+        slidingWindowType: COUNT_BASED
+        slidingWindowSize: 20
+        minimumNumberOfCalls: 10
+        failureRateThreshold: 50
+        # Phải thấp hơn readTimeout (6 s) của Feign client order-service.
+        slowCallDurationThreshold: 4s
+        slowCallRateThreshold: 80
+        waitDurationInOpenState: 15s
+        permittedNumberOfCallsInHalfOpenState: 3
+        automaticTransitionFromOpenToHalfOpenEnabled: true
+        # Chỉ lỗi kết nối/timeout và HTTP 5xx tính là lỗi; 4xx (lỗi nghiệp vụ) tính là thành công.
+        recordFailurePredicate: org.hvtra.paymentservice.resilience.OrderFailurePredicate
+        ignoreExceptions:
+          - io.github.resilience4j.bulkhead.BulkheadFullException
+          - io.github.resilience4j.circuitbreaker.CallNotPermittedException
+        eventConsumerBufferSize: 100
+
+  bulkhead:
+    instances:
+      orderService:
+        maxConcurrentCalls: 20
+        # Đầy thì từ chối ngay (503) thay vì giữ thread của request/webhook.
+        maxWaitDuration: 0ms
+        eventConsumerBufferSize: 50
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: >
+          health,
+          info,
+          metrics,
+          circuitbreakers,
+          circuitbreakerevents,
+          retries,
+          retryevents,
+          bulkheads,
+          bulkheadevents
+  endpoint:
+    health:
+      group:
+        # GET /actuator/health/resilience: chỉ trạng thái circuit breaker, không lộ chi tiết DB/disk.
+        resilience:
+          include: circuitBreakers
+          show-details: always
+  health:
+    circuitbreakers:
+      enabled: true

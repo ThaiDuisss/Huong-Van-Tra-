@@ -18,6 +18,125 @@ spring:
     repair-on-migrate: true
     validate-on-migrate: false
     baseline-version: "10"
+
+  cloud:
+    openfeign:
+      # Resilience4j is applied explicitly in client/gateway (annotations), not through
+      # Spring Cloud CircuitBreaker, so each Feign method is wrapped exactly once.
+      circuitbreaker:
+        enabled: false
+
+      client:
+        config:
+          # Stock look-ups are read-only batch queries.
+          inventory-service:
+            connectTimeout: 1000
+            readTimeout: 3000
+            loggerLevel: basic
+          # FileClient only attaches file metadata (one row update in File-Service). Binary
+          # upload/download goes through presigned URLs, never through this client, so a
+          # short read timeout is correct here.
+          file-service:
+            connectTimeout: 1000
+            readTimeout: 4000
+            loggerLevel: basic
+
+# Feign itself never retries (FeignConfig: Retryer.NEVER_RETRY). There is no TimeLimiter: the calls
+# are synchronous and are bounded by the Feign timeouts above.
+# Aspect order (Resilience4j defaults): Retry( CircuitBreaker( Bulkhead( call ) ) ).
+resilience4j:
+
+  retry:
+    instances:
+      # Idempotent reads only (InventoryGateway). fileService has no retry instance on purpose:
+      # attachFile is a write made inside a database transaction.
+      # Worst case per call: 2 attempts x (1 s connect + 3 s read) + 200 ms wait = 8.2 s.
+      inventoryService:
+        maxAttempts: 2
+        waitDuration: 200ms
+        # Connect/read errors and HTTP 502/503/504 only; never 4xx, an open breaker or a full bulkhead.
+        retryExceptionPredicate: org.hvtra.catalog.client.resilience.TransientFeignFailurePredicate
+        eventConsumerBufferSize: 50
+
+  circuitbreaker:
+    instances:
+      # Opens when >= 50 % of the last 20 calls failed (network error / 5xx) or >= 80 % took longer
+      # than 2 s (readTimeout is 3 s, so a call that times out is both failed and slow).
+      # While open, calls fail in < 1 ms with 503 INVENTORY_SERVICE_UNAVAILABLE.
+      inventoryService:
+        slidingWindowType: COUNT_BASED
+        slidingWindowSize: 20
+        minimumNumberOfCalls: 10
+        failureRateThreshold: 50
+        slowCallDurationThreshold: 2s
+        slowCallRateThreshold: 80
+        waitDurationInOpenState: 15s
+        permittedNumberOfCallsInHalfOpenState: 3
+        automaticTransitionFromOpenToHalfOpenEnabled: true
+        # 4xx and business errors are not failures of Inventory-Service.
+        recordFailurePredicate: org.hvtra.catalog.client.resilience.DownstreamFailurePredicate
+        ignoreExceptions:
+          - io.github.resilience4j.bulkhead.BulkheadFullException
+          - io.github.resilience4j.circuitbreaker.CallNotPermittedException
+        registerHealthIndicator: true
+        # An open breaker is reported as CIRCUIT_OPEN, not DOWN: Catalog itself stays UP in Eureka.
+        allowHealthIndicatorToFail: false
+        eventConsumerBufferSize: 100
+
+      # No retry. Worst case per call: 1 s connect + 4 s read = 5 s, spent inside the caller's
+      # database transaction. While open, calls fail in < 1 ms with 503 FILE_SERVICE_UNAVAILABLE.
+      fileService:
+        slidingWindowType: COUNT_BASED
+        slidingWindowSize: 20
+        minimumNumberOfCalls: 10
+        failureRateThreshold: 50
+        slowCallDurationThreshold: 3s
+        slowCallRateThreshold: 80
+        waitDurationInOpenState: 20s
+        permittedNumberOfCallsInHalfOpenState: 3
+        automaticTransitionFromOpenToHalfOpenEnabled: true
+        recordFailurePredicate: org.hvtra.catalog.client.resilience.DownstreamFailurePredicate
+        ignoreExceptions:
+          - io.github.resilience4j.bulkhead.BulkheadFullException
+          - io.github.resilience4j.circuitbreaker.CallNotPermittedException
+        registerHealthIndicator: true
+        allowHealthIndicatorToFail: false
+        eventConsumerBufferSize: 100
+
+  bulkhead:
+    instances:
+      # Semaphore bulkheads; maxWaitDuration 0 = reject at once instead of queueing request threads.
+      inventoryService:
+        maxConcurrentCalls: 20
+        maxWaitDuration: 0ms
+        eventConsumerBufferSize: 50
+      fileService:
+        maxConcurrentCalls: 10
+        maxWaitDuration: 0ms
+        eventConsumerBufferSize: 50
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: >
+          health,
+          info,
+          metrics,
+          circuitbreakers,
+          circuitbreakerevents,
+          retries,
+          retryevents,
+          bulkheads,
+          bulkheadevents
+  endpoint:
+    health:
+      # Component names and states only (circuitBreakers: UP / CIRCUIT_OPEN / HALF_OPEN), no details.
+      show-components: always
+  health:
+    circuitbreakers:
+      enabled: true
+
 clients:
   inventory:
     base-url: http://inventory-service/api/inventory

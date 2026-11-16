@@ -1,6 +1,7 @@
 package org.hvtra.orderservice.client;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import org.hvtra.orderservice.client.resilience.IdempotentRead;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -20,6 +21,7 @@ import java.util.UUID;
 )
 public interface CustomBundleInventoryClient {
 
+    @IdempotentRead
     @PostMapping("/internal/inventory/custom-bundles/availability")
     AvailabilityResponse checkAvailability(@RequestBody AvailabilityRequest request);
 
@@ -27,6 +29,7 @@ public interface CustomBundleInventoryClient {
     @PostMapping("/internal/inventory/custom-bundles/packings")
     PackingResponse createPacking(@RequestBody CreatePackingRequest request);
 
+    @IdempotentRead
     @GetMapping("/internal/inventory/custom-bundles/packings/by-order/{orderId}")
     List<PackingResponse> findPackingsByOrder(@PathVariable("orderId") UUID orderId);
 

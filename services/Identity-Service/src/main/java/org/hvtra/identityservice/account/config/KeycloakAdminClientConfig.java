@@ -1,5 +1,6 @@
 package org.hvtra.identityservice.account.config;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.client.JdkClientHttpRequestFactory;
@@ -11,13 +12,20 @@ import java.time.Duration;
 @Configuration
 public class KeycloakAdminClientConfig {
 
+    /**
+     * Timeout tường minh cho mọi lời gọi Keycloak. Ngưỡng slow-call của circuit breaker {@code keycloak}
+     * (application.yml) phải thấp hơn read timeout.
+     */
     @Bean
-    public RestClient keycloakAdminRestClient() {
+    public RestClient keycloakAdminRestClient(
+            @Value("${idp.admin-connect-timeout:5s}") Duration connectTimeout,
+            @Value("${idp.admin-read-timeout:15s}") Duration readTimeout
+    ) {
         HttpClient httpClient = HttpClient.newBuilder()
-                .connectTimeout(Duration.ofSeconds(5))
+                .connectTimeout(connectTimeout)
                 .build();
         JdkClientHttpRequestFactory requestFactory = new JdkClientHttpRequestFactory(httpClient);
-        requestFactory.setReadTimeout(Duration.ofSeconds(15));
+        requestFactory.setReadTimeout(readTimeout);
         return RestClient.builder().requestFactory(requestFactory).build();
     }
 }

@@ -28,7 +28,11 @@ import java.util.function.Function;
 
 /**
  * Gọi Keycloak Admin REST API bằng token service-account (client_credentials).
- * Token được cache tới gần lúc hết hạn; nếu Keycloak trả 401 thì xin token mới và thử lại một lần.
+ * Token được cache tới gần lúc hết hạn; nếu Keycloak trả 401 thì xin token mới và thử lại một lần
+ * (401 nghĩa là request chưa được xử lý nên an toàn cả với lời gọi ghi).
+ *
+ * <p>Mọi lời gọi HTTP (kể cả xin token) chạy bên trong {@link KeycloakResilience}: method đọc dùng
+ * {@code read(...)}, method ghi dùng {@code write(...)}. Khi thêm endpoint mới phải chọn đúng một trong hai.
  */
 @Slf4j
 @Component
@@ -51,24 +55,33 @@ public class KeycloakAdminClient {
     private final RestClient restClient;
     private final KeycloakAdminProperties properties;
     private final Clock clock;
+    private final KeycloakResilience resilience;
 
     private String cachedToken;
     private Instant cachedTokenExpiresAt = Instant.EPOCH;
 
     @Autowired
     public KeycloakAdminClient(@Qualifier("keycloakAdminRestClient") RestClient restClient,
-                               KeycloakAdminProperties properties) {
-        this(restClient, properties, Clock.systemUTC());
+                               KeycloakAdminProperties properties,
+                               KeycloakResilience resilience) {
+        this(restClient, properties, Clock.systemUTC(), resilience);
     }
 
+    /** Không bọc resilience: chỉ dùng cho unit test kiểm tra giao tiếp HTTP. */
     KeycloakAdminClient(RestClient restClient, KeycloakAdminProperties properties, Clock clock) {
+        this(restClient, properties, clock, KeycloakResilience.disabled());
+    }
+
+    KeycloakAdminClient(RestClient restClient, KeycloakAdminProperties properties, Clock clock,
+                        KeycloakResilience resilience) {
         this.restClient = restClient;
         this.properties = properties;
         this.clock = clock;
+        this.resilience = resilience;
     }
 
     public List<KeycloakRole> listRealmRoles() {
-        List<KeycloakRole> roles = execute(token -> restClient.get()
+        List<KeycloakRole> roles = read(token -> restClient.get()
                 .uri(properties.adminUrl("/roles"), properties.getRealm())
                 .headers(headers -> headers.setBearerAuth(token))
                 .retrieve()
@@ -82,7 +95,7 @@ public class KeycloakAdminClient {
         int first = 0;
         while (true) {
             int offset = first;
-            List<KeycloakUser> page = execute(token -> restClient.get()
+            List<KeycloakUser> page = read(token -> restClient.get()
                     .uri(properties.adminUrl("/roles/{role}/users?first={first}&max={max}"),
                             properties.getRealm(), roleName, offset, ROLE_MEMBER_PAGE_SIZE)
                     .headers(headers -> headers.setBearerAuth(token))
@@ -101,7 +114,7 @@ public class KeycloakAdminClient {
     }
 
     public KeycloakUser getUser(String userId) {
-        return execute(token -> restClient.get()
+        return read(token -> restClient.get()
                 .uri(properties.adminUrl("/users/{id}"), properties.getRealm(), userId)
                 .headers(headers -> headers.setBearerAuth(token))
                 .retrieve()
@@ -110,7 +123,7 @@ public class KeycloakAdminClient {
 
     /** Tạo user và trả về id (lấy từ header Location của Keycloak). */
     public String createUser(KeycloakUser user) {
-        ResponseEntity<Void> response = execute(token -> restClient.post()
+        ResponseEntity<Void> response = write(token -> restClient.post()
                 .uri(properties.adminUrl("/users"), properties.getRealm())
                 .headers(headers -> headers.setBearerAuth(token))
                 .contentType(MediaType.APPLICATION_JSON)
@@ -126,7 +139,7 @@ public class KeycloakAdminClient {
     }
 
     public void updateUser(String userId, KeycloakUser user) {
-        execute(token -> restClient.put()
+        write(token -> restClient.put()
                 .uri(properties.adminUrl("/users/{id}"), properties.getRealm(), userId)
                 .headers(headers -> headers.setBearerAuth(token))
                 .contentType(MediaType.APPLICATION_JSON)
@@ -136,7 +149,7 @@ public class KeycloakAdminClient {
     }
 
     public void deleteUser(String userId) {
-        execute(token -> restClient.delete()
+        write(token -> restClient.delete()
                 .uri(properties.adminUrl("/users/{id}"), properties.getRealm(), userId)
                 .headers(headers -> headers.setBearerAuth(token))
                 .retrieve()
@@ -145,7 +158,7 @@ public class KeycloakAdminClient {
 
     /** Đặt lại mật khẩu của user. Credential tạm thời buộc user đổi mật khẩu ở lần đăng nhập kế tiếp. */
     public void resetPassword(String userId, KeycloakUser.Credential credential) {
-        execute(token -> restClient.put()
+        write(token -> restClient.put()
                 .uri(properties.adminUrl("/users/{id}/reset-password"), properties.getRealm(), userId)
                 .headers(headers -> headers.setBearerAuth(token))
                 .contentType(MediaType.APPLICATION_JSON)
@@ -156,7 +169,7 @@ public class KeycloakAdminClient {
 
     /** Đăng xuất mọi phiên của user (dùng khi khóa tài khoản hoặc đặt lại mật khẩu). */
     public void logoutUser(String userId) {
-        execute(token -> restClient.post()
+        write(token -> restClient.post()
                 .uri(properties.adminUrl("/users/{id}/logout"), properties.getRealm(), userId)
                 .headers(headers -> headers.setBearerAuth(token))
                 .retrieve()
@@ -165,7 +178,7 @@ public class KeycloakAdminClient {
 
     /** Realm role được gán trực tiếp cho user. */
     public List<KeycloakRole> getUserRealmRoles(String userId) {
-        List<KeycloakRole> roles = execute(token -> restClient.get()
+        List<KeycloakRole> roles = read(token -> restClient.get()
                 .uri(properties.adminUrl("/users/{id}/role-mappings/realm"), properties.getRealm(), userId)
                 .headers(headers -> headers.setBearerAuth(token))
                 .retrieve()
@@ -177,7 +190,7 @@ public class KeycloakAdminClient {
         if (roles.isEmpty()) {
             return;
         }
-        execute(token -> restClient.post()
+        write(token -> restClient.post()
                 .uri(properties.adminUrl("/users/{id}/role-mappings/realm"), properties.getRealm(), userId)
                 .headers(headers -> headers.setBearerAuth(token))
                 .contentType(MediaType.APPLICATION_JSON)
@@ -190,7 +203,7 @@ public class KeycloakAdminClient {
         if (roles.isEmpty()) {
             return;
         }
-        execute(token -> restClient.method(HttpMethod.DELETE)
+        write(token -> restClient.method(HttpMethod.DELETE)
                 .uri(properties.adminUrl("/users/{id}/role-mappings/realm"), properties.getRealm(), userId)
                 .headers(headers -> headers.setBearerAuth(token))
                 .contentType(MediaType.APPLICATION_JSON)
@@ -203,7 +216,7 @@ public class KeycloakAdminClient {
 
     /** Tìm client theo clientId (tên), trả về null nếu không có. Dùng để lấy UUID nội bộ của client. */
     public KeycloakClient findClientByClientId(String clientId) {
-        List<KeycloakClient> clients = execute(token -> restClient.get()
+        List<KeycloakClient> clients = read(token -> restClient.get()
                 .uri(properties.adminUrl("/clients?clientId={clientId}"), properties.getRealm(), clientId)
                 .headers(headers -> headers.setBearerAuth(token))
                 .retrieve()
@@ -223,7 +236,7 @@ public class KeycloakAdminClient {
         int first = 0;
         while (true) {
             int offset = first;
-            List<KeycloakRole> page = execute(token -> restClient.get()
+            List<KeycloakRole> page = read(token -> restClient.get()
                     .uri(properties.adminUrl("/clients/{client}/roles?first={first}&max={max}"),
                             properties.getRealm(), clientUuid, offset, ROLE_PAGE_SIZE)
                     .headers(headers -> headers.setBearerAuth(token))
@@ -243,7 +256,7 @@ public class KeycloakAdminClient {
 
     /** Client role theo tên; Keycloak trả 404 (KeycloakAdminException status 404) nếu không có. */
     public KeycloakRole getClientRole(String clientUuid, String roleName) {
-        return execute(token -> restClient.get()
+        return read(token -> restClient.get()
                 .uri(properties.adminUrl("/clients/{client}/roles/{role}"), properties.getRealm(), clientUuid, roleName)
                 .headers(headers -> headers.setBearerAuth(token))
                 .retrieve()
@@ -252,7 +265,7 @@ public class KeycloakAdminClient {
 
     /** Tạo client role; trùng tên thì Keycloak trả 409. */
     public void createClientRole(String clientUuid, KeycloakRole role) {
-        execute(token -> restClient.post()
+        write(token -> restClient.post()
                 .uri(properties.adminUrl("/clients/{client}/roles"), properties.getRealm(), clientUuid)
                 .headers(headers -> headers.setBearerAuth(token))
                 .contentType(MediaType.APPLICATION_JSON)
@@ -262,7 +275,7 @@ public class KeycloakAdminClient {
     }
 
     public void updateClientRole(String clientUuid, String roleName, KeycloakRole role) {
-        execute(token -> restClient.put()
+        write(token -> restClient.put()
                 .uri(properties.adminUrl("/clients/{client}/roles/{role}"), properties.getRealm(), clientUuid, roleName)
                 .headers(headers -> headers.setBearerAuth(token))
                 .contentType(MediaType.APPLICATION_JSON)
@@ -272,7 +285,7 @@ public class KeycloakAdminClient {
     }
 
     public void deleteClientRole(String clientUuid, String roleName) {
-        execute(token -> restClient.delete()
+        write(token -> restClient.delete()
                 .uri(properties.adminUrl("/clients/{client}/roles/{role}"), properties.getRealm(), clientUuid, roleName)
                 .headers(headers -> headers.setBearerAuth(token))
                 .retrieve()
@@ -285,7 +298,7 @@ public class KeycloakAdminClient {
         int first = 0;
         while (true) {
             int offset = first;
-            List<KeycloakUser> page = execute(token -> restClient.get()
+            List<KeycloakUser> page = read(token -> restClient.get()
                     .uri(properties.adminUrl("/clients/{client}/roles/{role}/users?first={first}&max={max}"),
                             properties.getRealm(), clientUuid, roleName, offset, ROLE_MEMBER_PAGE_SIZE)
                     .headers(headers -> headers.setBearerAuth(token))
@@ -305,7 +318,7 @@ public class KeycloakAdminClient {
 
     /** Các client role (của một client) nằm trong composite của realm role. */
     public List<KeycloakRole> getRealmRoleClientComposites(String realmRoleName, String clientUuid) {
-        List<KeycloakRole> roles = execute(token -> restClient.get()
+        List<KeycloakRole> roles = read(token -> restClient.get()
                 .uri(properties.adminUrl("/roles/{role}/composites/clients/{client}"),
                         properties.getRealm(), realmRoleName, clientUuid)
                 .headers(headers -> headers.setBearerAuth(token))
@@ -318,7 +331,7 @@ public class KeycloakAdminClient {
         if (roles.isEmpty()) {
             return;
         }
-        execute(token -> restClient.post()
+        write(token -> restClient.post()
                 .uri(properties.adminUrl("/roles/{role}/composites"), properties.getRealm(), realmRoleName)
                 .headers(headers -> headers.setBearerAuth(token))
                 .contentType(MediaType.APPLICATION_JSON)
@@ -331,7 +344,7 @@ public class KeycloakAdminClient {
         if (roles.isEmpty()) {
             return;
         }
-        execute(token -> restClient.method(HttpMethod.DELETE)
+        write(token -> restClient.method(HttpMethod.DELETE)
                 .uri(properties.adminUrl("/roles/{role}/composites"), properties.getRealm(), realmRoleName)
                 .headers(headers -> headers.setBearerAuth(token))
                 .contentType(MediaType.APPLICATION_JSON)
@@ -342,7 +355,7 @@ public class KeycloakAdminClient {
 
     /** Client role hiệu lực của user (gồm kế thừa qua composite realm role) đối với một client. */
     public List<KeycloakRole> getUserEffectiveClientRoles(String userId, String clientUuid) {
-        List<KeycloakRole> roles = execute(token -> restClient.get()
+        List<KeycloakRole> roles = read(token -> restClient.get()
                 .uri(properties.adminUrl("/users/{id}/role-mappings/clients/{client}/composite"),
                         properties.getRealm(), userId, clientUuid)
                 .headers(headers -> headers.setBearerAuth(token))
@@ -352,6 +365,16 @@ public class KeycloakAdminClient {
     }
 
     // ===== token + xử lý lỗi =====
+
+    /** GET idempotent: Retry( CircuitBreaker( Bulkhead( call ) ) ). */
+    private <T> T read(Function<String, T> call) {
+        return resilience.read(() -> execute(call));
+    }
+
+    /** POST/PUT/DELETE: CircuitBreaker( Bulkhead( call ) ), không retry. */
+    private <T> T write(Function<String, T> call) {
+        return resilience.write(() -> execute(call));
+    }
 
     private <T> T execute(Function<String, T> call) {
         try {
@@ -403,7 +426,9 @@ public class KeycloakAdminClient {
         } catch (RestClientResponseException ex) {
             // Không đưa body lỗi vào message để tránh lộ thông tin client.
             log.error("Keycloak admin token request failed: status={}", ex.getStatusCode().value());
-            throw new KeycloakAdminException(401, "Không lấy được token service account của Keycloak", ex);
+            // 5xx ở endpoint token là Keycloak đang lỗi (tính vào circuit breaker), không phải sai credential.
+            int status = ex.getStatusCode().is5xxServerError() ? ex.getStatusCode().value() : 401;
+            throw new KeycloakAdminException(status, "Không lấy được token service account của Keycloak", ex);
         } catch (ResourceAccessException ex) {
             throw unreachable(ex);
         }

@@ -2,6 +2,7 @@ package org.hvtra.orderservice.client;
 
 import org.hvtra.orderservice.dto.request.PaymentCreateRequest;
 import org.hvtra.orderservice.dto.response.PaymentResponse;
+import org.hvtra.orderservice.client.resilience.IdempotentRead;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -16,6 +17,7 @@ import java.util.UUID;
 @FeignClient(name = "payment-service", url = "${clients.payment-service.url:http://localhost:8087}")
 public interface PaymentClient {
 
+    @IdempotentRead
     @GetMapping("/api/payments/orders/{orderId}")
     PaymentOrderInfoResponse getPaymentByOrderId(@PathVariable("orderId") UUID orderId);
 
@@ -42,6 +44,7 @@ public interface PaymentClient {
             @RequestBody PaymentRefundRequest request
     );
 
+    @IdempotentRead
     @PostMapping("/api/payments/refunds/lookup")
     List<PaymentRefundSummaryResponse> lookupRefundSummaries(
             @RequestBody RefundSummaryLookupRequest request

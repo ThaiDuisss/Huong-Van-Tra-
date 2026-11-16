@@ -8,8 +8,15 @@ import java.math.BigDecimal;
 import java.util.List;
 import java.util.UUID;
 
-@FeignClient(name = "catalog-service")
+/**
+ * Raw Feign proxy. Application code must inject plain {@code CatalogClient}: the {@code @Primary}
+ * {@link ResilientCatalogClient} is what gets injected, and it adds circuit breaker, bulkhead and
+ * (reads only) retry. This bean is non-primary and reachable only through its qualifier.
+ */
+@FeignClient(name = "catalog-service", primary = false, qualifiers = CatalogClient.FEIGN_QUALIFIER)
 public interface CatalogClient {
+
+    String FEIGN_QUALIFIER = "catalogFeignClient";
 
     @GetMapping("/api/catalog/products/{id}")
     ProductResponse getProduct(@PathVariable("id") UUID id);

@@ -1,6 +1,7 @@
 package org.hvtra.orderservice.client;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import org.hvtra.orderservice.client.resilience.IdempotentRead;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -15,9 +16,11 @@ import java.util.UUID;
 public interface CustomBundleCatalogClient {
 
     /** Cùng dạng với GET /api/catalog/product-variants/{id}. */
+    @IdempotentRead
     @GetMapping("/internal/catalog/product-variants/custom-bundle")
     CatalogClient.ProductVariantPosViewResponse getCustomBundleVariant();
 
+    @IdempotentRead
     @PostMapping("/internal/catalog/ingredients/batch")
     List<IngredientResponse> getIngredientsByIds(@RequestBody List<UUID> ids);
 

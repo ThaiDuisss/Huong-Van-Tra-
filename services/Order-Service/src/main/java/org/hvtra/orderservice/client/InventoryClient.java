@@ -5,6 +5,7 @@ import lombok.Builder;
 import org.hvtra.orderservice.domain.enums.ReturnCondition;
 import org.hvtra.orderservice.domain.enums.ReturnStatus;
 import org.hvtra.orderservice.dto.response.ReturnDispositionStatusResponse;
+import org.hvtra.orderservice.client.resilience.IdempotentRead;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -25,6 +26,7 @@ import java.util.UUID;
 @FeignClient(name = "inventory-service", url = "${clients.inventory.url:${clients.inventory-service.url:}}")
 public interface InventoryClient {
 
+    @IdempotentRead
     @PostMapping("/internal/inventory/stocks/variants/batch")
     List<StockVariantBatchResponse> getStocksByVariantIds(@RequestBody StockVariantBatchRequest request);
 
@@ -80,6 +82,7 @@ public interface InventoryClient {
     FulfillSaleResponse fulfillSale(@RequestBody FulfillSaleRequest request);
 
     /** Ước tính ngày có hàng cho phần khách đặt vượt quá tồn. Chỉ đọc. */
+    @IdempotentRead
     @PostMapping("/internal/inventory/availability/estimate")
     AvailabilityEstimateResponse estimateAvailability(@RequestBody AvailabilityEstimateRequest request);
 
@@ -126,19 +129,23 @@ public interface InventoryClient {
     record ReserveMaterialLineRequest(UUID orderItemId, UUID productVariantId, UUID ingredientId,
                                       UUID inventoryItemId, UUID locationId, BigDecimal quantity) {}
 
+    @IdempotentRead
     @GetMapping("/api/inventory/customer-returns/{returnId}/qc-summary")
     CustomerReturnQcSummaryResponse getCustomerReturnQcSummary(@PathVariable("returnId") UUID returnId);
 
+    @IdempotentRead
     @PostMapping("/api/inventory/customer-returns/qc-summaries")
     List<CustomerReturnQcSummaryResponse> getCustomerReturnQcSummaries(
             @RequestBody CustomerReturnQcSummaryBatchRequest request
     );
 
+    @IdempotentRead
     @PostMapping("/api/inventory/customer-returns/qc-disposition-report")
     List<CustomerReturnQcDispositionReportResponse> getCustomerReturnQcDispositionReport(
             @RequestBody CustomerReturnQcDispositionReportRequest request
     );
 
+    @IdempotentRead
     @GetMapping("/api/inventory/internal/return-dispositions/{commandId}/status")
     ReturnDispositionStatusResponse getReturnDispositionStatus(@PathVariable("commandId") UUID commandId);
 
