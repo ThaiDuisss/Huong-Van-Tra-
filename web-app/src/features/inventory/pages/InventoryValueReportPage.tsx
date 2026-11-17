@@ -1,6 +1,8 @@
 import { BarChart3, Coins, Download, PackageCheck, PieChart } from "lucide-react";
 import { useEffect, useState } from "react";
 
+import { Button } from "../../../components/ui/Button";
+import { Table, TableCell, TableHead, TableHeaderCell, TableRow } from "../../../components/ui/Table";
 import { toast } from "../../../components/ui/Toast";
 import { InventoryPageHeader } from "../components/InventoryManagementComponents";
 import { inventoryReportApi, type InventoryValueReportResponse } from "../services/inventoryReport.api";
@@ -34,14 +36,10 @@ export function InventoryValueReportPage() {
     <section className="grid gap-5">
       <InventoryPageHeader
         actions={
-          <button
-            className="inline-flex h-10 items-center gap-2 rounded-lg border border-[#d8eadc] bg-white px-4 text-sm font-black text-[#159734] transition hover:bg-[#f4faf5]"
-            onClick={() => toast.success("Xuất báo cáo Excel thành công.")}
-            type="button"
-          >
+          <Button onClick={() => toast.success("Xuất báo cáo Excel thành công.")}>
             <Download size={16} />
             Xuất Excel
-          </button>
+          </Button>
         }
         description="Báo cáo phân bổ tổng vốn tồn đọng trong kho theo nhóm danh mục sản phẩm và kho hàng."
         eyebrow="Báo cáo / Kho hàng"
@@ -150,32 +148,32 @@ export function InventoryValueReportPage() {
           <div className="p-4 text-sm font-bold text-red-700 bg-red-50 rounded-lg">{error}</div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm">
-              <thead className="bg-[#eaf7ec] text-xs font-black uppercase text-[#172317]">
-                <tr>
-                  <th className="px-4 py-3">Mã SKU</th>
-                  <th>Tên mặt hàng</th>
-                  <th>Nhóm hàng</th>
-                  <th>Vị trí kho</th>
-                  <th>Tồn kho</th>
-                  <th>Giá vốn</th>
-                  <th>Tổng giá trị</th>
-                </tr>
-              </thead>
+            <Table>
+              <TableHead>
+                <TableRow>
+                  <TableHeaderCell>Mã SKU</TableHeaderCell>
+                  <TableHeaderCell>Tên mặt hàng</TableHeaderCell>
+                  <TableHeaderCell>Nhóm hàng</TableHeaderCell>
+                  <TableHeaderCell>Vị trí kho</TableHeaderCell>
+                  <TableHeaderCell>Tồn kho</TableHeaderCell>
+                  <TableHeaderCell>Giá vốn</TableHeaderCell>
+                  <TableHeaderCell>Tổng giá trị</TableHeaderCell>
+                </TableRow>
+              </TableHead>
               <tbody>
                 {data?.topValuedItems.map((item) => (
-                  <tr className="hover:bg-[#f8fbf8]" key={item.inventoryItemId}>
-                    <td className="border-t border-[#edf0f4] px-4 py-3 font-black text-[#159734]">{item.code}</td>
-                    <td className="border-t border-[#edf0f4] font-semibold">{item.name}</td>
-                    <td className="border-t border-[#edf0f4]">{item.categoryName}</td>
-                    <td className="border-t border-[#edf0f4]">{item.locationName}</td>
-                    <td className="border-t border-[#edf0f4] font-black">{formatVietnamNumber(item.quantityOnHand)} {item.unitSymbol}</td>
-                    <td className="border-t border-[#edf0f4]">{formatVnd(item.costPrice)}</td>
-                    <td className="border-t border-[#edf0f4] font-black text-[#172317]">{formatVnd(item.totalValue)}</td>
-                  </tr>
+                  <TableRow className="hover:bg-[#f8fbf8]" key={item.inventoryItemId}>
+                    <TableCell className="font-black text-[#159734]">{item.code}</TableCell>
+                    <TableCell className="font-semibold">{item.name}</TableCell>
+                    <TableCell>{item.categoryName}</TableCell>
+                    <TableCell>{item.locationName}</TableCell>
+                    <TableCell className="font-black">{formatVietnamNumber(item.quantityOnHand)} {item.unitSymbol}</TableCell>
+                    <TableCell>{formatVnd(item.costPrice)}</TableCell>
+                    <TableCell className="font-black text-[#172317]">{formatVnd(item.totalValue)}</TableCell>
+                  </TableRow>
                 ))}
               </tbody>
-            </table>
+            </Table>
           </div>
         )}
       </section>

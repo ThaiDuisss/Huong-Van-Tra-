@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { Suspense, lazy, useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 
+import { Button } from "../../../components/ui/Button";
 import { useAuth } from "../../../auth/auth-context";
 import { routePaths } from "../../../routes/path";
 import { InventoryPageHeader } from "../../inventory/components/InventoryManagementComponents";
@@ -130,16 +131,10 @@ export function DashboardOverviewPage() {
                 Cập nhật {timeFormatter.format(data.lastUpdated)}
               </span>
             ) : null}
-            <button
-              aria-label="Làm mới dữ liệu"
-              className="inline-flex h-10 items-center gap-2 rounded-lg border border-[#d8eadc] bg-white px-4 text-sm font-black text-[#159734] transition hover:bg-[#f4faf5] disabled:opacity-60"
-              disabled={data.isLoading}
-              onClick={data.refresh}
-              type="button"
-            >
+            <Button aria-label="Làm mới dữ liệu" disabled={data.isLoading} onClick={data.refresh}>
               <RefreshCw className={data.isLoading ? "animate-spin" : ""} size={16} aria-hidden="true" />
               Làm mới
-            </button>
+            </Button>
           </>
         }
         description="Theo dõi tình hình kinh doanh, kho hàng, sản xuất và các cảnh báo khẩn cấp."

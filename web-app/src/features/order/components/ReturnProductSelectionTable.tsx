@@ -1,5 +1,16 @@
 import { useMemo, useState } from "react";
-import { Minus, Plus, Search } from "lucide-react";
+import { Minus, Plus } from "lucide-react";
+
+import { Button } from "../../../components/ui/Button";
+import { SearchInput } from "../../../components/ui/SearchInput";
+import { StatusBadge } from "../../../components/ui/StatusBadge";
+import {
+    Table,
+    TableCell,
+    TableHead,
+    TableHeaderCell,
+    TableRow
+} from "../../../components/ui/Table";
 import type { OrderItemResponse } from "../types/order.types";
 import { formatReturnQuantity } from "../utils/order-return.utils";
 import {
@@ -142,16 +153,14 @@ export function ReturnProductSelectionTable({
         <div className={styles.productSelectionSection}>
             {/* Toolbar: Search, Filter Tabs, Deselect All */}
             <div className={styles.tableToolbar}>
-                <div className={styles.tableSearchBox}>
-                    <Search size={16} aria-hidden="true" />
-                    <input
-                        type="text"
-                        placeholder="Tìm sản phẩm theo tên, SKU..."
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                        aria-label="Tìm kiếm sản phẩm cần hoàn"
-                    />
-                </div>
+                <SearchInput
+                    aria-label="Tìm kiếm sản phẩm cần hoàn"
+                    className={styles.tableSearchBox}
+                    onChange={setSearchTerm}
+                    placeholder="Tìm sản phẩm theo tên, SKU..."
+                    type="text"
+                    value={searchTerm}
+                />
 
                 <div className={styles.tableControlsRight}>
                     <div className={styles.filterTabGroup} role="tablist" aria-label="Bộ lọc sản phẩm">
@@ -176,45 +185,41 @@ export function ReturnProductSelectionTable({
                     </div>
 
                     {selectedCount > 0 && (
-                        <button
-                            type="button"
-                            className={styles.deselectAllButton}
-                            onClick={onDeselectAll}
-                        >
+                        <Button onClick={onDeselectAll} size="sm">
                             Bỏ chọn tất cả
-                        </button>
+                        </Button>
                     )}
                 </div>
             </div>
 
             {/* Scrollable Table with Sticky Header */}
             <div className={styles.itemTableWrap}>
-                <table className={styles.itemTable}>
+                <Table className={styles.itemTable}>
                     <colgroup>
                         <col style={{ width: "48%" }} />
                         <col style={{ width: "16%" }} />
                         <col style={{ width: "16%" }} />
                         <col style={{ width: "20%" }} />
                     </colgroup>
-                    <thead>
-                        <tr>
-                            <th>Sản phẩm</th>
-                            <th>Đã mua</th>
-                            <th>Còn được hoàn</th>
-                            <th>Số lượng hoàn</th>
-                        </tr>
-                    </thead>
+                    <TableHead>
+                        <TableRow>
+                            <TableHeaderCell>Sản phẩm</TableHeaderCell>
+                            <TableHeaderCell>Đã mua</TableHeaderCell>
+                            <TableHeaderCell>Còn được hoàn</TableHeaderCell>
+                            <TableHeaderCell>Số lượng hoàn</TableHeaderCell>
+                        </TableRow>
+                    </TableHead>
                     <tbody>
                         {filteredItemsWithIndices.length === 0 ? (
-                            <tr>
-                                <td colSpan={4} className={styles.emptyTableState}>
+                            <TableRow>
+                                <TableCell colSpan={4} className={styles.emptyTableState}>
                                     {filterTab === "SELECTED" && selectedCount === 0 ? (
                                         <span>Chưa có sản phẩm nào được chọn.</span>
                                     ) : (
                                         <span>Không tìm thấy sản phẩm phù hợp với từ khóa.</span>
                                     )}
-                                </td>
-                            </tr>
+                                </TableCell>
+                            </TableRow>
                         ) : (
                             filteredItemsWithIndices.map(({ item, itemKey }) => {
                                 const draft = draftItems[itemKey];
@@ -235,11 +240,11 @@ export function ReturnProductSelectionTable({
                                     numQty < availableQuantity;
 
                                 return (
-                                    <tr
+                                    <TableRow
                                         key={itemKey}
                                         className={isSelected ? styles.selectedTableRow : undefined}
                                     >
-                                        <td>
+                                        <TableCell>
                                             <label className={styles.itemSelector}>
                                                 <input
                                                     checked={isSelected}
@@ -268,20 +273,18 @@ export function ReturnProductSelectionTable({
                                                     </small>
                                                 </span>
                                             </label>
-                                        </td>
-                                        <td className={styles.quantityCell}>
+                                        </TableCell>
+                                        <TableCell className={styles.quantityCell}>
                                             {formatReturnQuantity(item.quantity)}
-                                        </td>
-                                        <td className={styles.quantityCell}>
+                                        </TableCell>
+                                        <TableCell className={styles.quantityCell}>
                                             {isExhausted ? (
-                                                <span className={styles.exhaustedBadge}>
-                                                    Hết SL hoàn
-                                                </span>
+                                                <StatusBadge shape="tag">Hết SL hoàn</StatusBadge>
                                             ) : (
                                                 formatReturnQuantity(availableQuantity)
                                             )}
-                                        </td>
-                                        <td>
+                                        </TableCell>
+                                        <TableCell>
                                             <div
                                                 className={`${styles.quantityStepper} ${
                                                     error ? styles.quantityStepperError : ""
@@ -345,13 +348,13 @@ export function ReturnProductSelectionTable({
                                                     {error}
                                                 </p>
                                             ) : null}
-                                        </td>
-                                    </tr>
+                                        </TableCell>
+                                    </TableRow>
                                 );
                             })
                         )}
                     </tbody>
-                </table>
+                </Table>
             </div>
 
             {/* Selection Summary at Bottom of Step 2 */}

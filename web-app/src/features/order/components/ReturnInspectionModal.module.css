@@ -1,27 +1,11 @@
 /* ReturnInspectionModal Styles */
 
-.modalBackdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 70;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(15, 23, 42, 0.55);
-  backdrop-filter: blur(4px);
-  padding: 16px;
-  overflow: hidden;
-}
-
 .modalDialog {
   display: flex;
   flex-direction: column;
   width: 100%;
   max-width: 760px;
   max-height: calc(100vh - 32px);
-  border-radius: 12px;
-  background: #ffffff;
-  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
   overflow: hidden;
   animation: modalEnter 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
@@ -74,26 +58,6 @@
 
 .metaDot {
   color: #cbd5e1;
-}
-
-.closeButton {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 32px;
-  height: 32px;
-  border: none;
-  border-radius: 8px;
-  background: transparent;
-  color: #64748b;
-  cursor: pointer;
-  transition: all 0.15s ease;
-  flex-shrink: 0;
-}
-
-.closeButton:hover {
-  background: #f1f5f9;
-  color: #172317;
 }
 
 /* Stepper */
@@ -212,19 +176,6 @@
   color: #536078;
   font-size: 12px;
   font-weight: 600;
-}
-
-.remainingBadge {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 4px 10px;
-  border-radius: 6px;
-  background: #e9f8ed;
-  color: #07883a;
-  font-size: 12px;
-  font-weight: 700;
-  white-space: nowrap;
 }
 
 /* Readonly Product Meta */
@@ -467,25 +418,6 @@
   margin-top: 4px;
 }
 
-.generalNoteToggle {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  border: none;
-  background: transparent;
-  color: #07883a;
-  font-size: 13px;
-  font-weight: 700;
-  cursor: pointer;
-  padding: 4px 0;
-  transition: color 0.15s ease;
-}
-
-.generalNoteToggle:hover {
-  color: #066b2e;
-  text-decoration: underline;
-}
-
 .generalNoteCollapse {
   display: flex;
   flex-direction: column;
@@ -647,72 +579,11 @@
   flex-shrink: 0;
 }
 
-.secondaryButton {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  height: 40px;
-  padding: 0 16px;
-  border: 1px solid #dfe6ee;
-  border-radius: 8px;
-  background: #ffffff;
-  color: #334155;
-  font-size: 14px;
-  font-weight: 700;
-  cursor: pointer;
-  transition: all 0.15s ease;
-}
-
-.secondaryButton:hover:not(:disabled) {
-  background: #f8fafc;
-  border-color: #cbd5e1;
-}
-
-.secondaryButton:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.primaryButton {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  height: 40px;
-  padding: 0 20px;
-  border: none;
-  border-radius: 8px;
-  background: #07883a;
-  color: #ffffff;
-  font-size: 14px;
-  font-weight: 700;
-  cursor: pointer;
-  box-shadow: 0 1px 2px rgba(7, 136, 58, 0.2);
-  transition: all 0.15s ease;
-}
-
-.primaryButton:hover:not(:disabled) {
-  background: #066b2e;
-}
-
-.primaryButton:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-  box-shadow: none;
-}
-
 /* Responsive */
 @media (max-width: 640px) {
-  .modalBackdrop {
-    align-items: flex-end;
-    padding: 0;
-  }
-
   .modalDialog {
     max-width: 100%;
     max-height: 92vh;
-    border-radius: 16px 16px 0 0;
   }
 
   .resultCardsGrid {
@@ -732,8 +603,7 @@
     gap: 8px;
   }
 
-  .primaryButton,
-  .secondaryButton {
+  .modalFooter > button {
     width: 100%;
   }
 }

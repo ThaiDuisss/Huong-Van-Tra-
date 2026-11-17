@@ -2,6 +2,9 @@ import { X } from "lucide-react";
 import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
 
+import { Button, IconButton } from "../../../components/ui/Button";
+import { Field, TextInput } from "../../../components/ui/Field";
+import { ModalShell } from "../../../components/ui/Overlay";
 import { productVariantApi } from "../services/productVariant.api";
 import type { ProductVariant, SellableConfigInput } from "../types/product.types";
 
@@ -10,11 +13,6 @@ interface SellableConfigDialogProps {
     onClose(): void;
     onSaved(variant: ProductVariant): void;
 }
-
-const inputClass =
-    "h-10 w-full rounded-xl border border-pos-border bg-white px-3 font-medium text-gray-700 focus:border-[#07883a] focus:outline-none disabled:bg-neutral-50";
-const labelClass = "grid gap-1.5 text-sm font-bold text-gray-500";
-const hintClass = "text-xs font-medium text-gray-400";
 
 export function SellableConfigDialog({ variant, onClose, onSaved }: SellableConfigDialogProps) {
     const [sellableQuantity, setSellableQuantity] = useState(String(variant.sellableQuantity ?? 0));
@@ -45,14 +43,6 @@ export function SellableConfigDialog({ variant, onClose, onSaved }: SellableConf
             active = false;
         };
     }, [variant.id]);
-
-    useEffect(() => {
-        function handleKeyDown(event: KeyboardEvent) {
-            if (event.key === "Escape") onClose();
-        }
-        window.addEventListener("keydown", handleKeyDown);
-        return () => window.removeEventListener("keydown", handleKeyDown);
-    }, [onClose]);
 
     function buildInput(): SellableConfigInput | null {
         const input: SellableConfigInput = {
@@ -95,15 +85,13 @@ export function SellableConfigDialog({ variant, onClose, onSaved }: SellableConf
     const disabled = loading || submitting;
 
     return (
-        <div className="fixed inset-0 z-40 grid place-items-center overflow-y-auto bg-black/40 p-6">
-            <form
-                aria-labelledby="sellable-config-title"
-                aria-modal="true"
-                className="w-full max-w-lg rounded-3xl border border-pos-border bg-white p-6 shadow-pos-panel"
-                noValidate
-                onSubmit={handleSubmit}
-                role="dialog"
-            >
+        <ModalShell
+            className="w-[min(512px,calc(100vw-32px))] p-6"
+            closeOnBackdrop={false}
+            labelledBy="sellable-config-title"
+            onClose={onClose}
+        >
+            <form noValidate onSubmit={handleSubmit}>
                 <header className="mb-5 flex items-start justify-between gap-3 border-b border-pos-border pb-3">
                     <div className="grid gap-0.5">
                         <h2 className="text-xl font-bold text-gray-700" id="sellable-config-title">
@@ -112,14 +100,9 @@ export function SellableConfigDialog({ variant, onClose, onSaved }: SellableConf
                         <p className="text-sm font-semibold text-gray-500">{variant.variantName}</p>
                         <p className="font-mono text-xs text-gray-400">{variant.sku}</p>
                     </div>
-                    <button
-                        aria-label="Đóng biểu mẫu"
-                        className="grid size-9 shrink-0 cursor-pointer place-items-center rounded-lg transition-all hover:bg-neutral-100 focus:outline-none"
-                        onClick={onClose}
-                        type="button"
-                    >
+                    <IconButton aria-label="Đóng biểu mẫu" onClick={onClose} size="md">
                         <X size={20} />
-                    </button>
+                    </IconButton>
                 </header>
 
                 {error ? (
@@ -132,10 +115,8 @@ export function SellableConfigDialog({ variant, onClose, onSaved }: SellableConf
                 ) : null}
 
                 <div className="grid gap-4">
-                    <label className={labelClass}>
-                        Số lượng có thể bán *
-                        <input
-                            className={inputClass}
+                    <Field hint="Ghi đè con số hiện tại. Mỗi đơn bán thành công sẽ tự trừ vào số này." label="Số lượng có thể bán" required>
+                        <TextInput
                             disabled={disabled}
                             min={0}
                             onChange={(event) => setSellableQuantity(event.target.value)}
@@ -143,15 +124,10 @@ export function SellableConfigDialog({ variant, onClose, onSaved }: SellableConf
                             type="number"
                             value={sellableQuantity}
                         />
-                        <span className={hintClass}>
-                            Ghi đè con số hiện tại. Mỗi đơn bán thành công sẽ tự trừ vào số này.
-                        </span>
-                    </label>
+                    </Field>
 
-                    <label className={labelClass}>
-                        Ngưỡng yêu cầu sản xuất *
-                        <input
-                            className={inputClass}
+                    <Field hint="Khi số lượng có thể bán giảm xuống bằng hoặc dưới ngưỡng, hệ thống tạo cảnh báo cần sản xuất." label="Ngưỡng yêu cầu sản xuất" required>
+                        <TextInput
                             disabled={disabled}
                             min={0}
                             onChange={(event) => setProductionThreshold(event.target.value)}
@@ -159,15 +135,10 @@ export function SellableConfigDialog({ variant, onClose, onSaved }: SellableConf
                             type="number"
                             value={productionThreshold}
                         />
-                        <span className={hintClass}>
-                            Khi số lượng có thể bán giảm xuống bằng hoặc dưới ngưỡng, hệ thống tạo cảnh báo cần sản xuất.
-                        </span>
-                    </label>
+                    </Field>
 
-                    <label className={labelClass}>
-                        Số lượng mỗi mẻ sản xuất *
-                        <input
-                            className={inputClass}
+                    <Field hint="Số lượng đề xuất sản xuất trong cảnh báo." label="Số lượng mỗi mẻ sản xuất" required>
+                        <TextInput
                             disabled={disabled}
                             min={0.01}
                             onChange={(event) => setProductionBatchQuantity(event.target.value)}
@@ -175,27 +146,18 @@ export function SellableConfigDialog({ variant, onClose, onSaved }: SellableConf
                             type="number"
                             value={productionBatchQuantity}
                         />
-                        <span className={hintClass}>Số lượng đề xuất sản xuất trong cảnh báo.</span>
-                    </label>
+                    </Field>
                 </div>
 
                 <footer className="mt-6 flex items-center justify-end gap-3 border-t border-pos-border pt-4">
-                    <button
-                        className="h-11 cursor-pointer rounded-xl border border-pos-border bg-white px-6 font-bold text-gray-500 transition-all hover:bg-neutral-50 focus:outline-none"
-                        onClick={onClose}
-                        type="button"
-                    >
+                    <Button onClick={onClose}>
                         Hủy bỏ
-                    </button>
-                    <button
-                        className="h-11 cursor-pointer rounded-xl bg-[#07883a] px-6 font-bold text-white shadow-sm transition-all hover:bg-[#067331] focus:outline-none disabled:opacity-50"
-                        disabled={disabled}
-                        type="submit"
-                    >
+                    </Button>
+                    <Button disabled={disabled} type="submit" variant="primary">
                         {submitting ? "Đang lưu..." : loading ? "Đang tải..." : "Lưu cấu hình"}
-                    </button>
+                    </Button>
                 </footer>
             </form>
-        </div>
+        </ModalShell>
     );
 }

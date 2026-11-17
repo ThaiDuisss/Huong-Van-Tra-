@@ -14,6 +14,9 @@ import { Link, Navigate, useParams } from "react-router-dom";
 
 import { useAuth } from "../../../auth/auth-context";
 import { hasAnyRole } from "../../../auth/role-utils";
+import { Button } from "../../../components/ui/Button";
+import { TextInput } from "../../../components/ui/Field";
+import { Table, TableCell, TableHead, TableHeaderCell, TableRow } from "../../../components/ui/Table";
 import { StatusBadge } from "../components/StocktakeComponents";
 import { useStocktakeActionDialog } from "../components/useStocktakeActionDialog";
 import { stocktakeApi } from "../services/stocktake.api";
@@ -215,17 +218,15 @@ export function StocktakeDetailPage() {
           </div>
         </div>
         <div className="flex flex-wrap gap-2">
-          <button
-            className={secondaryButton}
+          <Button
             disabled={loading || Boolean(pendingAction)}
             onClick={() => void load()}
-            type="button"
           >
             <RefreshCw size={17} /> Làm mới
-          </button>
+          </Button>
           {status === "DRAFT" && canApprove ? (
-            <button
-              className={primaryButton}
+            <Button
+              variant="primary"
               disabled={Boolean(pendingAction)}
               onClick={async () => {
                 const confirmed = await ask({
@@ -237,7 +238,6 @@ export function StocktakeDetailPage() {
                 if (confirmed !== null)
                   void runAction("start", () => stocktakeApi.startStocktake({ stocktakeId }));
               }}
-              type="button"
             >
               {pendingAction === "start" ? (
                 <LoaderCircle className="animate-spin" size={17} />
@@ -245,34 +245,30 @@ export function StocktakeDetailPage() {
                 <Play size={17} />
               )}{" "}
               {pendingAction === "start" ? "Đang chuẩn bị..." : "Bắt đầu kiểm kê"}
-            </button>
+            </Button>
           ) : null}
           {stocktake?.status === "COUNTING" && canOperate ? (
             <>
-              <button
-                className={secondaryButton}
+              <Button
                 disabled={!dirtyIds.length || Boolean(pendingAction)}
                 onClick={() =>
                   void runAction("save", async () => (await saveCounts()) ?? stocktake)
                 }
-                type="button"
               >
                 <Save size={17} /> Lưu ({dirtyIds.length})
-              </button>
-              <button
-                className={primaryButton}
+              </Button>
+              <Button
+                variant="primary"
                 disabled={Boolean(pendingAction)}
                 onClick={() => void finish()}
-                type="button"
               >
                 <CheckCircle2 size={17} /> Gửi kết quả
-              </button>
+              </Button>
             </>
           ) : null}
           {status === "PENDING_APPROVAL" && canApprove ? (
             <>
-              <button
-                className={secondaryButton}
+              <Button
                 disabled={!selectedIds.length || Boolean(pendingAction)}
                 onClick={async () => {
                   const reason = await ask({
@@ -292,12 +288,11 @@ export function StocktakeDetailPage() {
                       }),
                     );
                 }}
-                type="button"
               >
                 <RotateCcw size={17} /> Kiểm kê lại ({selectedIds.length})
-              </button>
-              <button
-                className={primaryButton}
+              </Button>
+              <Button
+                variant="primary"
                 disabled={Boolean(pendingAction)}
                 onClick={async () => {
                   const confirmed = await ask({
@@ -308,7 +303,6 @@ export function StocktakeDetailPage() {
                   if (confirmed !== null)
                     void runAction("approve", () => stocktakeApi.approveStocktake({ stocktakeId }));
                 }}
-                type="button"
               >
                 {pendingAction === "approve" ? (
                   <LoaderCircle className="animate-spin" size={17} />
@@ -316,12 +310,11 @@ export function StocktakeDetailPage() {
                   <CheckCircle2 size={17} />
                 )}{" "}
                 Phê duyệt & cập nhật tồn kho
-              </button>
+              </Button>
             </>
           ) : null}
           {canCancel ? (
-            <button
-              className={dangerButton}
+            <Button
               disabled={Boolean(pendingAction)}
               onClick={async () => {
                 const rejecting = status === "PENDING_APPROVAL";
@@ -339,10 +332,10 @@ export function StocktakeDetailPage() {
                     stocktakeApi.cancelStocktake({ reason: reason.trim(), stocktakeId }),
                   );
               }}
-              type="button"
+              variant="dangerOutline"
             >
               <XCircle size={17} /> {status === "PENDING_APPROVAL" ? "Từ chối" : "Hủy kỳ kiểm kê"}
-            </button>
+            </Button>
           ) : null}
         </div>
       </header>
@@ -435,9 +428,9 @@ export function StocktakeDetailPage() {
                   selectedIds={selectedIds}
                 />
               ) : (
-                <table className="w-full min-w-[1120px] text-left text-sm">
-                  <thead className="bg-[#f3f7f4] text-xs font-black uppercase text-[#536171]">
-                    <tr>
+                <Table className="min-w-[1120px]">
+                  <TableHead>
+                    <TableRow>
                       {[
                         "Mặt hàng",
                         "Vị trí",
@@ -448,12 +441,12 @@ export function StocktakeDetailPage() {
                         "Lý do",
                         "Ghi chú",
                       ].map((label) => (
-                        <th className="border-b border-[#dce5e1] px-3 py-3" key={label}>
+                        <TableHeaderCell key={label}>
                           {label}
-                        </th>
+                        </TableHeaderCell>
                       ))}
-                    </tr>
-                  </thead>
+                    </TableRow>
+                  </TableHead>
                   <tbody>
                     {visibleLines.map((line) => {
                       const draft = drafts[line.id];
@@ -462,29 +455,29 @@ export function StocktakeDetailPage() {
                         counted === null ? line.varianceQuantity : counted - line.expectedQuantity;
                       const editable = stocktake.status === "COUNTING" && canOperate;
                       return (
-                        <tr
+                        <TableRow
                           className={dirtyIds.includes(line.id) ? "bg-amber-50/50" : ""}
                           key={line.id}
                         >
-                          <td className="border-b border-[#edf2ef] px-3 py-3">
+                          <TableCell>
                             <strong className="block">{line.inventoryItemCode}</strong>
                             <span className="text-xs text-[#697684]">{line.inventoryItemName}</span>
-                          </td>
-                          <td className="border-b border-[#edf2ef] px-3">{line.locationName}</td>
-                          <td className="border-b border-[#edf2ef] px-3">
+                          </TableCell>
+                          <TableCell>{line.locationName}</TableCell>
+                          <TableCell>
                             {line.batchCode ?? "-"}
                             {line.expiryDate ? (
                               <small className="block text-[#697684]">HSD {line.expiryDate}</small>
                             ) : null}
-                          </td>
-                          <td className="border-b border-[#edf2ef] px-3 font-bold">
+                          </TableCell>
+                          <TableCell className="font-bold">
                             {hideExpected
                               ? "••••"
                               : `${formatVietnamNumber(line.snapshotQuantity)} ${line.unit}`}
-                          </td>
-                          <td className="border-b border-[#edf2ef] px-3">
-                            <input
-                              className={inputClass}
+                          </TableCell>
+                          <TableCell>
+                            <TextInput
+                              className="min-w-24"
                               disabled={!editable}
                               min="0"
                               onChange={(event) =>
@@ -494,17 +487,17 @@ export function StocktakeDetailPage() {
                               type="number"
                               value={draft?.quantity ?? ""}
                             />
-                          </td>
-                          <td
-                            className={`border-b border-[#edf2ef] px-3 font-black ${!hideExpected && variance && variance < 0 ? "text-red-700" : !hideExpected && variance && variance > 0 ? "text-emerald-700" : ""}`}
+                          </TableCell>
+                          <TableCell
+                            className={`font-black ${!hideExpected && variance && variance < 0 ? "text-red-700" : !hideExpected && variance && variance > 0 ? "text-emerald-700" : ""}`}
                           >
                             {hideExpected || variance === null
                               ? "-"
                               : formatVietnamNumber(variance)}
-                          </td>
-                          <td className="border-b border-[#edf2ef] px-3">
-                            <input
-                              className={inputClass}
+                          </TableCell>
+                          <TableCell>
+                            <TextInput
+                              className="min-w-24"
                               disabled={!editable}
                               onChange={(event) =>
                                 updateDraft(line.id, { reasonCode: event.currentTarget.value })
@@ -512,10 +505,10 @@ export function StocktakeDetailPage() {
                               placeholder="Lý do chênh lệch"
                               value={draft?.reasonCode ?? ""}
                             />
-                          </td>
-                          <td className="border-b border-[#edf2ef] px-3">
-                            <input
-                              className={inputClass}
+                          </TableCell>
+                          <TableCell>
+                            <TextInput
+                              className="min-w-24"
                               disabled={!editable}
                               onChange={(event) =>
                                 updateDraft(line.id, { note: event.currentTarget.value })
@@ -523,12 +516,12 @@ export function StocktakeDetailPage() {
                               placeholder="Ghi chú"
                               value={draft?.note ?? ""}
                             />
-                          </td>
-                        </tr>
+                          </TableCell>
+                        </TableRow>
                       );
                     })}
                   </tbody>
-                </table>
+                </Table>
               )}
             </div>
           </section>
@@ -565,75 +558,75 @@ function ReviewTable({
     "Lý do",
   ];
   return (
-    <table className="w-full min-w-[1160px] text-left text-sm">
-      <thead className="bg-[#f3f7f4] text-xs font-black uppercase text-[#536171]">
-        <tr>
+    <Table className="min-w-[1160px]">
+      <TableHead>
+        <TableRow>
           {columns.map((label) => (
-            <th className="border-b border-[#dce5e1] px-3 py-3" key={label}>
+            <TableHeaderCell key={label}>
               {label}
-            </th>
+            </TableHeaderCell>
           ))}
-        </tr>
-      </thead>
+        </TableRow>
+      </TableHead>
       <tbody>
         {lines.map((line) => {
           const variance = line.varianceQuantity ?? 0;
           return (
-            <tr className={selectedIds.includes(line.id) ? "bg-amber-50/50" : ""} key={line.id}>
+            <TableRow className={selectedIds.includes(line.id) ? "bg-amber-50/50" : ""} key={line.id}>
               {canSelect ? (
-                <td className="border-b border-[#edf2ef] px-3">
+                <TableCell>
                   <input
                     aria-label={`Chọn ${line.inventoryItemCode} để kiểm kê lại`}
                     checked={selectedIds.includes(line.id)}
                     onChange={() => onToggle(line.id)}
                     type="checkbox"
                   />
-                </td>
+                </TableCell>
               ) : null}
-              <td className="border-b border-[#edf2ef] px-3 py-3">
+              <TableCell>
                 <strong className="block">{line.inventoryItemCode}</strong>
                 <span className="text-xs text-[#697684]">{line.inventoryItemName}</span>
-              </td>
-              <td className="border-b border-[#edf2ef] px-3">
+              </TableCell>
+              <TableCell>
                 {line.locationName}
                 <small className="block text-[#697684]">{line.batchCode ?? "Không theo lô"}</small>
-              </td>
-              <td className="border-b border-[#edf2ef] px-3">
+              </TableCell>
+              <TableCell>
                 {formatVietnamNumber(line.snapshotQuantity)}
-              </td>
-              <td className="border-b border-[#edf2ef] px-3">
+              </TableCell>
+              <TableCell>
                 {formatVietnamNumber(line.movementQuantity)}
-              </td>
-              <td className="border-b border-[#edf2ef] px-3 font-bold">
+              </TableCell>
+              <TableCell className="font-bold">
                 {formatVietnamNumber(line.expectedQuantity)}
-              </td>
-              <td className="border-b border-[#edf2ef] px-3">
+              </TableCell>
+              <TableCell>
                 {formatVietnamNumber(line.countedQuantity ?? 0)}
-              </td>
-              <td
-                className={`border-b border-[#edf2ef] px-3 font-black ${variance < 0 ? "text-red-700" : variance > 0 ? "text-emerald-700" : ""}`}
+              </TableCell>
+              <TableCell
+                className={`font-black ${variance < 0 ? "text-red-700" : variance > 0 ? "text-emerald-700" : ""}`}
               >
                 {variance > 0 ? "+" : ""}
                 {formatVietnamNumber(variance)} {line.unit}
-              </td>
-              <td className="border-b border-[#edf2ef] px-3">
+              </TableCell>
+              <TableCell>
                 {formatVietnamNumber(Math.abs(line.varianceValue))} ₫
-              </td>
-              <td className="border-b border-[#edf2ef] px-3">
+              </TableCell>
+              <TableCell>
                 {line.reasonCode || line.note || "Chưa có"}
-              </td>
-            </tr>
+              </TableCell>
+            </TableRow>
           );
         })}
         {!lines.length ? (
-          <tr>
-            <td className="p-8 text-center text-sm text-[#697684]" colSpan={columns.length}>
+          <TableRow>
+            <TableCell className="py-8 text-center text-sm text-[#697684]" colSpan={columns.length}>
               Không có mặt hàng phù hợp.
-            </td>
-          </tr>
+            </TableCell>
+          </TableRow>
         ) : null}
       </tbody>
-    </table>
+    </Table>
   );
 }
 
@@ -718,11 +711,4 @@ function SummaryCard({
 function messageOf(error: unknown, fallback: string) {
   return error instanceof Error ? error.message : fallback;
 }
-const primaryButton =
-  "inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-[#159734] px-4 text-sm font-bold text-white hover:bg-[#12862d] disabled:opacity-50";
-const secondaryButton =
-  "inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-[#dce5e1] bg-white px-4 text-sm font-bold text-[#536171] disabled:opacity-50";
-const dangerButton =
-  "inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-red-200 bg-white px-4 text-sm font-bold text-red-700 hover:bg-red-50 disabled:opacity-50";
-const inputClass =
-  "h-9 w-full min-w-24 rounded-lg border border-[#dce5e1] bg-white px-2 text-sm font-semibold outline-none focus:border-[#159734] disabled:bg-[#f4f6f5]";
+

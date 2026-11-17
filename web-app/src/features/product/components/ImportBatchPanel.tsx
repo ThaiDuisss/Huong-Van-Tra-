@@ -3,6 +3,9 @@ import type { ComponentType } from "react";
 import { useCallback, useEffect, useState } from "react";
 
 import { useAuthorization } from "../../../auth/role-utils";
+import { Button } from "../../../components/ui/Button";
+import { TextArea } from "../../../components/ui/Field";
+import { type BadgeTone, StatusBadge } from "../../../components/ui/StatusBadge";
 import {
     Dialog,
     DialogContent,
@@ -17,21 +20,17 @@ import { importBatchApi as defaultImportBatchApi, type ImportBatchApi } from "..
 import type { ImportBatch, ImportBatchItem, ImportBatchStatus, ImportPreviewResponse, ImportType } from "../types/import-batch.types";
 import { ROLES } from "../../../auth/roles";
 
-const STATUS_LABEL: Record<ImportBatchStatus | "PREVIEW", { label: string; className: string }> = {
-    PREVIEW: { label: "Bản xem trước (chưa lưu)", className: "bg-amber-50 text-amber-700 border border-amber-200" },
-    DRAFT: { label: "Bản nháp", className: "bg-neutral-100 text-neutral-700" },
-    PENDING_APPROVAL: { label: "Chờ duyệt", className: "bg-blue-50 text-blue-700" },
-    APPROVED: { label: "Đã duyệt", className: "bg-emerald-50 text-emerald-700" },
-    REJECTED: { label: "Bị từ chối", className: "bg-red-50 text-red-700" }
+const STATUS_LABEL: Record<ImportBatchStatus | "PREVIEW", { label: string; tone: BadgeTone }> = {
+    PREVIEW: { label: "Bản xem trước (chưa lưu)", tone: "warning" },
+    DRAFT: { label: "Bản nháp", tone: "neutral" },
+    PENDING_APPROVAL: { label: "Chờ duyệt", tone: "info" },
+    APPROVED: { label: "Đã duyệt", tone: "success" },
+    REJECTED: { label: "Bị từ chối", tone: "danger" }
 };
 
 export function StatusPill({ status }: { status: ImportBatchStatus | "PREVIEW" }) {
     const info = STATUS_LABEL[status];
-    return (
-        <span className={`inline-flex h-7 items-center rounded-full px-2.5 text-xs font-bold ${info.className}`}>
-            {info.label}
-        </span>
-    );
+    return <StatusBadge tone={info.tone}>{info.label}</StatusBadge>;
 }
 
 /** Mỗi loại import (PRODUCT, PRODUCT_VARIANT, ...) tự cung cấp 1 component render toàn bộ danh sách dòng
@@ -480,9 +479,9 @@ export function ImportBatchPanel({
             <section className="grid gap-3 rounded-xl border border-red-200 bg-red-50 p-6 text-sm font-bold text-red-700">
                 <div>{error || "Không tìm thấy phiếu import."}</div>
                 <div>
-                    <button className="rounded-lg bg-red-600 px-4 py-2 text-white hover:bg-red-700" onClick={() => loadBatch()} type="button">
+                    <Button onClick={() => loadBatch()} variant="danger">
                         Tải lại
-                    </button>
+                    </Button>
                 </div>
             </section>
         );
@@ -599,41 +598,22 @@ export function ImportBatchPanel({
             <div className="flex flex-wrap items-center justify-end gap-2">
                 {isEditable ? (
                     <>
-                        <button
-                            className="inline-flex h-10 items-center rounded-lg border border-pos-border bg-white px-4 text-sm font-black text-[#536078] hover:bg-neutral-50"
-                            onClick={() => void handleSaveDraft()}
-                            type="button"
-                        >
+                        <Button onClick={() => void handleSaveDraft()}>
                             Lưu nháp
-                        </button>
-                        <button
-                            className="inline-flex h-10 items-center rounded-lg bg-[#159734] px-4 text-sm font-black text-white hover:bg-[#12802c] shadow-sm disabled:opacity-50"
-                            disabled={!canSubmit}
-                            onClick={() => void handleSubmit()}
-                            type="button"
-                        >
+                        </Button>
+                        <Button disabled={!canSubmit} onClick={() => void handleSubmit()} variant="primary">
                             {canApprove ? "Duyệt & Áp dụng ngay" : "Gửi quản lý duyệt"}
-                        </button>
+                        </Button>
                     </>
                 ) : null}
                 {showApprovalActions ? (
                     <>
-                        <button
-                            className="inline-flex h-10 items-center rounded-lg border border-red-200 bg-white px-4 text-sm font-black text-red-600 hover:bg-red-50 disabled:opacity-50"
-                            disabled={actionLoading}
-                            onClick={() => setRejectOpen(true)}
-                            type="button"
-                        >
+                        <Button disabled={actionLoading} onClick={() => setRejectOpen(true)} variant="dangerOutline">
                             Từ chối
-                        </button>
-                        <button
-                            className="inline-flex h-10 items-center rounded-lg bg-[#159734] px-4 text-sm font-black text-white hover:bg-[#12802c] shadow-sm disabled:opacity-50"
-                            disabled={actionLoading}
-                            onClick={() => void handleApprove()}
-                            type="button"
-                        >
+                        </Button>
+                        <Button disabled={actionLoading} onClick={() => void handleApprove()} variant="primary">
                             Duyệt
-                        </button>
+                        </Button>
                     </>
                 ) : null}
             </div>
@@ -645,8 +625,7 @@ export function ImportBatchPanel({
                         <DialogDescription>Nhập lý do để người tạo biết cần sửa gì trước khi gửi duyệt lại.</DialogDescription>
                     </DialogHeader>
                     <div className="px-6 py-4">
-                        <textarea
-                            className="w-full rounded-lg border border-[#dce5e1] p-3 text-sm outline-none focus:border-red-500"
+                        <TextArea
                             onChange={(e) => setRejectReason(e.target.value)}
                             placeholder="Lý do từ chối..."
                             rows={3}
@@ -654,22 +633,12 @@ export function ImportBatchPanel({
                         />
                     </div>
                     <DialogFooter>
-                        <button
-                            className="h-10 rounded-lg border border-[#dce5e1] px-4 text-sm font-bold text-[#536078]"
-                            disabled={actionLoading}
-                            onClick={() => setRejectOpen(false)}
-                            type="button"
-                        >
+                        <Button disabled={actionLoading} onClick={() => setRejectOpen(false)}>
                             Quay lại
-                        </button>
-                        <button
-                            className="h-10 rounded-lg bg-red-600 px-4 text-sm font-black text-white hover:bg-red-700 disabled:opacity-60"
-                            disabled={actionLoading}
-                            onClick={() => void handleReject()}
-                            type="button"
-                        >
+                        </Button>
+                        <Button disabled={actionLoading} onClick={() => void handleReject()} variant="danger">
                             {actionLoading ? "Đang xử lý..." : "Xác nhận từ chối"}
-                        </button>
+                        </Button>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>

@@ -1,3 +1,5 @@
+import { StatusBadge } from "@/components/ui/StatusBadge";
+
 import type { GoodsReceiptLine } from "../types/goods-receipt.types";
 import { getLineException } from "../utils/goodsReceiptException";
 import { formatVietnamNumber } from "../utils/inventory-format";
@@ -7,26 +9,14 @@ export function LineExceptionBadges({ line }: { line: GoodsReceiptLine }) {
     const { excess, shortage, damaged } = getLineException(line);
 
     if (excess === 0 && shortage === 0 && damaged === 0) {
-        return <span className="inline-flex rounded bg-green-50 px-2 py-0.5 text-xs font-bold text-green-700">Đủ</span>;
+        return <StatusBadge shape="tag" tone="success">Đủ</StatusBadge>;
     }
 
     return (
         <span className="inline-flex flex-wrap gap-1">
-            {excess > 0 ? (
-                <span className="inline-flex rounded border border-cyan-200 bg-cyan-50 px-2 py-0.5 text-xs font-bold text-cyan-700">
-                    Thừa +{formatVietnamNumber(excess)}
-                </span>
-            ) : null}
-            {shortage > 0 ? (
-                <span className="inline-flex rounded border border-amber-200 bg-amber-50 px-2 py-0.5 text-xs font-bold text-amber-700">
-                    Thiếu −{formatVietnamNumber(shortage)}
-                </span>
-            ) : null}
-            {damaged > 0 ? (
-                <span className="inline-flex rounded border border-red-200 bg-red-50 px-2 py-0.5 text-xs font-bold text-red-700">
-                    Hỏng {formatVietnamNumber(damaged)}
-                </span>
-            ) : null}
+            {excess > 0 ? <StatusBadge shape="tag" tone="cyan">Thừa +{formatVietnamNumber(excess)}</StatusBadge> : null}
+            {shortage > 0 ? <StatusBadge shape="tag" tone="warning">Thiếu −{formatVietnamNumber(shortage)}</StatusBadge> : null}
+            {damaged > 0 ? <StatusBadge shape="tag" tone="danger">Hỏng {formatVietnamNumber(damaged)}</StatusBadge> : null}
         </span>
     );
 }

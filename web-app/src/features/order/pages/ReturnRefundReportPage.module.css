@@ -17,30 +17,8 @@
     padding: 24px;
 }
 
-.header {
-    display: flex;
-    align-items: flex-end;
-    justify-content: space-between;
-    gap: 16px;
-}
-
-.title h1 {
-    margin: 0;
-    color: #172317;
-    font-size: 26px;
-    font-weight: 900;
-}
-
-.title p {
-    margin: 4px 0 0;
-    color: #697684;
-    font-size: 14px;
-    font-weight: 700;
-}
-
 .filterPanel,
-.card,
-.tableCard {
+.card {
     border: 1px solid #e8eef0;
     border-radius: 8px;
     background: #fff;
@@ -52,47 +30,6 @@
     grid-template-columns: minmax(220px, 1fr) repeat(3, minmax(160px, 220px));
     gap: 12px;
     padding: 14px;
-}
-
-.field {
-    display: grid;
-    gap: 6px;
-    color: #536078;
-    font-size: 12px;
-    font-weight: 900;
-}
-
-.field input,
-.field select,
-.searchBox {
-    height: 42px;
-    border: 1px solid #dbe5df;
-    border-radius: 8px;
-    background: #fff;
-}
-
-.field input,
-.field select {
-    padding: 0 12px;
-    color: #172317;
-    font-size: 14px;
-    font-weight: 700;
-}
-
-.searchBox {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 0 12px;
-}
-
-.searchBox input {
-    width: 100%;
-    border: 0;
-    outline: 0;
-    color: #172317;
-    font-size: 14px;
-    font-weight: 700;
 }
 
 .summaryGrid {
@@ -168,26 +105,10 @@
     background: linear-gradient(90deg, #159734, #49b96b);
 }
 
-.reasonTable {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 13px;
-}
-
-.reasonTable th,
-.reasonTable td {
-    border-top: 1px solid #edf0f4;
-    padding: 8px 0;
-    text-align: right;
-}
-
-.reasonTable th:first-child,
-.reasonTable td:first-child {
-    text-align: left;
-}
-
-.tableCard {
-    overflow: hidden;
+.tableSection {
+    display: grid;
+    gap: 12px;
+    min-width: 0;
 }
 
 .tableHeader {
@@ -195,8 +116,6 @@
     align-items: center;
     justify-content: space-between;
     gap: 12px;
-    padding: 14px;
-    border-bottom: 1px solid #edf0f4;
 }
 
 .tableHeader h2 {
@@ -206,128 +125,10 @@
     font-weight: 900;
 }
 
-.tableWrap {
-    overflow-x: auto;
-}
-
-.reportTable {
-    width: 100%;
-    min-width: 1180px;
-    border-collapse: collapse;
-    font-size: 13px;
-    text-align: left;
-}
-
-.reportTable th {
-    background: #eaf7ec;
-    color: #172317;
-    font-size: 12px;
-    font-weight: 900;
-}
-
-.reportTable th,
-.reportTable td {
-    border-top: 1px solid #edf0f4;
-    padding: 12px;
-    vertical-align: top;
-}
-
-.reportTable tbody tr:hover {
-    background: #f8fbf8;
-}
-
 .muted {
     color: #697684;
     font-size: 12px;
     font-weight: 700;
-}
-
-.pill {
-    display: inline-flex;
-    align-items: center;
-    min-height: 26px;
-    border-radius: 999px;
-    padding: 4px 9px;
-    font-size: 12px;
-    font-weight: 900;
-}
-
-.green {
-    background: #e9f8ed;
-    color: #08732a;
-}
-
-.amber {
-    background: #fff6df;
-    color: #976600;
-}
-
-.blue {
-    background: #eaf2ff;
-    color: #225bb8;
-}
-
-.gray {
-    background: #eef2f4;
-    color: #536078;
-}
-
-.pagination {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-    padding: 12px 14px;
-    border-top: 1px solid #edf0f4;
-    color: #536078;
-    font-size: 13px;
-    font-weight: 800;
-}
-
-.pageTools {
-    display: flex;
-    gap: 6px;
-}
-
-.pageButton {
-    display: grid;
-    place-items: center;
-    min-width: 34px;
-    height: 34px;
-    border: 1px solid #dbe5df;
-    border-radius: 8px;
-    background: #fff;
-    color: #172317;
-    font-weight: 900;
-}
-
-.pageButton:disabled {
-    cursor: not-allowed;
-    opacity: 0.45;
-}
-
-.activePage {
-    border-color: #159734;
-    background: #159734;
-    color: #fff;
-}
-
-.emptyCell,
-.stateBox {
-    padding: 28px;
-    color: #697684;
-    text-align: center;
-    font-weight: 800;
-}
-
-.errorBox {
-    border: 1px solid #fecaca;
-    border-radius: 8px;
-    background: #fff1f2;
-    padding: 12px;
-    color: #b91c1c;
-    font-size: 13px;
-    font-weight: 800;
 }
 
 @media (max-width: 1180px) {
@@ -352,10 +153,5 @@
     .summaryGrid,
     .breakdownGrid {
         grid-template-columns: 1fr;
-    }
-
-    .pagination {
-        align-items: flex-start;
-        flex-direction: column;
     }
 }

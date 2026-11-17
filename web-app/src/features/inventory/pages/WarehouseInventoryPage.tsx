@@ -1,5 +1,7 @@
-import { Search } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
+import { ListPageHeader } from "../../../components/shared/list/ListPageHeader";
+import { NativeSelect } from "../../../components/ui/Field";
+import { SearchInput } from "../../../components/ui/SearchInput";
 import { BatchDetailDrawer } from "../components/BatchDetailDrawer";
 import { ProductInventorySummaryTable } from "../components/ProductInventorySummaryTable";
 import { Pagination } from "../../manufacturing/components/shared/Pagination";
@@ -79,42 +81,33 @@ export function WarehouseInventoryPage() {
     return (
         <section className="grid gap-5">
             {/* Header */}
-            <header className="flex flex-col gap-1 px-4 py-3">
-                <h1 className="text-2xl font-bold text-gray-800 sm:text-3xl">
-                    Tồn kho kho tổng
-                </h1>
-                <p className="text-sm text-gray-500">
-                    Theo dõi tồn kho theo mặt hàng, vị trí và lô hàng
-                </p>
-            </header>
+            <ListPageHeader
+                description="Theo dõi tồn kho theo mặt hàng, vị trí và lô hàng"
+                title="Tồn kho kho tổng"
+            />
 
             {/* Search & Filter Card */}
             <div className={`rounded-2xl bg-white p-4 shadow-pos-card transition-all duration-300 ${drawerOpen ? "opacity-50 pointer-events-none" : ""}`}>
                 <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 justify-between">
-                    <div className="relative flex-1">
-                        <Search size={16} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-                        <input
-                            type="text"
-                            placeholder="Tìm theo SKU hoặc tên..."
-                            value={keyword}
-                            onChange={(e) => handleSearch(e.target.value)}
-                            className="w-full pl-10 pr-4 py-2.5 border border-pos-border rounded-xl text-sm outline-none focus:border-hvt-green-700"
-                        />
-                    </div>
+                    <SearchInput
+                        onChange={handleSearch}
+                        placeholder="Tìm theo SKU hoặc tên..."
+                        type="text"
+                        value={keyword}
+                    />
                     <div className="min-w-[140px] shrink-0">
-                        <select
+                        <NativeSelect
                             value={filterItemType}
                             onChange={(e) => {
                                 setFilterItemType(e.target.value);
                                 setPage(1);
                                 setDrawerOpen(false);
                             }}
-                            className="h-10 w-full border border-pos-border rounded-xl px-3 text-sm outline-none focus:border-hvt-green-700 bg-white text-[#172317]"
                         >
                             <option value="">Tất cả loại</option>
                             <option value="PRODUCT_VARIANT">Sản phẩm</option>
                             <option value="INGREDIENT">Nguyên liệu</option>
-                        </select>
+                        </NativeSelect>
                     </div>
                 </div>
             </div>

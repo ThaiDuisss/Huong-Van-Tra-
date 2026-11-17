@@ -421,16 +421,6 @@
   font-weight: 800;
 }
 
-.detailModalBackdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 60;
-  display: grid;
-  place-items: center;
-  background: rgb(15 23 42 / 0.38);
-  padding: 24px;
-}
-
 .detailModal {
   width: min(900px, calc(100vw - 32px));
   max-height: min(760px, calc(100vh - 48px));
@@ -464,11 +454,6 @@
 }
 
 @media (max-width: 640px) {
-  .detailModalBackdrop {
-    align-items: end;
-    padding: 12px;
-  }
-
   .detailModal {
     width: 100%;
     max-height: calc(100vh - 24px);

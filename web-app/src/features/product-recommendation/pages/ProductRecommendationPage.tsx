@@ -1,4 +1,6 @@
 import { useState } from "react";
+import { Button } from "../../../components/ui/Button";
+import { Field, NativeSelect } from "../../../components/ui/Field";
 import { PageHeader } from "../../manufacturing/components/shared/PageHeader";
 import { useAuth } from "@/auth/auth-context";
 import { CustomerSelector } from "../../sales/components/checkout/CustomerCard";
@@ -49,21 +51,19 @@ export function ProductRecommendationPage() {
           {customer ? `Khách hàng: ${customer.name}` : "Khách lẻ — sử dụng sản phẩm phổ biến."}
         </p>
         {customer && (
-          <label className="grid gap-1 text-sm">
-            Phạm vi gợi ý
-            <select
-              className="rounded-lg border border-slate-200 p-2"
+          <Field label="Phạm vi gợi ý">
+            <NativeSelect
               value={mode}
               onChange={(event) => setMode(event.target.value as RecommendationMode)}
             >
               <option value="DISCOVERY">Khám phá sản phẩm chưa mua</option>
               <option value="REPEAT">Sản phẩm đã mua</option>
-            </select>
-          </label>
+            </NativeSelect>
+          </Field>
         )}
-        <button
-          type="button"
-          className="justify-self-start rounded-lg bg-[#159734] px-4 py-2 text-sm font-semibold text-white"
+        <Button
+          className="justify-self-start"
+          variant="primary"
           onClick={() => {
             const next = generation + 1;
             setGeneration(next);
@@ -71,7 +71,7 @@ export function ProductRecommendationPage() {
           }}
         >
           Xem sản phẩm gợi ý
-        </button>
+        </Button>
       </section>
       {request === context && (
         <ProductRecommendationResults key={context} customerId={customer?.id ?? null} mode={mode} />

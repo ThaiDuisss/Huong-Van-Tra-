@@ -1,8 +1,13 @@
-import { ChevronLeft, ChevronRight, Plus, Trash2 } from "lucide-react";
+import { Plus, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 
 import { useAuthorization } from "../../../auth/useAuthorization";
+import { TablePagination } from "../../../components/shared/list/TablePagination";
+import { Button, IconButton } from "../../../components/ui/Button";
+import { buttonClassName } from "../../../components/ui/button-styles";
+import { Field, TextInput } from "../../../components/ui/Field";
+import { Table, TableCell, TableHead, TableHeaderCell, TableRow } from "../../../components/ui/Table";
 import { goodsReceiptApi } from "../services/goodsReceipt.api";
 import { supplierApi } from "../../manufacturing/services/supplier.api";
 import { inventoryLocationApi } from "../services/inventoryLocation.api";
@@ -388,7 +393,6 @@ export function GoodsReceiptCreatePage() {
     const totalPages = Math.max(1, Math.ceil(lines.length / pageSize));
     const safePage = Math.min(page, totalPages);
     const startIndex = (safePage - 1) * pageSize;
-    const endIndex = Math.min(startIndex + pageSize, lines.length);
     const paginatedLines = lines.slice(startIndex, startIndex + pageSize);
 
     return (
@@ -409,7 +413,7 @@ export function GoodsReceiptCreatePage() {
                         </p>
                     </div>
                     <Link
-                        className="inline-flex h-9 items-center justify-center rounded-lg border border-[#dce5e1] px-4 text-xs font-bold text-[#536078] hover:bg-[#f7f8fb]"
+                        className={buttonClassName({ size: "sm" })}
                         to={receiptId ? `/management/inventory/receipts/${receiptId}` : "/management/inventory/receipts"}
                     >
                         Hủy & Quay lại
@@ -482,10 +486,8 @@ export function GoodsReceiptCreatePage() {
                         />
                     </div>
 
-                    <label className="grid gap-1.5 text-xs font-black text-[#536078]">
-                        Ngày dự kiến giao
-                        <input
-                            className="h-10 rounded-lg border border-[#dce5e1] px-3 text-sm font-bold text-[#172317] outline-none focus:border-[#159734]"
+                    <Field label="Ngày dự kiến giao">
+                        <TextInput
                             onChange={(e) =>
                                 setForm((cur) => ({
                                     ...cur,
@@ -495,7 +497,7 @@ export function GoodsReceiptCreatePage() {
                             type="date"
                             value={form.expectedDate}
                         />
-                    </label>
+                    </Field>
 
                     {/* <label className="grid gap-1.5 text-xs font-black text-[#536078]">
                         Mã đơn đặt hàng (PO)
@@ -512,10 +514,8 @@ export function GoodsReceiptCreatePage() {
                         />
                     </label> */}
 
-                    <label className="grid gap-1.5 text-xs font-black text-[#536078] md:col-span-2 lg:col-span-4">
-                        Ghi chú phiếu
-                        <input
-                            className="h-10 rounded-lg border border-[#dce5e1] px-3 text-sm font-semibold text-[#172317] outline-none focus:border-[#159734]"
+                    <Field className="md:col-span-2 lg:col-span-4" label="Ghi chú phiếu">
+                        <TextInput
                             placeholder="Ghi chú về lô hàng, phương thức vận chuyển hoặc điều kiện đặc biệt..."
                             onChange={(e) =>
                                 setForm((cur) => ({
@@ -525,7 +525,7 @@ export function GoodsReceiptCreatePage() {
                             }
                             value={form.note}
                         />
-                    </label>
+                    </Field>
                 </div>
             </div>
 
@@ -540,16 +540,15 @@ export function GoodsReceiptCreatePage() {
                             Chỉ chọn các nguyên liệu do nhà cung cấp đã chọn cung cấp (mỗi nguyên liệu chỉ được chọn một lần).
                         </p>
                     </div>
-                    <button
-                        className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-[#edf8ef] px-3 text-xs font-black text-[#159734] hover:bg-[#e2f4e5] disabled:cursor-not-allowed disabled:opacity-40 cursor-pointer"
+                    <Button
                         disabled={!form.supplierId || loadingMaterials || isAllMaterialsSelected}
                         onClick={addLine}
-                        type="button"
+                        size="sm"
                         title={isAllMaterialsSelected ? "Đã chọn tất cả nguyên liệu của nhà cung cấp này" : "Thêm nguyên liệu"}
                     >
                         <Plus size={15} />
                         Thêm dòng {options.materials.length > 0 ? `(${lines.length}/${options.materials.length})` : ""}
-                    </button>
+                    </Button>
                 </div>
 
                 {!form.supplierId ? (
@@ -567,17 +566,17 @@ export function GoodsReceiptCreatePage() {
                 ) : null}
 
                 <div className="overflow-x-auto">
-                    <table className="w-full min-w-[750px] text-left text-sm">
-                        <thead className="bg-[#f4faf5] text-xs font-black text-[#315f3c]">
-                            <tr>
-                                <th className="px-3 py-2.5 w-12">#</th>
-                                <th className="px-3 py-2.5 min-w-[280px]">Nguyên liệu <span className="text-red-500">*</span></th>
-                                <th className="px-3 py-2.5 w-20">ĐVT</th>
-                                <th className="px-3 py-2.5 text-right w-44">Số lượng đặt <span className="text-red-500">*</span></th>
-                                <th className="px-3 py-2.5">Ghi chú dòng</th>
-                                <th className="px-3 py-2.5 text-center w-16">Xóa</th>
-                            </tr>
-                        </thead>
+                    <Table className="min-w-[750px]">
+                        <TableHead>
+                            <TableRow>
+                                <TableHeaderCell className="w-12">#</TableHeaderCell>
+                                <TableHeaderCell className="min-w-[280px]">Nguyên liệu <span className="text-red-500">*</span></TableHeaderCell>
+                                <TableHeaderCell className="w-20">ĐVT</TableHeaderCell>
+                                <TableHeaderCell className="text-right w-44">Số lượng đặt <span className="text-red-500">*</span></TableHeaderCell>
+                                <TableHeaderCell>Ghi chú dòng</TableHeaderCell>
+                                <TableHeaderCell className="text-center w-16">Xóa</TableHeaderCell>
+                            </TableRow>
+                        </TableHead>
                         <tbody>
                             {paginatedLines.map((line, index) => {
                                 const globalIndex = startIndex + index;
@@ -586,11 +585,11 @@ export function GoodsReceiptCreatePage() {
                                 const lineMaterialOptions = getAvailableMaterialOptions(line.id, line.materialId);
 
                                 return (
-                                    <tr key={line.id} className="border-b border-[#edf0f4]">
-                                        <td className="px-3 py-2.5 text-xs font-bold text-[#697684]">
+                                    <TableRow key={line.id}>
+                                        <TableCell className="text-xs font-bold text-[#697684]">
                                             {globalIndex + 1}
-                                        </td>
-                                        <td className="px-3 py-2.5 min-w-[280px]">
+                                        </TableCell>
+                                        <TableCell className="min-w-[280px]">
                                             <SearchableDropdown
                                                 value={line.materialId}
                                                 onChange={(val) =>
@@ -615,13 +614,13 @@ export function GoodsReceiptCreatePage() {
                                                 emptyText="Không tìm thấy nguyên liệu"
                                                 disabled={isMaterialDisabled}
                                             />
-                                        </td>
-                                        <td className="px-3 py-2.5 text-sm font-bold text-[#536078]">
+                                        </TableCell>
+                                        <TableCell className="text-sm font-bold text-[#536078]">
                                             {material?.unit ?? "kg"}
-                                        </td>
-                                        <td className="px-3 py-2.5 text-right">
-                                            <input
-                                                className="h-9 w-full rounded-lg border border-[#dce5e1] px-2.5 text-right text-sm font-bold text-[#172317] outline-none focus:border-[#159734] disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed"
+                                        </TableCell>
+                                        <TableCell className="text-right">
+                                            <TextInput
+                                                className="text-right"
                                                 disabled={isMaterialDisabled || !line.materialId}
                                                 min="0.01"
                                                 step="any"
@@ -634,10 +633,9 @@ export function GoodsReceiptCreatePage() {
                                                 }
                                                 value={line.orderedQuantity || ""}
                                             />
-                                        </td>
-                                        <td className="px-3 py-2.5">
-                                            <input
-                                                className="h-9 w-full rounded-lg border border-[#dce5e1] px-2.5 text-sm font-medium text-[#172317] outline-none focus:border-[#159734] disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed"
+                                        </TableCell>
+                                        <TableCell>
+                                            <TextInput
                                                 disabled={isMaterialDisabled || !line.materialId}
                                                 placeholder="Quy cách bao gói, yêu cầu..."
                                                 onChange={(e) =>
@@ -647,83 +645,39 @@ export function GoodsReceiptCreatePage() {
                                                 }
                                                 value={line.note}
                                             />
-                                        </td>
-                                        <td className="px-3 py-2.5 text-center">
-                                            <button
-                                                className="inline-flex size-8 items-center justify-center rounded-lg text-red-500 hover:bg-red-50 disabled:opacity-30"
+                                        </TableCell>
+                                        <TableCell className="text-center">
+                                            <IconButton
+                                                aria-label="Xóa dòng"
                                                 disabled={lines.length <= 1}
                                                 onClick={() => removeLine(line.id)}
                                                 title="Xóa dòng"
-                                                type="button"
+                                                tone="danger"
                                             >
                                                 <Trash2 size={16} />
-                                            </button>
-                                        </td>
-                                    </tr>
+                                            </IconButton>
+                                        </TableCell>
+                                    </TableRow>
                                 );
                             })}
                         </tbody>
-                    </table>
+                    </Table>
                 </div>
 
                 {/* PHÂN TRANG DANH SÁCH NGUYÊN LIỆU */}
-                <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[#edf0f4] pt-3 text-xs">
-                    <div className="text-[#536078] font-bold">
-                        Hiển thị <span className="text-[#172317]">{lines.length > 0 ? startIndex + 1 : 0} - {endIndex}</span> trên tổng <span className="text-[#172317]">{lines.length}</span> dòng
-                    </div>
-                    <div className="flex flex-wrap items-center gap-3">
-                        <div className="flex items-center gap-1.5 text-[#697684] font-bold">
-                            <span>Hiển thị:</span>
-                            <select
-                                className="h-8 rounded-lg border border-[#dce5e1] bg-white px-2 text-xs font-bold text-[#172317] outline-none focus:border-[#159734]"
-                                value={pageSize}
-                                onChange={(e) => {
-                                    setPageSize(Number(e.target.value));
-                                    setPage(1);
-                                }}
-                            >
-                                <option value={5}>5 dòng / trang</option>
-                                <option value={10}>10 dòng / trang</option>
-                                <option value={20}>20 dòng / trang</option>
-                            </select>
-                        </div>
-                        {totalPages > 1 && (
-                            <div className="flex items-center gap-1">
-                                <button
-                                    type="button"
-                                    disabled={safePage <= 1}
-                                    onClick={() => setPage((p) => Math.max(1, p - 1))}
-                                    className="grid size-8 place-items-center rounded-lg border border-[#dce5e1] text-[#536078] hover:bg-[#f7f8fb] disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
-                                    title="Trang trước"
-                                >
-                                    <ChevronLeft size={16} />
-                                </button>
-                                {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
-                                    <button
-                                        key={p}
-                                        type="button"
-                                        onClick={() => setPage(p)}
-                                        className={`grid size-8 place-items-center rounded-lg text-xs font-black transition-colors cursor-pointer ${p === safePage
-                                                ? "bg-[#159734] text-white shadow-sm"
-                                                : "border border-[#dce5e1] text-[#536078] hover:bg-[#f7f8fb]"
-                                            }`}
-                                    >
-                                        {p}
-                                    </button>
-                                ))}
-                                <button
-                                    type="button"
-                                    disabled={safePage >= totalPages}
-                                    onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                                    className="grid size-8 place-items-center rounded-lg border border-[#dce5e1] text-[#536078] hover:bg-[#f7f8fb] disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
-                                    title="Trang sau"
-                                >
-                                    <ChevronRight size={16} />
-                                </button>
-                            </div>
-                        )}
-                    </div>
-                </div>
+                <TablePagination
+                    itemLabel="dòng"
+                    onPageChange={(nextPage) => setPage(nextPage + 1)}
+                    onPageSizeChange={(size) => {
+                        setPageSize(size);
+                        setPage(1);
+                    }}
+                    page={safePage - 1}
+                    pageSize={pageSize}
+                    pageSizeOptions={[5, 10, 20]}
+                    totalItems={lines.length}
+                    totalPages={totalPages}
+                />
 
                 {/* TỔNG KẾT DÒNG */}
                 <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg bg-[#f8fbf8] p-3 border border-[#e8f2e9]">
@@ -739,28 +693,25 @@ export function GoodsReceiptCreatePage() {
             {/* HÀNH ĐỘNG CUỐI TRANG */}
             <footer className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[#e8eef0] bg-white p-4 shadow-pos-card">
                 <Link
-                    className="h-10 rounded-lg border border-[#dce5e1] px-4 text-sm font-black text-[#536078] hover:bg-[#f7f8fb] inline-flex items-center"
+                    className={buttonClassName()}
                     to={receiptId ? `/management/inventory/receipts/${receiptId}` : "/management/inventory/receipts"}
                 >
                     Hủy bỏ
                 </Link>
                 <div className="flex flex-wrap gap-2">
-                    <button
-                        className="h-10 rounded-lg border border-[#d8eadc] bg-white px-5 text-sm font-black text-[#159734] hover:bg-[#f4faf5] disabled:opacity-60 cursor-pointer"
+                    <Button
                         disabled={submitting || loadingReceipt || editBlocked || editForbidden}
                         onClick={() => void handleSave(false)}
-                        type="button"
                     >
                         {submitting ? "Đang lưu..." : "Lưu bản nháp (DRAFT)"}
-                    </button>
-                    <button
-                        className="h-10 rounded-lg bg-[#159734] px-6 text-sm font-black text-white hover:bg-[#12802c] shadow-sm disabled:opacity-60 cursor-pointer"
+                    </Button>
+                    <Button
                         disabled={submitting || loadingReceipt || editBlocked || editForbidden}
                         onClick={() => void handleSave(true)}
-                        type="button"
+                        variant="primary"
                     >
                         {submitting ? "Đang xử lý..." : "Lưu & Gửi duyệt (Submit)"}
-                    </button>
+                    </Button>
                 </div>
             </footer>
         </section>

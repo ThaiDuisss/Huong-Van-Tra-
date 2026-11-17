@@ -1,5 +1,7 @@
 import type { ReactNode } from "react";
 
+import { Table, TableCell, TableHead, TableHeaderCell, TableRow } from "../../../components/ui/Table";
+
 export interface DashboardTableColumn<T> {
   key: string;
   header: string;
@@ -9,8 +11,8 @@ export interface DashboardTableColumn<T> {
 }
 
 /**
- * Bảng compact theo class của `InventoryDataTable` (header #eaf7ec, border ô #edf0f4,
- * số căn phải). Không `min-width` để không tạo scroll ngang trong card.
+ * Bảng compact trong card dashboard, dựng từ bộ thẻ `ui/Table` dùng chung (số căn phải).
+ * Không `min-width` để không tạo scroll ngang trong card.
  */
 export function DashboardTable<T>({
   columns,
@@ -23,39 +25,34 @@ export function DashboardTable<T>({
 }) {
   return (
     <div className="min-w-0 overflow-x-auto">
-      <table className="w-full text-left text-sm">
-        <thead className="bg-[#eaf7ec] text-xs font-black text-[#172317]">
-          <tr>
+      <Table>
+        <TableHead>
+          <TableRow>
             {columns.map((column) => (
-              <th
-                className={`whitespace-nowrap border-b border-[#dce8df] px-4 py-2.5 ${
-                  column.align === "right" ? "text-right" : ""
-                } ${column.className ?? ""}`}
+              <TableHeaderCell
+                className={`${column.align === "right" ? "text-right" : ""} ${column.className ?? ""}`}
                 key={column.key}
-                scope="col"
               >
                 {column.header}
-              </th>
+              </TableHeaderCell>
             ))}
-          </tr>
-        </thead>
+          </TableRow>
+        </TableHead>
         <tbody>
           {rows.map((row) => (
-            <tr className="hover:bg-[#f8fbf8]" key={getRowKey(row)}>
+            <TableRow className="hover:bg-[#f8fbf8]" key={getRowKey(row)}>
               {columns.map((column) => (
-                <td
-                  className={`border-b border-[#edf0f4] px-4 py-2.5 align-middle ${
-                    column.align === "right" ? "text-right tabular-nums" : ""
-                  } ${column.className ?? ""}`}
+                <TableCell
+                  className={`${column.align === "right" ? "text-right tabular-nums" : ""} ${column.className ?? ""}`}
                   key={column.key}
                 >
                   {column.render(row)}
-                </td>
+                </TableCell>
               ))}
-            </tr>
+            </TableRow>
           ))}
         </tbody>
-      </table>
+      </Table>
     </div>
   );
 }

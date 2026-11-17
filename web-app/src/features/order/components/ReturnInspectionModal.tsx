@@ -30,6 +30,9 @@ import {
     getReturnReasonLabel,
     toReturnNumber
 } from "../utils/order-return.utils";
+import { Button, IconButton } from "../../../components/ui/Button";
+import { ModalShell } from "../../../components/ui/Overlay";
+import { StatusBadge } from "../../../components/ui/StatusBadge";
 import styles from "./ReturnInspectionModal.module.css";
 
 interface ReturnInspectionModalProps {
@@ -505,25 +508,15 @@ export function ReturnInspectionModal({
     const isSingleRemainingItem = remainingLines.length === 1;
 
     return (
-        <div
-            className={styles.modalBackdrop}
-            onClick={(e) => {
-                e.stopPropagation();
-                onClose();
-            }}
-            role="presentation"
+        <ModalShell
+            className={styles.modalDialog}
+            labelledBy="return-inspection-modal-title"
+            onClose={onClose}
         >
-            <aside
-                aria-label="Kiểm tra hàng trả"
-                aria-modal="true"
-                className={styles.modalDialog}
-                onClick={(e) => e.stopPropagation()}
-                role="dialog"
-            >
                 {/* Header */}
                 <div className={styles.modalHeader}>
                     <div className={styles.headerInfo}>
-                        <h2>Kiểm tra hàng trả</h2>
+                        <h2 id="return-inspection-modal-title">Kiểm tra hàng trả</h2>
                         <div className={styles.headerMeta}>
                             <span className={styles.returnCodeTag}>
                                 {getReturnCode(returnItem)}
@@ -538,14 +531,9 @@ export function ReturnInspectionModal({
                             </span>
                         </div>
                     </div>
-                    <button
-                        aria-label="Đóng kiểm tra hàng trả"
-                        className={styles.closeButton}
-                        onClick={onClose}
-                        type="button"
-                    >
+                    <IconButton aria-label="Đóng kiểm tra hàng trả" onClick={onClose}>
                         <X size={18} aria-hidden="true" />
-                    </button>
+                    </IconButton>
                 </div>
 
                 {/* 2-Step Bar */}
@@ -670,9 +658,9 @@ export function ReturnInspectionModal({
                                                     <span>{getLineMeta(line)}</span>
                                                 </div>
                                             </div>
-                                            <span className={styles.remainingBadge}>
+                                            <StatusBadge shape="tag" tone="success">
                                                 Còn kiểm tra: {formatReturnQuantity(remainingQty)}
-                                            </span>
+                                            </StatusBadge>
                                         </div>
 
                                         {/* Readonly Info: Lý do hoàn, Tình trạng khi trả */}
@@ -867,10 +855,10 @@ export function ReturnInspectionModal({
 
                             {/* Optional Collapsible General Note */}
                             <div className={styles.generalNoteSection}>
-                                <button
-                                    className={styles.generalNoteToggle}
+                                <Button
                                     onClick={() => setIsGeneralNoteOpen(!isGeneralNoteOpen)}
-                                    type="button"
+                                    size="xs"
+                                    variant="link"
                                 >
                                     <Plus size={14} />
                                     <span>
@@ -878,7 +866,7 @@ export function ReturnInspectionModal({
                                             ? "Ẩn ghi chú chung cho lần xử lý"
                                             : "+ Thêm ghi chú chung cho lần xử lý"}
                                     </span>
-                                </button>
+                                </Button>
 
                                 {isGeneralNoteOpen ? (
                                     <div className={styles.generalNoteCollapse}>
@@ -986,49 +974,30 @@ export function ReturnInspectionModal({
                 {/* Sticky Footer */}
                 <div className={styles.modalFooter}>
                     {remainingLines.length === 0 ? (
-                        <button
-                            className={styles.secondaryButton}
-                            onClick={onClose}
-                            type="button"
-                        >
-                            Đóng
-                        </button>
+                        <Button onClick={onClose}>Đóng</Button>
                     ) : step === 1 ? (
                         <>
-                            <button
-                                className={styles.secondaryButton}
-                                disabled={isSubmitting}
-                                onClick={onClose}
-                                type="button"
-                            >
+                            <Button disabled={isSubmitting} onClick={onClose}>
                                 Hủy
-                            </button>
-                            <button
-                                className={styles.primaryButton}
+                            </Button>
+                            <Button
                                 disabled={selectedLines.length === 0}
                                 onClick={handleGoToReview}
-                                type="button"
+                                variant="primary"
                             >
                                 Tiếp tục xác nhận{" "}
                                 {!isSingleRemainingItem ? `(${selectedLines.length})` : ""}
-                            </button>
+                            </Button>
                         </>
                     ) : (
                         <>
-                            <button
-                                className={styles.secondaryButton}
+                            <Button
                                 disabled={isSubmitting || hasUnresolvedSubmission}
                                 onClick={() => setStep(1)}
-                                type="button"
                             >
                                 Quay lại
-                            </button>
-                            <button
-                                className={styles.primaryButton}
-                                disabled={isSubmitting}
-                                onClick={handleConfirmSubmit}
-                                type="button"
-                            >
+                            </Button>
+                            <Button disabled={isSubmitting} onClick={handleConfirmSubmit} variant="primary">
                                 {isSubmitting ? (
                                     <>
                                         <Loader2 className="animate-spin" size={16} />
@@ -1037,11 +1006,10 @@ export function ReturnInspectionModal({
                                 ) : (
                                     "Xác nhận xử lý"
                                 )}
-                            </button>
+                            </Button>
                         </>
                     )}
                 </div>
-            </aside>
-        </div>
+        </ModalShell>
     );
 }

@@ -10,6 +10,7 @@ import {
   User
 } from "lucide-react";
 
+import { Button, IconButton } from "../../../../components/ui/Button";
 import {
   Dialog,
   DialogContent,
@@ -254,8 +255,7 @@ export function DeliveryCheckoutPanel({
           state.internalDeliveryOption &&
           !state.internalDeliveryOption.availableNow &&
           state.internalDeliveryOption.availableLater ? (
-            <button
-              type="button"
+            <Button
               onClick={() =>
                 patchState({
                   customerAcceptedDeliveryWait: true,
@@ -264,10 +264,11 @@ export function DeliveryCheckoutPanel({
                   shippingFee: state.internalDeliveryOption?.shippingFee ?? 0
                 })
               }
-              className="mt-4 h-10 rounded-lg border border-[#1479f6] bg-[#eef6ff] px-3 text-sm font-black text-[#1479f6]"
+              className="mt-4"
+              variant="info"
             >
               Khách đồng ý chờ
-            </button>
+            </Button>
           ) : null}
 
           <label className="mt-5 grid gap-1 border-b border-[#c9d2dc] pb-2 text-sm font-semibold text-[#697684]">
@@ -339,27 +340,22 @@ export function DeliveryCheckoutPanel({
             <Truck size={16} aria-hidden="true" />
             Đối tác vận chuyển
           </strong>
-          <button
-            type="button"
-            onClick={() => changeDeliveryMode("INTERNAL")}
-            className="text-xs font-black text-[#697684] hover:text-[#1479f6]"
-          >
+          <Button className="-mr-2" onClick={() => changeDeliveryMode("INTERNAL")} size="xs" variant="link">
             Tắt bên thứ 3
-          </button>
+          </Button>
         </div>
 
         <div className="grid min-h-0 content-start gap-4 overflow-y-auto px-5 py-4">
           <div className="flex items-start gap-3 rounded-lg border border-[#b8d7ff] bg-[#eef6ff] px-4 py-3 text-sm font-semibold text-[#334155]">
             <MapPin className="mt-0.5 shrink-0 text-[#1479f6]" size={18} aria-hidden="true" />
             <span>Nhập đầy đủ địa chỉ lấy và giao để tra cước và tạo đơn.</span>
-            <button
-              type="button"
-              onClick={() => setShippingSettingsOpen(true)}
-              className="ml-auto grid size-8 shrink-0 place-items-center rounded-lg text-[#172317] hover:bg-white"
+            <IconButton
               aria-label="Thiết lập vận chuyển"
+              className="ml-auto"
+              onClick={() => setShippingSettingsOpen(true)}
             >
               <Settings size={18} aria-hidden="true" />
-            </button>
+            </IconButton>
           </div>
 
           {state.selectedDeliveryMode === "THIRD_PARTY" ? (
@@ -620,13 +616,9 @@ function WaybillAddressForm({
       <ReadonlyLine value={area} placeholder="Khu vực" />
       <ReadonlyLine value={ward} placeholder="Phường/Xã" />
 
-      <button
-        type="button"
-        onClick={onAddressChange}
-        className="absolute right-0 top-0 rounded-lg px-2 py-1 text-xs font-black text-[#1479f6] hover:bg-[#eef6ff]"
-      >
+      <Button className="absolute right-0 top-0" onClick={onAddressChange} size="xs" variant="link">
         Chọn địa chỉ
-      </button>
+      </Button>
     </section>
   );
 }
@@ -693,9 +685,9 @@ function DeliveryQuoteArea({
     return (
       <div className="grid gap-3 rounded-xl border border-red-200 bg-red-50 p-4 text-sm font-bold text-red-700">
         {error}
-        <button type="button" onClick={onRefresh} className="h-9 rounded-lg bg-white text-[#1479f6]">
+        <Button onClick={onRefresh} size="sm" variant="info">
           Thử lại
-        </button>
+        </Button>
       </div>
     );
   }
@@ -774,20 +766,10 @@ function DeliveryWaitConfirmationModal({
           </DialogDescription>
         </DialogHeader>
         <DialogFooter>
-          <button
-            type="button"
-            onClick={onClose}
-            className="h-10 rounded-lg border border-[#d8eadc] px-4 text-sm font-black text-[#53678f]"
-          >
-            Quay lại
-          </button>
-          <button
-            type="button"
-            onClick={onConfirm}
-            className="h-10 rounded-lg bg-[#159734] px-4 text-sm font-black text-white"
-          >
+          <Button onClick={onClose}>Quay lại</Button>
+          <Button onClick={onConfirm} variant="primary">
             Xác nhận khách đồng ý
-          </button>
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -934,20 +916,12 @@ function ShippingSettingsDialog({
             Áp dụng thiết lập cho tất cả tài khoản của gian hàng
           </label>
           <div className="flex gap-3">
-            <button
-              type="button"
-              onClick={() => onOpenChange(false)}
-              className="h-11 min-w-[128px] rounded-md border border-[#1479f6] px-5 text-sm font-black text-[#1479f6]"
-            >
+            <Button className="min-w-[128px]" onClick={() => onOpenChange(false)} size="search">
               Bỏ qua
-            </button>
-            <button
-              type="button"
-              onClick={() => onOpenChange(false)}
-              className="h-11 min-w-[128px] rounded-md bg-[#1479f6] px-5 text-sm font-black text-white"
-            >
+            </Button>
+            <Button className="min-w-[128px]" onClick={() => onOpenChange(false)} size="search" variant="info">
               Lưu
-            </button>
+            </Button>
           </div>
         </DialogFooter>
       </DialogContent>

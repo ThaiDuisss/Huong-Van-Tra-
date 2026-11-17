@@ -1,5 +1,7 @@
 import type { ReactNode } from "react";
 
+import { NativeSelect, TextArea } from "@/components/ui/Field";
+
 import {
     RETURN_CONDITIONS,
     RETURN_CONDITION_LABELS,
@@ -21,8 +23,6 @@ const QC_RESULT_LABELS: Record<CustomerReturnQcResult, string> = {
     WRITE_OFF: "Tiêu hủy",
     QUARANTINE: "Cách ly (lịch sử)"
 };
-
-const CONTROL_CLASS = "h-10 w-full rounded-lg border border-pos-border bg-white px-3 text-sm font-semibold text-[#172317] disabled:bg-[#f4f7f5]";
 
 interface Props {
     line: CustomerReturnInspectionLine;
@@ -53,8 +53,7 @@ export function CustomerReturnQcForm({ line, draft, editable, locations, error, 
                 </Field>
                 <Field hint={actual && declared && actual !== declared ? "Khác khai báo ban đầu" : undefined} htmlFor={`${idPrefix}-actual`} label="Tình trạng thực tế">
                     {editable ? (
-                        <select
-                            className={CONTROL_CLASS}
+                        <NativeSelect
                             id={`${idPrefix}-actual`}
                             onChange={(event) => onChange({ actualCondition: event.target.value as CustomerReturnActualCondition | "" })}
                             value={actual}
@@ -63,15 +62,14 @@ export function CustomerReturnQcForm({ line, draft, editable, locations, error, 
                             {RETURN_CONDITIONS.map((condition) => (
                                 <option key={condition} value={condition}>{RETURN_CONDITION_LABELS[condition]}</option>
                             ))}
-                        </select>
+                        </NativeSelect>
                     ) : (
                         <p className="text-sm font-black text-[#172317]">{actual ? getReturnConditionLabel(actual) : "Chưa ghi nhận"}</p>
                     )}
                 </Field>
                 <Field htmlFor={`${idPrefix}-result`} label="Phân loại xử lý">
                     {editable ? (
-                        <select
-                            className={CONTROL_CLASS}
+                        <NativeSelect
                             id={`${idPrefix}-result`}
                             onChange={(event) => onChange({ result: event.target.value as CustomerReturnQcResult, destinationLocationId: "" })}
                             value={draft.result}
@@ -81,7 +79,7 @@ export function CustomerReturnQcForm({ line, draft, editable, locations, error, 
                                     {QC_RESULT_LABELS[result]}
                                 </option>
                             ))}
-                        </select>
+                        </NativeSelect>
                     ) : (
                         <p className="text-sm font-black text-[#172317]">{QC_RESULT_LABELS[draft.result]}</p>
                     )}
@@ -90,8 +88,7 @@ export function CustomerReturnQcForm({ line, draft, editable, locations, error, 
                     {draft.result === "WRITE_OFF" ? (
                         <p className="text-sm font-semibold text-[#697684]">Không nhập kho (tiêu hủy)</p>
                     ) : editable ? (
-                        <select
-                            className={CONTROL_CLASS}
+                        <NativeSelect
                             id={`${idPrefix}-location`}
                             onChange={(event) => onChange({ destinationLocationId: event.target.value })}
                             value={draft.destinationLocationId}
@@ -100,7 +97,7 @@ export function CustomerReturnQcForm({ line, draft, editable, locations, error, 
                             {eligibleLocations.map((location) => (
                                 <option key={location.id} value={location.id}>{location.name}</option>
                             ))}
-                        </select>
+                        </NativeSelect>
                     ) : (
                         <p className="text-sm font-black text-[#172317]">{line.destinationLocationName ?? "Chưa xác định"}</p>
                     )}
@@ -108,8 +105,7 @@ export function CustomerReturnQcForm({ line, draft, editable, locations, error, 
             </div>
             <Field htmlFor={`${idPrefix}-note`} label="Ghi chú kiểm hàng">
                 {editable ? (
-                    <textarea
-                        className="min-h-20 w-full rounded-lg border border-pos-border p-3 text-sm"
+                    <TextArea
                         id={`${idPrefix}-note`}
                         maxLength={500}
                         onChange={(event) => onChange({ note: event.target.value })}

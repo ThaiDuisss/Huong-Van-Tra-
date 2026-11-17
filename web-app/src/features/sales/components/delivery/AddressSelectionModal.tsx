@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { MapPin, Save } from "lucide-react";
 
+import { Button } from "../../../../components/ui/Button";
 import {
   Dialog,
   DialogContent,
@@ -9,6 +10,8 @@ import {
   DialogHeader,
   DialogTitle
 } from "../../../../components/ui/dialog";
+import { TextInput } from "../../../../components/ui/Field";
+import { StatusBadge } from "../../../../components/ui/StatusBadge";
 import type {
   AddressSuggestionReason,
   BranchLocation,
@@ -141,9 +144,7 @@ export function AddressSelectionModal({
                         {address.label || "Địa chỉ"}
                       </strong>
                       {address.id === selectedAddressId && reason ? (
-                        <span className="rounded-full bg-[#eaf8ed] px-2 py-0.5 text-[11px] font-black text-[#159734]">
-                          {getSuggestionLabel(reason)}
-                        </span>
+                        <StatusBadge size="sm" tone="success">{getSuggestionLabel(reason)}</StatusBadge>
                       ) : null}
                     </span>
                     <span className="text-xs font-bold text-[#53678f]">
@@ -240,35 +241,27 @@ export function AddressSelectionModal({
         </div>
 
         <DialogFooter>
-          <button
-            type="button"
-            onClick={() => onOpenChange(false)}
-            className="h-10 rounded-lg border border-[#edf0f4] px-4 text-sm font-bold text-[#697684] hover:bg-[#f4f6f8]"
-          >
-            Đóng
-          </button>
+          <Button onClick={() => onOpenChange(false)}>Đóng</Button>
           {tab === "SAVED" ? (
-            <button
-              type="button"
+            <Button
               disabled={!selectedAddressId}
               onClick={() => onOpenChange(false)}
-              className="inline-flex h-10 items-center gap-2 rounded-lg bg-[#159734] px-4 text-sm font-extrabold text-white disabled:opacity-50"
+              variant="primary"
             >
               <MapPin size={16} aria-hidden="true" />
               Sử dụng địa chỉ này
-            </button>
+            </Button>
           ) : (
-            <button
-              type="button"
+            <Button
               onClick={() => {
                 onUseManualAddress();
                 onOpenChange(false);
               }}
-              className="inline-flex h-10 items-center gap-2 rounded-lg bg-[#159734] px-4 text-sm font-extrabold text-white"
+              variant="primary"
             >
               <Save size={16} aria-hidden="true" />
               Sử dụng địa chỉ mới
-            </button>
+            </Button>
           )}
         </DialogFooter>
       </DialogContent>
@@ -288,11 +281,7 @@ function Field({
   return (
     <label className="grid gap-1 text-xs font-bold text-[#53678f]">
       {label}
-      <input
-        value={value}
-        onChange={(event) => onChange(event.currentTarget.value)}
-        className="h-10 rounded-lg border border-[#d8eadc] bg-white px-3 text-sm font-semibold text-[#172317] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#bce5c7]"
-      />
+      <TextInput value={value} onChange={(event) => onChange(event.currentTarget.value)} />
     </label>
   );
 }

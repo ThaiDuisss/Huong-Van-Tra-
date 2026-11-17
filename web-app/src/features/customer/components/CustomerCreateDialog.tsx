@@ -1,6 +1,7 @@
 import { AlertCircle, LoaderCircle } from "lucide-react";
-import { type FormEvent, type ReactNode, useState } from "react";
+import { type FormEvent, useState } from "react";
 
+import { Button } from "../../../components/ui/Button";
 import {
     DialogContent,
     DialogDescription,
@@ -8,6 +9,7 @@ import {
     DialogHeader,
     DialogTitle
 } from "../../../components/ui/dialog";
+import { Field, TextInput } from "../../../components/ui/Field";
 import {
     Select,
     SelectContent,
@@ -15,11 +17,6 @@ import {
     SelectTrigger,
     SelectValue
 } from "../../../components/ui/select";
-import {
-    CUSTOMER_BUTTON_BASE,
-    CUSTOMER_COMPACT_BUTTON,
-    CUSTOMER_FIELD_CLASS_NAME
-} from "../constants/customer-list.constants";
 import { customerApi } from "../services/customer.api";
 import type {
     CreateCustomerRequest,
@@ -131,11 +128,10 @@ export function CustomerCreateDialog({
 
             <form onSubmit={(event) => void submit(event)}>
                 <div className="grid max-h-[68vh] grid-cols-2 gap-x-5 gap-y-5 overflow-y-auto p-6 max-sm:grid-cols-1">
-                    <FormField label="Tên khách hàng" required>
-                        <input
+                    <Field label="Tên khách hàng" required>
+                        <TextInput
                             autoFocus
-                            className={CUSTOMER_FIELD_CLASS_NAME}
-                            maxLength={150}
+                                                        maxLength={150}
                             onChange={(event) =>
                                 update("fullName", event.target.value)
                             }
@@ -143,12 +139,11 @@ export function CustomerCreateDialog({
                             required
                             value={draft.fullName}
                         />
-                    </FormField>
+                    </Field>
 
-                    <FormField label="Số điện thoại" required>
-                        <input
-                            className={CUSTOMER_FIELD_CLASS_NAME}
-                            maxLength={20}
+                    <Field label="Số điện thoại" required>
+                        <TextInput
+                                                        maxLength={20}
                             onChange={(event) =>
                                 update("phone", event.target.value)
                             }
@@ -157,12 +152,11 @@ export function CustomerCreateDialog({
                             type="tel"
                             value={draft.phone}
                         />
-                    </FormField>
+                    </Field>
 
-                    <FormField label="Email">
-                        <input
-                            className={CUSTOMER_FIELD_CLASS_NAME}
-                            maxLength={150}
+                    <Field label="Email">
+                        <TextInput
+                                                        maxLength={150}
                             onChange={(event) =>
                                 update("email", event.target.value)
                             }
@@ -170,21 +164,20 @@ export function CustomerCreateDialog({
                             type="email"
                             value={draft.email}
                         />
-                    </FormField>
+                    </Field>
 
-                    <FormField label="Ngày sinh">
-                        <input
-                            className={CUSTOMER_FIELD_CLASS_NAME}
-                            max={new Date().toISOString().slice(0, 10)}
+                    <Field label="Ngày sinh">
+                        <TextInput
+                                                        max={new Date().toISOString().slice(0, 10)}
                             onChange={(event) =>
                                 update("dateOfBirth", event.target.value)
                             }
                             type="date"
                             value={draft.dateOfBirth}
                         />
-                    </FormField>
+                    </Field>
 
-                    <FormField label="Loại khách hàng">
+                    <Field label="Loại khách hàng">
                         <Select
                             className="w-full"
                             onValueChange={(value) =>
@@ -192,7 +185,7 @@ export function CustomerCreateDialog({
                             }
                             value={draft.customerType}
                         >
-                            <SelectTrigger className={CUSTOMER_FIELD_CLASS_NAME}>
+                            <SelectTrigger className="w-full rounded-lg font-normal shadow-none">
                                 <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
@@ -200,15 +193,15 @@ export function CustomerCreateDialog({
                                 <SelectItem value="BUSINESS">Doanh nghiệp</SelectItem>
                             </SelectContent>
                         </Select>
-                    </FormField>
+                    </Field>
 
-                    <FormField label="Hạng thành viên">
+                    <Field label="Hạng thành viên">
                         <Select
                             className="w-full"
                             onValueChange={(value) => update("tierId", value)}
                             value={draft.tierId}
                         >
-                            <SelectTrigger className={CUSTOMER_FIELD_CLASS_NAME}>
+                            <SelectTrigger className="w-full rounded-lg font-normal shadow-none">
                                 <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
@@ -222,9 +215,9 @@ export function CustomerCreateDialog({
                                     ))}
                             </SelectContent>
                         </Select>
-                    </FormField>
+                    </Field>
 
-                    <FormField label="Trạng thái">
+                    <Field label="Trạng thái">
                         <Select
                             className="w-full"
                             onValueChange={(value) =>
@@ -232,7 +225,7 @@ export function CustomerCreateDialog({
                             }
                             value={draft.status}
                         >
-                            <SelectTrigger className={CUSTOMER_FIELD_CLASS_NAME}>
+                            <SelectTrigger className="w-full rounded-lg font-normal shadow-none">
                                 <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
@@ -241,7 +234,7 @@ export function CustomerCreateDialog({
                                 <SelectItem value="SUSPENDED">Tạm khóa</SelectItem>
                             </SelectContent>
                         </Select>
-                    </FormField>
+                    </Field>
 
                     {error && (
                         <div
@@ -259,16 +252,11 @@ export function CustomerCreateDialog({
                 </div>
 
                 <DialogFooter>
-                    <button
-                        className={`${CUSTOMER_BUTTON_BASE} ${CUSTOMER_COMPACT_BUTTON}`}
-                        disabled={submitting}
-                        onClick={onCancel}
-                        type="button"
-                    >
+                    <Button disabled={submitting} onClick={onCancel}>
                         Hủy
-                    </button>
-                    <button
-                        className={`${CUSTOMER_BUTTON_BASE} bg-[#159734] text-white hover:bg-[#12862d] disabled:cursor-not-allowed disabled:opacity-60`}
+                    </Button>
+                    <Button
+                        variant="primary"
                         disabled={submitting}
                         type="submit"
                     >
@@ -284,29 +272,9 @@ export function CustomerCreateDialog({
                             : customer
                               ? "Lưu thay đổi"
                               : "Tạo khách hàng"}
-                    </button>
+                    </Button>
                 </DialogFooter>
             </form>
         </DialogContent>
-    );
-}
-
-function FormField({
-    children,
-    label,
-    required = false
-}: {
-    children: ReactNode;
-    label: string;
-    required?: boolean;
-}) {
-    return (
-        <label className="grid gap-2">
-            <span className="text-xs font-bold text-[#536171]">
-                {label}
-                {required && <span className="ml-1 text-[#c4422e]">*</span>}
-            </span>
-            {children}
-        </label>
     );
 }

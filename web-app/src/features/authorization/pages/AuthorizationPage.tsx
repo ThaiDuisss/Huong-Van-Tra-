@@ -2,7 +2,9 @@ import { CheckCircle2, Plus, RefreshCw, ShieldCheck, Sparkles, X } from "lucide-
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { useAuthorization } from "../../../auth/useAuthorization";
+import { Button, IconButton } from "../../../components/ui/Button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "../../../components/ui/dialog";
+import { SearchInput } from "../../../components/ui/SearchInput";
 import { DashboardListSkeleton } from "../../dashboard/components/DashboardStates";
 import {
   InventoryEmptyState,
@@ -13,7 +15,6 @@ import { PermissionFormDialog } from "../components/PermissionFormDialog";
 import { PermissionTable } from "../components/PermissionTable";
 import { RolePermissionEditor } from "../components/RolePermissionEditor";
 import { UserRoleEditor } from "../components/UserRoleEditor";
-import { dangerButton, fieldClass, primaryButton, secondaryButton } from "../components/authorization-ui";
 import { authorizationApi, describeAuthorizationError } from "../services/authorization.api";
 import type { AuthorizationTab, PermissionResponse } from "../types/authorization.types";
 import { canUse, filterPermissions } from "../utils/authorization.utils";
@@ -140,20 +141,20 @@ export function AuthorizationPage() {
         actions={
           <div className="flex flex-wrap gap-2">
             {canBootstrap ? (
-              <button className={secondaryButton} disabled={bootstrapping} onClick={() => void bootstrap()} type="button">
+              <Button disabled={bootstrapping} onClick={() => void bootstrap()}>
                 <Sparkles size={16} aria-hidden="true" />
                 {bootstrapping ? "Đang khởi tạo..." : "Khởi tạo quyền mặc định"}
-              </button>
+              </Button>
             ) : null}
-            <button className={secondaryButton} onClick={loadPermissions} type="button">
+            <Button onClick={loadPermissions}>
               <RefreshCw size={16} aria-hidden="true" />
               Tải lại
-            </button>
+            </Button>
             {tab === "permissions" && canManagePermissions ? (
-              <button className={primaryButton} onClick={() => setCreating(true)} type="button">
+              <Button onClick={() => setCreating(true)} variant="primary">
                 <Plus size={16} aria-hidden="true" />
                 Tạo quyền
-              </button>
+              </Button>
             ) : null}
           </div>
         }
@@ -175,9 +176,9 @@ export function AuthorizationPage() {
             <CheckCircle2 className="mt-0.5 shrink-0" size={16} aria-hidden="true" />
             {notice}
           </span>
-          <button aria-label="Đóng thông báo" className="shrink-0" onClick={() => setNotice(null)} type="button">
+          <IconButton aria-label="Đóng thông báo" onClick={() => setNotice(null)}>
             <X size={16} aria-hidden="true" />
-          </button>
+          </IconButton>
         </div>
       ) : null}
 
@@ -206,9 +207,9 @@ export function AuthorizationPage() {
         <InventoryEmptyState message="Tài khoản của bạn không có quyền quản lý phân quyền." />
       ) : tab === "permissions" ? (
         <section className="grid gap-3 rounded-2xl border border-[#e4ebe6] bg-white p-4">
-          <input
-            className={`${fieldClass} max-w-sm`}
-            onChange={(event) => setKeyword(event.target.value)}
+          <SearchInput
+            className="max-w-sm"
+            onChange={setKeyword}
             placeholder="Tìm theo định danh, tên hiển thị, mô tả"
             value={keyword}
           />
@@ -220,10 +221,10 @@ export function AuthorizationPage() {
             <InventoryEmptyState
               action={
                 canBootstrap && (permissions?.length ?? 0) === 0 ? (
-                  <button className={primaryButton} disabled={bootstrapping} onClick={() => void bootstrap()} type="button">
+                  <Button disabled={bootstrapping} onClick={() => void bootstrap()} variant="primary">
                     <ShieldCheck size={16} aria-hidden="true" />
                     Khởi tạo quyền mặc định
-                  </button>
+                  </Button>
                 ) : undefined
               }
               message={keyword ? "Không có quyền nào khớp từ khóa." : "Chưa có quyền nào trên Keycloak."}
@@ -286,10 +287,10 @@ export function AuthorizationPage() {
               <p className="px-6 pt-4 text-sm font-bold text-[#a43a2a]" role="alert">{deleteError}</p>
             ) : null}
             <DialogFooter>
-              <button className={secondaryButton} disabled={deletingBusy} onClick={() => setDeleting(null)} type="button">Hủy</button>
-              <button className={dangerButton} disabled={deletingBusy} onClick={() => void confirmDelete()} type="button">
+              <Button disabled={deletingBusy} onClick={() => setDeleting(null)}>Hủy</Button>
+              <Button disabled={deletingBusy} onClick={() => void confirmDelete()} variant="danger">
                 {deletingBusy ? "Đang xóa..." : "Xóa quyền"}
-              </button>
+              </Button>
             </DialogFooter>
           </DialogContent>
         ) : null}

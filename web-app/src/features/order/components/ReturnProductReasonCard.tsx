@@ -1,4 +1,7 @@
 import { CheckCircle2, ChevronDown, ChevronUp, AlertCircle } from "lucide-react";
+
+import { Field, NativeSelect, TextArea } from "../../../components/ui/Field";
+import { StatusBadge } from "../../../components/ui/StatusBadge";
 import type { OrderItemResponse } from "../types/order.types";
 import type { ReturnCondition, ReturnReason } from "../types/order-return.types";
 import {
@@ -77,20 +80,20 @@ export function ReturnProductReasonCard({
 
                 <div className={styles.reasonCardHeaderRight}>
                     {hasReason ? (
-                        <span
-                            className={styles.statusBadgeComplete}
+                        <StatusBadge
+                            className="max-w-[220px]"
+                            shape="tag"
                             title={RETURN_REASON_LABELS[draft.reason as ReturnReason]}
+                            tone="success"
                         >
-                            <CheckCircle2 size={14} aria-hidden="true" />
-                            <span className={styles.badgeLabelText}>
-                                {RETURN_REASON_LABELS[draft.reason as ReturnReason]}
-                            </span>
-                        </span>
+                            <CheckCircle2 className="mr-1 inline align-[-2px]" size={14} aria-hidden="true" />
+                            {RETURN_REASON_LABELS[draft.reason as ReturnReason]}
+                        </StatusBadge>
                     ) : (
-                        <span className={styles.statusBadgeWarning}>
-                            <AlertCircle size={14} aria-hidden="true" />
-                            <span>Chưa chọn lý do</span>
-                        </span>
+                        <StatusBadge shape="tag" tone="warning">
+                            <AlertCircle className="mr-1 inline align-[-2px]" size={14} aria-hidden="true" />
+                            Chưa chọn lý do
+                        </StatusBadge>
                     )}
 
                     <span className={styles.accordionToggleIcon} aria-hidden="true">
@@ -103,11 +106,8 @@ export function ReturnProductReasonCard({
             {isOpen && (
                 <div className={styles.reasonCardBody}>
                     <div className={styles.reasonGrid}>
-                        <label className={styles.reasonField}>
-                            <span>
-                                Lý do hoàn <strong className={styles.requiredStar}>*</strong>
-                            </span>
-                            <select
+                        <Field label="Lý do hoàn" required>
+                            <NativeSelect
                                 value={draft.reason}
                                 onChange={(e) =>
                                     onUpdateDraft({
@@ -122,12 +122,11 @@ export function ReturnProductReasonCard({
                                         {RETURN_REASON_LABELS[reason]}
                                     </option>
                                 ))}
-                            </select>
-                        </label>
+                            </NativeSelect>
+                        </Field>
 
-                        <label className={styles.reasonField}>
-                            <span>Tình trạng khai báo</span>
-                            <select
+                        <Field label="Tình trạng khai báo">
+                            <NativeSelect
                                 value={draft.condition}
                                 onChange={(e) =>
                                     onUpdateDraft({
@@ -141,19 +140,22 @@ export function ReturnProductReasonCard({
                                         {RETURN_CONDITION_LABELS[cond]}
                                     </option>
                                 ))}
-                            </select>
-                        </label>
+                            </NativeSelect>
+                        </Field>
 
-                        <label className={`${styles.reasonField} ${styles.fullWidthField}`}>
-                            <span>
-                                Ghi chú sản phẩm{" "}
-                                {draft.reason === "OTHER" ? (
-                                    <strong className={styles.requiredStar}>(Bắt buộc khi chọn lý do khác)</strong>
-                                ) : (
-                                    <small>(Tùy chọn)</small>
-                                )}
-                            </span>
-                            <textarea
+                        <Field
+                            label={
+                                <>
+                                    Ghi chú sản phẩm{" "}
+                                    {draft.reason === "OTHER" ? (
+                                        <strong className={styles.requiredStar}>(Bắt buộc khi chọn lý do khác)</strong>
+                                    ) : (
+                                        <small>(Tùy chọn)</small>
+                                    )}
+                                </>
+                            }
+                        >
+                            <TextArea
                                 value={draft.note}
                                 onChange={(e) => onUpdateDraft({ note: e.target.value })}
                                 placeholder={
@@ -163,7 +165,7 @@ export function ReturnProductReasonCard({
                                 }
                                 aria-label={`Ghi chú sản phẩm ${getItemName(item)}`}
                             />
-                        </label>
+                        </Field>
                     </div>
                 </div>
             )}

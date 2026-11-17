@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { BadgePercent, ChevronDown, MessageSquareText, Plus, Minus, ShoppingBag, Trash2, X } from "lucide-react";
 
+import { Button, IconButton } from "../../../../components/ui/Button";
+import { ModalShell } from "../../../../components/ui/Overlay";
 import type { SaleCartItem, SaleManualDiscount } from "../../types/sale.types";
 import {
   calculateCartItemDiscountAmount,
@@ -216,60 +218,45 @@ export function CartList({
         })}
       </div>
       {editingNoteItem ? (
-        <div
-          className="fixed inset-0 z-50 grid place-items-center bg-black/62 px-4"
-          role="presentation"
+        <ModalShell
+          className="grid w-full max-w-[560px] gap-4 p-5"
+          closeOnBackdrop={false}
+          closeOnEscape={false}
+          labelledBy="cart-note-dialog-title"
+          onClose={() => setEditingNoteItem(null)}
         >
-          <section
-            aria-modal="true"
-            className="grid w-full max-w-[560px] gap-4 rounded-2xl bg-white p-5 shadow-pos-panel"
-            role="dialog"
-          >
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <h2 className="text-lg font-black text-[#172317]">
-                  Sửa yêu cầu khách hàng
-                </h2>
-                <p className="text-sm font-semibold text-[#697684]">
-                  {editingNoteItem.name} · {editingNoteItem.sku}
-                </p>
-              </div>
-              <button
-                aria-label="Đóng"
-                className={styles.iconAction}
-                onClick={() => setEditingNoteItem(null)}
-                type="button"
-              >
-                <X size={18} aria-hidden="true" />
-              </button>
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <h2 className="text-lg font-black text-[#172317]" id="cart-note-dialog-title">
+                Sửa yêu cầu khách hàng
+              </h2>
+              <p className="text-sm font-semibold text-[#697684]">
+                {editingNoteItem.name} · {editingNoteItem.sku}
+              </p>
             </div>
-            <textarea
-              className="min-h-[140px] rounded-lg border border-pos-border px-3 py-2 text-sm font-semibold outline-none focus:border-[#159734]"
-              onChange={(event) => setDraftNote(event.currentTarget.value)}
-              placeholder="Nhập yêu cầu riêng của khách hàng"
-              value={draftNote}
-            />
-            <div className="flex justify-end gap-3">
-              <button
-                className="h-10 rounded-lg border border-[#dce5e1] px-4 text-sm font-black text-[#536078]"
-                onClick={() => setEditingNoteItem(null)}
-                type="button"
-              >
-                Hủy
-              </button>
-              <button
-                className="h-10 rounded-lg bg-[#159734] px-4 text-sm font-black text-white"
-                onClick={() => {
-                  onNoteChange(editingNoteItem.productId, draftNote.trim());
-                  setEditingNoteItem(null);
-                }}
-                type="button"
-              >
-                Lưu
-              </button>
-            </div>
-          </section>
-        </div>
+            <IconButton aria-label="Đóng" onClick={() => setEditingNoteItem(null)}>
+              <X size={18} aria-hidden="true" />
+            </IconButton>
+          </div>
+          <textarea
+            className="min-h-[140px] rounded-lg border border-pos-border px-3 py-2 text-sm font-semibold outline-none focus:border-[#159734]"
+            onChange={(event) => setDraftNote(event.currentTarget.value)}
+            placeholder="Nhập yêu cầu riêng của khách hàng"
+            value={draftNote}
+          />
+          <div className="flex justify-end gap-3">
+            <Button onClick={() => setEditingNoteItem(null)}>Hủy</Button>
+            <Button
+              onClick={() => {
+                onNoteChange(editingNoteItem.productId, draftNote.trim());
+                setEditingNoteItem(null);
+              }}
+              variant="primary"
+            >
+              Lưu
+            </Button>
+          </div>
+        </ModalShell>
       ) : null}
     </div>
   );
@@ -401,11 +388,10 @@ function CartItemDiscountEditor({
         <span>Giảm {formatCurrency(previewDiscount)}</span>
       </div>
       <div className={styles.discountEditorActions}>
-        <button type="button" onClick={onCancel}>
+        <Button onClick={onCancel} size="sm" variant="ghost">
           Hủy
-        </button>
-        <button
-          type="button"
+        </Button>
+        <Button
           disabled={!canSave}
           onClick={() =>
             onSave({
@@ -415,9 +401,11 @@ function CartItemDiscountEditor({
               note: note.trim() || undefined
             })
           }
+          size="sm"
+          variant="primary"
         >
           Lưu
-        </button>
+        </Button>
       </div>
     </div>
   );

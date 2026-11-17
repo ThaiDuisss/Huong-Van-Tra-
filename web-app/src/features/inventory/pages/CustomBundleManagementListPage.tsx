@@ -1,6 +1,10 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 
+import { DataTable, type DataTableColumn } from "../../../components/shared/list/DataTable";
+import { TablePagination } from "../../../components/shared/list/TablePagination";
+import { SearchInput } from "../../../components/ui/SearchInput";
+import { StatusBadge } from "../../../components/ui/StatusBadge";
 import {
     customBundlePackingStatusLabels,
     customBundlePackingStatusTones,
@@ -8,6 +12,7 @@ import {
 } from "../constants/custom-bundle.constants";
 import { customBundleApi } from "../services/customBundle.api";
 import type {
+    CustomBundlePacking,
     CustomBundlePackingPage,
     CustomBundlePackingQuery,
     CustomBundlePackingStatus
@@ -17,6 +22,45 @@ import { formatVietnamDateTime, formatVietnamNumber } from "../utils/inventory-f
 function getErrorMessage(error: unknown) {
     return error instanceof Error ? error.message : "Không tải được danh sách đóng gói.";
 }
+
+const columns: DataTableColumn<CustomBundlePacking>[] = [
+    {
+        key: "packingCode",
+        header: "Mã đóng gói",
+        className: "font-black",
+        render: (packing) => (
+            <Link className="text-[#159734] hover:underline" to={`/management/inventory/custom-bundles/${packing.id}`}>
+                {packing.packingCode}
+            </Link>
+        )
+    },
+    { key: "orderCode", header: "Mã đơn", render: (packing) => packing.orderCode ?? "-" },
+    { key: "bundleName", header: "Tên bundle", render: (packing) => packing.bundleName ?? "-" },
+    {
+        key: "expectedTotalWeight",
+        header: "Khối lượng",
+        render: (packing) => formatVietnamNumber(packing.expectedTotalWeight)
+    },
+    {
+        key: "status",
+        header: "Trạng thái",
+        render: (packing) => (
+            <StatusBadge tone={customBundlePackingStatusTones[packing.status]}>
+                {customBundlePackingStatusLabels[packing.status]}
+            </StatusBadge>
+        )
+    },
+    {
+        key: "expectedAvailableAt",
+        header: "Dự kiến đủ nguyên liệu",
+        render: (packing) => (packing.expectedAvailableAt ? formatVietnamDateTime(packing.expectedAvailableAt) : "-")
+    },
+    {
+        key: "createdAt",
+        header: "Tạo lúc",
+        render: (packing) => (packing.createdAt ? formatVietnamDateTime(packing.createdAt) : "-")
+    }
+];
 
 /** Hàng đợi đóng trà theo yêu cầu của kho: chờ đóng gói, chờ nguyên liệu, đã đóng gói. */
 export function CustomBundleManagementListPage() {
@@ -81,94 +125,33 @@ export function CustomBundleManagementListPage() {
                 ))}
             </nav>
 
-            <input
-                className="h-10 max-w-md rounded-lg border border-pos-border bg-white px-3 text-sm font-bold"
-                onChange={(event) => setQuery({ ...query, search: event.currentTarget.value, page: 0 })}
+            <SearchInput
+                className="max-w-md"
+                onChange={(search) => setQuery({ ...query, search, page: 0 })}
                 placeholder="Tìm mã đóng gói, mã đơn, tên bundle"
-                value={query.search}
+                value={query.search ?? ""}
             />
 
-            {error ? <div className="rounded-xl bg-red-50 p-4 text-sm font-bold text-red-700">{error}</div> : null}
-            {loading ? <div className="rounded-xl bg-white p-6 text-sm font-bold">Đang tải...</div> : null}
-            {!loading && !error && packings.length === 0 ? (
-                <div className="rounded-xl border border-dashed border-[#cfdad2] bg-white p-10 text-center text-sm font-bold text-[#697684]">
-                    Không có bundle ở trạng thái này.
-                </div>
-            ) : null}
-
-            {packings.length > 0 ? (
-                <div className="overflow-x-auto rounded-xl border border-[#e8eef0] bg-white shadow-pos-card">
-                    <table className="w-full min-w-[900px] text-left text-sm">
-                        <thead className="bg-[#eaf7ec] text-xs font-black text-[#172317]">
-                            <tr>
-                                <th className="px-4 py-3">Mã đóng gói</th>
-                                <th>Mã đơn</th>
-                                <th>Tên bundle</th>
-                                <th>Khối lượng</th>
-                                <th>Trạng thái</th>
-                                <th>Dự kiến đủ nguyên liệu</th>
-                                <th>Tạo lúc</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {packings.map((packing) => (
-                                <tr className="hover:bg-[#f8fbf8]" key={packing.id}>
-                                    <td className="border-t border-[#edf0f4] px-4 py-3 font-black">
-                                        <Link
-                                            className="text-[#159734] hover:underline"
-                                            to={`/management/inventory/custom-bundles/${packing.id}`}
-                                        >
-                                            {packing.packingCode}
-                                        </Link>
-                                    </td>
-                                    <td className="border-t border-[#edf0f4]">{packing.orderCode ?? "-"}</td>
-                                    <td className="border-t border-[#edf0f4]">{packing.bundleName ?? "-"}</td>
-                                    <td className="border-t border-[#edf0f4]">
-                                        {formatVietnamNumber(packing.expectedTotalWeight)}
-                                    </td>
-                                    <td className="border-t border-[#edf0f4]">
-                                        <span
-                                            className={`rounded-full px-2 py-1 text-xs font-black ${customBundlePackingStatusTones[packing.status]}`}
-                                        >
-                                            {customBundlePackingStatusLabels[packing.status]}
-                                        </span>
-                                    </td>
-                                    <td className="border-t border-[#edf0f4]">
-                                        {packing.expectedAvailableAt ? formatVietnamDateTime(packing.expectedAvailableAt) : "-"}
-                                    </td>
-                                    <td className="border-t border-[#edf0f4]">
-                                        {packing.createdAt ? formatVietnamDateTime(packing.createdAt) : "-"}
-                                    </td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                </div>
-            ) : null}
-
-            {totalPages > 1 ? (
-                <div className="flex items-center justify-end gap-2 text-sm font-bold">
-                    <button
-                        className="h-9 rounded-lg border border-[#dce5e1] bg-white px-3 disabled:opacity-50"
-                        disabled={query.page === 0}
-                        onClick={() => setQuery({ ...query, page: query.page - 1 })}
-                        type="button"
-                    >
-                        Trước
-                    </button>
-                    <span>
-                        Trang {query.page + 1}/{totalPages}
-                    </span>
-                    <button
-                        className="h-9 rounded-lg border border-[#dce5e1] bg-white px-3 disabled:opacity-50"
-                        disabled={query.page + 1 >= totalPages}
-                        onClick={() => setQuery({ ...query, page: query.page + 1 })}
-                        type="button"
-                    >
-                        Sau
-                    </button>
-                </div>
-            ) : null}
+            <DataTable
+                caption="Danh sách đóng trà theo yêu cầu"
+                columns={columns}
+                emptyTitle="Không có bundle ở trạng thái này."
+                error={error || null}
+                getRowKey={(packing) => packing.id}
+                loading={loading}
+                minWidth={900}
+                pagination={totalPages > 1 ? (
+                    <TablePagination
+                        itemLabel="bundle"
+                        onPageChange={(page) => setQuery({ ...query, page })}
+                        page={query.page}
+                        pageSize={query.size}
+                        totalItems={result?.totalElements ?? 0}
+                        totalPages={totalPages}
+                    />
+                ) : null}
+                rows={error ? [] : packings}
+            />
         </section>
     );
 }

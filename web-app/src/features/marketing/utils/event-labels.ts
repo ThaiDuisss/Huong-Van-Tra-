@@ -1,3 +1,5 @@
+import type { BadgeTone } from "../../../components/ui/StatusBadge";
+
 const eventTypeLabels: Record<string, string> = {
     TIME_BASED: "Theo thời gian",
     ORDER_AMOUNT_BASED: "Theo giá trị đơn hàng",
@@ -52,4 +54,23 @@ export function formatFallbackEnum(value: string) {
         .split("_")
         .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
         .join(" ");
+}
+
+/** Màu huy hiệu dùng chung cho trạng thái sự kiện, khuyến mãi, coupon và lượt dùng coupon. */
+const marketingStatusTones: Record<string, BadgeTone> = {
+    DRAFT: "neutral",
+    SCHEDULED: "info",
+    ACTIVE: "success",
+    PAUSED: "warning",
+    EXPIRED: "pending",
+    ENDED: "neutral",
+    CANCELLED: "danger",
+    ARCHIVED: "neutral",
+    RESERVED: "info",
+    APPLIED: "success",
+    RELEASED: "warning"
+};
+
+export function getMarketingStatusTone(value?: string): BadgeTone {
+    return (value && marketingStatusTones[value]) || "neutral";
 }

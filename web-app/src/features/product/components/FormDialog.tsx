@@ -1,7 +1,10 @@
 import { X } from "lucide-react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useId } from "react";
 
 import type { FormField, FormValues } from "./CatalogResourceManagement";
+import { Button, IconButton } from "../../../components/ui/Button";
+import { Field, NativeSelect, TextArea, TextInput } from "../../../components/ui/Field";
+import { ModalShell } from "../../../components/ui/Overlay";
 import { toast } from "../../../components/ui/Toast";
 import { fileApi } from "../../../api/file.api";
 
@@ -26,6 +29,7 @@ export function FormDialog({
     onClose,
     onSubmit
 }: FormDialogProps) {
+    const titleId = useId();
     const [filePreviews, setFilePreviews] = useState<Record<string, string>>({});
     const [deletedFields, setDeletedFields] = useState<Record<string, boolean>>({});
     const [uploadingField, setUploadingField] = useState<string | null>(null);
@@ -66,7 +70,13 @@ export function FormDialog({
     }, [fields, initialValues.variantName]);
 
     return (
-        <div className="fixed inset-0 z-40 grid place-items-center bg-black/35 p-6">
+        <ModalShell
+            className="w-[min(768px,calc(100vw-32px))] p-6"
+            closeOnBackdrop={false}
+            closeOnEscape={false}
+            labelledBy={titleId}
+            onClose={onClose}
+        >
             <form
                 onSubmit={(event) => {
                     event.preventDefault();
@@ -86,20 +96,14 @@ export function FormDialog({
 
                     onSubmit(values);
                 }}
-                className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-3xl bg-white p-6 shadow-pos-panel"
             >
                 <header className="mb-5 flex items-center justify-between">
-                    <h2 className="text-2xl font-bold text-gray-600">
+                    <h2 className="text-2xl font-bold text-gray-600" id={titleId}>
                         {title}
                     </h2>
-                    <button
-                        type="button"
-                        onClick={onClose}
-                        className="grid size-9 place-items-center rounded-lg hover:bg-neutral-100"
-                        aria-label="Đóng biểu mẫu"
-                    >
+                    <IconButton aria-label="Đóng biểu mẫu" onClick={onClose} size="md">
                         <X size={20} />
-                    </button>
+                    </IconButton>
                 </header>
                 <div className="grid grid-cols-2 gap-4">
                     {fields.map((field) => {
@@ -153,16 +157,15 @@ export function FormDialog({
                         }
 
                         return (
-                            <div
+                            <Field
+                                as="div"
                                 key={field.name}
-                                className={`grid gap-2 text-sm font-bold text-gray-500 ${isFieldDisabled ? "opacity-60 cursor-not-allowed" : ""} ${
+                                className={`${isFieldDisabled ? "opacity-60 cursor-not-allowed" : ""} ${
                                     field.type === "textarea" || field.type === "file" ? "col-span-2" : ""
                                 }`}
+                                label={field.label}
+                                required={isFieldRequired}
                             >
-                                <span>
-                                    {field.label}
-                                    {isFieldRequired && <span className="text-red-500 ml-1">*</span>}
-                                </span>
                                 {field.render ? (
                                     <>
                                         <input type="hidden" name={field.name} value={formValues[field.name] || ""} />
@@ -187,7 +190,7 @@ export function FormDialog({
                                         })}
                                     </>
                                 ) : field.type === "textarea" ? (
-                                    <textarea
+                                    <TextArea
                                         name={field.name}
                                         rows={4}
                                         required={isFieldRequired && !isFieldDisabled}
@@ -201,10 +204,9 @@ export function FormDialog({
                                                 [field.name]: val
                                             }));
                                         }}
-                                        className="rounded-xl border border-pos-border px-3 py-2 font-normal outline-none focus:border-hvt-green-700 disabled:bg-neutral-50 disabled:cursor-not-allowed"
                                     />
                                 ) : field.type === "select" ? (
-                                    <select
+                                    <NativeSelect
                                         name={field.name}
                                         required={isFieldRequired && !isFieldDisabled}
                                         disabled={isFieldDisabled}
@@ -232,7 +234,6 @@ export function FormDialog({
                                                 return updated;
                                             });
                                         }}
-                                        className="h-11 rounded-xl border border-pos-border bg-white px-3 font-normal disabled:bg-neutral-50 disabled:cursor-not-allowed"
                                     >
                                     {field.options?.map((option) => (
                                         <option
@@ -242,7 +243,7 @@ export function FormDialog({
                                             {option.label}
                                         </option>
                                     ))}
-                                </select>
+                                </NativeSelect>
                             ) : field.type === "file" ? (
                                 <div className="grid gap-2">
                                     <input
@@ -269,18 +270,17 @@ export function FormDialog({
                                                     {filePreviews[field.name] ? "Ảnh mới chọn" : "Ảnh hiện tại"}
                                                 </p>
                                             </div>
-                                            <button
-                                                type="button"
+                                            <IconButton
+                                                aria-label="Xóa ảnh"
                                                 onClick={() => {
                                                     setFilePreviews(prev => ({ ...prev, [field.name]: "" }));
                                                     setDeletedFields(prev => ({ ...prev, [field.name]: true }));
                                                     setFormValues(prev => ({ ...prev, [field.name]: "", [field.name + "Id"]: "" }));
                                                 }}
-                                                className="grid size-8 place-items-center rounded-lg bg-red-50 text-red-600 hover:bg-red-100 transition-colors"
-                                                aria-label="Xóa ảnh"
+                                                variant="dangerOutline"
                                             >
                                                 <X size={16} />
-                                            </button>
+                                            </IconButton>
                                         </div>
                                     ) : (
                                         <label className="mt-1 flex justify-center rounded-xl border-2 border-dashed border-pos-border px-6 pt-5 pb-6 hover:border-hvt-green-700 transition-colors cursor-pointer relative group">
@@ -346,7 +346,7 @@ export function FormDialog({
                                     )}
                                 </div>
                             ) : (
-                                <input
+                                <TextInput
                                     name={field.name}
                                     type={field.type ?? "text"}
                                     required={isFieldRequired && !isFieldDisabled}
@@ -360,10 +360,9 @@ export function FormDialog({
                                             [field.name]: val
                                         }));
                                     }}
-                                    className="h-11 rounded-xl border border-pos-border px-3 font-normal outline-none focus:border-hvt-green-700 disabled:bg-neutral-50 disabled:cursor-not-allowed"
                                 />
                             )}
-                        </div>
+                        </Field>
                         );
                     })}
                 </div>
@@ -373,23 +372,14 @@ export function FormDialog({
                     </p>
                 ) : null}
                 <footer className="mt-6 flex justify-end gap-3 border-t border-pos-border pt-5">
-                    <button
-                        type="button"
-                        onClick={onClose}
-                        disabled={submitting}
-                        className="h-11 rounded-lg border border-[#dfe6ee] bg-white text-[#172317] px-5 text-sm font-black transition-all cursor-pointer hover:bg-neutral-50"
-                    >
+                    <Button disabled={submitting} onClick={onClose}>
                         Hủy
-                    </button>
-                    <button
-                        type="submit"
-                        disabled={submitting || uploadingField !== null}
-                        className="h-11 rounded-lg border-0 bg-[#07883a] text-white px-5 text-sm font-black shadow-[0_6px_16px_rgba(7,136,58,0.18)] disabled:opacity-60 transition-all cursor-pointer hover:opacity-90"
-                    >
+                    </Button>
+                    <Button disabled={submitting || uploadingField !== null} type="submit" variant="primary">
                         {submitting ? "Đang lưu..." : (uploadingField ? "Đang tải ảnh..." : submitLabel)}
-                    </button>
+                    </Button>
                 </footer>
             </form>
-        </div>
+        </ModalShell>
     );
 }

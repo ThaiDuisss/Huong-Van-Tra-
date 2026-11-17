@@ -1,6 +1,8 @@
 package org.hvtra.apigateway.config;
 
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.cloud.gateway.config.GlobalCorsProperties;
 import org.springframework.core.convert.converter.Converter;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -110,29 +112,48 @@ public class GatewaySecurityConfig {
                 ? role
                 : "ROLE_" + role;
     }
+    /**
+     * CORS cho filter chain của Spring Security. PHẢI dùng chung cấu hình với
+     * {@code spring.cloud.gateway.server.webflux.globalcors} (CORS_ORIGIN_1/2 trong deploy/.env):
+     * Spring Security chạy trước handler mapping của gateway, nên nếu bean này hardcode
+     * localhost thì prod sẽ trả 403 body rỗng cho mọi POST/PUT/DELETE (trình duyệt gửi
+     * header Origin cho request ghi kể cả khi cùng origin), trong khi GET vẫn chạy.
+     * Fallback localhost chỉ dành cho context không có GlobalCorsProperties (test tối giản).
+     */
     @Bean
-    public UrlBasedCorsConfigurationSource corsConfigurationSource() {
-        CorsConfiguration config = new CorsConfiguration();
+    public UrlBasedCorsConfigurationSource corsConfigurationSource(
+            ObjectProvider<GlobalCorsProperties> globalCorsProperties
+    ) {
+        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
 
+        GlobalCorsProperties properties = globalCorsProperties.getIfAvailable();
+        Map<String, CorsConfiguration> configured =
+                properties == null || properties.getCorsConfigurations().isEmpty()
+                        ? Map.of("/**", devCorsConfiguration())
+                        : properties.getCorsConfigurations();
+
+        configured.forEach((pattern, config) -> {
+            log.info("CORS {} -> allowedOriginPatterns={}, allowedOrigins={}",
+                    pattern, config.getAllowedOriginPatterns(), config.getAllowedOrigins());
+            source.registerCorsConfiguration(pattern, config);
+        });
+
+        return source;
+    }
+
+    private static CorsConfiguration devCorsConfiguration() {
+        CorsConfiguration config = new CorsConfiguration();
         config.setAllowedOriginPatterns(List.of(
                 "http://localhost:*",
                 "http://127.0.0.1:*"
         ));
-
         config.setAllowedMethods(List.of(
                 "GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"
         ));
-
         config.setAllowedHeaders(List.of("*"));
         config.setExposedHeaders(List.of("Authorization", "Content-Disposition"));
         config.setAllowCredentials(true);
-
-        UrlBasedCorsConfigurationSource source =
-                new UrlBasedCorsConfigurationSource();
-
-        source.registerCorsConfiguration("/**", config);
-
-        return source;
+        return config;
     }
 
 }

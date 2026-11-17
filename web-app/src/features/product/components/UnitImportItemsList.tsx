@@ -1,6 +1,9 @@
 import { ChevronDown, ChevronUp, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 
+import { Button } from "../../../components/ui/Button";
+import { NativeSelect, TextInput } from "../../../components/ui/Field";
+import { StatusBadge } from "../../../components/ui/StatusBadge";
 import type { ImportItemsListProps } from "./ImportBatchPanel";
 import { unitApi } from "../services/unit.api";
 import type { ImportBatchItem } from "../types/import-batch.types";
@@ -72,17 +75,13 @@ function ItemRow({ item, editable, expanded, onToggle, onSave, onDelete, units }
                 </div>
                 <div className="flex shrink-0 items-center gap-1.5">
                     {item.occurrenceCount > 1 ? (
-                        <span className="inline-flex h-6 items-center rounded-full bg-amber-50 px-2 text-[11px] font-bold text-amber-700">
+                        <StatusBadge tone="warning">
                             Trùng {item.occurrenceCount} dòng — đã gộp
-                        </span>
+                        </StatusBadge>
                     ) : null}
-                    <span
-                        className={`inline-flex h-6 items-center rounded-full px-2 text-[11px] font-bold ${
-                            isValid ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-700"
-                        }`}
-                    >
+                    <StatusBadge tone={isValid ? "success" : "danger"}>
                         {isValid ? "Hợp lệ" : `${item.validationErrors.length} lỗi`}
-                    </span>
+                    </StatusBadge>
                 </div>
             </button>
 
@@ -97,8 +96,7 @@ function ItemRow({ item, editable, expanded, onToggle, onSave, onDelete, units }
 
                     <div className="grid gap-1.5">
                         <label className="text-xs font-bold text-[#536078]">Tên đơn vị *</label>
-                        <input
-                            className="h-10 rounded-lg border border-pos-border px-3 text-sm outline-none focus:border-hvt-green-600"
+                        <TextInput
                             disabled={!editable}
                             onChange={(e) => setName(e.target.value)}
                             type="text"
@@ -111,8 +109,7 @@ function ItemRow({ item, editable, expanded, onToggle, onSave, onDelete, units }
 
                     <div className="grid gap-1.5">
                         <label className="text-xs font-bold text-[#536078]">Ký hiệu *</label>
-                        <input
-                            className="h-10 rounded-lg border border-pos-border px-3 text-sm outline-none focus:border-hvt-green-600"
+                        <TextInput
                             disabled={!editable}
                             onChange={(e) => setSymbol(e.target.value)}
                             type="text"
@@ -126,8 +123,7 @@ function ItemRow({ item, editable, expanded, onToggle, onSave, onDelete, units }
                     <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                         <div className="grid gap-1.5">
                             <label className="text-xs font-bold text-[#536078]">Loại *</label>
-                            <select
-                                className="h-10 rounded-lg border border-pos-border px-3 text-sm outline-none focus:border-hvt-green-600"
+                            <NativeSelect
                                 disabled={!editable}
                                 onChange={(e) => setType(e.target.value)}
                                 value={type}
@@ -136,7 +132,7 @@ function ItemRow({ item, editable, expanded, onToggle, onSave, onDelete, units }
                                 <option value="WEIGHT">Cân nặng (Weight)</option>
                                 <option value="VOLUME">Thể tích (Volume)</option>
                                 <option value="PACKAGING">Đóng gói (Packaging)</option>
-                            </select>
+                            </NativeSelect>
                             {errorByField.get("type") ? (
                                 <p className="text-xs font-bold text-red-600">{errorByField.get("type")}</p>
                             ) : null}
@@ -144,8 +140,7 @@ function ItemRow({ item, editable, expanded, onToggle, onSave, onDelete, units }
 
                         <div className="grid gap-1.5">
                             <label className="text-xs font-bold text-[#536078]">Độ chính xác</label>
-                            <input
-                                className="h-10 rounded-lg border border-pos-border px-3 text-sm outline-none focus:border-hvt-green-600"
+                            <TextInput
                                 disabled={!editable}
                                 min="0"
                                 max="10"
@@ -162,8 +157,7 @@ function ItemRow({ item, editable, expanded, onToggle, onSave, onDelete, units }
                     <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                         <div className="grid gap-1.5">
                             <label className="text-xs font-bold text-[#536078]">Đơn vị gốc</label>
-                            <select
-                                className="h-10 rounded-lg border border-pos-border px-3 text-sm outline-none focus:border-hvt-green-600"
+                            <NativeSelect
                                 disabled={!editable}
                                 onChange={(e) => setBaseUnitId(e.target.value)}
                                 value={baseUnitId}
@@ -174,7 +168,7 @@ function ItemRow({ item, editable, expanded, onToggle, onSave, onDelete, units }
                                         {u.symbol} - {u.name}
                                     </option>
                                 ))}
-                            </select>
+                            </NativeSelect>
                             {errorByField.get("baseUnitId") ? (
                                 <p className="text-xs font-bold text-red-600">{errorByField.get("baseUnitId")}</p>
                             ) : null}
@@ -182,8 +176,7 @@ function ItemRow({ item, editable, expanded, onToggle, onSave, onDelete, units }
 
                         <div className="grid gap-1.5">
                             <label className="text-xs font-bold text-[#536078]">Mã đơn vị gốc</label>
-                            <input
-                                className="h-10 rounded-lg border border-pos-border px-3 text-sm outline-none focus:border-hvt-green-600 bg-gray-50"
+                            <TextInput
                                 disabled
                                 type="text"
                                 value={baseUnitId ? (units.find(u => u.id === baseUnitId)?.symbol || "") : ""}
@@ -194,8 +187,7 @@ function ItemRow({ item, editable, expanded, onToggle, onSave, onDelete, units }
 
                     <div className="grid gap-1.5">
                         <label className="text-xs font-bold text-[#536078]">Tỉ lệ quy đổi</label>
-                        <input
-                            className="h-10 rounded-lg border border-pos-border px-3 text-sm outline-none focus:border-hvt-green-600"
+                        <TextInput
                             disabled={!editable}
                             onChange={(e) => setConversionRate(e.target.value ? Number(e.target.value) : "")}
                             placeholder="Ví dụ: 1000 (nếu có đơn vị gốc). Bỏ qua nếu là đơn vị gốc."
@@ -210,35 +202,25 @@ function ItemRow({ item, editable, expanded, onToggle, onSave, onDelete, units }
 
                     <div className="grid gap-1.5">
                         <label className="text-xs font-bold text-[#536078]">Trạng thái</label>
-                        <select
-                            className="h-10 rounded-lg border border-pos-border px-3 text-sm outline-none focus:border-hvt-green-600"
+                        <NativeSelect
                             disabled={!editable}
                             onChange={(e) => setStatus(e.target.value)}
                             value={status}
                         >
                             <option value="ACTIVE">Đang hoạt động</option>
                             <option value="INACTIVE">Ngừng hoạt động</option>
-                        </select>
+                        </NativeSelect>
                     </div>
 
                     {editable ? (
                         <div className="flex items-center justify-between pt-1">
-                            <button
-                                className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-red-200 bg-white px-3 text-xs font-bold text-red-600 hover:bg-red-50"
-                                onClick={() => void onDelete()}
-                                type="button"
-                            >
+                            <Button onClick={() => void onDelete()} size="sm" variant="dangerOutline">
                                 <Trash2 size={14} aria-hidden="true" />
                                 Xóa dòng
-                            </button>
-                            <button
-                                className="inline-flex h-9 items-center rounded-lg bg-[#159734] px-4 text-xs font-black text-white hover:bg-[#12802c] disabled:opacity-50"
-                                disabled={saving}
-                                onClick={() => void handleSave()}
-                                type="button"
-                            >
+                            </Button>
+                            <Button disabled={saving} onClick={() => void handleSave()} size="sm" variant="primary">
                                 {saving ? "Đang lưu..." : "Lưu dòng này"}
-                            </button>
+                            </Button>
                         </div>
                     ) : null}
                 </div>

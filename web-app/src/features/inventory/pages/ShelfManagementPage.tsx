@@ -1,6 +1,9 @@
 import { X } from "lucide-react";
 import { useCallback, useState } from "react";
 
+import { Button, IconButton } from "../../../components/ui/Button";
+import { Field, NativeSelect, TextInput } from "../../../components/ui/Field";
+import { ModalShell } from "../../../components/ui/Overlay";
 import {
     InventoryResourceManagement,
     TableCell,
@@ -170,52 +173,37 @@ function ShelfForm({ item, onClose, onSubmit }: ShelfFormProps) {
     };
 
     return (
-        <div className="fixed inset-0 z-40 grid place-items-center bg-black/45 p-6 overflow-y-auto">
-            <form
-                onSubmit={handleSubmit}
-                className="w-full max-w-md rounded-3xl bg-white p-6 shadow-pos-panel border border-pos-border animate-in fade-in zoom-in-95 duration-150"
-            >
+        <ModalShell className="w-full max-w-md p-6" closeOnBackdrop={false} labelledBy="shelf-form-title" onClose={onClose}>
+            <form onSubmit={handleSubmit}>
                 <header className="mb-5 flex items-center justify-between border-b border-pos-border pb-3">
-                    <h2 className="text-xl font-bold text-gray-700">
+                    <h2 className="text-xl font-bold text-gray-700" id="shelf-form-title">
                         {item ? "Chỉnh sửa kệ" : "Thêm kệ mới"}
                     </h2>
-                    <button
-                        type="button"
-                        onClick={onClose}
-                        className="grid size-9 place-items-center rounded-lg hover:bg-neutral-100 transition-all focus:outline-none cursor-pointer"
-                        aria-label="Đóng"
-                    >
+                    <IconButton aria-label="Đóng" onClick={onClose}>
                         <X size={20} />
-                    </button>
+                    </IconButton>
                 </header>
 
                 <div className="grid gap-4">
-                    <label className="grid gap-1.5 text-sm font-bold text-gray-500">
-                        Tên kệ *
-                        <input
+                    <Field label="Tên kệ" required>
+                        <TextInput
                             name="name"
                             type="text"
                             required
                             defaultValue={item?.name ?? ""}
                             placeholder="Nhập tên kệ..."
-                            className="h-10 w-full rounded-xl border border-pos-border px-3 font-medium text-gray-700 focus:outline-none"
                         />
-                    </label>
+                    </Field>
 
-                    <label className="grid gap-1.5 text-sm font-bold text-gray-500">
-                        Trạng thái
-                        <select
-                            name="status"
-                            defaultValue={item?.status ?? "ACTIVE"}
-                            className="h-10 w-full rounded-xl border border-pos-border bg-white px-3 font-medium text-gray-700 focus:outline-none"
-                        >
+                    <Field label="Trạng thái">
+                        <NativeSelect name="status" defaultValue={item?.status ?? "ACTIVE"}>
                             {Object.entries(inventoryStatusLabels).map(([val, label]) => (
                                 <option key={val} value={val}>
                                     {label}
                                 </option>
                             ))}
-                        </select>
-                    </label>
+                        </NativeSelect>
+                    </Field>
                 </div>
 
                 {error && (
@@ -225,22 +213,12 @@ function ShelfForm({ item, onClose, onSubmit }: ShelfFormProps) {
                 )}
 
                 <footer className="mt-6 flex justify-end gap-3 border-t border-pos-border pt-4">
-                    <button
-                        type="button"
-                        onClick={onClose}
-                        className="h-11 rounded-xl border border-pos-border bg-white px-6 font-bold text-gray-500 hover:bg-neutral-50 transition-all cursor-pointer focus:outline-none"
-                    >
-                        Hủy
-                    </button>
-                    <button
-                        type="submit"
-                        disabled={submitting}
-                        className="h-11 rounded-xl bg-[#07883a] px-6 font-bold text-white hover:bg-[#067331] transition-all disabled:opacity-50 cursor-pointer shadow-sm focus:outline-none"
-                    >
+                    <Button onClick={onClose}>Hủy</Button>
+                    <Button disabled={submitting} type="submit" variant="primary">
                         {submitting ? "Đang lưu..." : item ? "Lưu thay đổi" : "Lưu"}
-                    </button>
+                    </Button>
                 </footer>
             </form>
-        </div>
+        </ModalShell>
     );
 }

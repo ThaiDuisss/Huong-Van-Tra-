@@ -1,6 +1,8 @@
 import { useState, useMemo, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft, Search, Layers, AlertCircle, Clock, PackageCheck, RefreshCw } from "lucide-react";
+import { Button, IconButton } from "../../../components/ui/Button";
+import { Table, TableCell, TableHead, TableHeaderCell, TableRow } from "../../../components/ui/Table";
 import { inventoryBalanceApi } from "../services/inventoryBalance.api";
 import { isDashboardMockEnabled } from "../../dashboard/services/dashboard.config";
 import { mockInventoryData } from "../mocks/stock-analysis.mock";
@@ -336,14 +338,14 @@ export function StockCategoryAnalysisPage() {
       {/* ── Header trang & Breadcrumbs ── */}
       <div className="flex items-center justify-between flex-wrap gap-4">
         <div className="flex items-center gap-3">
-          <button
+          <IconButton
+            aria-label="Quay lại Dashboard"
             onClick={() => navigate(-1)}
-            type="button"
-            className="p-2 text-slate-500 hover:text-slate-800 hover:bg-white rounded-lg border border-slate-200 shadow-xs transition-colors cursor-pointer"
             title="Quay lại Dashboard"
+            variant="secondary"
           >
             <ArrowLeft size={16} />
-          </button>
+          </IconButton>
           <div>
             <div className="flex items-center gap-2 text-xs font-medium text-slate-400 mb-0.5">
               <span>Dashboard</span>
@@ -364,15 +366,15 @@ export function StockCategoryAnalysisPage() {
 
         {/* Quick summary metrics & Reload */}
         <div className="flex items-center gap-3 flex-wrap text-xs">
-          <button
-            onClick={handleRefresh}
+          <IconButton
+            aria-label="Làm mới dữ liệu"
             disabled={loading}
-            type="button"
-            className="p-2 bg-white border border-slate-200 rounded-lg text-slate-500 hover:text-slate-800 hover:bg-slate-50 shadow-xs transition disabled:opacity-50 cursor-pointer"
+            onClick={handleRefresh}
             title="Làm mới dữ liệu"
+            variant="secondary"
           >
             <RefreshCw size={14} className={loading ? "animate-spin text-emerald-600" : ""} />
-          </button>
+          </IconButton>
 
           <div className="bg-white border border-slate-200 rounded-lg px-3 py-1.5 shadow-xs flex items-center gap-2">
             <PackageCheck className="size-3.5 text-emerald-600" />
@@ -399,13 +401,9 @@ export function StockCategoryAnalysisPage() {
             <AlertCircle className="size-4 shrink-0 text-rose-500" />
             <span>{error}</span>
           </div>
-          <button
-            onClick={handleRefresh}
-            type="button"
-            className="px-3 py-1 bg-white border border-rose-300 rounded-md font-medium text-rose-700 hover:bg-rose-100 transition cursor-pointer"
-          >
+          <Button onClick={handleRefresh} size="sm">
             Thử lại
-          </button>
+          </Button>
         </div>
       )}
 
@@ -647,13 +645,9 @@ export function StockCategoryAnalysisPage() {
           {/* Bên phải: Text nhỏ hiển thị tổng số dòng */}
           <div className="flex items-center gap-2">
             {selectedCategory && (
-              <button
-                type="button"
-                onClick={() => setSelectedCategory(null)}
-                className="text-xs text-slate-500 hover:text-slate-800 underline cursor-pointer mr-2"
-              >
+              <Button onClick={() => setSelectedCategory(null)} size="sm" variant="ghost">
                 Bỏ lọc danh mục
-              </button>
+              </Button>
             )}
             <span className="text-xs text-slate-400 font-medium shrink-0">
               {filteredData.length} dòng
@@ -663,68 +657,68 @@ export function StockCategoryAnalysisPage() {
 
         {/* Cấu trúc Table */}
         <div className="w-full overflow-x-auto">
-          <table className="w-full text-left text-xs whitespace-nowrap">
+          <Table className="whitespace-nowrap">
             {/* Thead: Viền kẻ dưới mảnh, chữ in hoa xám nhạt */}
-            <thead className="border-b border-slate-100 bg-slate-50/50">
-              <tr>
-                <th className="text-[11px] uppercase text-slate-400 font-semibold tracking-wider py-3 px-4 w-12 text-center">
+            <TableHead>
+              <TableRow>
+                <TableHeaderCell className="w-12 text-center">
                   #
-                </th>
-                <th className="text-[11px] uppercase text-slate-400 font-semibold tracking-wider py-3 px-4 min-w-[200px]">
+                </TableHeaderCell>
+                <TableHeaderCell className="min-w-[200px]">
                   SKU / TÊN
-                </th>
-                <th className="text-[11px] uppercase text-slate-400 font-semibold tracking-wider py-3 px-4 min-w-[150px]">
+                </TableHeaderCell>
+                <TableHeaderCell className="min-w-[150px]">
                   CATEGORY
-                </th>
-                <th className="text-[11px] uppercase text-slate-400 font-semibold tracking-wider py-3 px-4 text-right min-w-[110px]">
+                </TableHeaderCell>
+                <TableHeaderCell className="text-right min-w-[110px]">
                   ON HAND
-                </th>
-                <th className="text-[11px] uppercase text-slate-400 font-semibold tracking-wider py-3 px-4 text-right min-w-[100px]">
+                </TableHeaderCell>
+                <TableHeaderCell className="text-right min-w-[100px]">
                   RESERVED
-                </th>
-                <th className="text-[11px] uppercase text-slate-400 font-semibold tracking-wider py-3 px-4 text-right min-w-[100px]">
+                </TableHeaderCell>
+                <TableHeaderCell className="text-right min-w-[100px]">
                   BLOCKED
-                </th>
-                <th className="text-[11px] uppercase text-slate-400 font-semibold tracking-wider py-3 px-4 text-right min-w-[190px]">
+                </TableHeaderCell>
+                <TableHeaderCell className="text-right min-w-[190px]">
                   AVAILABLE
-                </th>
-                <th className="text-[11px] uppercase text-slate-400 font-semibold tracking-wider py-3 px-4 text-center min-w-[90px]">
+                </TableHeaderCell>
+                <TableHeaderCell className="text-center min-w-[90px]">
                   KHO
-                </th>
-                <th className="text-[11px] uppercase text-slate-400 font-semibold tracking-wider py-3 px-4 text-center min-w-[70px]">
+                </TableHeaderCell>
+                <TableHeaderCell className="text-center min-w-[70px]">
                   ĐVT
-                </th>
-              </tr>
-            </thead>
+                </TableHeaderCell>
+              </TableRow>
+            </TableHead>
 
-            <tbody className="divide-y divide-slate-100">
+            <tbody>
               {loading ? (
-                <tr>
-                  <td colSpan={9} className="py-12 text-center text-slate-400 text-xs font-medium">
+                <TableRow>
+                  <TableCell className="py-12 text-center text-slate-400 text-xs font-medium" colSpan={9}>
                     <div className="flex items-center justify-center gap-2">
                       <RefreshCw className="size-4 animate-spin text-emerald-600" />
                       <span>Đang nạp dữ liệu chi tiết...</span>
                     </div>
-                  </td>
-                </tr>
+                  </TableCell>
+                </TableRow>
               ) : filteredData.length === 0 ? (
-                <tr>
-                  <td colSpan={9} className="py-12 text-center text-slate-400 text-sm font-medium">
+                <TableRow>
+                  <TableCell className="py-12 text-center text-slate-400 text-sm font-medium" colSpan={9}>
                     Không tìm thấy nguyên liệu phù hợp với tìm kiếm
-                  </td>
-                </tr>
+                  </TableCell>
+                </TableRow>
               ) : (
                 filteredData.map((item, index) => {
                   const colors = getCategoryStyle(item.category);
                   const rank = index + 1;
 
                   return (
-                    <tr
+                    <TableRow
                       key={`${item.sku}-${item.warehouse}-${index}`}
                       className="hover:bg-slate-50/80 transition-colors"
                     >
                       {/* Cột #: Thứ tự (badge số tròn cho Top 1, 2, 3) */}
-                      <td className="py-3 px-4 text-center">
+                      <TableCell className="text-center">
                         {rank === 1 && (
                           <span
                             className="inline-flex items-center justify-center size-5 rounded-full bg-amber-100 text-amber-800 font-bold border border-amber-300 text-[11px] shadow-xs mx-auto"
@@ -754,10 +748,10 @@ export function StockCategoryAnalysisPage() {
                             {rank}
                           </span>
                         )}
-                      </td>
+                      </TableCell>
 
                       {/* Cột SKU / TÊN: SKU in đậm, Tên hiển thị nhỏ ngay bên dưới */}
-                      <td className="py-3 px-4">
+                      <TableCell>
                         <div className="font-mono font-bold text-slate-800 text-xs">
                           {item.sku}
                         </div>
@@ -767,70 +761,70 @@ export function StockCategoryAnalysisPage() {
                         >
                           {item.name}
                         </div>
-                      </td>
+                      </TableCell>
 
                       {/* Cột CATEGORY: Badge pill nhỏ bo tròn kèm chấm tròn màu đại diện */}
-                      <td className="py-3 px-4">
+                      <TableCell>
                         <span
                           className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-[11px] font-medium ${colors.bg} ${colors.text} ${colors.border}`}
                         >
                           <span className={`size-1.5 rounded-full ${colors.dot}`} />
                           {item.category}
                         </span>
-                      </td>
+                      </TableCell>
 
                       {/* Cột ON HAND: Số tồn thực tế trong kho (căn phải, in đậm) */}
-                      <td className="py-3 px-4 text-right font-bold tabular-nums text-slate-800 text-xs">
+                      <TableCell className="text-right font-bold tabular-nums text-slate-800 text-xs">
                         {fmtNum(item.onHand)}
-                      </td>
+                      </TableCell>
 
                       {/* Cột RESERVED: Số lượng đang giữ chỗ (màu cam đất hoặc xám) */}
-                      <td
-                        className={`py-3 px-4 text-right tabular-nums font-medium ${
+                      <TableCell
+                        className={`text-right tabular-nums font-medium ${
                           item.reserved > 0 ? "text-amber-600" : "text-slate-300"
                         }`}
                       >
                         {fmtNum(item.reserved)}
-                      </td>
+                      </TableCell>
 
                       {/* Cột BLOCKED: Số lượng bị chặn/lỗi/hỏng (màu đỏ nhẹ hoặc xám) */}
-                      <td
-                        className={`py-3 px-4 text-right tabular-nums font-medium ${
+                      <TableCell
+                        className={`text-right tabular-nums font-medium ${
                           item.blocked > 0 ? "text-rose-500" : "text-slate-300"
                         }`}
                       >
                         {fmtNum(item.blocked)}
-                      </td>
+                      </TableCell>
 
                       {/* Cột AVAILABLE (Cột quan trọng nhất):
                           Số lượng khả dụng in đậm màu xanh lá (text-emerald-600 font-bold text-sm)
                           Dưới số lượng là công thức diễn giải: = On Hand - Reserved - Blocked */}
-                      <td className="py-3 px-4 text-right">
+                      <TableCell className="text-right">
                         <div className="text-emerald-600 font-bold text-sm tabular-nums">
                           {fmtNum(item.available)}
                         </div>
                         <div className="text-slate-400 text-[10px] font-mono mt-0.5">
                           = {fmtNum(item.onHand)} - {fmtNum(item.reserved)} - {fmtNum(item.blocked)}
                         </div>
-                      </td>
+                      </TableCell>
 
                       {/* Cột KHO: Mã kho lưu trữ (HN-01, HN-02, HCM-01) */}
-                      <td className="py-3 px-4 text-center font-mono text-slate-600">
+                      <TableCell className="text-center font-mono text-slate-600">
                         <span className="inline-block bg-slate-100 px-2 py-0.5 rounded text-[11px] border border-slate-200/60 font-medium">
                           {item.warehouse}
                         </span>
-                      </td>
+                      </TableCell>
 
                       {/* Cột ĐVT: Đơn vị tính (kg, cái, hộp, tờ, m...) */}
-                      <td className="py-3 px-4 text-center text-slate-500 font-medium">
+                      <TableCell className="text-center text-slate-500 font-medium">
                         {item.unit}
-                      </td>
-                    </tr>
+                      </TableCell>
+                    </TableRow>
                   );
                 })
               )}
             </tbody>
-          </table>
+          </Table>
         </div>
       </div>
     </div>

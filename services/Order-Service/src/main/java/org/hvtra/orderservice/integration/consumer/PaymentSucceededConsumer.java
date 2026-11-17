@@ -25,7 +25,7 @@ public class PaymentSucceededConsumer {
                     "${order.payment.events.topics.cancelled:payment.cancelled}",
                     "${order.payment.events.topics.need-review:payment.need-review}"
             },
-            groupId = "${spring.application.name:order-service}-payment-events"
+            groupId = "${kafka-consumer-config.group-id:Order-Service-payment-events}"
 //            containerFactory = "paymentEventKafkaListenerContainerFactory"
     )
     public void handle(ConsumerRecord<String, String> record, Acknowledgment acknowledgment) {

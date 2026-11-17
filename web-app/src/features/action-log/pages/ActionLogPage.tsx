@@ -1,6 +1,7 @@
 import { RefreshCw } from "lucide-react";
 import { useCallback, useState } from "react";
 
+import { Button } from "../../../components/ui/Button";
 import { DashboardListSkeleton } from "../../dashboard/components/DashboardStates";
 import {
   InventoryEmptyState,
@@ -40,16 +41,10 @@ export function ActionLogPage() {
                 Cập nhật {timeFormatter.format(logs.lastUpdated)}
               </span>
             ) : null}
-            <button
-              aria-label="Làm mới dữ liệu"
-              className="inline-flex h-10 items-center gap-2 rounded-lg border border-[#d8eadc] bg-white px-4 text-sm font-black text-[#159734] transition hover:bg-[#f4faf5] disabled:opacity-60"
-              disabled={logs.isLoading}
-              onClick={logs.refresh}
-              type="button"
-            >
+            <Button aria-label="Làm mới dữ liệu" disabled={logs.isLoading} onClick={logs.refresh}>
               <RefreshCw className={logs.isLoading ? "animate-spin" : ""} size={16} aria-hidden="true" />
               Làm mới
-            </button>
+            </Button>
           </>
         }
         description="Ai đã làm gì, trên đối tượng nào, lúc nào và kết quả ra sao."
@@ -78,13 +73,9 @@ export function ActionLogPage() {
               <InventoryEmptyState
                 action={
                   isDefaultFilters(filters) ? undefined : (
-                    <button
-                      className="text-sm font-black text-[#159734] hover:underline"
-                      onClick={resetFilters}
-                      type="button"
-                    >
+                    <Button onClick={resetFilters} size="sm" variant="link">
                       Xóa bộ lọc
-                    </button>
+                    </Button>
                   )
                 }
                 message={

@@ -1,6 +1,7 @@
 import { RotateCcw, X } from "lucide-react";
 import type { ReactNode } from "react";
 
+import { Button, IconButton } from "../../../components/ui/Button";
 import type {
     OrderDetailResponse,
     OrderItemResponse,
@@ -87,7 +88,7 @@ export function OrderDetailPanel({
 
     return (
         <aside
-            className="min-h-0 overflow-auto rounded-xl border border-[#edf0f4] bg-white shadow-[0_16px_38px_rgb(31_53_43_/_0.05)]"
+            className="min-h-0 overflow-auto"
             aria-label="Chi tiết đơn hàng"
         >
             <div className="flex items-center justify-between gap-3 border-b border-[#edf0f4] px-7 py-5">
@@ -96,24 +97,15 @@ export function OrderDetailPanel({
                 </h2>
                 <div className="flex items-center gap-2">
                     {displayOrder?.id && onCreateReturn ? (
-                        <button
-                            className="inline-flex h-9 items-center gap-2 rounded-lg border border-[#dfe6ee] bg-white px-3 text-sm font-black text-[#172317] hover:bg-[#f4f7f5]"
-                            onClick={() => onCreateReturn(displayOrder.id)}
-                            type="button"
-                        >
+                        <Button onClick={() => onCreateReturn(displayOrder.id)} size="sm">
                             <RotateCcw size={16} aria-hidden="true" />
                             Tạo phiếu hoàn
-                        </button>
+                        </Button>
                     ) : null}
                     {onClose ? (
-                        <button
-                            aria-label="Đóng chi tiết đơn hàng"
-                            className="grid size-9 place-items-center rounded-lg border-0 bg-transparent text-[#536078] hover:bg-[#f4f7f5]"
-                            onClick={onClose}
-                            type="button"
-                        >
+                        <IconButton aria-label="Đóng chi tiết đơn hàng" onClick={onClose}>
                             <X size={18} aria-hidden="true" />
-                        </button>
+                        </IconButton>
                     ) : null}
                 </div>
             </div>

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 
+import { Button } from "../../../components/ui/Button";
 import { StocktakeFilterBar, StocktakePageHeader, StocktakeTable } from "../components/StocktakeComponents";
 import { useStocktakeQueryState } from "../hooks/useStocktakeQueryState";
 import { stocktakeApi } from "../services/stocktake.api";
@@ -43,7 +44,7 @@ export function StocktakeListPage() {
         <section className="flex h-full min-h-0 flex-col gap-4 text-[#172317]">
             <StocktakePageHeader onRefresh={() => setReloadKey((value) => value + 1)} />
             <StocktakeFilterBar branches={options.branches} onChange={setQuery} onReset={resetQuery} query={query} />
-            {error ? <div className="flex items-center justify-between rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-bold text-red-700"><span>{error}</span><button onClick={() => setReloadKey((value) => value + 1)} type="button">Thử lại</button></div> : null}
+            {error ? <div className="flex items-center justify-between rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-bold text-red-700"><span>{error}</span><Button onClick={() => setReloadKey((value) => value + 1)} size="sm">Thử lại</Button></div> : null}
             <StocktakeTable loading={loading} onPageChange={(page) => setQuery({ page })} page={query.page} stocktakes={result?.content ?? []} totalElements={result?.totalElements ?? 0} totalPages={result?.totalPages ?? 0} />
         </section>
     );

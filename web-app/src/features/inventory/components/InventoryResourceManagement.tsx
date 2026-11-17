@@ -3,13 +3,24 @@ import {
     Pencil,
     Plus,
     ToggleLeft,
-    MoreHorizontal,
     Trash2,
     X
 } from "lucide-react";
-import { type ReactNode, useState } from "react";
+import { type ReactNode, useId, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
+import { ListPageHeader } from "../../../components/shared/list/ListPageHeader";
+import { type RowAction, RowActionMenu } from "../../../components/shared/RowActionMenu";
+import { Button, IconButton } from "../../../components/ui/Button";
+import { NativeSelect } from "../../../components/ui/Field";
+import { ModalShell } from "../../../components/ui/Overlay";
+import {
+    Table,
+    TableCell as UiTableCell,
+    TableHead,
+    TableHeaderCell,
+    TableRow
+} from "../../../components/ui/Table";
 import { ActionButton } from "../../manufacturing/components/shared/ActionButton";
 import { Pagination } from "../../manufacturing/components/shared/Pagination";
 import { SearchBox } from "../../manufacturing/components/shared/SearchBox";
@@ -90,7 +101,8 @@ export interface InventoryResourceManagementProps<T extends RowBase, S extends s
     statusOptions?: Array<{ label: string; value: "ALL" | S }>;
     totalItemsLabel?: string;
     filters?: InventoryFilter[];
-    renderExtraRowActions?(item: T, closeMenu: () => void): ReactNode;
+    /** Các mục thêm của menu ⋮ (`RowActionMenu`), nối sau mục mặc định. */
+    getExtraRowActions?(item: T): RowAction[];
     controlledEditingItem?: T | null;
     controlledShowForm?: boolean;
     onControlledShowFormChange?(show: boolean): void;
@@ -108,17 +120,13 @@ export function TableCell({
     className?: string;
 }) {
     return (
-        <td className={`border-b border-[#edf0f4] h-[52px] align-middle px-4 py-0 first:pl-[18px] ${className}`}>
-            <span
-                className={`text-[13px] ${
-                    strong
-                        ? "font-extrabold text-[#172317]"
-                        : "font-semibold text-gray-500"
-                }`}
-            >
-                {children}
-            </span>
-        </td>
+        <UiTableCell
+            className={`h-[52px] text-[13px] ${
+                strong ? "font-extrabold text-[#172317]" : "font-semibold text-gray-500"
+            } ${className}`}
+        >
+            {children}
+        </UiTableCell>
     );
 }
 
@@ -153,7 +161,7 @@ export function InventoryResourceManagement<T extends RowBase, S extends string 
     totalItemsLabel,
     secondaryFilter,
     filters,
-    renderExtraRowActions,
+    getExtraRowActions,
     onDelete,
     customForm,
     controlledEditingItem,
@@ -163,6 +171,7 @@ export function InventoryResourceManagement<T extends RowBase, S extends string 
     extraHeaderActions
 }: InventoryResourceManagementProps<T, S>) {
     const navigate = useNavigate();
+    const detailTitleId = useId();
     const [selectedItem, setSelectedItem] = useState<T | null>(null);
     const [internalEditingItem, setInternalEditingItem] = useState<T | null>(null);
     const [deletingItem, setDeletingItem] = useState<T | null>(null);
@@ -190,6 +199,30 @@ export function InventoryResourceManagement<T extends RowBase, S extends string 
     const [actionError, setActionError] = useState("");
     const [submitting, setSubmitting] = useState(false);
     const [activeActionMenuId, setActiveActionMenuId] = useState<string | null>(null);
+
+    const rowActions = (item: T): RowAction[] => [
+        ...(!detailPath
+            ? [{ icon: <Eye size={14} />, label: "Xem chi tiết", onSelect: () => setSelectedItem(item) }]
+            : []),
+        ...(onSubmit
+            ? [{
+                icon: <Pencil size={14} />,
+                label: "Chỉnh sửa",
+                onSelect: () => {
+                    setEditingItem(item);
+                    setActionError("");
+                    setShowForm(true);
+                }
+            }]
+            : []),
+        ...(onChangeStatus
+            ? [{ icon: <ToggleLeft size={14} />, label: "Đổi trạng thái", onSelect: () => setStatusTarget(item) }]
+            : []),
+        ...(onDelete
+            ? [{ icon: <Trash2 size={14} />, label: "Xóa", onSelect: () => setDeletingItem(item), tone: "danger" as const }]
+            : []),
+        ...(getExtraRowActions?.(item) ?? [])
+    ];
 
     const activeFilters = filters ?? [];
     const isTopFilter = (f: InventoryFilter) =>
@@ -253,35 +286,30 @@ export function InventoryResourceManagement<T extends RowBase, S extends string 
 
     return (
         <section className="grid gap-5">
-            <header className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                <div className="grid gap-1 min-w-[240px]">
-                    <h1 className="text-2xl font-bold text-gray-800 sm:text-3xl">
-                        {title}
-                    </h1>
-                    <p className="text-sm text-gray-500">
-                        {description}
-                    </p>
-                </div>
-
-                {(createLabel || extraHeaderActions) && (
-                    <div className="flex flex-wrap items-center gap-3 w-full justify-start sm:w-auto sm:justify-end lg:ml-auto">
-                        {extraHeaderActions}
-                        {createLabel && (
-                            <ActionButton
-                                variant="primary"
-                                onClick={() => {
-                                    setEditingItem(null);
-                                    setActionError("");
-                                    setShowForm(true);
-                                }}
-                            >
-                                <Plus size={17} aria-hidden="true" />
-                                {createLabel}
-                            </ActionButton>
-                        )}
-                    </div>
-                )}
-            </header>
+            <ListPageHeader
+                actions={
+                    createLabel || extraHeaderActions ? (
+                        <>
+                            {extraHeaderActions}
+                            {createLabel && (
+                                <ActionButton
+                                    variant="primary"
+                                    onClick={() => {
+                                        setEditingItem(null);
+                                        setActionError("");
+                                        setShowForm(true);
+                                    }}
+                                >
+                                    <Plus size={17} aria-hidden="true" />
+                                    {createLabel}
+                                </ActionButton>
+                            )}
+                        </>
+                    ) : undefined
+                }
+                description={description}
+                title={title}
+            />
 
             <div className="flex flex-col rounded-2xl bg-white p-4 shadow-pos-card border border-neutral-100">
                 {searchPlaceholder ? (
@@ -302,10 +330,10 @@ export function InventoryResourceManagement<T extends RowBase, S extends string 
                                                     {filter.render ? (
                                                         filter.render
                                                     ) : (
-                                                        <select
+                                                        <NativeSelect
+                                                            aria-label={filter.label}
                                                             value={filter.value}
                                                             onChange={(e) => filter.onChange(e.target.value)}
-                                                            className="h-10 w-full rounded-xl border border-pos-border px-3 text-sm outline-none focus:border-hvt-green-700 bg-white text-[#172317] cursor-pointer"
                                                         >
                                                             <option value="ALL">{filter.label}</option>
                                                             {filter.options
@@ -316,7 +344,7 @@ export function InventoryResourceManagement<T extends RowBase, S extends string 
                                                                     </option>
                                                                 ))
                                                             }
-                                                        </select>
+                                                        </NativeSelect>
                                                     )}
                                                 </div>
                                             ))}
@@ -347,10 +375,10 @@ export function InventoryResourceManagement<T extends RowBase, S extends string 
                                             {filter.label}:
                                         </span>
                                         <div className="min-w-[180px]">
-                                            <select
+                                            <NativeSelect
+                                                aria-label={filter.label}
                                                 value={filter.value}
                                                 onChange={(e) => filter.onChange(e.target.value)}
-                                                className="h-9 w-full rounded-lg border border-pos-border px-2 text-xs outline-none focus:border-hvt-green-700 bg-white text-[#172317] cursor-pointer"
                                             >
                                                 <option value="ALL">Tất cả</option>
                                                 {filter.options
@@ -361,7 +389,7 @@ export function InventoryResourceManagement<T extends RowBase, S extends string 
                                                         </option>
                                                     ))
                                                 }
-                                            </select>
+                                            </NativeSelect>
                                         </div>
                                     </div>
                                 );
@@ -444,28 +472,28 @@ export function InventoryResourceManagement<T extends RowBase, S extends string 
                     ) : null}
                     {!loading && !error && items.length > 0 && (
                         <div className="overflow-x-auto min-h-[280px]">
-                            <table className="w-full text-left text-sm border-separate border-spacing-0">
-                                <thead className="bg-[#eaf7ec] text-[13px] font-[950] text-gray-900 border-b border-[#edf0f4]">
-                                    <tr>
+                            <Table>
+                                <TableHead>
+                                    <TableRow>
                                         {columns.map((col) => (
-                                            <th
+                                            <TableHeaderCell
                                                 key={col.key}
-                                                className={`h-[52px] align-middle px-4 py-0 border-b border-[#edf0f4] first:pl-[18px] ${
+                                                className={
                                                     col.align === "right"
-                                                        ? "text-right pr-[18px]"
+                                                        ? "text-right"
                                                         : col.align === "center"
                                                         ? "text-center"
-                                                        : "text-left"
-                                                }`}
+                                                        : undefined
+                                                }
                                             >
                                                 {col.label}
-                                            </th>
+                                            </TableHeaderCell>
                                         ))}
-                                        <th className="h-[52px] align-middle px-4 py-0 border-b border-[#edf0f4] text-right pr-[18px]">
+                                        <TableHeaderCell className="text-right">
                                             Thao tác
-                                        </th>
-                                    </tr>
-                                </thead>
+                                        </TableHeaderCell>
+                                    </TableRow>
+                                </TableHead>
                                 <tbody>
                                     {items.map((item, idx) => {
                                         const isSelected = selectedItem?.id === item.id;
@@ -477,7 +505,7 @@ export function InventoryResourceManagement<T extends RowBase, S extends string 
                                                 : "bg-white";
 
                                         return (
-                                            <tr
+                                            <TableRow
                                                 key={item.id}
                                                 onClick={() => {
                                                     if (detailPath) {
@@ -486,111 +514,32 @@ export function InventoryResourceManagement<T extends RowBase, S extends string 
                                                         setSelectedItem(item);
                                                     }
                                                 }}
-                                                className={`cursor-pointer hover:bg-[#f8faf8] transition-all border-b border-[#f2f4f2] ${rowBgClass}`}
+                                                className={`cursor-pointer transition-all hover:bg-[#f8faf8] ${rowBgClass}`}
                                             >
                                                 {renderCells(item)}
-                                                <td
-                                                    className={`border-b border-[#edf0f4] h-[52px] align-middle px-4 py-0 pr-[18px] relative ${
+                                                <UiTableCell
+                                                    className={`relative h-[52px] ${
                                                         activeActionMenuId === String(item.id) ? "z-30" : "z-20"
                                                     }`}
                                                     onClick={(e) => e.stopPropagation()}
                                                 >
-                                                    <div className="flex justify-end relative">
-                                                        <button
-                                                            type="button"
-                                                            onClick={() =>
-                                                                setActiveActionMenuId(
-                                                                    activeActionMenuId === String(item.id)
-                                                                        ? null
-                                                                        : String(item.id)
-                                                                )
-                                                            }
-                                                            className="grid size-8 place-items-center rounded-lg hover:bg-neutral-100 text-gray-500 hover:text-gray-700 cursor-pointer"
-                                                        >
-                                                            <MoreHorizontal size={16} />
-                                                        </button>
-
-                                                        {activeActionMenuId === String(item.id) && (
-                                                            <>
-                                                                <div
-                                                                    className="fixed inset-0 z-30"
-                                                                    onClick={() => setActiveActionMenuId(null)}
-                                                                />
-                                                                <div
-                                                                    className={`absolute right-0 ${
-                                                                        idx >= 2 && idx >= items.length - 2
-                                                                            ? "bottom-8 mb-1"
-                                                                            : "top-8 mt-1"
-                                                                    } w-44 rounded-xl border border-pos-border bg-white p-1.5 shadow-lg z-40 text-left`}
-                                                                >
-                                                                    {!detailPath && (
-                                                                        <button
-                                                                            type="button"
-                                                                            onClick={() => {
-                                                                                setSelectedItem(item);
-                                                                                setActiveActionMenuId(null);
-                                                                            }}
-                                                                            className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-sm text-[#172317] hover:bg-[#f0fbef] hover:text-[#159734] font-medium transition-colors cursor-pointer"
-                                                                        >
-                                                                            <Eye size={14} />
-                                                                            Xem chi tiết
-                                                                        </button>
-                                                                    )}
-                                                                    {onSubmit && (
-                                                                        <button
-                                                                            type="button"
-                                                                            onClick={() => {
-                                                                                setEditingItem(item);
-                                                                                setActionError("");
-                                                                                setShowForm(true);
-                                                                                setActiveActionMenuId(null);
-                                                                            }}
-                                                                            className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-sm text-[#172317] hover:bg-[#f0fbef] hover:text-[#159734] font-medium transition-colors cursor-pointer"
-                                                                        >
-                                                                            <Pencil size={14} />
-                                                                            Chỉnh sửa
-                                                                        </button>
-                                                                    )}
-                                                                    {onChangeStatus && (
-                                                                        <button
-                                                                            type="button"
-                                                                            onClick={() => {
-                                                                                setStatusTarget(item);
-                                                                                setActiveActionMenuId(null);
-                                                                            }}
-                                                                            className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-sm text-[#172317] hover:bg-[#f0fbef] hover:text-[#159734] font-medium transition-colors cursor-pointer"
-                                                                        >
-                                                                            <ToggleLeft size={14} />
-                                                                            Đổi trạng thái
-                                                                        </button>
-                                                                    )}
-                                                                    {onDelete && (
-                                                                        <button
-                                                                            type="button"
-                                                                            onClick={() => {
-                                                                                setDeletingItem(item);
-                                                                                setActiveActionMenuId(null);
-                                                                            }}
-                                                                            className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-sm text-red-600 hover:bg-red-50 font-medium transition-colors cursor-pointer"
-                                                                        >
-                                                                            <Trash2 size={14} />
-                                                                            Xóa
-                                                                        </button>
-                                                                    )}
-                                                                    {renderExtraRowActions &&
-                                                                        renderExtraRowActions(item, () =>
-                                                                            setActiveActionMenuId(null)
-                                                                        )}
-                                                                </div>
-                                                            </>
-                                                        )}
-                                                    </div>
-                                                </td>
-                                            </tr>
+                                                        <div className="flex justify-end">
+                                                            <RowActionMenu
+                                                                actions={rowActions(item)}
+                                                                isOpen={activeActionMenuId === String(item.id)}
+                                                                menuLabel="Thao tác"
+                                                                onOpenChange={(open) =>
+                                                                    setActiveActionMenuId(open ? String(item.id) : null)
+                                                                }
+                                                                triggerLabel="Mở thao tác"
+                                                            />
+                                                        </div>
+                                                </UiTableCell>
+                                            </TableRow>
                                         );
                                     })}
                                 </tbody>
-                            </table>
+                            </Table>
                         </div>
                     )}
                     </div>
@@ -609,29 +558,19 @@ export function InventoryResourceManagement<T extends RowBase, S extends string 
 
                 {/* Detail Panel */}
                 {selectedItem ? (
-                    <div
-                        className="fixed inset-0 z-50 grid place-items-center bg-[#152a1c]/45 p-6 backdrop-blur-[2px] transition-opacity duration-300"
-                        onClick={() => setSelectedItem(null)}
+                    <ModalShell
+                        className="w-[min(92vw,960px)]"
+                        labelledBy={detailTitleId}
+                        onClose={() => setSelectedItem(null)}
                     >
-                        <section
-                            aria-label={`Chi tiết ${title}`}
-                            aria-modal="true"
-                            className="relative flex max-h-[85vh] w-[min(92vw,960px)] flex-col overflow-hidden rounded-2xl border border-[#dfe8e3] bg-white shadow-[0_28px_90px_rgba(21,43,30,0.24)] max-md:h-[92vh] max-md:w-[calc(100vw-24px)]"
-                            role="dialog"
-                            onClick={(e) => e.stopPropagation()}
-                        >
+                        <div className="flex max-h-[calc(90vh-2px)] flex-col overflow-hidden">
                             <header className="sticky top-0 z-20 flex min-h-14 shrink-0 items-center justify-between gap-3 border-b border-[#e2e9e5] bg-white px-4 py-2.5">
-                                <h2 className="truncate text-base font-black text-[#172317]">
+                                <h2 className="truncate text-base font-black text-[#172317]" id={detailTitleId}>
                                     Chi tiết {title.toLowerCase()}
                                 </h2>
-                                <button
-                                    aria-label="Đóng"
-                                    className="grid size-9 place-items-center rounded-lg text-[#657282] hover:bg-[#eef3f0] hover:text-[#172317] cursor-pointer"
-                                    onClick={() => setSelectedItem(null)}
-                                    type="button"
-                                >
+                                <IconButton aria-label="Đóng" onClick={() => setSelectedItem(null)}>
                                     <X size={20} aria-hidden="true" />
-                                </button>
+                                </IconButton>
                             </header>
 
                             <main className="grid min-h-0 flex-1 grid-cols-[280px_minmax(0,1fr)] max-md:block max-md:overflow-y-auto">
@@ -690,45 +629,37 @@ export function InventoryResourceManagement<T extends RowBase, S extends string 
 
                             <footer className="sticky bottom-0 z-20 flex min-h-16 shrink-0 items-center gap-3 border-t border-[#e2e9e5] bg-white px-4 py-3">
                                 {onDelete && (
-                                    <button
-                                        className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-lg border border-[#efc9c2] bg-white px-4 text-sm font-black text-[#c4422e] hover:bg-[#fff5f3] cursor-pointer"
+                                    <Button
                                         onClick={() => {
                                             setDeletingItem(selectedItem);
                                             setSelectedItem(null);
                                         }}
-                                        type="button"
+                                        variant="danger"
                                     >
                                         <Trash2 size={16} aria-hidden="true" />
                                         Xóa
-                                    </button>
+                                    </Button>
                                 )}
                                 <div className="ml-auto flex shrink-0 gap-2">
-                                    <button
-                                        className="inline-flex h-10 shrink-0 items-center justify-center rounded-lg border border-[#dce5e1] bg-white px-4 text-sm font-black text-[#536171] hover:bg-[#f4f8f5] cursor-pointer"
-                                        onClick={() => setSelectedItem(null)}
-                                        type="button"
-                                    >
-                                        Đóng
-                                    </button>
+                                    <Button onClick={() => setSelectedItem(null)}>Đóng</Button>
                                     {onSubmit && (
-                                        <button
-                                            className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-lg bg-[#159734] px-4 text-sm font-black text-white shadow-sm hover:bg-[#12862d] cursor-pointer"
+                                        <Button
                                             onClick={() => {
                                                 setEditingItem(selectedItem);
                                                 setActionError("");
                                                 setShowForm(true);
                                                 setSelectedItem(null);
                                             }}
-                                            type="button"
+                                            variant="primary"
                                         >
                                             <Pencil size={16} aria-hidden="true" />
                                             Chỉnh sửa
-                                        </button>
+                                        </Button>
                                     )}
                                 </div>
                             </footer>
-                        </section>
-                    </div>
+                        </div>
+                    </ModalShell>
                 ) : null}
             </div>
 

@@ -3,6 +3,8 @@ import { Download, Eye, Filter, Pencil, Plus, Trash2, Upload } from "lucide-reac
 import { useCallback, useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 
+import { Button } from "../../../components/ui/Button";
+import { buttonClassName } from "../../../components/ui/button-styles";
 import { toast } from "../../../components/ui/Toast";
 import { useAuthorization } from "../../../auth/useAuthorization";
 import { ConfirmDialog } from "../../product/components/ConfirmDialog";
@@ -249,13 +251,10 @@ export function GoodsReceiptListPage() {
                             <Download size={17} aria-hidden="true" />
                             {exporting ? "Đang xuất..." : "Xuất Excel"}
                         </ActionButton>
-                        <button
-                            className={`inline-flex h-12 items-center justify-center gap-[9px] rounded-lg px-[18px] text-sm font-black transition-all cursor-pointer ${showFilters
-                                    ? "border border-[#07883a] bg-[#f4faf5] text-[#07883a]"
-                                    : "border border-[#dfe6ee] bg-white text-[#172317] hover:bg-neutral-50"
-                                }`}
+                        <Button
+                            aria-pressed={showFilters}
                             onClick={() => setShowFilters((prev) => !prev)}
-                            type="button"
+                            size="lg"
                         >
                             <Filter size={17} aria-hidden="true" />
                             <span>{showFilters ? "Ẩn bộ lọc" : "Hiện bộ lọc"}</span>
@@ -264,9 +263,9 @@ export function GoodsReceiptListPage() {
                                     {activeFilterCount}
                                 </span>
                             ) : null}
-                        </button>
+                        </Button>
                         <Link
-                            className="inline-flex h-12 items-center justify-center gap-[9px] rounded-lg border-0 bg-[#07883a] px-[22px] text-sm font-black text-white shadow-[0_10px_24px_rgba(7,136,58,0.24)] hover:opacity-90 transition-all cursor-pointer"
+                            className={buttonClassName({ variant: "primary", size: "lg" })}
                             to="/management/inventory/receipts/new"
                         >
                             <Plus size={17} aria-hidden="true" />
@@ -327,48 +326,31 @@ export function GoodsReceiptListPage() {
                         </div>
                     </dl>
                 )}
-                renderExtraRowActions={(item, closeMenu) => (
-                    <>
-                        <button
-                            className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-sm text-[#172317] hover:bg-[#f0fbef] hover:text-[#159734] font-medium transition-colors cursor-pointer"
-                            onClick={() => {
-                                closeMenu();
-                                navigate(receiptDetailPath(item));
-                            }}
-                            type="button"
-                        >
-                            <Eye size={14} />
-                            Xem chi tiết
-                        </button>
-                        {canEditReceipt(item) ? (
-                            <button
-                                className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-sm text-[#172317] hover:bg-[#f0fbef] hover:text-[#159734] font-medium transition-colors cursor-pointer"
-                                onClick={() => {
-                                    closeMenu();
-                                    navigate(`/management/inventory/receipts/${item.id}/edit`);
-                                }}
-                                type="button"
-                            >
-                                <Pencil size={14} />
-                                Chỉnh sửa
-                            </button>
-                        ) : null}
-                        {canDeleteReceipt(item) ? (
-                            <button
-                                className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-sm text-red-600 hover:bg-red-50 font-medium transition-colors cursor-pointer"
-                                onClick={() => {
-                                    closeMenu();
-                                    setDeleteError("");
-                                    setDeleteTarget(item);
-                                }}
-                                type="button"
-                            >
-                                <Trash2 size={14} />
-                                Xóa
-                            </button>
-                        ) : null}
-                    </>
-                )}
+                getExtraRowActions={(item) => [
+                    {
+                        icon: <Eye size={14} />,
+                        label: "Xem chi tiết",
+                        onSelect: () => navigate(receiptDetailPath(item))
+                    },
+                    ...(canEditReceipt(item)
+                        ? [{
+                            icon: <Pencil size={14} />,
+                            label: "Chỉnh sửa",
+                            onSelect: () => navigate(`/management/inventory/receipts/${item.id}/edit`)
+                        }]
+                        : []),
+                    ...(canDeleteReceipt(item)
+                        ? [{
+                            icon: <Trash2 size={14} />,
+                            label: "Xóa",
+                            onSelect: () => {
+                                setDeleteError("");
+                                setDeleteTarget(item);
+                            },
+                            tone: "danger" as const
+                        }]
+                        : [])
+                ]}
                 searchPlaceholder="Tìm kiếm theo mã phiếu nhập..."
                 status={query.status}
                 statusOptions={statusOptions}

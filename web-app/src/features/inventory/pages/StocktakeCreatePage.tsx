@@ -2,6 +2,9 @@ import { ArrowLeft, Check, LoaderCircle } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 
+import { Button } from "../../../components/ui/Button";
+import { buttonClassName } from "../../../components/ui/button-styles";
+import { Field, NativeSelect, TextArea, TextInput } from "../../../components/ui/Field";
 import { stocktakeScopeLabels, stocktakeScopeOptions } from "../constants/stocktake.constants";
 import { stocktakeApi } from "../services/stocktake.api";
 import type {
@@ -175,15 +178,13 @@ export function StocktakeCreatePage() {
             ) : null}
             {scopeType === "PARTIAL" ? (
               <div className="grid gap-3">
-                <label className="grid gap-1.5 text-sm font-bold">
-                  Tìm mặt hàng
-                  <input
-                    className={fieldClass}
+                <Field label="Tìm mặt hàng">
+                  <TextInput
                     onChange={(event) => setSearch(event.currentTarget.value)}
                     placeholder="Nhập mã hoặc tên mặt hàng"
                     value={search}
                   />
-                </label>
+                </Field>
                 <ChoiceGrid
                   label="Mặt hàng kiểm kê"
                   empty="Không có mặt hàng phù hợp."
@@ -210,31 +211,24 @@ export function StocktakeCreatePage() {
                 </span>
               </span>
             </label>
-            <label className="grid gap-1.5 text-sm font-bold">
-              Ghi chú
-              <textarea
-                className="min-h-28 rounded-xl border border-[#dce5e1] px-3 py-2 text-sm font-semibold outline-none focus:border-[#159734]"
+            <Field label="Ghi chú">
+              <TextArea
                 onChange={(event) => setNote(event.currentTarget.value)}
                 value={note}
               />
-            </label>
+            </Field>
           </>
         ) : null}
       </div>
       <footer className="flex flex-wrap items-center justify-end gap-3 rounded-xl border border-[#dce5e1] bg-white p-4">
         {error ? <p className="mr-auto text-sm font-bold text-red-700">{error}</p> : null}
-        <Link className={secondaryButton} to="/management/inventory/stocktakes">
+        <Link className={buttonClassName()} to="/management/inventory/stocktakes">
           Hủy
         </Link>
-        <button
-          className={primaryButton}
-          disabled={loading || submitting}
-          onClick={() => void submit()}
-          type="button"
-        >
+        <Button disabled={loading || submitting} onClick={() => void submit()} variant="primary">
           {submitting ? <LoaderCircle className="animate-spin" size={17} /> : <Check size={17} />}{" "}
           Tạo phiên
-        </button>
+        </Button>
       </footer>
     </section>
   );
@@ -293,10 +287,8 @@ function SelectField({
   value: string;
 }) {
   return (
-    <label className="grid gap-1.5 text-sm font-bold">
-      {label}
-      <select
-        className={fieldClass}
+    <Field label={label}>
+      <NativeSelect
         onChange={(event) => onChange(event.currentTarget.value)}
         value={value}
       >
@@ -308,17 +300,11 @@ function SelectField({
             {option.label}
           </option>
         ))}
-      </select>
-    </label>
+      </NativeSelect>
+    </Field>
   );
 }
 
 function toggle(values: string[], id: string) {
   return values.includes(id) ? values.filter((value) => value !== id) : [...values, id];
 }
-const fieldClass =
-  "h-11 rounded-xl border border-[#dce5e1] bg-white px-3 text-sm font-semibold outline-none focus:border-[#159734]";
-const primaryButton =
-  "inline-flex h-10 items-center gap-2 rounded-xl bg-[#159734] px-4 text-sm font-bold text-white disabled:opacity-50";
-const secondaryButton =
-  "inline-flex h-10 items-center rounded-xl border border-[#dce5e1] px-4 text-sm font-bold text-[#536171]";

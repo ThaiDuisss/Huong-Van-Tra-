@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { ArrowLeftRight, X } from "lucide-react";
 
+import { Button, IconButton } from "../../../../components/ui/Button";
+import { ModalShell } from "../../../../components/ui/Overlay";
 import { PosVariantSelector } from "../product/PosVariantSelector";
 import { posVariantSelectionError } from "../../services/posProductSelection";
 import { posProductApi } from "../../services/posProduct.api";
@@ -65,107 +67,95 @@ export function UnitSwitchDialog({
     const canSwitch = Boolean(selected && !posVariantSelectionError(selected)) && Number.isInteger(quantity) && quantity > 0 && !submitting;
 
     return (
-        <div className="fixed inset-0 z-50 grid place-items-center bg-black/62 px-4" role="presentation">
-            <section
-                aria-labelledby="unit-switch-title"
-                aria-modal="true"
-                className="grid w-full max-w-[560px] overflow-hidden rounded-2xl bg-white shadow-pos-panel"
-                role="dialog"
-            >
-                <header className="flex items-start justify-between gap-3 border-b border-[#e8eef0] px-5 py-4">
-                    <div className="flex items-start gap-3">
-                        <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-[#eaf7ec] text-[#159734]">
-                            <ArrowLeftRight aria-hidden="true" size={20} />
-                        </span>
-                        <div className="grid gap-0.5">
-                            <h2 className="text-xl font-black text-[#172317]" id="unit-switch-title">
-                                Đổi đơn vị
-                            </h2>
-                            <p className="text-sm font-semibold text-[#697684]">
-                                Đang bán: {item.quantity} × {item.variant || item.name}
-                            </p>
-                        </div>
-                    </div>
-                    <button
-                        aria-label="Đóng"
-                        className="grid size-9 place-items-center rounded-lg text-[#536078] hover:bg-neutral-50"
-                        disabled={submitting}
-                        onClick={onClose}
-                        type="button"
-                    >
-                        <X aria-hidden="true" size={18} />
-                    </button>
-                </header>
-
-                <div className="grid max-h-[60vh] gap-3 overflow-y-auto px-5 py-4">
-                    {variants === null ? (
-                        <p className="text-sm font-semibold text-[#697684]">Đang tải các đơn vị...</p>
-                    ) : others.length === 0 ? (
+        <ModalShell
+            className="w-full max-w-[560px]"
+            closeOnBackdrop={false}
+            closeOnEscape={false}
+            labelledBy="unit-switch-title"
+            onClose={onClose}
+            scroll={false}
+        >
+            <header className="flex items-start justify-between gap-3 border-b border-[#e8eef0] px-5 py-4">
+                <div className="flex items-start gap-3">
+                    <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-[#eaf7ec] text-[#159734]">
+                        <ArrowLeftRight aria-hidden="true" size={20} />
+                    </span>
+                    <div className="grid gap-0.5">
+                        <h2 className="text-xl font-black text-[#172317]" id="unit-switch-title">
+                            Đổi đơn vị
+                        </h2>
                         <p className="text-sm font-semibold text-[#697684]">
-                            {loadError || "Sản phẩm này chưa có đơn vị đóng gói nào khác trong Catalog."}
+                            Đang bán: {item.quantity} × {item.variant || item.name}
                         </p>
-                    ) : (
-                        <PosVariantSelector
-                            variants={others}
-                            selectedId={selectedId}
-                            disabled={submitting}
-                            onSelect={setSelectedId}
-                            formatCurrency={formatCurrency}
-                        />
-                    )}
-
-                    {selected ? (
-                        <label className="grid gap-1.5">
-                            <span className="text-sm font-black text-[#172317]">
-                                Số lượng {selected.variant || selected.name}
-                            </span>
-                            <input
-                                className="h-11 rounded-lg border border-[#dce5e1] px-3 text-lg font-black tabular-nums outline-none focus:border-[#159734]"
-                                inputMode="numeric"
-                                onChange={(event) => setDraft(event.currentTarget.value.replace(/\D/g, ""))}
-                                onFocus={(event) => event.currentTarget.select()}
-                                value={draft}
-                            />
-                            <span className="text-xs font-semibold text-[#697684]">
-                                Dòng {item.variant || item.name} sẽ được thay bằng đơn vị mới; giảm giá riêng của dòng
-                                cũ không được giữ.
-                            </span>
-                        </label>
-                    ) : null}
-
-                    {error ? (
-                        <p
-                            className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700"
-                            role="alert"
-                        >
-                            {error}
-                        </p>
-                    ) : null}
+                    </div>
                 </div>
+                <IconButton aria-label="Đóng" disabled={submitting} onClick={onClose}>
+                    <X aria-hidden="true" size={18} />
+                </IconButton>
+            </header>
 
-                <footer className="flex justify-end gap-3 border-t border-[#e8eef0] px-5 py-4">
-                    <button
-                        className="h-10 rounded-lg border border-[#dce5e1] px-4 text-sm font-black text-[#536078] disabled:opacity-60"
+            <div className="grid min-h-0 flex-1 gap-3 overflow-y-auto px-5 py-4">
+                {variants === null ? (
+                    <p className="text-sm font-semibold text-[#697684]">Đang tải các đơn vị...</p>
+                ) : others.length === 0 ? (
+                    <p className="text-sm font-semibold text-[#697684]">
+                        {loadError || "Sản phẩm này chưa có đơn vị đóng gói nào khác trong Catalog."}
+                    </p>
+                ) : (
+                    <PosVariantSelector
+                        variants={others}
+                        selectedId={selectedId}
                         disabled={submitting}
-                        onClick={onClose}
-                        type="button"
+                        onSelect={setSelectedId}
+                        formatCurrency={formatCurrency}
+                    />
+                )}
+
+                {selected ? (
+                    <label className="grid gap-1.5">
+                        <span className="text-sm font-black text-[#172317]">
+                            Số lượng {selected.variant || selected.name}
+                        </span>
+                        <input
+                            className="h-11 rounded-lg border border-[#dce5e1] px-3 text-lg font-black tabular-nums outline-none focus:border-[#159734]"
+                            inputMode="numeric"
+                            onChange={(event) => setDraft(event.currentTarget.value.replace(/\D/g, ""))}
+                            onFocus={(event) => event.currentTarget.select()}
+                            value={draft}
+                        />
+                        <span className="text-xs font-semibold text-[#697684]">
+                            Dòng {item.variant || item.name} sẽ được thay bằng đơn vị mới; giảm giá riêng của dòng
+                            cũ không được giữ.
+                        </span>
+                    </label>
+                ) : null}
+
+                {error ? (
+                    <p
+                        className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700"
+                        role="alert"
                     >
-                        Hủy
-                    </button>
-                    <button
-                        className="h-10 rounded-lg bg-[#159734] px-4 text-sm font-black text-white disabled:opacity-60"
-                        disabled={!canSwitch}
-                        onClick={() => {
-                            if (selected && canSwitch) {
-                                onSwitch(selected, quantity);
-                            }
-                        }}
-                        type="button"
-                    >
-                        {submitting ? "Đang đổi..." : "Đổi đơn vị"}
-                    </button>
-                </footer>
-            </section>
-        </div>
+                        {error}
+                    </p>
+                ) : null}
+            </div>
+
+            <footer className="flex justify-end gap-3 border-t border-[#e8eef0] px-5 py-4">
+                <Button disabled={submitting} onClick={onClose}>
+                    Hủy
+                </Button>
+                <Button
+                    disabled={!canSwitch}
+                    onClick={() => {
+                        if (selected && canSwitch) {
+                            onSwitch(selected, quantity);
+                        }
+                    }}
+                    variant="primary"
+                >
+                    {submitting ? "Đang đổi..." : "Đổi đơn vị"}
+                </Button>
+            </footer>
+        </ModalShell>
     );
 }

@@ -1,5 +1,7 @@
 import { AlertTriangle, LoaderCircle } from "lucide-react";
 
+import { Button } from "../../../components/ui/Button";
+
 export function ApiLoadingState() {
     return (
         <div className="grid min-h-[420px] place-items-center p-8">
@@ -33,13 +35,9 @@ export function ApiErrorState({
                 </h2>
                 <p className="mt-1 text-sm text-gray-500">{message}</p>
                 {onRetry ? (
-                    <button
-                        type="button"
-                        onClick={onRetry}
-                        className="mt-4 h-10 rounded-xl bg-hvt-green-900 px-4 text-sm font-bold text-white"
-                    >
+                    <Button className="mt-4" onClick={onRetry} variant="primary">
                         Thử lại
-                    </button>
+                    </Button>
                 ) : null}
             </div>
         </div>

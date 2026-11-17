@@ -9,6 +9,7 @@ import { useMemo } from "react";
 import { Link, useLocation } from "react-router-dom";
 
 import { useAuth } from "../../../auth/auth-context";
+import { Button, IconButton } from "../../ui/Button";
 import {
     filterSystemNavigationByRoles,
     findNavigationTrail,
@@ -126,13 +127,9 @@ export function SystemTopbar() {
 
     return (
         <header className="flex h-[58px] shrink-0 items-center gap-4 border-b border-[#e8eef0] bg-white px-4 text-[#172317] sm:px-5">
-            <button
-                type="button"
-                className="grid size-9 place-items-center rounded-lg text-[#53678f] hover:bg-[#f4faf5]"
-                aria-label="Mở thu gọn menu"
-            >
+            <IconButton aria-label="Mở thu gọn menu" size="md">
                 <Menu size={20} aria-hidden="true" />
-            </button>
+            </IconButton>
 
             <nav className="flex min-w-0 items-center gap-2 text-[12px] font-semibold">
                 {sectionTo ? (
@@ -167,39 +164,26 @@ export function SystemTopbar() {
             </nav>
 
             <div className="ml-auto flex items-center gap-2">
-                <button
-                    type="button"
-                    className="relative grid size-9 place-items-center rounded-lg border border-[#e8eef0] bg-white text-[#53678f]"
-                    aria-label="Thông báo"
-                >
+                <IconButton aria-label="Thông báo" className="relative" size="md" variant="secondary">
                     <Bell size={17} aria-hidden="true" />
                     <span className="absolute right-1.5 top-1.5 size-3 rounded-full border-2 border-white bg-red-500" />
-                </button>
-                <button
-                    type="button"
-                    className="grid size-9 place-items-center rounded-lg border border-[#e8eef0] bg-white text-[#53678f]"
-                    aria-label="Trợ giúp"
-                >
+                </IconButton>
+                <IconButton aria-label="Trợ giúp" size="md" variant="secondary">
                     <CircleHelp size={17} aria-hidden="true" />
-                </button>
-                <button
-                    type="button"
-                    className="grid size-9 place-items-center rounded-lg border border-[#d8eadc] bg-[#f7fff9] text-[#159734]"
-                    aria-label="Cửa hàng đang hoạt động"
-                >
-                    <MapPin size={17} aria-hidden="true" />
-                </button>
-                <button
-                    type="button"
-                    className="hidden h-9 items-center gap-2 rounded-lg border border-[#e8eef0] bg-white px-3 text-[12px] font-bold xl:flex"
-                >
+                </IconButton>
+                <IconButton aria-label="Cửa hàng đang hoạt động" size="md" variant="secondary">
+                    <MapPin className="text-[#159734]" size={17} aria-hidden="true" />
+                </IconButton>
+                <span className="hidden xl:block">
+                <Button>
                     <ShieldCheck
                         className="text-[#159734]"
                         size={15}
                         aria-hidden="true"
                     />
                     Cửa hàng trung tâm
-                </button>
+                </Button>
+                </span>
             </div>
         </header>
     );

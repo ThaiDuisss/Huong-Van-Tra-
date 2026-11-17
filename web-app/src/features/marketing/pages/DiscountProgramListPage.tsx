@@ -8,6 +8,8 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 
+import { ListPageHeader } from "../../../components/shared/list/ListPageHeader";
+import { Button } from "../../../components/ui/Button";
 import {
     Dialog,
     DialogContent,
@@ -322,8 +324,24 @@ export function DiscountProgramListPage() {
 
     return (
         <section className={styles.page}>
-            <header className={styles.header}>
-                <div className={styles.titleBlock}>
+            <ListPageHeader
+                actions={
+                    <>
+                        <Button
+                            variant="primary"
+                            onClick={() => setCreateOpen(true)}
+                        >
+                            <Plus size={18} aria-hidden="true" />
+                            Tạo sự kiện
+                        </Button>
+
+                        <Button onClick={reload} disabled={loading}>
+                            <RefreshCw size={17} aria-hidden="true" />
+                            Tải lại
+                        </Button>
+                    </>
+                }
+                breadcrumb={
                     <nav
                         className="flex items-center gap-2 text-sm"
                         aria-label="Breadcrumb"
@@ -336,38 +354,10 @@ export function DiscountProgramListPage() {
                             Sự kiện khuyến mãi
                         </span>
                     </nav>
-
-                    <h1 className={styles.title}>
-                        Sự kiện khuyến mãi
-                    </h1>
-
-                    <p className={styles.description}>
-                        Quản lý các sự kiện, chiến dịch khuyến mãi và
-                        trạng thái vận hành trong hệ thống.
-                    </p>
-                </div>
-
-                <div className={styles.actions}>
-                    <button
-                        className={styles.primaryButton}
-                        type="button"
-                        onClick={() => setCreateOpen(true)}
-                    >
-                        <Plus size={18} aria-hidden="true" />
-                        Tạo sự kiện
-                    </button>
-
-                    <button
-                        className={styles.secondaryButton}
-                        type="button"
-                        onClick={reload}
-                        disabled={loading}
-                    >
-                        <RefreshCw size={17} aria-hidden="true" />
-                        Tải lại
-                    </button>
-                </div>
-            </header>
+                }
+                description="Quản lý các sự kiện, chiến dịch khuyến mãi và trạng thái vận hành trong hệ thống."
+                title="Sự kiện khuyến mãi"
+            />
 
             <DiscountProgramFilters
                 filters={draftFilters}
@@ -548,26 +538,16 @@ function EventStatusConfirmDialog({
             </div>
 
             <DialogFooter>
-                <button
-                    className={styles.secondaryButton}
-                    disabled={loading}
-                    onClick={onCancel}
-                    type="button"
-                >
+                <Button disabled={loading} onClick={onCancel}>
                     Đóng
-                </button>
-                <button
-                    className={
-                        isCancel
-                            ? styles.confirmDangerButton
-                            : styles.primaryButton
-                    }
+                </Button>
+                <Button
+                    variant={isCancel ? "danger" : "primary"}
                     disabled={loading}
                     onClick={onConfirm}
-                    type="button"
                 >
                     {loading ? "Đang xử lý..." : confirmLabel}
-                </button>
+                </Button>
             </DialogFooter>
         </DialogContent>
     );
@@ -610,22 +590,16 @@ function EventRemoveConfirmDialog({
             </div>
 
             <DialogFooter>
-                <button
-                    className={styles.secondaryButton}
-                    disabled={loading}
-                    onClick={onCancel}
-                    type="button"
-                >
+                <Button disabled={loading} onClick={onCancel}>
                     Đóng
-                </button>
-                <button
-                    className={styles.confirmDangerButton}
+                </Button>
+                <Button
+                    variant="danger"
                     disabled={loading}
                     onClick={onConfirm}
-                    type="button"
                 >
                     {loading ? "Đang xóa..." : "Xóa sự kiện"}
-                </button>
+                </Button>
             </DialogFooter>
         </DialogContent>
     );

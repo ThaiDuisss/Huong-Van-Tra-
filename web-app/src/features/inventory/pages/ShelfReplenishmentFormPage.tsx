@@ -3,6 +3,9 @@ import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 
+import { Button, IconButton } from "../../../components/ui/Button";
+import { Field, NativeSelect, TextInput } from "../../../components/ui/Field";
+import { Table, TableCell, TableHead, TableHeaderCell, TableRow } from "../../../components/ui/Table";
 import { routePaths } from "../../../routes/path";
 import { SearchableDropdown } from "../../manufacturing/components/shared/SearchableDropdown";
 import { useLookupDropdown } from "../../manufacturing/components/shared/useLookupDropdown";
@@ -20,10 +23,6 @@ interface FormLine {
     name: string;
     quantity: string;
 }
-
-const inputClass =
-    "h-10 w-full rounded-lg border border-pos-border bg-white px-3 text-sm font-semibold text-[#172317] outline-none focus:border-[#159734] disabled:bg-neutral-50";
-const labelClass = "grid gap-1.5 text-[13px] font-[900] text-[#536078]";
 
 let nextLineKey = 1;
 
@@ -177,14 +176,10 @@ export function ShelfReplenishmentFormPage() {
         <section className="grid gap-5">
             <InventoryPageHeader
                 actions={
-                    <button
-                        className="inline-flex h-10 items-center gap-2 rounded-lg border border-pos-border bg-white px-4 text-sm font-black text-[#536078] hover:bg-neutral-50"
-                        onClick={() => navigate(routePaths.shelfReplenishments)}
-                        type="button"
-                    >
+                    <Button onClick={() => navigate(routePaths.shelfReplenishments)}>
                         <ArrowLeft aria-hidden="true" size={16} />
                         Danh sách phiếu
-                    </button>
+                    </Button>
                 }
                 description="Chọn kệ cần bổ sung và các mặt hàng lấy từ kho. Lưu nháp để điền sau, hoặc gửi ngay để Quản lý duyệt."
                 eyebrow="Kho / Phiếu nhập kệ"
@@ -206,10 +201,8 @@ export function ShelfReplenishmentFormPage() {
                 ) : null}
 
                 <div className="grid gap-4 md:grid-cols-2">
-                    <label className={labelClass}>
-                        Kệ nhận hàng
-                        <select
-                            className={inputClass}
+                    <Field label="Kệ nhận hàng">
+                        <NativeSelect
                             disabled={disabled}
                             onChange={(event) => setShelfId(event.target.value)}
                             value={shelfId}
@@ -220,12 +213,10 @@ export function ShelfReplenishmentFormPage() {
                                     {shelf.name} ({shelf.code})
                                 </option>
                             ))}
-                        </select>
-                    </label>
-                    <label className={labelClass}>
-                        Ghi chú
-                        <input
-                            className={inputClass}
+                        </NativeSelect>
+                    </Field>
+                    <Field label="Ghi chú">
+                        <TextInput
                             disabled={disabled}
                             maxLength={500}
                             onChange={(event) => setNote(event.target.value)}
@@ -233,36 +224,35 @@ export function ShelfReplenishmentFormPage() {
                             type="text"
                             value={note}
                         />
-                    </label>
+                    </Field>
                 </div>
 
                 <div className="grid gap-3">
                     <div className="flex items-center justify-between">
                         <h2 className="text-base font-black text-[#172317]">Mặt hàng cần đưa lên kệ</h2>
-                        <button
-                            className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-[#07883a] bg-white px-3.5 text-xs font-bold text-[#07883a] hover:bg-green-50 disabled:opacity-60"
+                        <Button
                             disabled={disabled}
                             onClick={() => setLines((current) => [...current, emptyLine()])}
-                            type="button"
+                            size="sm"
                         >
                             <Plus aria-hidden="true" size={14} />
                             Thêm dòng
-                        </button>
+                        </Button>
                     </div>
 
                     <div className="overflow-x-auto rounded-xl border border-pos-border">
-                        <table className="w-full min-w-[560px] text-left text-sm">
-                            <thead className="bg-[#eaf7ec] text-xs font-black text-[#172317]">
-                                <tr>
-                                    <th className="px-3 py-2.5" scope="col">Mặt hàng</th>
-                                    <th className="w-40 px-3 py-2.5" scope="col">Số lượng</th>
-                                    <th className="w-16 px-3 py-2.5 text-center" scope="col">Xóa</th>
-                                </tr>
-                            </thead>
+                        <Table className="min-w-[560px]">
+                            <TableHead>
+                                <TableRow>
+                                    <TableHeaderCell>Mặt hàng</TableHeaderCell>
+                                    <TableHeaderCell className="w-40">Số lượng</TableHeaderCell>
+                                    <TableHeaderCell className="w-16 text-center">Xóa</TableHeaderCell>
+                                </TableRow>
+                            </TableHead>
                             <tbody>
                                 {lines.map((line) => (
-                                    <tr className="border-t border-pos-border" key={line.key}>
-                                        <td className="p-2">
+                                    <TableRow key={line.key}>
+                                        <TableCell>
                                             <SearchableDropdown
                                                 disabled={disabled}
                                                 emptyText="Không tìm thấy mặt hàng"
@@ -280,11 +270,10 @@ export function ShelfReplenishmentFormPage() {
                                                 placeholder="-- Chọn mặt hàng --"
                                                 value={line.productVariantId}
                                             />
-                                        </td>
-                                        <td className="p-2">
-                                            <input
+                                        </TableCell>
+                                        <TableCell>
+                                            <TextInput
                                                 aria-label="Số lượng"
-                                                className={inputClass}
                                                 disabled={disabled}
                                                 min={0.01}
                                                 onChange={(event) =>
@@ -294,45 +283,35 @@ export function ShelfReplenishmentFormPage() {
                                                 type="number"
                                                 value={line.quantity}
                                             />
-                                        </td>
-                                        <td className="p-2 text-center">
-                                            <button
+                                        </TableCell>
+                                        <TableCell className="text-center">
+                                            <IconButton
                                                 aria-label="Xóa dòng"
-                                                className="mx-auto grid size-8 place-items-center rounded-lg text-red-500 hover:bg-red-50 disabled:opacity-40"
                                                 disabled={disabled || lines.length === 1}
                                                 onClick={() =>
                                                     setLines((current) =>
                                                         current.filter((candidate) => candidate.key !== line.key)
                                                     )
                                                 }
-                                                type="button"
+                                                tone="danger"
                                             >
                                                 <Trash2 aria-hidden="true" size={16} />
-                                            </button>
-                                        </td>
-                                    </tr>
+                                            </IconButton>
+                                        </TableCell>
+                                    </TableRow>
                                 ))}
                             </tbody>
-                        </table>
+                        </Table>
                     </div>
                 </div>
 
                 <footer className="flex flex-wrap justify-end gap-3 border-t border-pos-border pt-4">
-                    <button
-                        className="h-11 rounded-xl border border-pos-border bg-white px-6 text-sm font-black text-[#536078] hover:bg-neutral-50 disabled:opacity-60"
-                        disabled={disabled}
-                        onClick={() => void save(false)}
-                        type="button"
-                    >
+                    <Button disabled={disabled} onClick={() => void save(false)}>
                         Lưu nháp
-                    </button>
-                    <button
-                        className="h-11 rounded-xl bg-[#07883a] px-6 text-sm font-black text-white hover:bg-[#067331] disabled:opacity-60"
-                        disabled={disabled}
-                        type="submit"
-                    >
+                    </Button>
+                    <Button disabled={disabled} type="submit" variant="primary">
                         {submitting ? "Đang lưu..." : "Lưu và gửi duyệt"}
-                    </button>
+                    </Button>
                 </footer>
             </form>
         </section>

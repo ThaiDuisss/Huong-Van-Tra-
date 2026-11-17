@@ -1,4 +1,6 @@
 import { useState } from "react";
+import { Button } from "../../../components/ui/Button";
+import { TextArea } from "../../../components/ui/Field";
 import {
     Dialog,
     DialogContent,
@@ -125,8 +127,7 @@ export function GoodsReceiptExceptionResolutionModal({ receipt, loading, onClose
                     <label className="text-xs font-black text-[#315f3c]" htmlFor="exception-approval-note">
                         Ghi chú duyệt ngoại lệ
                     </label>
-                    <textarea
-                        className="w-full rounded-lg border border-[#dce5e1] p-2 text-sm outline-none focus:border-[#159734]"
+                    <TextArea
                         id="exception-approval-note"
                         maxLength={2000}
                         placeholder="Ví dụ: Đã trao đổi với NCC, đồng ý nhận phần thiếu và trả lại phần thừa"
@@ -143,22 +144,12 @@ export function GoodsReceiptExceptionResolutionModal({ receipt, loading, onClose
                 ) : null}
 
                 <DialogFooter>
-                    <button
-                        className="h-10 rounded-lg border border-[#dce5e1] px-4 text-sm font-bold text-[#536078]"
-                        disabled={loading}
-                        onClick={onClose}
-                        type="button"
-                    >
+                    <Button disabled={loading} onClick={onClose}>
                         Hủy
-                    </button>
-                    <button
-                        className="h-10 rounded-lg bg-[#159734] px-5 text-sm font-black text-white hover:bg-[#12802c] disabled:opacity-60"
-                        disabled={loading}
-                        onClick={() => void handleSubmit()}
-                        type="button"
-                    >
+                    </Button>
+                    <Button disabled={loading} onClick={() => void handleSubmit()} variant="primary">
                         {loading ? "Đang ghi sổ..." : "Duyệt ngoại lệ & Ghi sổ"}
-                    </button>
+                    </Button>
                 </DialogFooter>
             </DialogContent>
         </Dialog>
@@ -220,8 +211,8 @@ function ExceptionLineCard({
                 </p>
             ) : null}
 
-            <textarea
-                className="w-full rounded-lg border border-[#dce5e1] p-2 text-xs outline-none focus:border-[#159734]"
+            <TextArea
+                aria-label="Ghi chú / lý do xử lý"
                 maxLength={500}
                 placeholder="Ghi chú / lý do xử lý (in trên biên bản)"
                 rows={2}

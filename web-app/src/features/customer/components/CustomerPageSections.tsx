@@ -16,6 +16,10 @@ import {
     useState
 } from "react";
 
+import { ListPageHeader } from "../../../components/shared/list/ListPageHeader";
+import { Button } from "../../../components/ui/Button";
+import { Field } from "../../../components/ui/Field";
+import { ModalShell } from "../../../components/ui/Overlay";
 import {
     Select,
     SelectContent,
@@ -25,10 +29,7 @@ import {
 } from "../../../components/ui/select";
 import { SearchBox } from "../../manufacturing/components/shared/SearchBox";
 import {
-    CUSTOMER_BUTTON_BASE,
-    CUSTOMER_COMPACT_BUTTON,
     CUSTOMER_DEFAULT_SORT_BY_TAB,
-    CUSTOMER_OUTLINE_BUTTON,
     CUSTOMER_PRIMARY_TABS,
     CUSTOMER_SECONDARY_TABS,
     CUSTOMER_SORT_OPTIONS
@@ -70,52 +71,34 @@ export function CustomerPageHeader({
     onImport
 }: HeaderProps) {
     return (
-        <section
-            className="relative flex flex-col gap-4 md:flex-row md:items-center md:justify-between"
-        >
-            <div className="grid min-w-[240px] gap-1">
-                <h1 className="text-2xl font-bold text-gray-800 sm:text-3xl">
-                    {title}
-                </h1>
-                <p className="text-sm text-gray-500">
-                    Theo dõi thông tin, hạng thành viên và lịch sử mua gần nhất.
-                </p>
-            </div>
-
-            <div className="flex min-w-0 flex-1 flex-wrap items-center justify-end gap-2.5">
-                {onImport ? (
-                    <>
-                        <button
-                            className={CUSTOMER_SECONDARY_ACTION_CLASS}
-                            onClick={onImport}
-                            title="Nhập danh sách khách hàng từ file Excel"
-                            type="button"
-                        >
-                            <FileInput size={17} aria-hidden="true" />
-                            Nhập dữ liệu
-                        </button>
-                        <button
-                            className={CUSTOMER_SECONDARY_ACTION_CLASS}
-                            disabled
-                            title="Chưa có API xuất dữ liệu"
-                            type="button"
-                        >
-                            <FileOutput size={17} aria-hidden="true" />
-                            Xuất dữ liệu
-                        </button>
-                    </>
-                ) : null}
-                <button
-                    className={CUSTOMER_PRIMARY_ACTION_CLASS}
-                    onClick={onCreate}
-                    type="button"
-                >
-                    <Plus size={17} aria-hidden="true" />
-                    <span className="max-md:hidden">Thêm khách hàng</span>
-                    <span className="hidden max-md:inline">Thêm</span>
-                </button>
-            </div>
-        </section>
+        <ListPageHeader
+            actions={
+                <>
+                    {onImport ? (
+                        <>
+                            <Button
+                                onClick={onImport}
+                                title="Nhập danh sách khách hàng từ file Excel"
+                            >
+                                <FileInput size={17} aria-hidden="true" />
+                                Nhập dữ liệu
+                            </Button>
+                            <Button disabled title="Chưa có API xuất dữ liệu">
+                                <FileOutput size={17} aria-hidden="true" />
+                                Xuất dữ liệu
+                            </Button>
+                        </>
+                    ) : null}
+                    <Button onClick={onCreate} variant="primary">
+                        <Plus size={17} aria-hidden="true" />
+                        <span className="max-md:hidden">Thêm khách hàng</span>
+                        <span className="hidden max-md:inline">Thêm</span>
+                    </Button>
+                </>
+            }
+            description="Theo dõi thông tin, hạng thành viên và lịch sử mua gần nhất."
+            title={title}
+        />
     );
 }
 
@@ -162,24 +145,29 @@ function CustomerFilterPopover({
     onUpdate: (updates: Partial<CustomerHeaderFilterState>) => void;
 }) {
     return (
-        <div className="fixed inset-0 z-50 grid place-items-center bg-[#172317]/10 p-5">
-            <div className="w-[min(760px,calc(100vw-32px))] overflow-hidden rounded-2xl border border-[#dce5e1] bg-white shadow-[0_24px_60px_rgba(24,39,28,0.18)]">
+        <ModalShell
+            className="w-[min(760px,calc(100vw-32px))]"
+            closeOnBackdrop={false}
+            closeOnEscape={false}
+            labelledBy="customer-filter-title"
+            onClose={onCancel}
+        >
+            <>
                 <div className="flex min-h-16 items-center justify-between border-b border-[#eef2f0] px-6">
-                    <h2 className="text-base font-black text-[#172317]">
+                    <h2
+                        className="text-base font-black text-[#172317]"
+                        id="customer-filter-title"
+                    >
                         Bộ lọc khách hàng
                     </h2>
-                    <button
-                        className="text-xs font-bold text-[#159734] hover:text-[#116f28]"
-                        onClick={onClear}
-                        type="button"
-                    >
+                    <Button onClick={onClear} size="sm" variant="link">
                         Xóa tất cả
-                    </button>
+                    </Button>
                 </div>
 
                 <div className="grid gap-7 p-6 md:grid-cols-2">
                     <div className="grid gap-5 md:grid-rows-2">
-                        <FilterField label="Trạng thái">
+                        <Field className="min-h-[86px] content-start" label="Trạng thái">
                             <div className="flex flex-wrap gap-2.5">
                                 {CUSTOMER_STATUS_FILTERS.map((status) => {
                                     const active = draft.status === status.value;
@@ -200,9 +188,9 @@ function CustomerFilterPopover({
                                     );
                                 })}
                             </div>
-                        </FilterField>
+                        </Field>
 
-                        <FilterField label="Tổng chi tiêu">
+                        <Field className="min-h-[86px] content-start" label="Tổng chi tiêu">
                             <div className="grid grid-cols-2 gap-3">
                                 <FilterInput
                                     inputMode="numeric"
@@ -219,11 +207,11 @@ function CustomerFilterPopover({
                                     onChange={(value) => onUpdate({ maxTotalSpent: value })}
                                 />
                             </div>
-                        </FilterField>
+                        </Field>
                     </div>
 
                     <div className="grid gap-5 md:grid-rows-2">
-                        <FilterField label="Lần mua gần nhất">
+                        <Field className="min-h-[86px] content-start" label="Lần mua gần nhất">
                             <FilterSelect
                                 value={draft.recentPurchase}
                                 options={RECENT_PURCHASE_OPTIONS}
@@ -233,9 +221,9 @@ function CustomerFilterPopover({
                                     })
                                 }
                             />
-                        </FilterField>
+                        </Field>
 
-                        <FilterField label="Ngày tạo khách hàng">
+                        <Field className="min-h-[86px] content-start" label="Ngày tạo khách hàng">
                             <div className="grid grid-cols-2 gap-3">
                                 <FilterInput
                                     placeholder="Từ ngày"
@@ -250,43 +238,18 @@ function CustomerFilterPopover({
                                     onChange={(value) => onUpdate({ createdTo: value })}
                                 />
                             </div>
-                        </FilterField>
+                        </Field>
                     </div>
                 </div>
 
                 <div className="sticky bottom-0 flex items-center justify-end gap-3 border-t border-[#eef2f0] bg-white px-6 py-4">
-                    <button
-                        className={CUSTOMER_SECONDARY_ACTION_CLASS}
-                        onClick={onCancel}
-                        type="button"
-                    >
-                        Hủy
-                    </button>
-                    <button
-                        className={CUSTOMER_PRIMARY_ACTION_CLASS}
-                        onClick={onApply}
-                        type="button"
-                    >
+                    <Button onClick={onCancel}>Hủy</Button>
+                    <Button onClick={onApply} variant="primary">
                         Áp dụng bộ lọc
-                    </button>
+                    </Button>
                 </div>
-            </div>
-        </div>
-    );
-}
-
-function FilterField({
-    children,
-    label
-}: {
-    children: ReactNode;
-    label: string;
-}) {
-    return (
-        <label className="grid min-h-[86px] content-start gap-2 text-xs font-bold text-[#536171]">
-            <span>{label}</span>
-            {children}
-        </label>
+            </>
+        </ModalShell>
     );
 }
 
@@ -348,11 +311,6 @@ function FilterSelect({
         </Select>
     );
 }
-
-const CUSTOMER_SECONDARY_ACTION_CLASS =
-    "inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-[#dce5e1] bg-white px-4 text-sm font-bold text-[#273a2b] shadow-sm transition-colors hover:bg-[#f7fbf8] disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:bg-white";
-const CUSTOMER_PRIMARY_ACTION_CLASS =
-    "inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-[#159734] px-4 text-sm font-bold text-white shadow-sm transition-colors hover:bg-[#12862d] disabled:cursor-not-allowed disabled:opacity-70";
 
 const TIER_CHIPS = [
     { id: null, code: "ALL", name: "Tất cả", colorCode: null, customerCount: 0 }
@@ -451,14 +409,14 @@ export function CustomerTierChips({
                             onChange={onSearchDraftChange}
                         />
                     </div>
-                    <button
+                    <Button
                         aria-expanded={filterOpen}
-                        className={`${CUSTOMER_SECONDARY_ACTION_CLASS} relative`}
+                        className="relative"
+                        size="search"
                         onClick={() => {
                             setFilterDraft(filters);
                             setFilterOpen((open) => !open);
                         }}
-                        type="button"
                     >
                         <Filter size={17} aria-hidden="true" />
                         Bộ lọc
@@ -467,14 +425,14 @@ export function CustomerTierChips({
                                 {appliedFilterCount}
                             </span>
                         )}
-                    </button>
+                    </Button>
                     <Select
                         onValueChange={(value) => onSortChange(value as CustomerSort)}
                         value={sort}
                     >
                         <SelectTrigger
                             aria-label="Sắp xếp danh sách khách hàng"
-                            className={`${CUSTOMER_SECONDARY_ACTION_CLASS} h-11 min-w-[210px]`}
+                            className="h-11 min-w-[210px]"
                         >
                             <ArrowUpDown size={17} aria-hidden="true" />
                             <SelectValue />
@@ -611,24 +569,17 @@ export function CustomerListToolbar({
             <div className="flex flex-wrap items-center gap-2">
                 {bulkSelection && selectedCount > 0 && (
                     <>
-                        <button className={`${CUSTOMER_BUTTON_BASE} ${CUSTOMER_COMPACT_BUTTON} h-8 px-2.5 text-xs`} type="button">
-                            Gửi ưu đãi
-                        </button>
-                        <button className={`${CUSTOMER_BUTTON_BASE} ${CUSTOMER_COMPACT_BUTTON} h-8 px-2.5 text-xs`} type="button">
-                            Gắn nhãn
-                        </button>
-                        <button className={`${CUSTOMER_BUTTON_BASE} ${CUSTOMER_COMPACT_BUTTON} h-8 px-2.5 text-xs`} type="button">
-                            Xuất danh sách
-                        </button>
+                        <Button size="sm">Gửi ưu đãi</Button>
+                        <Button size="sm">Gắn nhãn</Button>
+                        <Button size="sm">Xuất danh sách</Button>
                     </>
                 )}
-                <button
-                    className={`${CUSTOMER_BUTTON_BASE} ${CUSTOMER_COMPACT_BUTTON} h-8 px-2.5 text-xs`}
+                <Button
                     onClick={() => onBulkSelectionChange(!bulkSelection)}
-                    type="button"
+                    size="sm"
                 >
                     {bulkSelection ? "Bỏ chọn" : "Chọn nhiều"}
-                </button>
+                </Button>
                 <Select
                     onValueChange={(value) => onSortChange(value as CustomerSort)}
                     value={sort || CUSTOMER_DEFAULT_SORT_BY_TAB[activeTab]}
@@ -699,27 +650,27 @@ export function CustomerEmptyState({
                 </p>
                 <div className="mt-5 flex flex-wrap justify-center gap-2">
                     {type === "empty" && (
-                        <button className={`${CUSTOMER_BUTTON_BASE} bg-[#159734] text-white`} onClick={onCreate} type="button">
+                        <Button onClick={onCreate} variant="primary">
                             <Plus size={16} aria-hidden="true" />
                             Thêm khách hàng
-                        </button>
+                        </Button>
                     )}
                     {type === "group" && (
                         <>
-                            <button className={`${CUSTOMER_BUTTON_BASE} bg-[#159734] text-white`} onClick={onGoAll} type="button">
+                            <Button onClick={onGoAll} variant="primary">
                                 Chuyển về Tất cả
-                            </button>
-                            <button className={`${CUSTOMER_BUTTON_BASE} ${CUSTOMER_OUTLINE_BUTTON}`} onClick={onClearSearch} type="button">
+                            </Button>
+                            <Button onClick={onClearSearch}>
                                 <X size={16} aria-hidden="true" />
                                 Xóa tìm kiếm
-                            </button>
+                            </Button>
                         </>
                     )}
                     {type === "error" && (
-                        <button className={`${CUSTOMER_BUTTON_BASE} bg-[#159734] text-white`} onClick={onRetry} type="button">
+                        <Button onClick={onRetry} variant="primary">
                             <RefreshCw size={16} aria-hidden="true" />
                             Thử lại
-                        </button>
+                        </Button>
                     )}
                 </div>
             </div>

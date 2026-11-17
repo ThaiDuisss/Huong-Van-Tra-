@@ -1,6 +1,7 @@
 import { AlertCircle, LoaderCircle, Trash2 } from "lucide-react";
 import { useState } from "react";
 
+import { Button } from "../../../components/ui/Button";
 import {
     DialogContent,
     DialogDescription,
@@ -8,10 +9,6 @@ import {
     DialogHeader,
     DialogTitle
 } from "../../../components/ui/dialog";
-import {
-    CUSTOMER_BUTTON_BASE,
-    CUSTOMER_COMPACT_BUTTON
-} from "../constants/customer-list.constants";
 import { customerApi } from "../services/customer.api";
 import type { CustomerResponse } from "../types/customer.types";
 import { customerErrorMessage } from "../utils/customer-list.utils";
@@ -72,25 +69,19 @@ export function CustomerDeleteDialog({
                 )}
             </div>
             <DialogFooter>
-                <button
-                    className={`${CUSTOMER_BUTTON_BASE} ${CUSTOMER_COMPACT_BUTTON}`}
-                    disabled={deleting}
-                    onClick={onCancel}
-                    type="button"
-                >
+                <Button disabled={deleting} onClick={onCancel}>
                     Hủy
-                </button>
-                <button
-                    className={`${CUSTOMER_BUTTON_BASE} bg-[#c4422e] text-white hover:bg-[#a93425] disabled:opacity-60`}
+                </Button>
+                <Button
+                    variant="danger"
                     disabled={deleting}
                     onClick={() => void removeCustomer()}
-                    type="button"
                 >
                     {deleting && (
                         <LoaderCircle className="animate-spin" size={16} />
                     )}
                     {deleting ? "Đang xóa..." : "Xóa khách hàng"}
-                </button>
+                </Button>
             </DialogFooter>
         </DialogContent>
     );

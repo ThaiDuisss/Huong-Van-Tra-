@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import { type DragEvent, useRef, useState } from "react";
 
+import { Button } from "../../../components/ui/Button";
 import {
     DialogContent,
     DialogDescription,
@@ -15,11 +16,14 @@ import {
     DialogHeader,
     DialogTitle
 } from "../../../components/ui/dialog";
+import { StatusBadge } from "../../../components/ui/StatusBadge";
 import {
-    CUSTOMER_BUTTON_BASE,
-    CUSTOMER_COMPACT_BUTTON,
-    CUSTOMER_OUTLINE_BUTTON
-} from "../constants/customer-list.constants";
+    Table,
+    TableCell,
+    TableHead,
+    TableHeaderCell,
+    TableRow
+} from "../../../components/ui/Table";
 import { customerApi } from "../services/customer.api";
 import type {
     CustomerImportResponse,
@@ -128,14 +132,10 @@ export function CustomerImportDialog({
                         <strong className="font-black">Số điện thoại</strong>. Cột tùy chọn: Email,
                         Ngày sinh (dd/MM/yyyy), Loại khách hàng, Mã khách hàng.
                     </p>
-                    <button
-                        className={`${CUSTOMER_BUTTON_BASE} ${CUSTOMER_OUTLINE_BUTTON} h-9 text-xs`}
-                        onClick={downloadCustomerImportTemplate}
-                        type="button"
-                    >
+                    <Button onClick={downloadCustomerImportTemplate} size="sm">
                         <Download size={15} aria-hidden="true" />
                         Tải file mẫu
-                    </button>
+                    </Button>
                 </div>
 
                 {phase !== "done" && (
@@ -159,15 +159,14 @@ export function CustomerImportDialog({
                         <p className="text-xs font-semibold text-[#697684]">
                             Hỗ trợ .xlsx, .xls - tối đa 5MB
                         </p>
-                        <button
-                            className={`${CUSTOMER_BUTTON_BASE} ${CUSTOMER_COMPACT_BUTTON} h-9 text-xs`}
+                        <Button
                             disabled={busy}
                             onClick={() => inputRef.current?.click()}
-                            type="button"
+                            size="sm"
                         >
                             <Upload size={15} aria-hidden="true" />
                             {fileName ? "Chọn file khác" : "Chọn file"}
-                        </button>
+                        </Button>
                         <input
                             accept=".xlsx,.xls"
                             className="hidden"
@@ -208,17 +207,15 @@ export function CustomerImportDialog({
                                     Hoàn tất nhập dữ liệu
                                 </span>
                             )}
-                            <SummaryChip label="Tổng số dòng" value={response.totalRows} />
-                            <SummaryChip
-                                label={response.dryRun ? "Hợp lệ" : "Đã nhập"}
-                                tone="success"
-                                value={validCount}
-                            />
-                            <SummaryChip
-                                label={response.dryRun ? "Lỗi" : "Không nhập"}
-                                tone={failedCount > 0 ? "danger" : "neutral"}
-                                value={failedCount}
-                            />
+                            <StatusBadge>
+                                Tổng số dòng: {response.totalRows.toLocaleString("vi-VN")}
+                            </StatusBadge>
+                            <StatusBadge tone="success">
+                                {response.dryRun ? "Hợp lệ" : "Đã nhập"}: {validCount.toLocaleString("vi-VN")}
+                            </StatusBadge>
+                            <StatusBadge tone={failedCount > 0 ? "danger" : "neutral"}>
+                                {response.dryRun ? "Lỗi" : "Không nhập"}: {failedCount.toLocaleString("vi-VN")}
+                            </StatusBadge>
                             {failedCount > 0 && (
                                 <label className="ml-auto inline-flex cursor-pointer items-center gap-2 text-xs font-bold text-[#536171]">
                                     <input
@@ -240,21 +237,21 @@ export function CustomerImportDialog({
                         )}
 
                         <div className="overflow-auto rounded-xl border border-[#e4ece8]">
-                            <table className="w-full min-w-[760px] border-separate border-spacing-0 text-xs text-[#233025]">
-                                <thead>
-                                    <tr>
+                            <Table className="min-w-[760px]">
+                                <TableHead>
+                                    <TableRow>
                                         {["Dòng", "Tên khách hàng", "Số điện thoại", "Email", "Trạng thái", "Chi tiết"].map(
                                             (header) => (
-                                                <th
-                                                    className="sticky top-0 h-9 whitespace-nowrap border-b border-[#e4ece8] bg-[#f8faf9] px-3 text-left text-[11px] font-black uppercase text-[#556477]"
+                                                <TableHeaderCell
+                                                    className="sticky top-0 bg-[#f7faf8]"
                                                     key={header}
                                                 >
                                                     {header}
-                                                </th>
+                                                </TableHeaderCell>
                                             )
                                         )}
-                                    </tr>
-                                </thead>
+                                    </TableRow>
+                                </TableHead>
                                 <tbody>
                                     {visibleResults.map((result, index) => (
                                         <ResultRow
@@ -264,27 +261,21 @@ export function CustomerImportDialog({
                                         />
                                     ))}
                                 </tbody>
-                            </table>
+                            </Table>
                         </div>
                     </>
                 )}
             </div>
 
             <DialogFooter>
-                <button
-                    className={`${CUSTOMER_BUTTON_BASE} ${CUSTOMER_COMPACT_BUTTON}`}
-                    disabled={phase === "importing"}
-                    onClick={onClose}
-                    type="button"
-                >
+                <Button disabled={phase === "importing"} onClick={onClose}>
                     {phase === "done" ? "Đóng" : "Hủy"}
-                </button>
+                </Button>
                 {phase !== "done" && (
-                    <button
-                        className={`${CUSTOMER_BUTTON_BASE} bg-[#159734] text-white hover:bg-[#12862d] disabled:cursor-not-allowed disabled:opacity-60`}
+                    <Button
+                        variant="primary"
                         disabled={phase !== "checked" || validCount === 0}
                         onClick={() => void importValidRows()}
-                        type="button"
                     >
                         {phase === "importing" && (
                             <LoaderCircle className="animate-spin" size={16} aria-hidden="true" />
@@ -294,7 +285,7 @@ export function CustomerImportDialog({
                             : validCount > 0
                               ? `Nhập ${validCount.toLocaleString("vi-VN")} khách hàng hợp lệ`
                               : "Nhập khách hàng"}
-                    </button>
+                    </Button>
                 )}
             </DialogFooter>
         </DialogContent>
@@ -309,52 +300,26 @@ function ResultRow({
     source: CustomerImportRow | undefined;
 }) {
     const error = isErrorStatus(result.status);
-    const cell = "border-b border-[#eef2f0] px-3 py-2 align-top";
+    const cell = "align-top";
     return (
-        <tr className={error ? "bg-[#fffaf9]" : "bg-white"}>
-            <td className={`${cell} font-black`}>{result.rowNumber}</td>
-            <td className={`${cell} font-bold`}>{result.fullName || source?.fullName || "-"}</td>
-            <td className={`${cell} whitespace-nowrap`}>{result.phone || source?.phone || "-"}</td>
-            <td className={cell}>{source?.email || "-"}</td>
-            <td className={`${cell} whitespace-nowrap`}>
-                <span
-                    className={`inline-flex h-6 items-center rounded-full px-2 text-[11px] font-black ${
-                        error ? "bg-[#fff0ed] text-[#c4422e]" : "bg-[#e9f8ed] text-[#159734]"
-                    }`}
-                >
+        <TableRow className={error ? "bg-[#fffaf9]" : "bg-white"}>
+            <TableCell className={`${cell} font-black`}>{result.rowNumber}</TableCell>
+            <TableCell className={`${cell} font-bold`}>{result.fullName || source?.fullName || "-"}</TableCell>
+            <TableCell className={`${cell} whitespace-nowrap`}>{result.phone || source?.phone || "-"}</TableCell>
+            <TableCell className={cell}>{source?.email || "-"}</TableCell>
+            <TableCell className={`${cell} whitespace-nowrap`}>
+                <StatusBadge tone={error ? "danger" : "success"}>
                     {ROW_STATUS_LABELS[result.status]}
-                </span>
-            </td>
-            <td className={`${cell} ${error ? "font-bold text-[#a43a2a]" : "text-[#697684]"}`}>
+                </StatusBadge>
+            </TableCell>
+            <TableCell className={`${cell} ${error ? "font-bold text-[#a43a2a]" : "text-[#697684]"}`}>
                 {error
                     ? result.message
                     : result.status === "IMPORTED"
                       ? `Mã khách hàng: ${result.customerCode ?? "-"}`
                       : ""}
-            </td>
-        </tr>
-    );
-}
-
-function SummaryChip({
-    label,
-    tone = "neutral",
-    value
-}: {
-    label: string;
-    tone?: "neutral" | "success" | "danger";
-    value: number;
-}) {
-    const toneClass =
-        tone === "success"
-            ? "bg-[#e9f8ed] text-[#159734]"
-            : tone === "danger"
-              ? "bg-[#fff0ed] text-[#c4422e]"
-              : "bg-[#f1f3f5] text-[#536171]";
-    return (
-        <span className={`inline-flex h-7 items-center gap-1.5 rounded-full px-3 ${toneClass}`}>
-            {label}: {value.toLocaleString("vi-VN")}
-        </span>
+            </TableCell>
+        </TableRow>
     );
 }
 

@@ -1,6 +1,7 @@
 import { Building2 } from "lucide-react";
 import { useCallback } from "react";
 
+import { StatusBadge } from "../../../components/ui/StatusBadge";
 import {
     CatalogResourceManagement,
     CatalogStatusBadge,
@@ -118,17 +119,14 @@ export function SupplierListPage() {
                         ) : (
                             <div className="flex flex-wrap items-center gap-1.5 max-w-xs">
                                 {item.ingredients.filter(Boolean).slice(0, 2).map((ing) => (
-                                    <span
-                                        key={ing.id}
-                                        className="inline-flex items-center rounded-md bg-neutral-100 px-2 py-0.5 text-[11px] font-bold text-neutral-700"
-                                    >
+                                    <StatusBadge key={ing.id} shape="tag">
                                         {ing.name}
-                                    </span>
+                                    </StatusBadge>
                                 ))}
                                 {item.ingredients.filter(Boolean).length > 2 && (
-                                    <span className="inline-flex items-center rounded-md bg-emerald-50 px-1.5 py-0.5 text-[11px] font-black text-emerald-700">
+                                    <StatusBadge shape="tag" tone="success">
                                         +{item.ingredients.filter(Boolean).length - 2}
-                                    </span>
+                                    </StatusBadge>
                                 )}
                             </div>
                         )}

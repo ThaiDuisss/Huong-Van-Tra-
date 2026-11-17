@@ -251,38 +251,28 @@ export function CheckoutPanel({
             ) : null}
 
             {isBankTransfer && bankTransferOpen ? (
-                <div
-                    className="fixed inset-0 z-50 grid place-items-center bg-black/62 px-4"
-                    role="presentation"
-                >
-                    <BankTransferDialog
-                        amount={totals.total}
-                        referenceCode={bankTransferReferenceCode}
-                        status={bankTransferStatus}
-                        payment={bankTransferPayment}
-                        eventMessage={bankTransferEventMessage}
-                        loading={checkoutLoading && !bankTransferPayment}
-                        error={checkoutError}
-                        onClose={() => setBankTransferOpen(false)}
-                        onCancel={onBankTransferCancel}
-                        onRefreshStatus={onBankTransferRefresh}
-                    />
-                </div>
+                <BankTransferDialog
+                    amount={totals.total}
+                    referenceCode={bankTransferReferenceCode}
+                    status={bankTransferStatus}
+                    payment={bankTransferPayment}
+                    eventMessage={bankTransferEventMessage}
+                    loading={checkoutLoading && !bankTransferPayment}
+                    error={checkoutError}
+                    onClose={() => setBankTransferOpen(false)}
+                    onCancel={onBankTransferCancel}
+                    onRefreshStatus={onBankTransferRefresh}
+                />
             ) : null}
 
             {isCombinedPayment && combinedPaymentOpen ? (
-                <div
-                    className="fixed inset-0 z-50 grid place-items-center bg-black/62 px-4"
-                    role="presentation"
-                >
-                    <CombinedPaymentDialog
-                        subtotal={totals.subtotal}
-                        discountAmount={totals.discountAmount}
-                        total={totals.total}
-                        onClose={() => setCombinedPaymentOpen(false)}
-                        onConfirm={() => setCombinedPaymentOpen(false)}
-                    />
-                </div>
+                <CombinedPaymentDialog
+                    subtotal={totals.subtotal}
+                    discountAmount={totals.discountAmount}
+                    total={totals.total}
+                    onClose={() => setCombinedPaymentOpen(false)}
+                    onConfirm={() => setCombinedPaymentOpen(false)}
+                />
             ) : null}
 
             <div className="mt-auto">

@@ -1,5 +1,5 @@
 import { MoreHorizontal } from "lucide-react";
-import { useEffect, useId, useLayoutEffect, useRef } from "react";
+import { type ReactNode, useEffect, useId, useLayoutEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 
 import styles from "./RowActionMenu.module.css";
@@ -8,6 +8,10 @@ export interface RowAction {
   label: string;
   onSelect: () => void;
   disabled?: boolean;
+  /** Icon trước nhãn. */
+  icon?: ReactNode;
+  /** `danger`: chữ đỏ (xóa, hủy, khóa). */
+  tone?: "default" | "danger";
 }
 
 interface RowActionMenuProps {
@@ -139,6 +143,7 @@ export function RowActionMenu({
             >
               {actions.map((action) => (
                 <button
+                  className={action.tone === "danger" ? styles.danger : undefined}
                   disabled={action.disabled}
                   key={action.label}
                   onClick={() => {
@@ -149,6 +154,11 @@ export function RowActionMenu({
                   tabIndex={-1}
                   type="button"
                 >
+                  {action.icon ? (
+                    <span aria-hidden="true" className={styles.icon}>
+                      {action.icon}
+                    </span>
+                  ) : null}
                   {action.label}
                 </button>
               ))}

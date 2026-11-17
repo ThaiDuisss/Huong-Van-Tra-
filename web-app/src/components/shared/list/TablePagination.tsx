@@ -10,6 +10,11 @@ interface TablePaginationProps {
     itemLabel: string;
     onPageChange: (page: number) => void;
     disabled?: boolean;
+    /** Thay cho câu "Hiển thị a-b trên tổng N …" mặc định. */
+    summary?: ReactNode;
+    /** Có truyền thì hiện ô chọn số dòng mỗi trang. */
+    pageSizeOptions?: readonly number[];
+    onPageSizeChange?: (pageSize: number) => void;
 }
 
 export function TablePagination({
@@ -19,7 +24,10 @@ export function TablePagination({
     pageSize,
     itemLabel,
     onPageChange,
-    disabled = false
+    disabled = false,
+    summary,
+    pageSizeOptions,
+    onPageSizeChange
 }: TablePaginationProps) {
     const pageCount = Math.max(totalPages, 1);
     const currentPage = Math.min(page + 1, pageCount);
@@ -29,10 +37,32 @@ export function TablePagination({
     return (
         <footer className="flex min-h-[54px] items-center justify-between gap-4 border-t border-[#e4ece8] bg-white px-4 py-2 text-xs font-extrabold text-[#657282] max-md:flex-col max-md:items-start">
             <span>
-                Hiển thị {visibleStart.toLocaleString("vi-VN")}-{visibleEnd.toLocaleString("vi-VN")} trên tổng{" "}
-                {totalItems.toLocaleString("vi-VN")} {itemLabel}
+                {summary ?? (
+                    <>
+                        Hiển thị {visibleStart.toLocaleString("vi-VN")}-{visibleEnd.toLocaleString("vi-VN")} trên tổng{" "}
+                        {totalItems.toLocaleString("vi-VN")} {itemLabel}
+                    </>
+                )}
             </span>
-            <div className="flex items-center gap-1">
+            <div className="flex flex-wrap items-center gap-1">
+                {pageSizeOptions && onPageSizeChange ? (
+                    <label className="mr-2 flex items-center gap-2">
+                        Hiển thị
+                        <select
+                            aria-label="Số dòng mỗi trang"
+                            className="h-8 rounded-lg border border-[#dce5e1] bg-white px-2 text-xs font-black text-[#536171] outline-none focus:border-[#159734]"
+                            disabled={disabled}
+                            onChange={(event) => onPageSizeChange(Number(event.currentTarget.value))}
+                            value={pageSize}
+                        >
+                            {[...new Set([...pageSizeOptions, pageSize])].sort((a, b) => a - b).map((option) => (
+                                <option key={option} value={option}>
+                                    {option} / trang
+                                </option>
+                            ))}
+                        </select>
+                    </label>
+                ) : null}
                 <PageButton
                     ariaLabel="Trang trước"
                     disabled={disabled || currentPage <= 1}

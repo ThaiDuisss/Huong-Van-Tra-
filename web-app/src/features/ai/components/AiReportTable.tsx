@@ -1,5 +1,7 @@
 import { Download, Eye, Pencil } from "lucide-react";
 
+import { Button } from "../../../components/ui/Button";
+import { Table, TableCell, TableHead, TableHeaderCell, TableRow } from "../../../components/ui/Table";
 import { DashboardListSkeleton } from "../../dashboard/components/DashboardStates";
 import {
   InventoryEmptyState,
@@ -53,36 +55,36 @@ export function AiReportTable({
       className="min-w-0 overflow-hidden rounded-xl border border-[#e8eef0] bg-white shadow-pos-card"
     >
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[720px] text-left text-sm">
+        <Table className="min-w-[820px]">
           <caption className="sr-only">
             Danh sách báo cáo AI. Chọn một báo cáo để xuất file gốc.
           </caption>
-          <thead className="border-b border-[#e8eef0] bg-[#f8faf9] text-xs font-bold text-[#536078]">
-            <tr>
-              <th className="w-12 px-4 py-3" scope="col">
+          <TableHead>
+            <TableRow>
+              <TableHeaderCell className="w-12">
                 <span className="sr-only">Chọn báo cáo</span>
-              </th>
-              <th className="px-4 py-3" scope="col">
+              </TableHeaderCell>
+              <TableHeaderCell>
                 Tên báo cáo
-              </th>
-              <th className="w-32 px-4 py-3" scope="col">
+              </TableHeaderCell>
+              <TableHeaderCell className="w-32">
                 Phiên bản
-              </th>
-              <th className="w-44 px-4 py-3" scope="col">
+              </TableHeaderCell>
+              <TableHeaderCell className="w-44">
                 Ngày cập nhật
-              </th>
-              <th className="w-60 px-4 py-3" scope="col">
+              </TableHeaderCell>
+              <TableHeaderCell className="w-80">
                 Thao tác
-              </th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-[#eef2f0]">
+              </TableHeaderCell>
+            </TableRow>
+          </TableHead>
+          <tbody>
             {rows.map((report) => (
-              <tr
+              <TableRow
                 className={selectedId === report.id ? "bg-[#edf8ef]" : "hover:bg-[#f8fbf8]"}
                 key={report.id}
               >
-                <td className="px-4 py-4">
+                <TableCell>
                   <input
                     aria-label={`Chọn báo cáo ${report.name}`}
                     checked={selectedId === report.id}
@@ -92,61 +94,61 @@ export function AiReportTable({
                     onChange={() => onSelect(report.id)}
                     type="radio"
                   />
-                </td>
-                <td className="max-w-[400px] break-words px-4 py-4 font-bold text-[#172317]">
+                </TableCell>
+                <TableCell className="max-w-[400px] break-words font-bold text-[#172317]">
                   {report.name}
                   <p className="mt-1 text-xs font-normal text-[#697684]">{report.fileName} · {report.fileType}</p>
-                </td>
-                <td className="break-words px-4 py-4 font-semibold text-[#536078]">
+                </TableCell>
+                <TableCell className="break-words font-semibold text-[#536078]">
                   {report.version}
-                </td>
-                <td className="px-4 py-4 text-[#697684]">
+                </TableCell>
+                <TableCell className="text-[#697684]">
                   <time dateTime={report.updatedAt}>{formatDate(report.updatedAt)}</time>
                   <p className="mt-1 text-xs text-[#697684]">Tạo: <time dateTime={report.createdAt}>{formatDate(report.createdAt)}</time></p>
-                </td>
-                <td className="px-4 py-4">
-                  <div className="flex flex-wrap items-center gap-3 text-xs font-bold text-[#159734]">
+                </TableCell>
+                <TableCell>
+                  <div className="flex flex-wrap items-center gap-1">
                     <span title={!fileActionsAvailable ? AI_REPORT_PENDING_MESSAGE : undefined}>
-                      <button
+                      <Button
                         aria-label={`Xem báo cáo ${report.name}`}
-                        className="inline-flex items-center gap-1 hover:underline disabled:cursor-not-allowed disabled:opacity-50"
+                        size="sm"
+                        variant="ghost"
                         disabled={!fileActionsAvailable || busy}
                         onClick={() => onView(report)}
-                        type="button"
                       >
                         <Eye aria-hidden="true" size={14} />
                         Xem
-                      </button>
+                      </Button>
                     </span>
-                    <button
+                    <Button
                       aria-label={`Chỉnh sửa báo cáo ${report.name}`}
-                      className="inline-flex items-center gap-1 hover:underline disabled:opacity-50"
+                      size="sm"
+                      variant="ghost"
                       disabled={busy}
                       onClick={() => onEdit(report)}
-                      type="button"
                     >
                       <Pencil aria-hidden="true" size={14} />
                       Chỉnh sửa
-                    </button>
+                    </Button>
                     <span title={!fileActionsAvailable ? AI_REPORT_PENDING_MESSAGE : undefined}>
-                      <button
+                      <Button
                         aria-label={`Tải bản gốc báo cáo ${report.name}`}
-                        className="inline-flex items-center gap-1 hover:underline disabled:cursor-not-allowed disabled:opacity-50"
+                        size="sm"
+                        variant="ghost"
                         disabled={!fileActionsAvailable || busy}
                         onClick={() => onExport(report)}
-                        type="button"
                       >
                         <Download aria-hidden="true" size={14} />
                         Tải bản gốc
-                      </button>
+                      </Button>
                     </span>
                   </div>
-                </td>
-              </tr>
+                </TableCell>
+              </TableRow>
             ))}
             {rows.length === 0 ? (
-              <tr>
-                <td className="p-4" colSpan={5}>
+              <TableRow>
+                <TableCell colSpan={5}>
                   {state.status === "loading" ? (
                     <DashboardListSkeleton rows={5} />
                   ) : state.status === "error" ? (
@@ -160,11 +162,11 @@ export function AiReportTable({
                       }
                     />
                   )}
-                </td>
-              </tr>
+                </TableCell>
+              </TableRow>
             ) : null}
           </tbody>
-        </table>
+        </Table>
       </div>
     </div>
   );

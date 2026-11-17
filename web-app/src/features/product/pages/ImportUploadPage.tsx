@@ -3,6 +3,7 @@ import type { ComponentType } from "react";
 import { useRef, useState } from "react";
 import { Link } from "react-router-dom";
 
+import { Button } from "../../../components/ui/Button";
 import { routePaths } from "../../../routes/path";
 import { ImportBatchPanel, type ImportItemsListProps } from "../components/ImportBatchPanel";
 import { IMPORT_ITEMS_LIST_REGISTRY } from "../import-batch-registry";
@@ -108,13 +109,9 @@ export function ImportUploadPage({
                 <>
                     <div className="flex items-center justify-between rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm font-bold text-amber-800">
                         <span>Đã phân tích xong file Excel ({previewData.totalRows} dòng, {previewData.validRows} hợp lệ, {previewData.errorRows} lỗi) — kiểm tra/sửa danh sách bên dưới trước khi lưu nháp hoặc gửi duyệt.</span>
-                        <button
-                            className="shrink-0 rounded-lg border border-amber-300 bg-white px-3 py-1.5 text-xs font-black text-amber-800 hover:bg-amber-100"
-                            onClick={handleImportAnother}
-                            type="button"
-                        >
+                        <Button onClick={handleImportAnother} size="sm">
                             Nhập file khác
-                        </button>
+                        </Button>
                     </div>
                     <ImportBatchPanel
                         api={api}
@@ -125,14 +122,10 @@ export function ImportUploadPage({
                 </>
             ) : (
                 <div className="grid gap-4 rounded-xl border border-[#e8eef0] bg-white p-5 shadow-pos-card">
-                    <button
-                        className="inline-flex h-10 w-fit items-center gap-2 rounded-lg border border-pos-border bg-white px-4 text-sm font-black text-[#536078] hover:bg-neutral-50"
-                        onClick={() => void handleDownloadTemplate()}
-                        type="button"
-                    >
+                    <Button className="w-fit" onClick={() => void handleDownloadTemplate()}>
                         <Download size={16} aria-hidden="true" />
                         Tải file mẫu
-                    </button>
+                    </Button>
 
                     <label className="grid gap-1.5">
                         <span className="text-xs font-bold text-[#536078]">Chọn file Excel (.xlsx)</span>
@@ -146,15 +139,10 @@ export function ImportUploadPage({
                     </label>
 
                     <div className="flex justify-end">
-                        <button
-                            className="inline-flex h-10 items-center gap-2 rounded-lg bg-[#159734] px-4 text-sm font-black text-white hover:bg-[#12802c] shadow-sm disabled:opacity-50"
-                            disabled={!selectedFile || uploading}
-                            onClick={() => void handleUpload()}
-                            type="button"
-                        >
+                        <Button disabled={!selectedFile || uploading} onClick={() => void handleUpload()} variant="primary">
                             <Upload size={16} aria-hidden="true" />
                             {uploading ? "Đang tải lên & phân tích..." : "Tải lên & Phân tích"}
-                        </button>
+                        </Button>
                     </div>
                 </div>
             )}

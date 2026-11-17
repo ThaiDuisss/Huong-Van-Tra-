@@ -1,24 +1,20 @@
-import { ChevronLeft, ChevronRight, Search } from "lucide-react";
 import type { CSSProperties, InputHTMLAttributes, ReactNode } from "react";
-import { getOrderPageNumbers, getOrderRecordRange } from "./order-list-ui.utils";
+import { ListPageHeader } from "../../../../components/shared/list/ListPageHeader";
+import { TablePagination } from "../../../../components/shared/list/TablePagination";
+import { Button } from "../../../../components/ui/Button";
+import { SearchInput } from "../../../../components/ui/SearchInput";
+import { getOrderRecordRange } from "./order-list-ui.utils";
 import styles from "./OrderListUI.module.css";
 
 interface OrderPageHeaderProps {
   title: string;
-  description: ReactNode;
+  description: string;
   actions?: ReactNode;
 }
 
+/** Đầu trang của nhóm màn danh sách đơn hàng; kiểu dáng lấy từ `ListPageHeader` dùng chung. */
 export function OrderPageHeader({ title, description, actions }: OrderPageHeaderProps) {
-  return (
-    <header className={styles.header}>
-      <div className={styles.title}>
-        <h1>{title}</h1>
-        <p>{description}</p>
-      </div>
-      {actions && <div className={styles.headerActions}>{actions}</div>}
-    </header>
-  );
+  return <ListPageHeader actions={actions} description={description} title={title} />;
 }
 
 export function OrderPageLayout({
@@ -59,15 +55,21 @@ export function OrderToolbar({
   search,
   children,
 }: {
-  search: InputHTMLAttributes<HTMLInputElement> & { "aria-label": string };
+  search: Omit<
+    InputHTMLAttributes<HTMLInputElement>,
+    "onChange" | "value" | "placeholder" | "className"
+  > & {
+    "aria-label": string;
+    value: string;
+    placeholder: string;
+    /** Nhận thẳng giá trị ô tìm kiếm (không phải event), giống `SearchInput` dùng chung. */
+    onChange(value: string): void;
+  };
   children?: ReactNode;
 }) {
   return (
     <div className={styles.toolbar}>
-      <label className={styles.searchBox}>
-        <Search size={20} aria-hidden="true" />
-        <input {...search} />
-      </label>
+      <SearchInput {...search} className={styles.searchInput} />
       {children}
     </div>
   );
@@ -130,9 +132,9 @@ export function OrderPageStates({
       <strong>{title}</strong>
       {description && <span>{description}</span>}
       {kind === "error" && onRetry && (
-        <button type="button" className={styles.secondaryButton} onClick={onRetry}>
+        <Button className="mt-3" onClick={onRetry} size="sm">
           Thử lại
-        </button>
+        </Button>
       )}
     </div>
   );
@@ -274,46 +276,21 @@ export function OrderPagination({
   disabled?: boolean;
   itemLabel: string;
 }) {
-  const pageCount = Math.max(1, totalPages);
   const { from, to } = getOrderRecordRange(recordPage, pageSize, totalItems);
   return (
-    <nav className={styles.pagination} aria-label="Phân trang danh sách">
-      <span>
-        Hiển thị {from} - {to} trong {totalItems} {itemLabel}
-      </span>
-      <div className={styles.pages}>
-        <button
-          type="button"
-          className={styles.pageButton}
-          aria-label="Trang trước"
-          disabled={disabled || page <= 0}
-          onClick={() => onPageChange(Math.max(0, page - 1))}
-        >
-          <ChevronLeft size={18} aria-hidden="true" />
-        </button>
-        {getOrderPageNumbers(pageCount, page).map((number) => (
-          <button
-            type="button"
-            key={number}
-            className={styles.pageButton}
-            aria-current={number === page ? "page" : undefined}
-            disabled={disabled}
-            onClick={() => onPageChange(number)}
-          >
-            {number + 1}
-          </button>
-        ))}
-        {pageCount > 5 && <span>...</span>}
-        <button
-          type="button"
-          className={styles.pageButton}
-          aria-label="Trang sau"
-          disabled={disabled || page >= pageCount - 1}
-          onClick={() => onPageChange(Math.min(pageCount - 1, page + 1))}
-        >
-          <ChevronRight size={18} aria-hidden="true" />
-        </button>
-      </div>
-    </nav>
+    <TablePagination
+      disabled={disabled}
+      itemLabel={itemLabel}
+      onPageChange={onPageChange}
+      page={page}
+      pageSize={pageSize}
+      summary={
+        <>
+          Hiển thị {from} - {to} trong {totalItems} {itemLabel}
+        </>
+      }
+      totalItems={totalItems}
+      totalPages={totalPages}
+    />
   );
 }
