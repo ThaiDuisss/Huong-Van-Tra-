@@ -9,12 +9,23 @@ import {
     Package,
     Phone,
     Printer,
-    Search,
     Send,
     User,
     WalletCards
 } from "lucide-react";
 
+import { useState } from "react";
+
+import { Button } from "../../../components/ui/Button";
+import { SearchInput } from "../../../components/ui/SearchInput";
+import { StatusBadge } from "../../../components/ui/StatusBadge";
+import {
+    Table,
+    TableCell,
+    TableHead,
+    TableHeaderCell,
+    TableRow
+} from "../../../components/ui/Table";
 import styles from "./InvoiceDetailPage.module.css";
 
 const products = [
@@ -25,6 +36,8 @@ const products = [
 ] as const;
 
 export function InvoiceDetailPage() {
+    const [searchTerm, setSearchTerm] = useState("");
+
     return (
         <section className={styles.page}>
             <div className={styles.main}>
@@ -44,25 +57,25 @@ export function InvoiceDetailPage() {
                     </div>
 
                     <div className={styles.actions}>
-                        <label className={styles.searchBox}>
-                            <Search size={18} aria-hidden="true" />
-                            <input
-                                aria-label="Tìm kiếm trong hóa đơn"
-                                placeholder="Tìm theo mã đơn hàng, tên khách hàng, SĐT..."
-                            />
-                        </label>
-                        <button className={styles.secondaryButton} type="button">
+                        <SearchInput
+                            aria-label="Tìm kiếm trong hóa đơn"
+                            className={styles.searchBox}
+                            onChange={setSearchTerm}
+                            placeholder="Tìm theo mã đơn hàng, tên khách hàng, SĐT..."
+                            value={searchTerm}
+                        />
+                        <Button size="search">
                             <Printer size={17} aria-hidden="true" />
                             In hóa đơn
-                        </button>
-                        <button className={styles.secondaryButton} type="button">
+                        </Button>
+                        <Button size="search">
                             <FileText size={17} aria-hidden="true" />
                             Xuất PDF
-                        </button>
-                        <button className={styles.secondaryButton} type="button">
+                        </Button>
+                        <Button size="search">
                             <Send size={17} aria-hidden="true" />
                             Gửi Email
-                        </button>
+                        </Button>
                     </div>
                 </div>
 
@@ -101,44 +114,44 @@ export function InvoiceDetailPage() {
                         <Package size={18} aria-hidden="true" />
                         2. Danh sách sản phẩm
                     </div>
-                    <table className={styles.products}>
-                        <thead>
-                            <tr>
-                                <th>Ảnh</th>
-                                <th>SKU</th>
-                                <th>Tên sản phẩm</th>
-                                <th>Đơn giá</th>
-                                <th>Số lượng</th>
-                                <th>Giảm giá</th>
-                                <th>Thành tiền</th>
-                            </tr>
-                        </thead>
+                    <Table>
+                        <TableHead>
+                            <TableRow>
+                                <TableHeaderCell>Ảnh</TableHeaderCell>
+                                <TableHeaderCell>SKU</TableHeaderCell>
+                                <TableHeaderCell>Tên sản phẩm</TableHeaderCell>
+                                <TableHeaderCell>Đơn giá</TableHeaderCell>
+                                <TableHeaderCell>Số lượng</TableHeaderCell>
+                                <TableHeaderCell>Giảm giá</TableHeaderCell>
+                                <TableHeaderCell>Thành tiền</TableHeaderCell>
+                            </TableRow>
+                        </TableHead>
                         <tbody>
                             {products.map((product) => (
-                                <tr key={product[1]}>
-                                    <td>
+                                <TableRow key={product[1]}>
+                                    <TableCell>
                                         <span className={styles.productThumb}>
                                             {product[0]}
                                         </span>
-                                    </td>
-                                    <td>{product[1]}</td>
-                                    <td>
+                                    </TableCell>
+                                    <TableCell>{product[1]}</TableCell>
+                                    <TableCell>
                                         <strong>{product[2]}</strong>
                                         <br />
                                         <span className="text-[#536078]">
                                             {product[3]}
                                         </span>
-                                    </td>
-                                    <td>{product[4]}</td>
-                                    <td>{product[5]}</td>
-                                    <td>{product[6]}</td>
-                                    <td>
+                                    </TableCell>
+                                    <TableCell>{product[4]}</TableCell>
+                                    <TableCell>{product[5]}</TableCell>
+                                    <TableCell>{product[6]}</TableCell>
+                                    <TableCell>
                                         <strong>{product[7]}</strong>
-                                    </td>
-                                </tr>
+                                    </TableCell>
+                                </TableRow>
                             ))}
                         </tbody>
-                    </table>
+                    </Table>
                     <div className={styles.totals}>
                         <TotalRow label="Tổng tiền hàng" value="450.000đ" />
                         <TotalRow label="Giảm giá" value="25.000đ" green />
@@ -200,7 +213,9 @@ function SummaryCard({
                 <span>{label}</span>
                 {badge ? (
                     <strong>
-                        <span className={styles.greenPill}>{value}</span>
+                        <StatusBadge shape="tag" tone="success">
+                            {value}
+                        </StatusBadge>
                     </strong>
                 ) : (
                     <strong>{value}</strong>
@@ -224,17 +239,13 @@ function InfoItem({
     return (
         <div className={styles.infoItem}>
             <span>{label}</span>
-            <strong
-                className={
-                    pill
-                        ? styles.greenPill
-                        : green
-                          ? styles.greenPill
-                          : undefined
-                }
-            >
-                {value}
-            </strong>
+            {pill || green ? (
+                <StatusBadge className="w-fit" shape="tag" tone="success">
+                    {value}
+                </StatusBadge>
+            ) : (
+                <strong>{value}</strong>
+            )}
         </div>
     );
 }
@@ -273,7 +284,9 @@ function CustomerPanel() {
                 <div className="min-w-0">
                     <div className={styles.customerName}>
                         <h2>Đỗ Xuân Thái</h2>
-                        <span className={styles.pill}>VIP Gold</span>
+                        <StatusBadge shape="tag" tone="pending">
+                            VIP Gold
+                        </StatusBadge>
                     </div>
                     <p className="mt-2 text-[12px] font-bold text-[#536078]">
                         Mã khách hàng: KH-002525
@@ -320,7 +333,9 @@ function CustomerPanel() {
             </div>
             <div className="mt-4 flex items-center justify-between border-t border-[#edf0f4] pt-4 text-[12px] font-bold">
                 <span className="text-[#536078]">Trạng thái</span>
-                <span className={styles.greenPill}>Đang hoạt động</span>
+                <StatusBadge shape="tag" tone="success">
+                    Đang hoạt động
+                </StatusBadge>
             </div>
         </section>
     );
@@ -373,7 +388,13 @@ function InfoRow({
     return (
         <div className={styles.infoRow}>
             <span>{label}</span>
-            <strong className={pill ? styles.bluePill : ""}>{value}</strong>
+            {pill ? (
+                <StatusBadge shape="tag" tone="info">
+                    {value}
+                </StatusBadge>
+            ) : (
+                <strong>{value}</strong>
+            )}
         </div>
     );
 }

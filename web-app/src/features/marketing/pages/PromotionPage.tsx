@@ -2,7 +2,6 @@ import {
     AlertCircle,
     CalendarDays,
     Copy,
-    MoreVertical,
     Pencil,
     Plus,
     RefreshCw,
@@ -14,6 +13,29 @@ import {
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 
+import { ListPageHeader } from "../../../components/shared/list/ListPageHeader";
+import { type RowAction, RowActionMenu } from "../../../components/shared/RowActionMenu";
+import { Button, IconButton } from "../../../components/ui/Button";
+import { buttonClassName } from "../../../components/ui/button-styles";
+import {
+    Field,
+    NativeSelect,
+    TextArea,
+    TextInput
+} from "../../../components/ui/Field";
+import { ModalShell } from "../../../components/ui/Overlay";
+import { SearchInput } from "../../../components/ui/SearchInput";
+import {
+    StatusBadge,
+    type BadgeTone
+} from "../../../components/ui/StatusBadge";
+import {
+    Table,
+    TableCell,
+    TableHead,
+    TableHeaderCell,
+    TableRow
+} from "../../../components/ui/Table";
 import { MarketingPagination } from "../components/MarketingPagination";
 import { MarketingSelectField } from "../components/MarketingSelectField";
 import {
@@ -35,6 +57,7 @@ import type {
 import {
     formatDiscountDateParts
 } from "../utils/discount-programs";
+import { getMarketingStatusTone } from "../utils/event-labels";
 import {
     getPromotionApplyMethodLabel,
     getPromotionStatusLabel,
@@ -79,22 +102,20 @@ const emptyPromotionForm: PromotionCreateRequest = {
     priority: 0
 };
 
-const statusClassNames: Record<string, string> = {
-    DRAFT: styles.statusInactive,
-    SCHEDULED: styles.statusScheduled,
-    ACTIVE: styles.statusActive,
-    PAUSED: styles.statusPaused,
-    EXPIRED: styles.statusExpired,
-    ENDED: styles.statusUsed,
-    CANCELLED: styles.statusCancelled
-};
+const promotionStatusOptions = [
+    "DRAFT",
+    "SCHEDULED",
+    "ACTIVE",
+    "PAUSED",
+    "EXPIRED",
+    "ENDED",
+    "CANCELLED"
+];
 
-const promotionStatusOptions = Object.keys(statusClassNames);
-
-const applyMethodClassNames: Record<string, string> = {
-    AUTO: styles.applyMethodAuto,
-    COUPON_CODE: styles.applyMethodCoupon,
-    DIRECT_DISCOUNT: styles.applyMethodDirect
+const applyMethodTones: Record<string, BadgeTone> = {
+    AUTO: "info",
+    COUPON_CODE: "success",
+    DIRECT_DISCOUNT: "warning"
 };
 
 const emptyPromotionFilters: PromotionFilterFormState = {
@@ -393,66 +414,61 @@ export function PromotionPage() {
 
     return (
         <section className={styles.page}>
-            <header className={styles.header}>
-                <div className={styles.titleBlock}>
-                    <nav
-                        className="flex items-center gap-2 text-sm"
-                        aria-label="Breadcrumb"
-                    >
-                        {mode === "EVENT_FILTERED" ? (
-                            <>
-                                <Link
-                                    to={routePaths.marketingEvents}
-                                    className="font-bold text-[#009b4d]"
-                                >
-                                    Sự kiện
-                                </Link>
-                                <span aria-hidden="true">›</span>
-                                <span className="font-bold text-[#009b4d]">
-                                    {displayEventName}
-                                </span>
-                                <span aria-hidden="true">›</span>
-                            </>
-                        ) : (
-                            <>
-                                <span className="font-bold text-[#009b4d]">
-                                    Marketing
-                                </span>
-                                <span aria-hidden="true">›</span>
-                            </>
-                        )}
-                        <span className="font-bold text-[#17213a]">
-                            Chương trình giảm giá
-                        </span>
-                    </nav>
-                    <h1 className={styles.title}>{title}</h1>
-                    <p className={styles.description}>{subtitle}</p>
-                </div>
-
-                <div className={styles.actions}>
-                    <button
-                        className={styles.primaryButton}
-                        type="button"
-                        onClick={() =>
-                            setFormState({
-                                mode: "create"
-                            })
-                        }
-                    >
-                        <Plus size={18} aria-hidden="true" />
-                        Tạo khuyến mãi
-                    </button>
-                    <button
-                        className={styles.secondaryButton}
-                        type="button"
-                        disabled={loading}
-                        onClick={reload}
-                    >
-                        <RefreshCw size={17} aria-hidden="true" />
-                        Tải lại
-                    </button>
-                </div>
-            </header>
+            <ListPageHeader
+                actions={
+                    <>
+                        <Button
+                            variant="primary"
+                            onClick={() =>
+                                setFormState({
+                                    mode: "create"
+                                })
+                            }
+                        >
+                            <Plus size={18} aria-hidden="true" />
+                            Tạo khuyến mãi
+                        </Button>
+                        <Button disabled={loading} onClick={reload}>
+                            <RefreshCw size={17} aria-hidden="true" />
+                            Tải lại
+                        </Button>
+                    </>
+                }
+                breadcrumb={
+                        <nav
+                            className="flex items-center gap-2 text-sm"
+                            aria-label="Breadcrumb"
+                        >
+                            {mode === "EVENT_FILTERED" ? (
+                                <>
+                                    <Link
+                                        to={routePaths.marketingEvents}
+                                        className="font-bold text-[#009b4d]"
+                                    >
+                                        Sự kiện
+                                    </Link>
+                                    <span aria-hidden="true">›</span>
+                                    <span className="font-bold text-[#009b4d]">
+                                        {displayEventName}
+                                    </span>
+                                    <span aria-hidden="true">›</span>
+                                </>
+                            ) : (
+                                <>
+                                    <span className="font-bold text-[#009b4d]">
+                                        Marketing
+                                    </span>
+                                    <span aria-hidden="true">›</span>
+                                </>
+                            )}
+                            <span className="font-bold text-[#17213a]">
+                                Chương trình giảm giá
+                            </span>
+                        </nav>
+                }
+                description={subtitle}
+                title={title}
+            />
 
             {mode === "EVENT_FILTERED" ? (
                 <div className={styles.contextBanner}>
@@ -464,7 +480,7 @@ export function PromotionPage() {
                         </p>
                     </div>
                     <Link
-                        className={styles.secondaryButton}
+                        className={buttonClassName({ variant: "secondary" })}
                         to={routePaths.discountPrograms}
                     >
                         Xem tất cả khuyến mãi
@@ -495,7 +511,7 @@ export function PromotionPage() {
 
             <section className={styles.tableCard}>
                 <div className={styles.tableScroll}>
-                    <table className={`${styles.table} ${styles.promotionTable}`}>
+                    <Table className={`${styles.table} ${styles.promotionTable}`}>
                         <colgroup>
                             <col className={styles.promotionNameColumn} />
                             <col className={styles.promotionStatusColumn} />
@@ -503,19 +519,19 @@ export function PromotionPage() {
                             <col className={styles.promotionTimeColumn} />
                             <col className={styles.promotionActionColumn} />
                         </colgroup>
-                        <thead>
-                            <tr>
-                                <th>Tên khuyến mãi</th>
-                                <th>Trạng thái</th>
-                                <th>Cách áp dụng</th>
-                                <th>Thời gian</th>
-                                <th>Thao tác</th>
-                            </tr>
-                        </thead>
+                        <TableHead>
+                            <TableRow>
+                                <TableHeaderCell>Tên khuyến mãi</TableHeaderCell>
+                                <TableHeaderCell>Trạng thái</TableHeaderCell>
+                                <TableHeaderCell>Cách áp dụng</TableHeaderCell>
+                                <TableHeaderCell>Thời gian</TableHeaderCell>
+                                <TableHeaderCell>Thao tác</TableHeaderCell>
+                            </TableRow>
+                        </TableHead>
                         <tbody>
                             {loading ? (
                                 <MarketingTableSkeleton columns={5} />
-                            ) : promotions.map((promotion, index) => {
+                            ) : promotions.map((promotion) => {
                                 const actions =
                                     getAllowedPromotionActions(promotion);
                                 const disabled =
@@ -524,15 +540,11 @@ export function PromotionPage() {
                                     canEditPromotion(promotion);
                                 const deletable =
                                     canDeletePromotion(promotion);
-                                const zebraClass =
-                                    index % 2 === 0
-                                        ? styles.rowOdd
-                                        : styles.rowEven;
-
                                 return (
-                                    <tr
+                                    <TableRow
                                         key={promotion.id}
-                                        className={`${zebraClass} ${styles.summaryRow}`}
+                                        className={styles.summaryRow}
+                                        striped
                                         onClick={() =>
                                             navigate(
                                                 getPromotionDetailPath(
@@ -541,7 +553,7 @@ export function PromotionPage() {
                                             )
                                         }
                                     >
-                                        <td>
+                                        <TableCell>
                                             <strong
                                                 className={
                                                     styles.programNameMuted
@@ -549,166 +561,101 @@ export function PromotionPage() {
                                             >
                                                 {promotion.name}
                                             </strong>
-                                        </td>
-                                        <td>
-                                            <PromotionStatusBadge
-                                                promotion={promotion}
-                                            />
-                                        </td>
-                                        <td>
-                                            <span
-                                                className={`${styles.applyMethodPill} ${
-                                                    applyMethodClassNames[
+                                        </TableCell>
+                                        <TableCell>
+                                            <StatusBadge
+                                                tone={getMarketingStatusTone(
+                                                    promotion.status
+                                                )}
+                                            >
+                                                {getPromotionStatusLabel(
+                                                    promotion.status
+                                                )}
+                                            </StatusBadge>
+                                        </TableCell>
+                                        <TableCell>
+                                            <StatusBadge
+                                                shape="tag"
+                                                tone={
+                                                    applyMethodTones[
                                                         promotion.applyMethod
-                                                    ] ?? styles.applyMethodDefault
-                                                }`}
+                                                    ] ?? "neutral"
+                                                }
                                             >
                                                 {getPromotionApplyMethodLabel(
                                                     promotion.applyMethod
                                                 )}
-                                            </span>
-                                        </td>
-                                        <td className={styles.promotionTimeCell}>
+                                            </StatusBadge>
+                                        </TableCell>
+                                        <TableCell className={styles.promotionTimeCell}>
                                             <PromotionTimeRange
                                                 startAt={promotion.startAt}
                                                 endAt={promotion.endAt}
                                             />
-                                        </td>
-                                        <td
+                                        </TableCell>
+                                        <TableCell
                                             className={styles.actionCell}
                                             onClick={(event) =>
                                                 event.stopPropagation()
                                             }
                                         >
-                                            <div
-                                                className={
-                                                    styles.rowMenuAnchor
+                                            <RowActionMenu
+                                                actions={[
+                                                    ...(editable
+                                                        ? [
+                                                              {
+                                                                  label: "Chỉnh sửa",
+                                                                  icon: <Pencil size={15} />,
+                                                                  onSelect: () =>
+                                                                      setFormState({
+                                                                          mode: "edit",
+                                                                          promotion
+                                                                      })
+                                                              }
+                                                          ]
+                                                        : []),
+                                                    ...actions.map(
+                                                        (action): RowAction => ({
+                                                            label: action.label,
+                                                            icon:
+                                                                action.action === "duplicate" ? (
+                                                                    <Copy size={15} />
+                                                                ) : undefined,
+                                                            tone: action.danger ? "danger" : "default",
+                                                            disabled,
+                                                            onSelect: () =>
+                                                                void handlePromotionAction(
+                                                                    promotion,
+                                                                    action.action
+                                                                )
+                                                        })
+                                                    ),
+                                                    ...(deletable
+                                                        ? [
+                                                              {
+                                                                  label: "Xóa",
+                                                                  icon: <Trash2 size={15} />,
+                                                                  tone: "danger" as const,
+                                                                  disabled,
+                                                                  onSelect: () =>
+                                                                      void deletePromotion(promotion)
+                                                              }
+                                                          ]
+                                                        : [])
+                                                ]}
+                                                isOpen={openMenuId === promotion.id}
+                                                menuLabel={`Thao tác ${promotion.name}`}
+                                                onOpenChange={(open) =>
+                                                    setOpenMenuId(open ? promotion.id : null)
                                                 }
-                                            >
-                                                <button
-                                                    className={
-                                                        styles.tableIconButton
-                                                    }
-                                                    type="button"
-                                                    aria-label={`Mở thao tác ${promotion.name}`}
-                                                    onClick={() =>
-                                                        setOpenMenuId(
-                                                            openMenuId ===
-                                                                promotion.id
-                                                                ? null
-                                                                : promotion.id
-                                                        )
-                                                    }
-                                                >
-                                                    <MoreVertical
-                                                        size={19}
-                                                        aria-hidden="true"
-                                                    />
-                                                </button>
-
-                                                {openMenuId ===
-                                                promotion.id ? (
-                                                    <div
-                                                        className={
-                                                            styles.rowActionMenu
-                                                        }
-                                                    >
-                                                        {editable ? (
-                                                            <button
-                                                                type="button"
-                                                                onClick={() => {
-                                                                    setOpenMenuId(
-                                                                        null
-                                                                    );
-                                                                    setFormState(
-                                                                        {
-                                                                            mode: "edit",
-                                                                            promotion
-                                                                        }
-                                                                    );
-                                                                }}
-                                                            >
-                                                                <Pencil
-                                                                    size={
-                                                                        15
-                                                                    }
-                                                                    aria-hidden="true"
-                                                                />
-                                                                Chỉnh sửa
-                                                            </button>
-                                                        ) : null}
-
-                                                        {actions.map(
-                                                            (action) => (
-                                                                <button
-                                                                    key={
-                                                                        action.action
-                                                                    }
-                                                                    className={
-                                                                        action.danger
-                                                                            ? styles.menuDangerItem
-                                                                            : undefined
-                                                                    }
-                                                                    type="button"
-                                                                    disabled={
-                                                                        disabled
-                                                                    }
-                                                                    onClick={() =>
-                                                                        handlePromotionAction(
-                                                                            promotion,
-                                                                            action.action
-                                                                        )
-                                                                    }
-                                                                >
-                                                                    {action.action ===
-                                                                    "duplicate" ? (
-                                                                        <Copy
-                                                                            size={
-                                                                                15
-                                                                            }
-                                                                            aria-hidden="true"
-                                                                        />
-                                                                    ) : null}
-                                                                    {
-                                                                        action.label
-                                                                    }
-                                                                </button>
-                                                            )
-                                                        )}
-
-                                                        {deletable ? (
-                                                            <button
-                                                                className={
-                                                                    styles.menuDangerItem
-                                                                }
-                                                                type="button"
-                                                                disabled={
-                                                                    disabled
-                                                                }
-                                                                onClick={() =>
-                                                                    deletePromotion(
-                                                                        promotion
-                                                                    )
-                                                                }
-                                                            >
-                                                                <Trash2
-                                                                    size={
-                                                                        15
-                                                                    }
-                                                                    aria-hidden="true"
-                                                                />
-                                                                Xóa
-                                                            </button>
-                                                        ) : null}
-                                                    </div>
-                                                ) : null}
-                                            </div>
-                                        </td>
-                                    </tr>
+                                                triggerLabel={`Mở thao tác ${promotion.name}`}
+                                            />
+                                        </TableCell>
+                                    </TableRow>
                                 );
                             })}
                         </tbody>
-                    </table>
+                    </Table>
                 </div>
 
                 {!loading && !error && promotions.length === 0 ? (
@@ -756,22 +703,6 @@ export function PromotionPage() {
     );
 }
 
-function PromotionStatusBadge({
-    promotion
-}: {
-    promotion: PromotionResponse;
-}) {
-    return (
-        <span
-            className={`${styles.statusBadge} ${
-                statusClassNames[promotion.status] ?? styles.statusInactive
-            }`}
-        >
-            {getPromotionStatusLabel(promotion.status)}
-        </span>
-    );
-}
-
 function PromotionEmptyState({
     mode,
     hasFilters,
@@ -798,23 +729,15 @@ function PromotionEmptyState({
             </p>
             <div className={styles.emptyStateActions}>
                 {hasFilters ? (
-                    <button
-                        className={styles.secondaryButton}
-                        type="button"
-                        onClick={onClear}
-                    >
+                    <Button onClick={onClear}>
                         <X size={17} aria-hidden="true" />
                         Xóa bộ lọc
-                    </button>
+                    </Button>
                 ) : null}
-                <button
-                    className={styles.primaryButton}
-                    type="button"
-                    onClick={onCreate}
-                >
+                <Button variant="primary" onClick={onCreate}>
                     <Plus size={17} aria-hidden="true" />
                     Tạo khuyến mãi
-                </button>
+                </Button>
             </div>
         </div>
     );
@@ -860,29 +783,22 @@ function PromotionFilters({
                 }}
             >
                 <div className={styles.filterMainRow}>
-                    <label className={styles.search}>
-                        <Search size={18} aria-hidden="true" />
-                        <span className="sr-only">Tìm kiếm khuyến mãi</span>
-                        <input
-                            className={styles.searchInput}
-                            value={filters.keyword}
-                            placeholder="Tìm kiếm khuyến mãi..."
-                            onChange={(event) =>
-                                onFiltersChange({
-                                    ...filters,
-                                    keyword: event.currentTarget.value
-                                })
-                            }
-                        />
-                    </label>
+                    <SearchInput
+                        value={filters.keyword}
+                        placeholder="Tìm kiếm khuyến mãi..."
+                        onChange={(keyword) =>
+                            onFiltersChange({ ...filters, keyword })
+                        }
+                    />
 
-                    <button
-                        className={`${styles.filterToggleButton} ${
+                    <IconButton
+                        size="search"
+                        className={`${
                             detailOpen || hasDetailFilters
                                 ? styles.filterToggleButtonActive
                                 : ""
                         }`}
-                        type="button"
+                        variant="secondary"
                         aria-label="Lọc chi tiết"
                         aria-expanded={detailOpen}
                         onClick={() =>
@@ -893,27 +809,29 @@ function PromotionFilters({
                             size={18}
                             aria-hidden="true"
                         />
-                    </button>
+                    </IconButton>
 
-                    <button
-                        className={styles.primaryButton}
+                    <Button
+                        className="max-[900px]:col-span-2 max-[900px]:w-full"
+                        size="search"
+                        variant="primary"
                         type="submit"
                         disabled={loading}
                     >
                         <Search size={17} aria-hidden="true" />
                         Tìm kiếm
-                    </button>
+                    </Button>
 
                     {showClear ? (
-                        <button
-                            className={styles.secondaryButton}
-                            type="button"
+                        <Button
+                            className="max-[900px]:col-span-2 max-[900px]:w-full"
+                        size="search"
                             disabled={loading}
                             onClick={onClear}
                         >
                             <X size={17} aria-hidden="true" />
                             Xóa lọc
-                        </button>
+                        </Button>
                     ) : null}
                 </div>
 
@@ -1179,11 +1097,20 @@ function PromotionFormModal({
     }
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 p-4">
-            <section className="max-h-[90vh] w-full max-w-4xl overflow-y-auto rounded-2xl bg-white p-6 shadow-xl">
+        <ModalShell
+            className="w-full max-w-4xl p-6"
+            closeOnBackdrop={false}
+            closeOnEscape={false}
+            labelledBy="promotion-form-title"
+            onClose={onClose}
+        >
+            <>
                 <header className="mb-5 flex items-start justify-between gap-4">
                     <div>
-                        <h2 className="text-xl font-bold text-[#17213a]">
+                        <h2
+                            className="text-xl font-bold text-[#17213a]"
+                            id="promotion-form-title"
+                        >
                             {mode === "create"
                                 ? "Tạo khuyến mãi"
                                 : "Chỉnh sửa khuyến mãi"}
@@ -1193,14 +1120,9 @@ function PromotionFormModal({
                             đổi bằng thao tác riêng.
                         </p>
                     </div>
-                    <button
-                        type="button"
-                        onClick={onClose}
-                        className="rounded-lg p-2 hover:bg-[#f2f4f7]"
-                        aria-label="Đóng form"
-                    >
+                    <IconButton aria-label="Đóng form" onClick={onClose}>
                         <X size={20} aria-hidden="true" />
-                    </button>
+                    </IconButton>
                 </header>
 
                 <form
@@ -1214,9 +1136,8 @@ function PromotionFormModal({
                         <h3>Thông tin cơ bản</h3>
                         <div className={styles.detailEditGrid}>
                             {promotionMode === "ALL" ? (
-                                <label className={styles.detailField}>
-                                    <span>Sự kiện</span>
-                                    <select
+                                <Field label="Sự kiện">
+                                    <NativeSelect
                                         value={form.eventId ?? ""}
                                         onChange={(event) =>
                                             updateField(
@@ -1236,20 +1157,18 @@ function PromotionFormModal({
                                                 {event.name}
                                             </option>
                                         ))}
-                                    </select>
-                                </label>
+                                    </NativeSelect>
+                                </Field>
                             ) : (
-                                <div className={styles.detailField}>
-                                    <span>Sự kiện</span>
+                                <Field label="Sự kiện">
                                     <p className={styles.readonlyValue}>
                                         {eventName}
                                     </p>
-                                </div>
+                                </Field>
                             )}
 
-                            <label className={styles.detailField}>
-                                <span>Tên khuyến mãi</span>
-                                <input
+                            <Field label="Tên khuyến mãi">
+                                <TextInput
                                     value={form.name}
                                     onChange={(event) =>
                                         updateField(
@@ -1258,11 +1177,10 @@ function PromotionFormModal({
                                         )
                                     }
                                 />
-                            </label>
+                            </Field>
 
-                            <label className={styles.detailField}>
-                                <span>Loại</span>
-                                <select
+                            <Field label="Loại">
+                                <NativeSelect
                                     value={form.type}
                                     onChange={(event) =>
                                         updateField(
@@ -1276,12 +1194,11 @@ function PromotionFormModal({
                                             {getPromotionTypeLabel(type)}
                                         </option>
                                     ))}
-                                </select>
-                            </label>
+                                </NativeSelect>
+                            </Field>
 
-                            <label className={styles.detailField}>
-                                <span>Cách áp dụng</span>
-                                <select
+                            <Field label="Cách áp dụng">
+                                <NativeSelect
                                     value={form.applyMethod}
                                     onChange={(event) =>
                                         updateField(
@@ -1302,14 +1219,14 @@ function PromotionFormModal({
                                             </option>
                                         )
                                     )}
-                                </select>
-                            </label>
+                                </NativeSelect>
+                            </Field>
 
-                            <label
-                                className={`${styles.detailField} ${styles.detailFieldFull}`}
+                            <Field
+                                className={styles.detailFieldFull}
+                                label="Mô tả"
                             >
-                                <span>Mô tả</span>
-                                <textarea
+                                <TextArea
                                     rows={3}
                                     value={form.description ?? ""}
                                     onChange={(event) =>
@@ -1319,13 +1236,13 @@ function PromotionFormModal({
                                         )
                                     }
                                 />
-                            </label>
+                            </Field>
 
-                            <label
-                                className={`${styles.detailField} ${styles.detailFieldFull}`}
+                            <Field
+                                className={styles.detailFieldFull}
+                                label="Mục tiêu"
                             >
-                                <span>Mục tiêu</span>
-                                <textarea
+                                <TextArea
                                     rows={3}
                                     value={form.objective ?? ""}
                                     onChange={(event) =>
@@ -1335,16 +1252,15 @@ function PromotionFormModal({
                                         )
                                     }
                                 />
-                            </label>
+                            </Field>
                         </div>
                     </section>
 
                     <section className={styles.editFormSection}>
                         <h3>Thời gian và ưu tiên</h3>
                         <div className={styles.detailEditGrid}>
-                            <label className={styles.detailField}>
-                                <span>Bắt đầu</span>
-                                <input
+                            <Field label="Bắt đầu">
+                                <TextInput
                                     type="datetime-local"
                                     value={form.startAt}
                                     onChange={(event) =>
@@ -1354,10 +1270,9 @@ function PromotionFormModal({
                                         )
                                     }
                                 />
-                            </label>
-                            <label className={styles.detailField}>
-                                <span>Kết thúc</span>
-                                <input
+                            </Field>
+                            <Field label="Kết thúc">
+                                <TextInput
                                     type="datetime-local"
                                     value={form.endAt}
                                     onChange={(event) =>
@@ -1367,10 +1282,9 @@ function PromotionFormModal({
                                         )
                                     }
                                 />
-                            </label>
-                            <label className={styles.detailField}>
-                                <span>Độ ưu tiên</span>
-                                <input
+                            </Field>
+                            <Field label="Độ ưu tiên">
+                                <TextInput
                                     type="number"
                                     min={0}
                                     value={form.priority ?? 0}
@@ -1383,7 +1297,7 @@ function PromotionFormModal({
                                         )
                                     }
                                 />
-                            </label>
+                            </Field>
                             <label className={styles.checkboxField}>
                                 <input
                                     type="checkbox"
@@ -1401,25 +1315,20 @@ function PromotionFormModal({
                     </section>
 
                     <footer className={styles.eventPanelFooter}>
-                        <button
-                            className={styles.secondaryButton}
-                            type="button"
-                            disabled={submitting}
-                            onClick={onClose}
-                        >
+                        <Button disabled={submitting} onClick={onClose}>
                             Hủy
-                        </button>
-                        <button
-                            className={styles.primaryButton}
+                        </Button>
+                        <Button
+                            variant="primary"
                             type="submit"
                             disabled={submitting}
                         >
                             {submitting ? "Đang lưu..." : "Lưu"}
-                        </button>
+                        </Button>
                     </footer>
                 </form>
-            </section>
-        </div>
+            </>
+        </ModalShell>
     );
 }
 

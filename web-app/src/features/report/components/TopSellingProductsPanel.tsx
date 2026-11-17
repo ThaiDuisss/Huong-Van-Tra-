@@ -1,5 +1,7 @@
 import { useState } from "react";
 
+import { Field, NativeSelect } from "../../../components/ui/Field";
+import { Table, TableCell, TableHead, TableHeaderCell, TableRow } from "../../../components/ui/Table";
 import { useStatisticReport } from "../hooks/useStatisticReport";
 import styles from "../pages/StatisticReportPage.module.css";
 import {
@@ -56,16 +58,15 @@ export function TopSellingProductsPanel({ enabled, fromDate, limit, toDate }: Re
                         </span>
                     </div>
                     <div className={styles.tableTools}>
-                        <label className={styles.inlineField}>
-                            Xếp hạng theo
-                            <select
+                        <Field label="Xếp hạng theo">
+                            <NativeSelect
                                 onChange={(event) => setSortBy(event.target.value as ProductSortBy)}
                                 value={sortBy}
                             >
                                 <option value="quantity">Số lượng bán</option>
                                 <option value="revenue">Doanh thu</option>
-                            </select>
-                        </label>
+                            </NativeSelect>
+                        </Field>
                         <ReportExportButton
                             disabled={!enabled || loading || rows.length === 0}
                             filenamePrefix="bao-cao-san-pham-ban-chay-ton-kho"
@@ -79,36 +80,36 @@ export function TopSellingProductsPanel({ enabled, fromDate, limit, toDate }: Re
                 {error ? <div className={styles.errorBox}>{error}</div> : null}
 
                 <div className={styles.tableWrap}>
-                    <table className={styles.reportTable}>
-                        <thead>
-                            <tr>
-                                <th className={styles.rankColumn}>Hạng</th>
-                                <th>Sản phẩm</th>
-                                <th>SKU</th>
-                                <th className={styles.numeric}>Số lượng bán</th>
-                                <th className={styles.numeric}>Doanh thu</th>
-                                <th className={styles.numeric}>Số đơn</th>
-                                <th className={styles.numeric}>SL đã trả</th>
-                            </tr>
-                        </thead>
+                    <Table className="min-w-[860px]">
+                        <TableHead>
+                            <TableRow>
+                                <TableHeaderCell className="w-16 text-center">Hạng</TableHeaderCell>
+                                <TableHeaderCell>Sản phẩm</TableHeaderCell>
+                                <TableHeaderCell>SKU</TableHeaderCell>
+                                <TableHeaderCell className="text-right">Số lượng bán</TableHeaderCell>
+                                <TableHeaderCell className="text-right">Doanh thu</TableHeaderCell>
+                                <TableHeaderCell className="text-right">Số đơn</TableHeaderCell>
+                                <TableHeaderCell className="text-right">SL đã trả</TableHeaderCell>
+                            </TableRow>
+                        </TableHead>
                         <tbody>
                             {loading ? (
                                 <StateRow colSpan={COLUMN_COUNT} message="Đang tải dữ liệu báo cáo..." />
                             ) : null}
                             {!loading && !error
                                 ? rows.map((row) => (
-                                      <tr key={row.productVariantId}>
-                                          <td className={styles.rankColumn}>
+                                      <TableRow className="hover:bg-[#f8fbf8]" key={row.productVariantId}>
+                                          <TableCell className="w-16 text-center">
                                               <RankBadge rank={row.rank} />
-                                          </td>
-                                          <td>
+                                          </TableCell>
+                                          <TableCell>
                                               <strong>{row.productName?.trim() || "--"}</strong>
                                               {row.variantName?.trim() ? (
                                                   <div className={styles.muted}>{row.variantName}</div>
                                               ) : null}
-                                          </td>
-                                          <td>{row.sku?.trim() || "--"}</td>
-                                          <td className={styles.numeric}>
+                                          </TableCell>
+                                          <TableCell>{row.sku?.trim() || "--"}</TableCell>
+                                          <TableCell className="text-right tabular-nums">
                                               {sortBy === "quantity" ? (
                                                   <BarValue max={maxQuantity} value={toNumber(row.quantitySold)}>
                                                       {formatQuantity(row.quantitySold)}
@@ -116,8 +117,8 @@ export function TopSellingProductsPanel({ enabled, fromDate, limit, toDate }: Re
                                               ) : (
                                                   formatQuantity(row.quantitySold)
                                               )}
-                                          </td>
-                                          <td className={styles.numeric}>
+                                          </TableCell>
+                                          <TableCell className="text-right tabular-nums">
                                               {sortBy === "revenue" ? (
                                                   <BarValue max={maxRevenue} value={toNumber(row.revenue)}>
                                                       {formatCurrency(row.revenue)}
@@ -125,10 +126,10 @@ export function TopSellingProductsPanel({ enabled, fromDate, limit, toDate }: Re
                                               ) : (
                                                   formatCurrency(row.revenue)
                                               )}
-                                          </td>
-                                          <td className={styles.numeric}>{formatCount(row.orderCount)}</td>
-                                          <td className={styles.numeric}>{formatQuantity(row.returnedQuantity)}</td>
-                                      </tr>
+                                          </TableCell>
+                                          <TableCell className="text-right tabular-nums">{formatCount(row.orderCount)}</TableCell>
+                                          <TableCell className="text-right tabular-nums">{formatQuantity(row.returnedQuantity)}</TableCell>
+                                      </TableRow>
                                   ))
                                 : null}
                             {!loading && !error && rows.length === 0 ? (
@@ -142,7 +143,7 @@ export function TopSellingProductsPanel({ enabled, fromDate, limit, toDate }: Re
                                 />
                             ) : null}
                         </tbody>
-                    </table>
+                    </Table>
                 </div>
             </section>
         </>

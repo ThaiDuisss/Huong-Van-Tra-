@@ -1,10 +1,20 @@
-import { History, Pencil, Plus, RefreshCw, Search, TicketPercent } from "lucide-react";
+import { History, Pencil, Plus, RefreshCw } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 
 import { MarketingPagination } from "../components/MarketingPagination";
 import {
-    MarketingTableSkeleton,
+    DataTable,
+    type DataTableColumn
+} from "../../../components/shared/list/DataTable";
+import { ListPageHeader } from "../../../components/shared/list/ListPageHeader";
+import { Button } from "../../../components/ui/Button";
+import { buttonClassName } from "../../../components/ui/button-styles";
+import { NativeSelect } from "../../../components/ui/Field";
+import { ModalShell } from "../../../components/ui/Overlay";
+import { SearchInput } from "../../../components/ui/SearchInput";
+import { StatusBadge } from "../../../components/ui/StatusBadge";
+import {
     MarketingToast,
     type MarketingNotice
 } from "../components/MarketingFeedback";
@@ -17,6 +27,7 @@ import type {
     CouponStatusValue
 } from "../types/coupon.types";
 import { formatDiscountDateTimeCompact } from "../utils/discount-programs";
+import { getMarketingStatusTone } from "../utils/event-labels";
 import { routePaths } from "../../../routes/path";
 
 const couponStatusLabels: Record<string, string> = {
@@ -48,16 +59,6 @@ interface PendingStatusChange {
     coupon: CouponResponse;
     status: CouponStatusValue;
 }
-
-const statusClassNames: Record<string, string> = {
-    DRAFT: styles.statusInactive,
-    SCHEDULED: styles.statusScheduled,
-    ACTIVE: styles.statusActive,
-    PAUSED: styles.statusPaused,
-    EXPIRED: styles.statusExpired,
-    CANCELLED: styles.statusCancelled,
-    ARCHIVED: styles.statusInactive
-};
 
 export function CouponListPage() {
     const [searchParams] = useSearchParams();
@@ -209,53 +210,142 @@ export function CouponListPage() {
         setPage(1);
     }
 
+    const columns: DataTableColumn<CouponResponse>[] = [
+        {
+            key: "code",
+            header: "Mã coupon",
+            render: (coupon) => (
+                <>
+                    <strong className={styles.codeText}>{coupon.code}</strong>
+                    <span className={styles.codeMeta}>
+                        {formatText(coupon.issueReason)}
+                    </span>
+                </>
+            )
+        },
+        {
+            key: "promotion",
+            header: "Khuyến mãi",
+            render: (coupon) =>
+                formatText(coupon.promotionName ?? coupon.snapshotPromotionName)
+        },
+        {
+            key: "scope",
+            header: "Phạm vi",
+            render: (coupon) => formatEnum(coupon.scope, couponScopeLabels)
+        },
+        {
+            key: "usage",
+            header: "Sử dụng",
+            render: (coupon) => (
+                <>
+                    {coupon.usedCount ?? 0} / {coupon.usageLimit ?? 0}
+                </>
+            )
+        },
+        {
+            key: "expiresAt",
+            header: "Hết hạn",
+            render: (coupon) => formatDate(coupon.expiresAt)
+        },
+        {
+            key: "status",
+            header: "Trạng thái",
+            render: (coupon) => (
+                <StatusBadge dot tone={getMarketingStatusTone(coupon.status)}>
+                    {formatEnum(coupon.status, couponStatusLabels)}
+                </StatusBadge>
+            )
+        },
+        {
+            key: "actions",
+            header: "Thao tác",
+            render: (coupon) => (
+                <div className="flex items-center gap-2">
+                    <Button
+                        disabled={coupon.status === "CANCELLED"}
+                        onClick={() => openEditForm(coupon)}
+                    >
+                        <Pencil size={16} aria-hidden="true" />
+                        Sửa
+                    </Button>
+                    <span className="w-[160px]">
+                        <NativeSelect
+                            className="font-bold"
+                            aria-label={`Đổi trạng thái mã ${coupon.code}`}
+                            value=""
+                            disabled={LOCKED_STATUSES.has(coupon.status)}
+                            onChange={(event) => {
+                                const status = event.currentTarget
+                                    .value as CouponStatusValue;
+                                if (status) {
+                                    setPendingStatus({ coupon, status });
+                                }
+                            }}
+                        >
+                            <option value="">Đổi trạng thái</option>
+                            {CHANGEABLE_STATUSES.filter(
+                                (status) => status !== coupon.status
+                            ).map((status) => (
+                                <option key={status} value={status}>
+                                    {couponStatusLabels[status]}
+                                </option>
+                            ))}
+                        </NativeSelect>
+                    </span>
+                    <Link
+                        className={buttonClassName({ variant: "secondary" })}
+                        to={`${routePaths.discountHistory}?couponId=${encodeURIComponent(
+                            coupon.id
+                        )}&couponCode=${encodeURIComponent(coupon.code)}`}
+                    >
+                        <History size={16} aria-hidden="true" />
+                        Lịch sử
+                    </Link>
+                </div>
+            )
+        }
+    ];
+
     return (
         <section className={styles.page}>
-            <header className={styles.header}>
-                <div className={styles.titleBlock}>
+            <ListPageHeader
+                actions={
+                    <>
+                        {promotionId ? (
+                            <Link
+                                to={routePaths.discountCodes}
+                                className={buttonClassName({ variant: "secondary" })}
+                            >
+                                Xem tất cả coupon
+                            </Link>
+                        ) : null}
+                        <Button disabled={loading} onClick={reload}>
+                            <RefreshCw size={17} aria-hidden="true" />
+                            Tải lại
+                        </Button>
+                        <Button variant="primary" onClick={openCreateForm}>
+                            <Plus size={17} aria-hidden="true" />
+                            Thêm mã giảm giá
+                        </Button>
+                    </>
+                }
+                breadcrumb={
                     <nav className="flex items-center gap-2 text-sm" aria-label="Breadcrumb">
                         <span className="font-bold text-[#009b4d]">Marketing</span>
                         <span aria-hidden="true">›</span>
                         <span className="font-bold text-[#17213a]">Coupon</span>
                     </nav>
-                    <h1 className={styles.title}>Coupon</h1>
-                    <p className={styles.description}>
-                        {promotionId
-                            ? `Đang xem coupon thuộc khuyến mãi ${
-                                  promotionName || promotionId
-                              }.`
-                            : "Quản lý các mã coupon đã phát hành trong hệ thống."}
-                    </p>
-                </div>
-
-                <div className={styles.actions}>
-                    {promotionId ? (
-                        <Link
-                            to={routePaths.discountCodes}
-                            className={styles.secondaryButton}
-                        >
-                            Xem tất cả coupon
-                        </Link>
-                    ) : null}
-                    <button
-                        className={styles.secondaryButton}
-                        type="button"
-                        disabled={loading}
-                        onClick={reload}
-                    >
-                        <RefreshCw size={17} aria-hidden="true" />
-                        Tải lại
-                    </button>
-                    <button
-                        className={styles.primaryButton}
-                        type="button"
-                        onClick={openCreateForm}
-                    >
-                        <Plus size={17} aria-hidden="true" />
-                        Thêm mã giảm giá
-                    </button>
-                </div>
-            </header>
+                }
+                description={
+                    promotionId
+                        ? `Đang xem coupon thuộc khuyến mãi ${
+                              promotionName || promotionId
+                          }.`
+                        : "Quản lý các mã coupon đã phát hành trong hệ thống."
+                }
+                title="Coupon"
+            />
 
             {error ? (
                 <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">
@@ -264,131 +354,35 @@ export function CouponListPage() {
             ) : null}
 
             <section className={styles.filtersCard}>
-                <label className={styles.search}>
-                    <Search size={18} aria-hidden="true" />
-                    <span className="sr-only">Tìm coupon</span>
-                    <input
-                        className={styles.searchInput}
-                        value={query}
-                        placeholder="Tìm mã coupon, khuyến mãi, khách hàng..."
-                        onChange={(event) => {
-                            setQuery(event.currentTarget.value);
-                            setPage(1);
-                        }}
-                    />
-                </label>
-            </section>
-
-            <section className={styles.tableCard}>
-                <div className={styles.tableScroll}>
-                    <table className={styles.table}>
-                        <thead>
-                            <tr>
-                                <th>Mã coupon</th>
-                                <th>Khuyến mãi</th>
-                                <th>Phạm vi</th>
-                                <th>Sử dụng</th>
-                                <th>Hết hạn</th>
-                                <th>Trạng thái</th>
-                                <th>Thao tác</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {loading ? (
-                                <MarketingTableSkeleton columns={7} />
-                            ) : coupons.map((coupon, index) => (
-                                <tr
-                                    key={coupon.id}
-                                    className={
-                                        index % 2 === 0
-                                            ? styles.rowOdd
-                                            : styles.rowEven
-                                    }
-                                >
-                                    <td>
-                                        <strong className={styles.codeText}>
-                                            {coupon.code}
-                                        </strong>
-                                        <span className={styles.codeMeta}>
-                                            {formatText(coupon.issueReason)}
-                                        </span>
-                                    </td>
-                                    <td>{formatText(coupon.promotionName ?? coupon.snapshotPromotionName)}</td>
-                                    <td>{formatEnum(coupon.scope, couponScopeLabels)}</td>
-                                    <td>
-                                        {coupon.usedCount ?? 0} /{" "}
-                                        {coupon.usageLimit ?? 0}
-                                    </td>
-                                    <td>{formatDate(coupon.expiresAt)}</td>
-                                    <td>
-                                        <StatusBadge
-                                            value={coupon.status}
-                                            labels={couponStatusLabels}
-                                        />
-                                    </td>
-                                    <td className={styles.actionCell}>
-                                        <button
-                                            className={styles.secondaryButton}
-                                            type="button"
-                                            disabled={coupon.status === "CANCELLED"}
-                                            onClick={() => openEditForm(coupon)}
-                                        >
-                                            <Pencil size={16} aria-hidden="true" />
-                                            Sửa
-                                        </button>
-                                        <select
-                                            className={styles.secondaryButton}
-                                            aria-label={`Đổi trạng thái mã ${coupon.code}`}
-                                            value=""
-                                            disabled={LOCKED_STATUSES.has(coupon.status)}
-                                            onChange={(event) => {
-                                                const status = event.currentTarget
-                                                    .value as CouponStatusValue;
-                                                if (status) {
-                                                    setPendingStatus({ coupon, status });
-                                                }
-                                            }}
-                                        >
-                                            <option value="">Đổi trạng thái</option>
-                                            {CHANGEABLE_STATUSES.filter(
-                                                (status) => status !== coupon.status
-                                            ).map((status) => (
-                                                <option key={status} value={status}>
-                                                    {couponStatusLabels[status]}
-                                                </option>
-                                            ))}
-                                        </select>
-                                        <Link
-                                            className={styles.secondaryButton}
-                                            to={`${routePaths.discountHistory}?couponId=${encodeURIComponent(
-                                                coupon.id
-                                            )}&couponCode=${encodeURIComponent(
-                                                coupon.code
-                                            )}`}
-                                        >
-                                            <History size={16} aria-hidden="true" />
-                                            Lịch sử
-                                        </Link>
-                                    </td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                </div>
-
-                {!loading && coupons.length === 0 ? (
-                    <div className={styles.empty}>Chưa có coupon phù hợp.</div>
-                ) : null}
-
-                <MarketingPagination
-                    page={page}
-                    pageCount={pageCount}
-                    totalItems={totalItems}
-                    pageSize={pageSize}
-                    onPageChange={setPage}
-                    onPageSizeChange={updatePageSize}
+                <SearchInput
+                    value={query}
+                    placeholder="Tìm mã coupon, khuyến mãi, khách hàng..."
+                    onChange={(value) => {
+                        setQuery(value);
+                        setPage(1);
+                    }}
                 />
             </section>
+
+            <DataTable
+                caption="Danh sách coupon"
+                columns={columns}
+                rows={coupons}
+                getRowKey={(coupon) => coupon.id}
+                loading={loading}
+                emptyTitle="Chưa có coupon phù hợp."
+                minWidth={1080}
+                pagination={
+                    <MarketingPagination
+                        page={page}
+                        pageCount={pageCount}
+                        totalItems={totalItems}
+                        pageSize={pageSize}
+                        onPageChange={setPage}
+                        onPageSizeChange={updatePageSize}
+                    />
+                }
+            />
 
             {formOpen ? (
                 <CouponFormModal
@@ -402,46 +396,45 @@ export function CouponListPage() {
             ) : null}
 
             {pendingStatus ? (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 p-4">
-                    <section
-                        className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl"
-                        role="alertdialog"
-                        aria-modal="true"
-                        aria-label="Xác nhận đổi trạng thái"
+                <ModalShell
+                    className="w-full max-w-md p-6"
+                    closeOnBackdrop={false}
+                    closeOnEscape={false}
+                    labelledBy="coupon-status-confirm-title"
+                    onClose={() => setPendingStatus(null)}
+                >
+                    <h2
+                        className="text-lg font-bold text-[#17213a]"
+                        id="coupon-status-confirm-title"
                     >
-                        <h2 className="text-lg font-bold text-[#17213a]">
-                            Đổi trạng thái mã giảm giá
-                        </h2>
-                        <p className="mt-2 text-sm font-medium text-[#475467]">
-                            Chuyển mã <strong>{pendingStatus.coupon.code}</strong> từ{" "}
-                            <strong>
-                                {formatEnum(pendingStatus.coupon.status, couponStatusLabels)}
-                            </strong>{" "}
-                            sang <strong>{couponStatusLabels[pendingStatus.status]}</strong>?
-                            {LOCKED_STATUSES.has(pendingStatus.status)
-                                ? " Sau khi chuyển sẽ không đổi lại được."
-                                : ""}
-                        </p>
-                        <footer className="mt-5 flex justify-end gap-3">
-                            <button
-                                type="button"
-                                className={styles.secondaryButton}
-                                disabled={changingStatus}
-                                onClick={() => setPendingStatus(null)}
-                            >
-                                Hủy
-                            </button>
-                            <button
-                                type="button"
-                                className={styles.primaryButton}
-                                disabled={changingStatus}
-                                onClick={() => void confirmStatusChange()}
-                            >
-                                {changingStatus ? "Đang lưu..." : "Xác nhận"}
-                            </button>
-                        </footer>
-                    </section>
-                </div>
+                        Đổi trạng thái mã giảm giá
+                    </h2>
+                    <p className="mt-2 text-sm font-medium text-[#475467]">
+                        Chuyển mã <strong>{pendingStatus.coupon.code}</strong> từ{" "}
+                        <strong>
+                            {formatEnum(pendingStatus.coupon.status, couponStatusLabels)}
+                        </strong>{" "}
+                        sang <strong>{couponStatusLabels[pendingStatus.status]}</strong>?
+                        {LOCKED_STATUSES.has(pendingStatus.status)
+                            ? " Sau khi chuyển sẽ không đổi lại được."
+                            : ""}
+                    </p>
+                    <footer className="mt-5 flex justify-end gap-3">
+                        <Button
+                            disabled={changingStatus}
+                            onClick={() => setPendingStatus(null)}
+                        >
+                            Hủy
+                        </Button>
+                        <Button
+                            variant="primary"
+                            disabled={changingStatus}
+                            onClick={() => void confirmStatusChange()}
+                        >
+                            {changingStatus ? "Đang lưu..." : "Xác nhận"}
+                        </Button>
+                    </footer>
+                </ModalShell>
             ) : null}
 
             <MarketingToast
@@ -449,25 +442,6 @@ export function CouponListPage() {
                 onClose={() => setNotice(null)}
             />
         </section>
-    );
-}
-
-function StatusBadge({
-    value,
-    labels
-}: {
-    value: string;
-    labels: Record<string, string>;
-}) {
-    return (
-        <span
-            className={`${styles.statusBadge} ${
-                statusClassNames[value] ?? styles.statusInactive
-            }`}
-        >
-            <TicketPercent size={13} aria-hidden="true" />
-            {formatEnum(value, labels)}
-        </span>
     );
 }
 

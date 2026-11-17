@@ -1,6 +1,7 @@
 import { LoaderCircle, LockKeyhole, RefreshCw, Unplug } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ActionButton } from "../../manufacturing/components/shared/ActionButton";
+import { Button } from "../../../components/ui/Button";
+import { Field, NativeSelect, TextInput } from "../../../components/ui/Field";
 import { PageHeader } from "../../manufacturing/components/shared/PageHeader";
 import { IngredientResultCard, ResearchId } from "../components/IngredientResultCard";
 import { formatDemoInstant, shortResearchId } from "../utils/ingredientDemo.display";
@@ -8,8 +9,6 @@ import { demoAsOf, demoErrorMessage, ingredientDemoApi } from "../services/ingre
 import type { IngredientCohort, IngredientMode, IngredientPolicy, IngredientRecommendations, ResearchCustomers } from "../types/ingredientDemo.types";
 
 const COHORTS: Record<IngredientCohort, string> = { PRODUCT_ONLY: "Chỉ Product", BOM_ONLY: "Chỉ BOM", MIXED: "Kết hợp", NO_HISTORY: "Chưa có lịch sử" };
-const inputStyle = "w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 focus:border-emerald-600 focus:outline-none focus:ring-2 focus:ring-emerald-100";
-
 export function IngredientDemoPage() {
   const [draftToken, setDraftToken] = useState("");
   const [connected, setConnected] = useState(false);
@@ -125,12 +124,10 @@ export function IngredientDemoPage() {
       <h2 className="flex items-center gap-2 font-semibold text-slate-900"><LockKeyhole size={17} /> Kết nối demo riêng</h2>
       <p className="text-sm text-slate-600">Demo-token khác token đăng nhập POS. Token chỉ giữ trong bộ nhớ của trang này; rời trang hoặc tải lại sẽ cần nhập lại.</p>
       <form className="flex flex-col gap-3 sm:flex-row" autoComplete="off" onSubmit={event => { event.preventDefault(); if (draftToken.trim()) void loadCustomers(draftToken.trim()); }}>
-        <label className="flex-1 space-y-1 text-sm font-medium">Demo-token
-          <input type="password" value={draftToken} onChange={event => setDraftToken(event.target.value)} autoComplete="off" spellCheck={false}
-            className={inputStyle} placeholder="Nhập token riêng của Ingredient Demo Backend" aria-label="Demo-token" />
-        </label>
-        <button type="submit" disabled={!draftToken.trim() || customersBusy} className="self-end rounded-lg bg-emerald-700 px-5 py-3 text-sm font-semibold text-white disabled:opacity-50">Kết nối và tải khách</button>
-        {connected && <div className="self-end"><ActionButton onClick={disconnect}><Unplug size={16} /> Xóa token / ngắt</ActionButton></div>}
+        <Field className="flex-1" label="Demo-token"><TextInput type="password" value={draftToken} onChange={event => setDraftToken(event.target.value)} autoComplete="off" spellCheck={false} placeholder="Nhập token riêng của Ingredient Demo Backend" aria-label="Demo-token" />
+        </Field>
+        <Button type="submit" disabled={!draftToken.trim() || customersBusy} className="self-end" variant="primary">Kết nối và tải khách</Button>
+        {connected && <div className="self-end"><Button onClick={disconnect}><Unplug size={16} /> Xóa token / ngắt</Button></div>}
       </form>
       <p className="text-xs leading-5 text-slate-500">Local development dùng Vite proxy đến backend demo (mặc định cổng 8096). Bản build gọi khác origin cần CORS/reverse proxy. Trang không tự dùng Product V1 khi demo không kết nối được.</p>
     </section>
@@ -141,10 +138,10 @@ export function IngredientDemoPage() {
           <h2 className="font-semibold text-slate-900">1. Chọn khách nghiên cứu</h2>
           {!connected && <p className="text-sm text-slate-500">Nhập demo-token để tải danh sách khách.</p>}
           {customersBusy && <p role="status" className="flex items-center gap-2 text-sm"><LoaderCircle size={15} className="animate-spin" /> Đang tải khách nghiên cứu…</p>}
-          {customersError && <div role="alert" className="space-y-2 text-sm text-red-800"><p>{customersError}</p><ActionButton onClick={() => void loadCustomers()}><RefreshCw size={15} /> Thử tải lại</ActionButton></div>}
+          {customersError && <div role="alert" className="space-y-2 text-sm text-red-800"><p>{customersError}</p><Button onClick={() => void loadCustomers()}><RefreshCw size={15} /> Thử tải lại</Button></div>}
           {catalog && <>
-            <label className="block space-y-1 text-sm">Tìm theo Customer ID<input className={inputStyle} value={search} onChange={event => { setSearch(event.target.value); setCustomerPage(0); }} placeholder="Nhập một phần hoặc toàn bộ ID" /></label>
-            <label className="block space-y-1 text-sm">Nhóm khách<select className={inputStyle} value={cohort} onChange={event => { setCohort(event.target.value); setCustomerPage(0); }}><option value="">Tất cả nhóm</option>{Object.entries(COHORTS).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select></label>
+            <Field label="Tìm theo Customer ID"><TextInput value={search} onChange={event => { setSearch(event.target.value); setCustomerPage(0); }} placeholder="Nhập một phần hoặc toàn bộ ID" /></Field>
+            <Field label="Nhóm khách"><NativeSelect value={cohort} onChange={event => { setCohort(event.target.value); setCustomerPage(0); }}><option value="">Tất cả nhóm</option>{Object.entries(COHORTS).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</NativeSelect></Field>
             <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={coldOnly} onChange={event => { setColdOnly(event.target.checked); setCustomerPage(0); }} /> Chưa có lịch sử Train (cold-start)</label>
             {coldOnly && <p className="text-xs leading-5 text-slate-500">Cold-start được xác định tại 01/03/2026 UTC. Chọn mốc này để xem fallback khi chưa có lịch sử.</p>}
             <p className="text-xs text-slate-500">{filtered.length}/{catalog.customers.length} khách phù hợp · Trang {visiblePage + 1}/{pages}</p>
@@ -154,24 +151,24 @@ export function IngredientDemoPage() {
                 <span className="block font-semibold">Khách nghiên cứu · {shortResearchId(customer.customer_id)}</span><span className="text-xs">{COHORTS[customer.cohort]}{customer.cold_at_train_cutoff ? " · Cold tại Train" : ""}</span>
               </button>
             </li>)}</ul>}
-            <div className="flex justify-between"><button type="button" disabled={visiblePage === 0} onClick={() => setCustomerPage(visiblePage - 1)} className="rounded border px-3 py-2 text-sm disabled:opacity-40">Trang trước</button><button type="button" disabled={visiblePage >= pages - 1} onClick={() => setCustomerPage(visiblePage + 1)} className="rounded border px-3 py-2 text-sm disabled:opacity-40">Trang sau</button></div>
+            <div className="flex justify-between"><Button disabled={visiblePage === 0} onClick={() => setCustomerPage(visiblePage - 1)} size="sm">Trang trước</Button><Button disabled={visiblePage >= pages - 1} onClick={() => setCustomerPage(visiblePage + 1)} size="sm">Trang sau</Button></div>
           </>}
           {selected && <div className="space-y-2 border-t pt-3"><p className="text-sm font-semibold text-emerald-900">Đã chọn · {COHORTS[selected.cohort]}</p><ResearchId label="Customer ID" value={selected.customer_id} /></div>}
         </section>
         <section className="space-y-3 rounded-xl border border-slate-200 bg-white p-4">
           <h2 className="font-semibold text-slate-900">2. Điều kiện gợi ý</h2>
-          <label className="block space-y-1 text-sm">Chế độ<select value={mode} className={inputStyle} onChange={event => { invalidateRecommendation(); setMode(event.target.value as IngredientMode); }}><option value="PRODUCT">Product — sản phẩm</option><option value="CUSTOM_BOM">Custom BOM — công thức</option><option value="UNIFIED">Kết hợp (Unified)</option></select></label>
-          <label className="block space-y-1 text-sm">Chính sách<select value={policy} className={inputStyle} onChange={event => { invalidateRecommendation(); setPolicy(event.target.value as IngredientPolicy); }}><option value="DISCOVERY">DISCOVERY — ưu tiên nội dung chưa mua</option><option value="REPEAT">REPEAT — cho phép gợi ý lại</option></select></label>
-          <label className="block space-y-1 text-sm">Số kết quả<select value={topK} className={inputStyle} onChange={event => { invalidateRecommendation(); setTopK(Number(event.target.value)); }}>{[1, 2, 3, 4, 5].map(k => <option key={k} value={k}>Top-{k}</option>)}</select></label>
-          <div className="grid grid-cols-2 gap-2"><label className="space-y-1 text-sm">Ngày (UTC)<input type="date" min="2026-03-01" max="2026-05-01" value={date} className={inputStyle} onChange={event => { invalidateRecommendation(); setDate(event.target.value); }} /></label><label className="space-y-1 text-sm">Giờ (UTC)<input type="time" value={time} className={inputStyle} onChange={event => { invalidateRecommendation(); setTime(event.target.value); }} /></label></div>
+          <Field label="Chế độ"><NativeSelect value={mode} onChange={event => { invalidateRecommendation(); setMode(event.target.value as IngredientMode); }}><option value="PRODUCT">Product — sản phẩm</option><option value="CUSTOM_BOM">Custom BOM — công thức</option><option value="UNIFIED">Kết hợp (Unified)</option></NativeSelect></Field>
+          <Field label="Chính sách"><NativeSelect value={policy} onChange={event => { invalidateRecommendation(); setPolicy(event.target.value as IngredientPolicy); }}><option value="DISCOVERY">DISCOVERY — ưu tiên nội dung chưa mua</option><option value="REPEAT">REPEAT — cho phép gợi ý lại</option></NativeSelect></Field>
+          <Field label="Số kết quả"><NativeSelect value={topK} onChange={event => { invalidateRecommendation(); setTopK(Number(event.target.value)); }}>{[1, 2, 3, 4, 5].map(k => <option key={k} value={k}>Top-{k}</option>)}</NativeSelect></Field>
+          <div className="grid grid-cols-2 gap-2"><Field label="Ngày (UTC)"><TextInput type="date" min="2026-03-01" max="2026-05-01" value={date} onChange={event => { invalidateRecommendation(); setDate(event.target.value); }} /></Field><Field label="Giờ (UTC)"><TextInput type="time" value={time} onChange={event => { invalidateRecommendation(); setTime(event.target.value); }} /></Field></div>
           <p className="text-xs text-slate-500">{readableDate} lúc {time || "—"} UTC · Cửa sổ 01/03–01/05/2026; ngày cuối chỉ đến 00:00.</p>
-          <div className="flex flex-wrap gap-2">{["2026-03-01", "2026-04-01"].map(value => <button key={value} type="button" className="rounded border px-2 py-1.5 text-xs hover:bg-slate-50" onClick={() => { invalidateRecommendation(); setDate(value); setTime("00:00"); }}>{value === "2026-03-01" ? "Mốc cold-start: 01/03" : "Mốc mặc định: 01/04"}</button>)}</div>
-          <ActionButton variant="primary" disabled={!connected || !selectedId || recommendBusy || customersBusy} onClick={() => void recommend()}>{recommendBusy && <LoaderCircle size={16} className="animate-spin" />} {recommendBusy ? "Đang lấy gợi ý…" : "Xem gợi ý nguyên liệu"}</ActionButton>
+          <div className="flex flex-wrap gap-2">{["2026-03-01", "2026-04-01"].map(value => <Button key={value} size="sm" onClick={() => { invalidateRecommendation(); setDate(value); setTime("00:00"); }}>{value === "2026-03-01" ? "Mốc cold-start: 01/03" : "Mốc mặc định: 01/04"}</Button>)}</div>
+          <Button variant="primary" disabled={!connected || !selectedId || recommendBusy || customersBusy} onClick={() => void recommend()}>{recommendBusy && <LoaderCircle size={16} className="animate-spin" />} {recommendBusy ? "Đang lấy gợi ý…" : "Xem gợi ý nguyên liệu"}</Button>
         </section>
       </div>
       <section className="min-w-0 space-y-4" aria-busy={recommendBusy} aria-label="Kết quả Ingredient AI">
         <h2 className="text-lg font-bold text-slate-900">Kết quả gợi ý</h2>
-        {recommendError && <div role="alert" className="space-y-3 rounded-xl bg-red-50 p-4 text-sm text-red-800"><p>{recommendError}</p><ActionButton disabled={!connected || !selectedId || recommendBusy} onClick={() => void recommend()}>Thử lại</ActionButton></div>}
+        {recommendError && <div role="alert" className="space-y-3 rounded-xl bg-red-50 p-4 text-sm text-red-800"><p>{recommendError}</p><Button disabled={!connected || !selectedId || recommendBusy} onClick={() => void recommend()}>Thử lại</Button></div>}
         {recommendBusy && <p role="status" className="flex items-center gap-2 rounded-xl bg-white p-5 text-sm"><LoaderCircle size={17} className="animate-spin" /> Đang gọi Ingredient Recommendation API…</p>}
         {!result && !recommendBusy && !recommendError && <p className="rounded-xl border border-dashed border-slate-300 bg-white p-6 text-sm text-slate-500">Chọn khách và điều kiện rồi bấm xem gợi ý. Kết quả chỉ phục vụ nghiên cứu, không có thao tác thêm vào giỏ hàng.</p>}
         {result && <>

@@ -1,7 +1,13 @@
-import { ChevronLeft, ChevronRight, ClipboardList, RefreshCw, Search } from "lucide-react";
+import { RefreshCw, Search } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 
+import { DataTable, type DataTableColumn } from "../../../components/shared/list/DataTable";
+import { ListPageHeader } from "../../../components/shared/list/ListPageHeader";
+import { TablePagination } from "../../../components/shared/list/TablePagination";
+import { Button, IconButton } from "../../../components/ui/Button";
+import { Field, NativeSelect, TextInput } from "../../../components/ui/Field";
+import { StatusBadge } from "../../../components/ui/StatusBadge";
 import { adjustmentStatusLabels } from "../constants/stocktake.constants";
 import { stocktakeApi } from "../services/stocktake.api";
 import type {
@@ -69,46 +75,105 @@ export function StocktakeAdjustmentListPage() {
     setPage(0);
   }
 
+  // Phiếu từ kiểm kê được xem ngay trong màn chi tiết kỳ kiểm kê
+  const targetOf = (item: AdjustmentListItem) =>
+    item.referenceType === "STOCK_COUNT" && item.referenceId
+      ? `/management/inventory/stocktakes/${item.referenceId}`
+      : null;
+  const quantityOf = (item: AdjustmentListItem) =>
+    item.lines.reduce((total, line) => total + line.adjustmentQuantity, 0);
+
+  const columns: DataTableColumn<AdjustmentListItem>[] = [
+    {
+      key: "documentCode",
+      header: "Mã phiếu",
+      className: "font-black text-[#159734]",
+      render: (item) => item.documentCode,
+    },
+    {
+      key: "stocktake",
+      header: "Kỳ kiểm kê",
+      render: (item) => {
+        const target = targetOf(item);
+        return target ? (
+          <Link className="font-bold text-[#159734] hover:underline" to={target}>
+            {item.note?.match(/CT-[\w-]+/)?.[0] ?? "Xem kỳ kiểm kê"}
+          </Link>
+        ) : (
+          "Điều chỉnh thủ công"
+        );
+      },
+    },
+    {
+      key: "branch",
+      header: "Chi nhánh",
+      render: (item) =>
+        options?.branches.find((candidate) => candidate.id === item.branchId)?.name ??
+        item.branchId.slice(0, 8),
+    },
+    { key: "createdAt", header: "Ngày tạo", render: (item) => formatVietnamDateTime(item.createdAt) },
+    { key: "lineCount", header: "Số mặt hàng", render: (item) => item.lines.length },
+    {
+      key: "quantity",
+      header: "Tổng điều chỉnh",
+      render: (item) => {
+        const quantity = quantityOf(item);
+        return (
+          <span className={`font-black ${quantity < 0 ? "text-red-700" : "text-emerald-700"}`}>
+            {quantity > 0 ? "+" : ""}
+            {formatVietnamNumber(quantity)}
+          </span>
+        );
+      },
+    },
+    { key: "status", header: "Trạng thái", render: (item) => <Status status={item.status} /> },
+    {
+      key: "postedAt",
+      header: "Ngày cập nhật",
+      render: (item) => (item.postedAt ? formatVietnamDateTime(item.postedAt) : "Chưa cập nhật"),
+    },
+    {
+      key: "action",
+      header: "",
+      hideOnMobile: true,
+      render: (item) => {
+        const target = targetOf(item);
+        return target ? (
+          <Link className="font-bold text-[#159734] hover:underline" to={target}>
+            Xem phiếu
+          </Link>
+        ) : null;
+      },
+    },
+  ];
+
   return (
-    <section className="grid min-h-[calc(100vh-120px)] gap-4 text-[#172317]">
-      <header className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold sm:text-3xl">Phiếu cập nhật tồn kho</h1>
-          <p className="mt-1 text-sm text-gray-500">
-            Quản lý tập trung các phiếu được tạo từ kết quả kiểm kê.
-          </p>
-        </div>
-        <button
-          className={secondaryButton}
-          disabled={loading}
-          onClick={() => void load()}
-          type="button"
-        >
-          <RefreshCw size={17} /> Làm mới
-        </button>
-      </header>
+    <section className="grid min-h-[calc(100vh-120px)] content-start gap-4 text-[#172317]">
+      <ListPageHeader
+        actions={
+          <Button disabled={loading} onClick={() => void load()}>
+            <RefreshCw size={17} /> Làm mới
+          </Button>
+        }
+        description="Quản lý tập trung các phiếu được tạo từ kết quả kiểm kê."
+        title="Phiếu cập nhật tồn kho"
+      />
 
       <section className="grid gap-3 rounded-xl border border-[#dce5e1] bg-white p-4 shadow-[0_8px_24px_rgba(31,53,43,0.05)] lg:grid-cols-[minmax(260px,1fr)_220px_220px_auto] lg:items-end">
-        <label className="grid gap-1.5 text-xs font-bold text-[#536171]">
-          Tìm phiếu
-          <div className="flex">
-            <input
-              className="h-10 min-w-0 flex-1 rounded-l-xl border border-r-0 border-[#dce5e1] px-3 text-sm font-semibold outline-none focus:border-[#159734]"
+        <Field label="Tìm phiếu">
+          <div className="flex gap-2">
+            <TextInput
+              className="min-w-0 flex-1"
               onChange={(event) => setKeyword(event.currentTarget.value)}
               onKeyDown={(event) => event.key === "Enter" && applySearch()}
               placeholder="Nhập mã phiếu"
               value={keyword}
             />
-            <button
-              aria-label="Tìm kiếm"
-              className="grid size-10 place-items-center rounded-r-xl bg-[#159734] text-white"
-              onClick={applySearch}
-              type="button"
-            >
+            <IconButton aria-label="Tìm kiếm" onClick={applySearch} size="md" variant="primary">
               <Search size={17} />
-            </button>
+            </IconButton>
           </div>
-        </label>
+        </Field>
         <SelectField
           label="Chi nhánh"
           onChange={(value) => {
@@ -134,9 +199,7 @@ export function StocktakeAdjustmentListPage() {
           ]}
           value={status}
         />
-        <button className={secondaryButton} onClick={resetFilters} type="button">
-          Xóa bộ lọc
-        </button>
+        <Button onClick={resetFilters}>Xóa bộ lọc</Button>
       </section>
 
       {error ? (
@@ -145,129 +208,27 @@ export function StocktakeAdjustmentListPage() {
         </div>
       ) : null}
 
-      <section className="grid min-h-[420px] grid-rows-[1fr_auto] overflow-hidden rounded-xl border border-[#dce5e1] bg-white shadow-[0_12px_32px_rgba(31,53,43,0.06)]">
-        <div className="overflow-auto">
-          <table className="w-full min-w-[1100px] text-left text-sm">
-            <thead className="sticky top-0 bg-[#f3f7f4] text-xs font-black uppercase text-[#536171]">
-              <tr>
-                {[
-                  "Mã phiếu",
-                  "Kỳ kiểm kê",
-                  "Chi nhánh",
-                  "Ngày tạo",
-                  "Số mặt hàng",
-                  "Tổng điều chỉnh",
-                  "Trạng thái",
-                  "Ngày cập nhật",
-                  "",
-                ].map((label) => (
-                  <th className="border-b border-[#dce5e1] px-4 py-3" key={label}>
-                    {label}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody className={loading ? "opacity-50" : ""}>
-              {items.map((item) => {
-                const quantity = item.lines.reduce(
-                  (total, line) => total + line.adjustmentQuantity,
-                  0,
-                );
-                const branch = options?.branches.find(
-                  (candidate) => candidate.id === item.branchId,
-                );
-                // Phiếu từ kiểm kê được xem ngay trong màn chi tiết kỳ kiểm kê
-                const target =
-                  item.referenceType === "STOCK_COUNT" && item.referenceId
-                    ? `/management/inventory/stocktakes/${item.referenceId}`
-                    : null;
-                const countCode = item.note?.match(/CT-[\w-]+/)?.[0];
-                return (
-                  <tr key={item.id}>
-                    <td className="border-b border-[#edf2ef] px-4 py-3 font-black text-[#159734]">
-                      {item.documentCode}
-                    </td>
-                    <td className="border-b border-[#edf2ef] px-4">
-                      {target ? (
-                        <Link className="font-bold text-[#159734] hover:underline" to={target}>
-                          {countCode ?? "Xem kỳ kiểm kê"}
-                        </Link>
-                      ) : (
-                        "Điều chỉnh thủ công"
-                      )}
-                    </td>
-                    <td className="border-b border-[#edf2ef] px-4">
-                      {branch?.name ?? item.branchId.slice(0, 8)}
-                    </td>
-                    <td className="border-b border-[#edf2ef] px-4">
-                      {formatVietnamDateTime(item.createdAt)}
-                    </td>
-                    <td className="border-b border-[#edf2ef] px-4">{item.lines.length}</td>
-                    <td
-                      className={`border-b border-[#edf2ef] px-4 font-black ${quantity < 0 ? "text-red-700" : "text-emerald-700"}`}
-                    >
-                      {quantity > 0 ? "+" : ""}
-                      {formatVietnamNumber(quantity)}
-                    </td>
-                    <td className="border-b border-[#edf2ef] px-4">
-                      <Status status={item.status} />
-                    </td>
-                    <td className="border-b border-[#edf2ef] px-4">
-                      {item.postedAt ? formatVietnamDateTime(item.postedAt) : "Chưa cập nhật"}
-                    </td>
-                    <td className="border-b border-[#edf2ef] px-4">
-                      {target ? (
-                        <Link className="font-bold text-[#159734] hover:underline" to={target}>
-                          Xem phiếu
-                        </Link>
-                      ) : null}
-                    </td>
-                  </tr>
-                );
-              })}
-              {!loading && !items.length ? (
-                <tr>
-                  <td colSpan={9}>
-                    <div className="grid min-h-80 place-items-center text-center">
-                      <div>
-                        <ClipboardList className="mx-auto text-[#159734]" size={30} />
-                        <h2 className="mt-3 font-black">Chưa có phiếu phù hợp</h2>
-                        <p className="mt-1 text-sm text-[#697684]">
-                          Thử thay đổi bộ lọc hoặc tạo phiếu từ kỳ kiểm kê đã duyệt.
-                        </p>
-                      </div>
-                    </div>
-                  </td>
-                </tr>
-              ) : null}
-            </tbody>
-          </table>
-        </div>
-        <footer className="flex min-h-14 items-center justify-between border-t border-[#e4ece8] px-4 text-xs font-bold text-[#657282]">
-          <span>Tổng {formatVietnamNumber(totalElements)} phiếu</span>
-          <div className="flex items-center gap-2">
-            <button
-              className={pageButton}
-              disabled={loading || page === 0}
-              onClick={() => setPage((value) => value - 1)}
-              type="button"
-            >
-              <ChevronLeft size={16} />
-            </button>
-            <span>
-              Trang {page + 1}/{Math.max(totalPages, 1)}
-            </span>
-            <button
-              className={pageButton}
-              disabled={loading || page + 1 >= totalPages}
-              onClick={() => setPage((value) => value + 1)}
-              type="button"
-            >
-              <ChevronRight size={16} />
-            </button>
-          </div>
-        </footer>
-      </section>
+      <DataTable
+        caption="Danh sách phiếu cập nhật tồn kho"
+        columns={columns}
+        emptyDescription="Thử thay đổi bộ lọc hoặc tạo phiếu từ kỳ kiểm kê đã duyệt."
+        emptyTitle="Chưa có phiếu phù hợp"
+        getRowKey={(item) => item.id}
+        loading={loading}
+        minWidth={1100}
+        pagination={
+          <TablePagination
+            disabled={loading}
+            itemLabel="phiếu"
+            onPageChange={setPage}
+            page={page}
+            pageSize={pageSize}
+            totalItems={totalElements}
+            totalPages={totalPages}
+          />
+        }
+        rows={items}
+      />
     </section>
   );
 }
@@ -284,36 +245,21 @@ function SelectField({
   value: string;
 }) {
   return (
-    <label className="grid gap-1.5 text-xs font-bold text-[#536171]">
-      {label}
-      <select
-        className="h-10 rounded-xl border border-[#dce5e1] bg-white px-3 text-sm font-semibold outline-none focus:border-[#159734]"
-        onChange={(event) => onChange(event.currentTarget.value)}
-        value={value}
-      >
+    <Field label={label}>
+      <NativeSelect onChange={(event) => onChange(event.currentTarget.value)} value={value}>
         {options.map((option) => (
           <option key={option.value} value={option.value}>
             {option.label}
           </option>
         ))}
-      </select>
-    </label>
+      </NativeSelect>
+    </Field>
   );
 }
 function Status({ status }: { status: AdjustmentStatus }) {
-  const tone =
-    status === "REJECTED"
-      ? "bg-red-50 text-red-700"
-      : status === "POSTED"
-        ? "bg-emerald-50 text-emerald-700"
-        : "bg-amber-50 text-amber-700";
   return (
-    <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-black ${tone}`}>
+    <StatusBadge tone={status === "REJECTED" ? "danger" : status === "POSTED" ? "success" : "warning"}>
       {adjustmentStatusLabels[status]}
-    </span>
+    </StatusBadge>
   );
 }
-const secondaryButton =
-  "inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-[#dce5e1] bg-white px-4 text-sm font-bold text-[#536171] disabled:opacity-50";
-const pageButton =
-  "grid size-8 place-items-center rounded-lg border border-[#dce5e1] disabled:opacity-40";

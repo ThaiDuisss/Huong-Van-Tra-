@@ -1,19 +1,16 @@
 import type { ReactNode } from "react";
 
+import { TableCell as UiTableCell } from "../../../components/ui/Table";
+
 interface TableCellProps {
     children: ReactNode;
     className?: string;
 }
 
+/** Ô dữ liệu của bảng danh mục; kiểu dáng lấy từ `TableCell` dùng chung. */
 export function TableCell({
     children,
     className = ""
 }: TableCellProps) {
-    return (
-        <td
-            className={`border-b border-[#edf0f4] h-[52px] align-middle px-4 py-0 first:pl-[18px] ${className}`}
-        >
-            {children}
-        </td>
-    );
+    return <UiTableCell className={className}>{children}</UiTableCell>;
 }

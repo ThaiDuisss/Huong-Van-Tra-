@@ -4,13 +4,24 @@ import {
     Pencil,
     Plus,
     ToggleLeft,
-    MoreHorizontal,
     Trash2,
     X
 } from "lucide-react";
-import { type ReactNode, useMemo, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { type ReactNode, useId, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 
+import { ListPageHeader } from "../../../components/shared/list/ListPageHeader";
+import { type RowAction, RowActionMenu } from "../../../components/shared/RowActionMenu";
+import { Button, IconButton } from "../../../components/ui/Button";
+import { NativeSelect } from "../../../components/ui/Field";
+import { ModalShell } from "../../../components/ui/Overlay";
+import {
+    Table,
+    TableCell as UiTableCell,
+    TableHead,
+    TableHeaderCell,
+    TableRow
+} from "../../../components/ui/Table";
 import { ActionButton } from "../../manufacturing/components/shared/ActionButton";
 import { Pagination } from "../../manufacturing/components/shared/Pagination";
 import { SearchBox } from "../../manufacturing/components/shared/SearchBox";
@@ -96,7 +107,8 @@ export interface CatalogResourceManagementProps<T extends RowBase, S extends str
     extraHeaderActions?: ReactNode;
     totalItemsLabel?: string;
     filters?: CatalogFilter[];
-    renderExtraRowActions?(item: T, closeMenu: () => void): ReactNode;
+    /** Mục bổ sung cho menu ⋮ của từng dòng (đứng sau các mục mặc định). */
+    extraRowActions?(item: T): RowAction[];
     onDelete?(item: T): Promise<void>;
     controlledEditingItem?: T | null;
     controlledShowForm?: boolean;
@@ -146,7 +158,7 @@ export function CatalogResourceManagement<T extends RowBase, S extends string = 
     extraHeaderActions,
     totalItemsLabel,
     filters,
-    renderExtraRowActions,
+    extraRowActions,
     onDelete,
     customForm,
     controlledEditingItem,
@@ -155,6 +167,7 @@ export function CatalogResourceManagement<T extends RowBase, S extends string = 
     onControlledEditingItemChange
 }: CatalogResourceManagementProps<T, S>) {
     const navigate = useNavigate();
+    const detailTitleId = useId();
     const [selectedItem, setSelectedItem] = useState<T | null>(null);
     const [internalEditingItem, setInternalEditingItem] = useState<T | null>(null);
     const [deletingItem, setDeletingItem] = useState<T | null>(null);
@@ -223,6 +236,57 @@ export function CatalogResourceManagement<T extends RowBase, S extends string = 
         window.setTimeout(() => setToast(""), 2500);
     }
 
+    function getRowActions(item: T): RowAction[] {
+        const actions: RowAction[] = [
+            {
+                label: "Xem chi tiết",
+                icon: <Eye size={14} />,
+                onSelect: () => {
+                    if (detailPath) {
+                        navigate(detailPath(item));
+                    } else {
+                        setSelectedItem(item);
+                    }
+                }
+            },
+            {
+                label: "Chỉnh sửa",
+                icon: <Pencil size={14} />,
+                onSelect: () => {
+                    setEditingItem(item);
+                    setActionError("");
+                    setShowForm(true);
+                }
+            }
+        ];
+
+        if (onChangeStatus) {
+            actions.push({
+                label: "Đổi trạng thái",
+                icon: <ToggleLeft size={14} />,
+                onSelect: () => {
+                    setActionError("");
+                    setStatusTarget(item);
+                }
+            });
+        }
+
+        if (onDelete) {
+            actions.push({
+                label: "Xóa",
+                icon: <Trash2 size={14} />,
+                tone: "danger",
+                onSelect: () => setDeletingItem(item)
+            });
+        }
+
+        if (extraRowActions) {
+            actions.push(...extraRowActions(item));
+        }
+
+        return actions;
+    }
+
     async function submitForm(values: FormValues) {
         setSubmitting(true);
         setActionError("");
@@ -267,31 +331,26 @@ export function CatalogResourceManagement<T extends RowBase, S extends string = 
         <section className="grid gap-5">
             {/* <Breadcrumbs items={breadcrumbs ?? ["Product Management", title]} /> */}
 
-            <header className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-                <div className="grid gap-1 min-w-[240px]">
-                    <h1 className="text-2xl font-bold text-gray-800 sm:text-3xl">
-                        {title}
-                    </h1>
-                    <p className="text-sm text-gray-500">
-                        {description}
-                    </p>
-                </div>
-
-                <div className="flex items-center gap-3 min-w-[120px] justify-end">
-                    {extraHeaderActions}
-                    <ActionButton
-                        variant="primary"
-                        onClick={() => {
-                            setEditingItem(null);
-                            setActionError("");
-                            setShowForm(true);
-                        }}
-                    >
-                        <Plus size={17} aria-hidden="true" />
-                        {createLabel}
-                    </ActionButton>
-                </div>
-            </header>
+            <ListPageHeader
+                actions={
+                    <>
+                        {extraHeaderActions}
+                        <ActionButton
+                            variant="primary"
+                            onClick={() => {
+                                setEditingItem(null);
+                                setActionError("");
+                                setShowForm(true);
+                            }}
+                        >
+                            <Plus size={17} aria-hidden="true" />
+                            {createLabel}
+                        </ActionButton>
+                    </>
+                }
+                description={description}
+                title={title}
+            />
 
             <div className="flex flex-col rounded-2xl bg-white p-4 shadow-pos-card border border-neutral-100">
                 {searchPlaceholder ? (
@@ -315,10 +374,10 @@ export function CatalogResourceManagement<T extends RowBase, S extends string = 
                                                     {filter.render ? (
                                                         filter.render
                                                     ) : (
-                                                        <select
+                                                        <NativeSelect
                                                             value={filter.value}
                                                             onChange={(e) => filter.onChange(e.target.value)}
-                                                            className="h-10 w-full rounded-xl border border-pos-border px-3 text-sm outline-none focus:border-hvt-green-700 bg-white text-[#172317] cursor-pointer"
+                                                            className="cursor-pointer"
                                                         >
                                                             <option value="ALL">{filter.label}</option>
                                                             {filter.options
@@ -329,7 +388,7 @@ export function CatalogResourceManagement<T extends RowBase, S extends string = 
                                                                     </option>
                                                                 ))
                                                             }
-                                                        </select>
+                                                        </NativeSelect>
                                                     )}
                                                 </div>
                                             ))}
@@ -408,11 +467,11 @@ export function CatalogResourceManagement<T extends RowBase, S extends string = 
                         ) : null}
                         {!loading && !error && safeItems.length > 0 ? (
                             <div className="overflow-x-auto min-h-[280px]">
-                                <table className="min-w-full border-separate border-spacing-0 text-left text-sm">
-                                    <thead className="bg-[#eaf7ec] text-[13px] font-[950] text-gray-900">
-                                        <tr>
+                                <Table className="min-w-full">
+                                    <TableHead>
+                                        <TableRow>
                                             {selectable && (
-                                                <th className="h-[52px] align-middle px-3 py-0 border-b border-[#edf0f4] w-11 text-center pl-[18px]">
+                                                <TableHeaderCell className="w-11 text-center">
                                                     <input
                                                         type="checkbox"
                                                         checked={isAllSelected}
@@ -420,21 +479,18 @@ export function CatalogResourceManagement<T extends RowBase, S extends string = 
                                                         className="w-4 h-4 rounded text-pos-primary border-gray-300 focus:ring-pos-primary cursor-pointer align-middle"
                                                         title="Chọn tất cả"
                                                     />
-                                                </th>
+                                                </TableHeaderCell>
                                             )}
                                             {columns.map((column) => (
-                                                <th
-                                                    key={column.key}
-                                                    className={`h-[52px] align-middle px-4 py-0 border-b border-[#edf0f4] ${!selectable ? "first:pl-[18px]" : ""}`}
-                                                >
+                                                <TableHeaderCell key={column.key}>
                                                     {column.label}
-                                                </th>
+                                                </TableHeaderCell>
                                             ))}
-                                            <th className="h-[52px] align-middle px-4 py-0 border-b border-[#edf0f4] text-right pr-[18px]">
+                                            <TableHeaderCell className="w-16 text-right">
                                                 Thao tác
-                                            </th>
-                                        </tr>
-                                    </thead>
+                                            </TableHeaderCell>
+                                        </TableRow>
+                                    </TableHead>
                                     <tbody>
                                         {safeItems.map((item, idx) => {
                                             const isSelected = selectedItem?.id === item.id;
@@ -444,9 +500,10 @@ export function CatalogResourceManagement<T extends RowBase, S extends string = 
                                                 : isEven
                                                     ? "bg-[#f2faf1]/50"
                                                     : "bg-white";
+                                            const itemName = getItemName(item);
 
                                             return (
-                                                <tr
+                                                <TableRow
                                                     key={item.id}
                                                     onClick={() => {
                                                         if (detailPath) {
@@ -458,8 +515,8 @@ export function CatalogResourceManagement<T extends RowBase, S extends string = 
                                                     className={`cursor-pointer hover:bg-neutral-50 transition-all ${rowBgClass}`}
                                                 >
                                                     {selectable && (
-                                                        <td
-                                                            className="border-b border-[#edf0f4] h-[52px] align-middle px-3 py-0 w-11 text-center pl-[18px]"
+                                                        <UiTableCell
+                                                            className="w-11 text-center"
                                                             onClick={(e) => e.stopPropagation()}
                                                         >
                                                             <input
@@ -468,93 +525,25 @@ export function CatalogResourceManagement<T extends RowBase, S extends string = 
                                                                 onChange={() => onToggleSelect?.(item.id)}
                                                                 className="w-4 h-4 rounded text-pos-primary border-gray-300 focus:ring-pos-primary cursor-pointer align-middle"
                                                             />
-                                                        </td>
+                                                        </UiTableCell>
                                                     )}
                                                     {renderCells(item)}
-                                                    <td className={`border-b border-[#edf0f4] h-[52px] align-middle px-4 py-0 pr-[18px] relative ${activeActionMenuId === String(item.id) ? "z-30" : "z-20"}`} onClick={(e) => e.stopPropagation()}>
-                                                        <div className="flex justify-end relative">
-                                                            <button
-                                                                type="button"
-                                                                onClick={() => setActiveActionMenuId(activeActionMenuId === String(item.id) ? null : String(item.id))}
-                                                                className="grid size-8 place-items-center rounded-lg hover:bg-neutral-100 text-gray-500 hover:text-gray-700 cursor-pointer"
-                                                            >
-                                                                <MoreHorizontal size={16} />
-                                                            </button>
-
-                                                            {activeActionMenuId === String(item.id) && (
-                                                                <>
-                                                                    <div className="fixed inset-0 z-30" onClick={() => setActiveActionMenuId(null)} />
-                                                                    <div className={`absolute right-0 ${idx >= 2 && idx >= safeItems.length - 2 ? "bottom-8 mb-1" : "top-8 mt-1"} w-44 rounded-xl border border-pos-border bg-white p-1.5 shadow-lg z-40 text-left`}>
-                                                                        {detailPath ? (
-                                                                            <Link
-                                                                                to={detailPath(item)}
-                                                                                onClick={() => setActiveActionMenuId(null)}
-                                                                                className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-sm text-[#172317] hover:bg-[#f0fbef] hover:text-[#07883a] font-medium transition-colors cursor-pointer"
-                                                                            >
-                                                                                <Eye size={14} />
-                                                                                Xem chi tiết
-                                                                            </Link>
-                                                                        ) : (
-                                                                            <button
-                                                                                type="button"
-                                                                                onClick={() => { setSelectedItem(item); setActiveActionMenuId(null); }}
-                                                                                className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-sm text-[#172317] hover:bg-[#f0fbef] hover:text-[#07883a] font-medium transition-colors cursor-pointer"
-                                                                            >
-                                                                                <Eye size={14} />
-                                                                                Xem chi tiết
-                                                                            </button>
-                                                                        )}
-                                                                        <button
-                                                                            type="button"
-                                                                            onClick={() => {
-                                                                                setEditingItem(item);
-                                                                                setActionError("");
-                                                                                setShowForm(true);
-                                                                                setActiveActionMenuId(null);
-                                                                            }}
-                                                                            className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-sm text-[#172317] hover:bg-[#f0fbef] hover:text-[#07883a] font-medium transition-colors cursor-pointer"
-                                                                        >
-                                                                            <Pencil size={14} />
-                                                                            Chỉnh sửa
-                                                                        </button>
-                                                                        {onChangeStatus && (
-                                                                            <button
-                                                                                type="button"
-                                                                                onClick={() => {
-                                                                                    setActionError("");
-                                                                                    setStatusTarget(item);
-                                                                                    setActiveActionMenuId(null);
-                                                                                }}
-                                                                                className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-sm text-[#172317] hover:bg-[#f0fbef] hover:text-[#07883a] font-medium transition-colors cursor-pointer"
-                                                                            >
-                                                                                <ToggleLeft size={14} />
-                                                                                Đổi trạng thái
-                                                                            </button>
-                                                                        )}
-                                                                        {onDelete && (
-                                                                            <button
-                                                                                type="button"
-                                                                                onClick={() => {
-                                                                                    setDeletingItem(item);
-                                                                                    setActiveActionMenuId(null);
-                                                                                }}
-                                                                                className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-sm text-red-600 hover:bg-red-50 hover:text-red-700 font-medium transition-colors cursor-pointer"
-                                                                            >
-                                                                                <Trash2 size={14} />
-                                                                                Xóa
-                                                                            </button>
-                                                                        )}
-                                                                        {renderExtraRowActions && renderExtraRowActions(item, () => setActiveActionMenuId(null))}
-                                                                    </div>
-                                                                </>
-                                                            )}
+                                                    <UiTableCell onClick={(e) => e.stopPropagation()}>
+                                                        <div className="flex justify-end">
+                                                            <RowActionMenu
+                                                                actions={getRowActions(item)}
+                                                                isOpen={activeActionMenuId === String(item.id)}
+                                                                menuLabel={itemName ? `Thao tác ${itemName}` : "Thao tác"}
+                                                                onOpenChange={(open) => setActiveActionMenuId(open ? String(item.id) : null)}
+                                                                triggerLabel={itemName ? `Mở thao tác cho ${itemName}` : "Mở thao tác"}
+                                                            />
                                                         </div>
-                                                    </td>
-                                                </tr>
+                                                    </UiTableCell>
+                                                </TableRow>
                                             );
                                         })}
                                     </tbody>
-                                </table>
+                                </Table>
                             </div>
                         ) : null}
                     </div>
@@ -572,31 +561,19 @@ export function CatalogResourceManagement<T extends RowBase, S extends string = 
                 </section>
 
                 {selectedItem ? (
-                    <div className="fixed inset-0 z-50 grid place-items-center p-3 sm:p-4" role="presentation">
-                        <button
-                            aria-label={`Đóng chi tiết ${title}`}
-                            className="absolute inset-0 cursor-default bg-[#101a14]/45 backdrop-blur-[2px]"
-                            onClick={() => setSelectedItem(null)}
-                            type="button"
-                        />
-                        <section
-                            aria-label={`Chi tiết ${title}`}
-                            aria-modal="true"
-                            className="relative flex max-h-[85vh] w-[min(92vw,960px)] flex-col overflow-hidden rounded-2xl border border-[#dfe8e3] bg-white shadow-[0_28px_90px_rgba(21,43,30,0.24)] max-md:h-[92vh] max-md:w-[calc(100vw-24px)]"
-                            role="dialog"
-                        >
+                    <ModalShell
+                        className="w-[min(960px,calc(100vw-32px))]"
+                        labelledBy={detailTitleId}
+                        onClose={() => setSelectedItem(null)}
+                    >
+                        <div className="flex max-h-[85vh] flex-col overflow-hidden max-md:h-[85vh]">
                             <header className="sticky top-0 z-20 flex min-h-14 shrink-0 items-center justify-between gap-3 border-b border-[#e2e9e5] bg-white px-4 py-2.5">
-                                <h2 className="truncate text-base font-black text-[#172317]">
+                                <h2 className="truncate text-base font-black text-[#172317]" id={detailTitleId}>
                                     Chi tiết {title.toLowerCase()}
                                 </h2>
-                                <button
-                                    aria-label="Đóng"
-                                    className="grid size-9 place-items-center rounded-lg text-[#657282] hover:bg-[#eef3f0] hover:text-[#172317] cursor-pointer"
-                                    onClick={() => setSelectedItem(null)}
-                                    type="button"
-                                >
+                                <IconButton aria-label="Đóng" onClick={() => setSelectedItem(null)} size="md">
                                     <X size={20} aria-hidden="true" />
-                                </button>
+                                </IconButton>
                             </header>
 
                             <main className="grid min-h-0 flex-1 grid-cols-[280px_minmax(0,1fr)] max-md:block max-md:overflow-y-auto">
@@ -639,43 +616,37 @@ export function CatalogResourceManagement<T extends RowBase, S extends string = 
 
                             <footer className="sticky bottom-0 z-20 flex min-h-16 shrink-0 items-center gap-3 border-t border-[#e2e9e5] bg-white px-4 py-3">
                                 {onDelete && (
-                                    <button
-                                        className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-lg border border-[#efc9c2] bg-white px-4 text-sm font-black text-[#c4422e] hover:bg-[#fff5f3] cursor-pointer"
+                                    <Button
                                         onClick={() => {
                                             setDeletingItem(selectedItem);
                                             setSelectedItem(null);
                                         }}
-                                        type="button"
+                                        variant="dangerOutline"
                                     >
                                         <Trash2 size={16} aria-hidden="true" />
                                         Xóa
-                                    </button>
+                                    </Button>
                                 )}
                                 <div className="ml-auto flex shrink-0 gap-2">
-                                    <button
-                                        className="inline-flex h-10 shrink-0 items-center justify-center rounded-lg border border-[#dce5e1] bg-white px-4 text-sm font-black text-[#536171] hover:bg-[#f4f8f5] cursor-pointer"
-                                        onClick={() => setSelectedItem(null)}
-                                        type="button"
-                                    >
+                                    <Button onClick={() => setSelectedItem(null)}>
                                         Đóng
-                                    </button>
-                                    <button
-                                        className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-lg bg-[#159734] px-4 text-sm font-black text-white shadow-sm hover:bg-[#12862d] cursor-pointer"
+                                    </Button>
+                                    <Button
                                         onClick={() => {
                                             setEditingItem(selectedItem);
                                             setActionError("");
                                             setShowForm(true);
                                             setSelectedItem(null);
                                         }}
-                                        type="button"
+                                        variant="primary"
                                     >
                                         <Pencil size={16} aria-hidden="true" />
                                         Chỉnh sửa
-                                    </button>
+                                    </Button>
                                 </div>
                             </footer>
-                        </section>
-                    </div>
+                        </div>
+                    </ModalShell>
                 ) : null}
             </div>
 
@@ -745,6 +716,12 @@ export function CatalogResourceManagement<T extends RowBase, S extends string = 
             ) : null}
         </section>
     );
+}
+
+function getItemName(item: RowBase): string {
+    const record = item as unknown as Record<string, unknown>;
+    const name = record.name ?? record.variantName ?? record.title;
+    return typeof name === "string" ? name : "";
 }
 
 function getErrorMessage(error: unknown) {

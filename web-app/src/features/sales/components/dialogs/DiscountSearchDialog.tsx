@@ -15,6 +15,8 @@ import {
 } from "react";
 import type { ReactNode } from "react";
 
+import { Button, IconButton } from "../../../../components/ui/Button";
+import { StatusBadge } from "../../../../components/ui/StatusBadge";
 import { formatCurrency } from "../../services/money";
 import type { SaleDiscountOption } from "../../types/sale.types";
 
@@ -197,14 +199,9 @@ export function DiscountSearchDialog({
           </div>
         </div>
 
-        <button
-          type="button"
-          className="grid size-8 place-items-center rounded-lg text-gray-500 hover:bg-neutral-100"
-          aria-label="Đóng tìm khuyến mãi"
-          onClick={closeDialog}
-        >
+        <IconButton aria-label="Đóng tìm khuyến mãi" onClick={closeDialog}>
           <X size={20} aria-hidden="true" />
-        </button>
+        </IconButton>
       </header>
 
       <label className="mb-3 flex h-10 items-center gap-2 rounded-lg border border-pos-border px-3 focus-within:border-hvt-green-700">
@@ -224,13 +221,9 @@ export function DiscountSearchDialog({
       </label>
 
       {selectedDiscountId !== "none" ? (
-        <button
-          type="button"
-          onClick={removeDiscount}
-          className="mb-3 h-9 w-full rounded-lg border border-red-200 bg-red-50 text-sm font-semibold text-red-700 hover:bg-red-100"
-        >
+        <Button className="mb-3 w-full" onClick={removeDiscount} size="sm" variant="dangerOutline">
           Bỏ khuyến mãi đang áp dụng
-        </button>
+        </Button>
       ) : null}
 
       <DiscountGroup
@@ -303,12 +296,9 @@ function DiscountGroup({
           {icon}
           {title}
         </h4>
-        <button
-          type="button"
-          className="text-xs font-semibold text-hvt-green-800"
-        >
+        <Button className="-mr-2" size="xs" variant="link">
           Xem tất cả
-        </button>
+        </Button>
       </div>
 
       <div className="grid gap-2">
@@ -346,15 +336,9 @@ function DiscountGroup({
               </span>
 
               <span className="grid justify-items-end gap-1">
-                <span
-                  className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
-                    eligible
-                      ? "bg-hvt-green-50 text-hvt-green-800"
-                      : "bg-orange-100 text-orange-700"
-                  }`}
-                >
+                <StatusBadge tone={eligible ? "success" : "pending"}>
                   {getDiscountValueLabel(discount)}
-                </span>
+                </StatusBadge>
                 <span className="text-[11px] font-semibold text-hvt-green-800">
                   {getStatusLabel(discount, eligible)}
                 </span>

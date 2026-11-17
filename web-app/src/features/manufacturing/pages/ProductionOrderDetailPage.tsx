@@ -2,6 +2,10 @@ import { useCallback, useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 
 import { useAuthorization } from "../../../auth/role-utils";
+import { Button } from "../../../components/ui/Button";
+import { TextArea } from "../../../components/ui/Field";
+import { type BadgeTone, StatusBadge } from "../../../components/ui/StatusBadge";
+import { Table, TableCell, TableHead, TableHeaderCell, TableRow } from "../../../components/ui/Table";
 import {
     Dialog,
     DialogContent,
@@ -15,21 +19,17 @@ import { productionOrderApi } from "../services/production-order.api";
 import type { ProductionOrder, ProductionOrderApiStatus } from "../types/production-order.types";
 import { ROLES } from "../../../auth/roles";
 
-const STATUS_LABEL: Record<ProductionOrderApiStatus, { label: string; className: string }> = {
-    DRAFT: { label: "Mới tạo", className: "bg-neutral-100 text-neutral-700" },
-    PENDING_APPROVAL: { label: "Chờ duyệt", className: "bg-purple-50 text-purple-700" },
-    APPROVED: { label: "Đã duyệt — đã giữ nguyên liệu", className: "bg-blue-50 text-blue-700" },
-    REJECTED: { label: "Từ chối", className: "bg-red-50 text-red-700" },
-    CANCELLED: { label: "Đã hủy", className: "bg-red-100 text-red-700" }
+const STATUS_LABEL: Record<ProductionOrderApiStatus, { label: string; tone: BadgeTone }> = {
+    DRAFT: { label: "Mới tạo", tone: "neutral" },
+    PENDING_APPROVAL: { label: "Chờ duyệt", tone: "violet" },
+    APPROVED: { label: "Đã duyệt — đã giữ nguyên liệu", tone: "info" },
+    REJECTED: { label: "Từ chối", tone: "danger" },
+    CANCELLED: { label: "Đã hủy", tone: "danger" }
 };
 
 function StatusPill({ status }: { status: ProductionOrderApiStatus }) {
     const info = STATUS_LABEL[status];
-    return (
-        <span className={`inline-flex h-7 items-center rounded-lg px-2.5 text-xs font-bold ${info.className}`}>
-            {info.label}
-        </span>
-    );
+    return <StatusBadge tone={info.tone}>{info.label}</StatusBadge>;
 }
 
 export function ProductionOrderDetailPage() {
@@ -121,9 +121,9 @@ export function ProductionOrderDetailPage() {
             <section className="grid gap-3 rounded-xl border border-red-200 bg-red-50 p-6 text-sm font-bold text-red-700">
                 <div>{error || "Không tìm thấy lệnh sản xuất."}</div>
                 <div>
-                    <button className="rounded-lg bg-red-600 px-4 py-2 text-white hover:bg-red-700" onClick={loadOrder} type="button">
+                    <Button onClick={loadOrder} variant="danger">
                         Tải lại
-                    </button>
+                    </Button>
                 </div>
             </section>
         );
@@ -167,46 +167,18 @@ export function ProductionOrderDetailPage() {
 
                     <div className="flex flex-wrap items-center gap-2">
                         {order.status === "DRAFT" ? (
-                            <button
-                                className="inline-flex h-10 items-center rounded-lg bg-[#159734] px-4 text-sm font-black text-white hover:bg-[#12802c] shadow-sm disabled:opacity-50"
-                                disabled={mutationLoading}
-                                onClick={() => void handleSubmit()}
-                                type="button"
-                            >
-                                Gửi duyệt
-                            </button>
+                            <Button disabled={mutationLoading} onClick={() => void handleSubmit()} variant="primary">Gửi duyệt</Button>
                         ) : null}
 
                         {order.status === "PENDING_APPROVAL" && canApprove ? (
                             <>
-                                <button
-                                    className="inline-flex h-10 items-center rounded-lg bg-[#159734] px-4 text-sm font-black text-white hover:bg-[#12802c] shadow-sm disabled:opacity-50"
-                                    disabled={mutationLoading}
-                                    onClick={() => void handleApprove()}
-                                    type="button"
-                                >
-                                    Duyệt (giữ nguyên liệu)
-                                </button>
-                                <button
-                                    className="inline-flex h-10 items-center rounded-lg border border-red-200 bg-white px-4 text-sm font-black text-red-600 hover:bg-red-50 disabled:opacity-50"
-                                    disabled={mutationLoading}
-                                    onClick={() => void handleReject()}
-                                    type="button"
-                                >
-                                    Từ chối
-                                </button>
+                                <Button disabled={mutationLoading} onClick={() => void handleApprove()} variant="primary">Duyệt (giữ nguyên liệu)</Button>
+                                <Button disabled={mutationLoading} onClick={() => void handleReject()} variant="dangerOutline">Từ chối</Button>
                             </>
                         ) : null}
 
                         {canCancel ? (
-                            <button
-                                className="inline-flex h-10 items-center rounded-lg border border-red-200 bg-white px-4 text-sm font-black text-red-600 hover:bg-red-50 disabled:opacity-50"
-                                disabled={mutationLoading}
-                                onClick={() => setCancelOpen(true)}
-                                type="button"
-                            >
-                                Hủy
-                            </button>
+                            <Button disabled={mutationLoading} onClick={() => setCancelOpen(true)} variant="dangerOutline">Hủy</Button>
                         ) : null}
                     </div>
                 </div>
@@ -216,26 +188,26 @@ export function ProductionOrderDetailPage() {
                 <div className="border-b border-[#e8eef0] p-4">
                     <h2 className="text-sm font-black text-[#172317]">Dòng nguyên liệu</h2>
                 </div>
-                <table className="w-full text-sm">
-                    <thead className="bg-neutral-50 text-xs font-bold uppercase text-[#697684]">
-                        <tr>
-                            <th className="px-4 py-2 text-left">Nguyên liệu</th>
-                            <th className="px-4 py-2 text-right">Cần dùng</th>
-                            <th className="px-4 py-2 text-right">Đã giữ</th>
-                            <th className="px-4 py-2 text-right">Đã tiêu thụ</th>
-                        </tr>
-                    </thead>
+                <Table>
+                    <TableHead>
+                        <TableRow>
+                            <TableHeaderCell>Nguyên liệu</TableHeaderCell>
+                            <TableHeaderCell className="text-right">Cần dùng</TableHeaderCell>
+                            <TableHeaderCell className="text-right">Đã giữ</TableHeaderCell>
+                            <TableHeaderCell className="text-right">Đã tiêu thụ</TableHeaderCell>
+                        </TableRow>
+                    </TableHead>
                     <tbody>
                         {order.lines.map((line) => (
-                            <tr key={line.id} className="border-t border-[#e8eef0]">
-                                <td className="px-4 py-2 font-semibold text-[#172317]">{line.ingredientName ?? "—"}</td>
-                                <td className="px-4 py-2 text-right font-mono">{line.requiredQuantity}</td>
-                                <td className="px-4 py-2 text-right font-mono">{line.reservedQuantity}</td>
-                                <td className="px-4 py-2 text-right font-mono">{line.consumedQuantity}</td>
-                            </tr>
+                            <TableRow key={line.id}>
+                                <TableCell className="font-semibold">{line.ingredientName ?? "—"}</TableCell>
+                                <TableCell className="text-right font-mono">{line.requiredQuantity}</TableCell>
+                                <TableCell className="text-right font-mono">{line.reservedQuantity}</TableCell>
+                                <TableCell className="text-right font-mono">{line.consumedQuantity}</TableCell>
+                            </TableRow>
                         ))}
                     </tbody>
-                </table>
+                </Table>
             </div>
 
             <Dialog open={cancelOpen} onOpenChange={setCancelOpen}>
@@ -245,8 +217,7 @@ export function ProductionOrderDetailPage() {
                         <DialogDescription>Bạn có chắc chắn muốn hủy lệnh sản xuất này không?</DialogDescription>
                     </DialogHeader>
                     <div className="px-6 py-4">
-                        <textarea
-                            className="w-full rounded-lg border border-[#dce5e1] p-3 text-sm outline-none focus:border-red-500"
+                        <TextArea
                             placeholder="Nhập lý do hủy lệnh sản xuất..."
                             rows={3}
                             value={cancelReason}
@@ -254,22 +225,8 @@ export function ProductionOrderDetailPage() {
                         />
                     </div>
                     <DialogFooter>
-                        <button
-                            className="h-10 rounded-lg border border-[#dce5e1] px-4 text-sm font-bold text-[#536078]"
-                            disabled={mutationLoading}
-                            onClick={() => setCancelOpen(false)}
-                            type="button"
-                        >
-                            Quay lại
-                        </button>
-                        <button
-                            className="h-10 rounded-lg bg-red-600 px-4 text-sm font-black text-white hover:bg-red-700 disabled:opacity-60"
-                            disabled={mutationLoading}
-                            onClick={() => void handleCancel()}
-                            type="button"
-                        >
-                            {mutationLoading ? "Đang xử lý..." : "Xác nhận hủy"}
-                        </button>
+                        <Button disabled={mutationLoading} onClick={() => setCancelOpen(false)}>Quay lại</Button>
+                        <Button disabled={mutationLoading} onClick={() => void handleCancel()} variant="danger">{mutationLoading ? "Đang xử lý..." : "Xác nhận hủy"}</Button>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>

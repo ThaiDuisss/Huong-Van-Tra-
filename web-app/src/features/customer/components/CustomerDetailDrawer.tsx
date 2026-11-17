@@ -17,8 +17,10 @@ import {
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { Fragment, type FormEvent, type ReactNode, useEffect, useMemo, useState } from "react";
-import { createPortal } from "react-dom";
 
+import { TablePagination } from "../../../components/shared/list/TablePagination";
+import { RowActionMenu } from "../../../components/shared/RowActionMenu";
+import { Button, IconButton } from "../../../components/ui/Button";
 import {
     Dialog,
     DialogContent,
@@ -28,8 +30,23 @@ import {
     DialogTitle
 } from "../../../components/ui/dialog";
 import {
-    CUSTOMER_STATUS_CLASS_NAMES,
-    CUSTOMER_STATUS_LABELS
+    Field,
+    NativeSelect,
+    TextArea,
+    TextInput
+} from "../../../components/ui/Field";
+import { ModalShell } from "../../../components/ui/Overlay";
+import { StatusBadge } from "../../../components/ui/StatusBadge";
+import {
+    Table,
+    TableCell,
+    TableHead,
+    TableHeaderCell,
+    TableRow
+} from "../../../components/ui/Table";
+import {
+    CUSTOMER_STATUS_LABELS,
+    CUSTOMER_STATUS_TONES
 } from "../constants/customer-list.constants";
 import { customerApi } from "../services/customer.api";
 import type {
@@ -105,16 +122,10 @@ export function CustomerDetailDrawer({
         const previousOverflow = document.body.style.overflow;
         document.body.style.overflow = "hidden";
 
-        function handleKeyDown(event: KeyboardEvent) {
-            if (event.key === "Escape") onClose();
-        }
-
-        window.addEventListener("keydown", handleKeyDown);
         return () => {
             document.body.style.overflow = previousOverflow;
-            window.removeEventListener("keydown", handleKeyDown);
         };
-    }, [onClose, open]);
+    }, [open]);
 
     useEffect(() => {
         if (!open || !customerId) return;
@@ -176,94 +187,82 @@ export function CustomerDetailDrawer({
         setActionMenuOpen(false);
     }
 
-    return createPortal(
-        <div className="fixed inset-0 z-50 grid place-items-center p-3 sm:p-4" role="presentation">
-            <button
-                aria-label="Đóng chi tiết khách hàng"
-                className="absolute inset-0 cursor-default bg-[#101a14]/45 backdrop-blur-[2px]"
-                onClick={onClose}
-                type="button"
-            />
-            <section
-                aria-label="Chi tiết khách hàng"
-                aria-modal="true"
-                className="relative flex h-[min(92vh,920px)] w-[min(92vw,1440px)] flex-col overflow-hidden rounded-2xl border border-[#dfe8e3] bg-white shadow-[0_28px_90px_rgba(21,43,30,0.24)] max-md:h-[92vh] max-md:w-[calc(100vw-24px)]"
-                role="dialog"
+    return (
+        <>
+            <ModalShell
+                className="flex h-[min(92vh,920px)] w-[min(92vw,1440px)] flex-col max-md:h-[92vh] max-md:w-[calc(100vw-24px)]"
+                labelledBy="customer-detail-title"
+                onClose={onClose}
             >
                 <header className="sticky top-0 z-20 flex min-h-14 shrink-0 items-center justify-between gap-3 border-b border-[#e2e9e5] bg-white px-4 py-2.5">
-                    <h2 className="truncate text-base font-black text-[#172317]">
+                    <h2
+                        className="truncate text-base font-black text-[#172317]"
+                        id="customer-detail-title"
+                    >
                         Chi tiết khách hàng
                     </h2>
                     <div className="ml-auto flex shrink-0 items-center gap-2">
-                        <button
-                            className="inline-flex h-9 items-center justify-center gap-2 rounded-lg bg-[#159734] px-3 text-xs font-black text-white shadow-sm disabled:cursor-not-allowed disabled:opacity-60"
+                        <Button
                             disabled={!customer}
+                            size="sm"
                             title="Luồng tạo đơn hàng sẽ được nối với POS sau"
-                            type="button"
+                            variant="primary"
                         >
                             <ShoppingCart size={15} aria-hidden="true" />
                             <span className="max-sm:hidden">Tạo đơn hàng</span>
-                        </button>
-                        <div className="relative">
-                            <button
-                                aria-label="Mở menu thao tác"
-                                aria-expanded={actionMenuOpen}
-                                className="grid size-9 place-items-center rounded-lg border border-[#dce5e1] bg-white text-[#536171] hover:bg-[#f4f8f5] hover:text-[#172317]"
-                                disabled={!customer}
-                                onClick={() => setActionMenuOpen((value) => !value)}
-                                type="button"
-                            >
+                        </Button>
+                        {customer ? (
+                            <RowActionMenu
+                                actions={[
+                                    {
+                                        label: "Sao chép mã khách hàng",
+                                        icon: <Copy size={15} />,
+                                        onSelect: () => void copyValue(customer.customerCode)
+                                    },
+                                    {
+                                        label: "Sao chép số điện thoại",
+                                        icon: <Copy size={15} />,
+                                        onSelect: () => void copyValue(customer.phone)
+                                    },
+                                    ...(canManage
+                                        ? [
+                                              {
+                                                  label: "Điều chỉnh hạng",
+                                                  icon: <SlidersHorizontal size={15} />,
+                                                  onSelect: () => setAdjustDialogOpen(true)
+                                              },
+                                              {
+                                                  label: customerStatusActionLabel(customer.status),
+                                                  icon:
+                                                      customer.status === "ACTIVE" ? (
+                                                          <ShieldOff size={15} />
+                                                      ) : (
+                                                          <ShieldCheck size={15} />
+                                                      ),
+                                                  onSelect: () => runAction(onStatusChange)
+                                              },
+                                              {
+                                                  label: "Xóa khách hàng",
+                                                  icon: <Trash2 size={15} />,
+                                                  tone: "danger" as const,
+                                                  onSelect: () => runAction(onDelete)
+                                              }
+                                          ]
+                                        : [])
+                                ]}
+                                isOpen={actionMenuOpen}
+                                menuLabel="Thao tác khách hàng"
+                                onOpenChange={setActionMenuOpen}
+                                triggerLabel="Mở menu thao tác"
+                            />
+                        ) : (
+                            <IconButton aria-label="Mở menu thao tác" disabled variant="secondary">
                                 <MoreHorizontal size={18} aria-hidden="true" />
-                            </button>
-                            {actionMenuOpen && customer ? (
-                                <div className="absolute right-0 top-10 z-30 w-60 overflow-hidden rounded-xl border border-[#dfe8e3] bg-white py-1 shadow-[0_18px_48px_rgba(21,43,30,0.16)]">
-                                    <MenuAction
-                                        icon={Copy}
-                                        label="Sao chép mã khách hàng"
-                                        onClick={() => void copyValue(customer.customerCode)}
-                                    />
-                                    <MenuAction
-                                        icon={Copy}
-                                        label="Sao chép số điện thoại"
-                                        onClick={() => void copyValue(customer.phone)}
-                                    />
-                                    {canManage ? (
-                                        <>
-                                            <MenuAction
-                                                icon={SlidersHorizontal}
-                                                label="Điều chỉnh hạng"
-                                                onClick={() => {
-                                                    setActionMenuOpen(false);
-                                                    setAdjustDialogOpen(true);
-                                                }}
-                                            />
-                                            <MenuAction
-                                                icon={customer.status === "ACTIVE" ? ShieldOff : ShieldCheck}
-                                                label={customerStatusActionLabel(customer.status)}
-                                                onClick={() => {
-                                                    setActionMenuOpen(false);
-                                                    runAction(onStatusChange);
-                                                }}
-                                            />
-                                            <MenuAction
-                                                danger
-                                                icon={Trash2}
-                                                label="Xóa khách hàng"
-                                                onClick={() => runAction(onDelete)}
-                                            />
-                                        </>
-                                    ) : null}
-                                </div>
-                            ) : null}
-                        </div>
-                        <button
-                            aria-label="Đóng"
-                            className="grid size-9 place-items-center rounded-lg text-[#657282] hover:bg-[#eef3f0] hover:text-[#172317]"
-                            onClick={onClose}
-                            type="button"
-                        >
+                            </IconButton>
+                        )}
+                        <IconButton aria-label="Đóng" onClick={onClose}>
                             <X size={20} aria-hidden="true" />
-                        </button>
+                        </IconButton>
                     </div>
                 </header>
 
@@ -292,14 +291,13 @@ export function CustomerDetailDrawer({
                             {loyaltyError ? (
                                 <div className="mx-4 mt-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-[#f1c8c1] bg-[#fff5f3] p-3 text-sm font-bold text-[#a43a2a]">
                                     <span>{loyaltyError}</span>
-                                    <button
-                                        className="inline-flex h-8 items-center gap-2 rounded-lg border border-[#efc9c2] bg-white px-3 text-xs font-black text-[#a43a2a]"
+                                    <Button
                                         onClick={() => void loadLoyaltyData(customer.id, transactionPage)}
-                                        type="button"
+                                        size="sm"
                                     >
                                         <RefreshCw size={14} aria-hidden="true" />
                                         Thử lại
-                                    </button>
+                                    </Button>
                                 </div>
                             ) : null}
 
@@ -339,50 +337,34 @@ export function CustomerDetailDrawer({
                     <footer className="sticky bottom-0 z-20 flex min-h-16 shrink-0 items-center gap-3 border-t border-[#e2e9e5] bg-white px-4 py-3">
                         {canManage ? (
                             <>
-                                <button
-                                    className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-lg border border-[#efc9c2] bg-white px-4 text-sm font-black text-[#c4422e] hover:bg-[#fff5f3]"
-                                    onClick={() => runAction(onDelete)}
-                                    type="button"
-                                >
+                                <Button onClick={() => runAction(onDelete)} variant="dangerOutline">
                                     <Trash2 size={16} aria-hidden="true" />
                                     Xóa khách hàng
-                                </button>
-                                <button
-                                    className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-lg border border-[#dce5e1] bg-white px-4 text-sm font-black text-[#536171] hover:bg-[#f4f8f5]"
+                                </Button>
+                                <Button
                                     onClick={() => runAction(onStatusChange)}
                                     title={hasTransactions && customer.status === "ACTIVE"
                                         ? "Khách đã có giao dịch, nên ngừng hoạt động thay vì xóa."
                                         : undefined}
-                                    type="button"
                                 >
                                     {customer.status === "ACTIVE"
                                         ? <ShieldOff size={16} aria-hidden="true" />
                                         : <ShieldCheck size={16} aria-hidden="true" />}
                                     <span className="max-sm:hidden">{customerStatusActionLabel(customer.status)}</span>
-                                </button>
+                                </Button>
                             </>
                         ) : null}
                         <div className="ml-auto flex shrink-0 gap-2">
-                            <button
-                                className="inline-flex h-10 shrink-0 items-center justify-center rounded-lg border border-[#dce5e1] bg-white px-4 text-sm font-black text-[#536171] hover:bg-[#f4f8f5]"
-                                onClick={onClose}
-                                type="button"
-                            >
-                                Đóng
-                            </button>
-                            <button
-                                className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-lg bg-[#159734] px-4 text-sm font-black text-white shadow-sm hover:bg-[#12862d]"
-                                onClick={() => runAction(onEdit)}
-                                type="button"
-                            >
+                            <Button onClick={onClose}>Đóng</Button>
+                            <Button onClick={() => runAction(onEdit)} variant="primary">
                                 <Pencil size={16} aria-hidden="true" />
                                 <span className="max-sm:hidden">Chỉnh sửa khách hàng</span>
                                 <span className="sm:hidden">Chỉnh sửa</span>
-                            </button>
+                            </Button>
                         </div>
                     </footer>
                 )}
-            </section>
+            </ModalShell>
 
             {customer && adjustDialogOpen ? (
                 <ManualTierAdjustmentDialog
@@ -394,8 +376,7 @@ export function CustomerDetailDrawer({
                     onSaved={() => void handleAdjusted()}
                 />
             ) : null}
-        </div>,
-        document.body
+        </>
     );
 }
 
@@ -452,11 +433,9 @@ function CustomerProfilePanel({
                         <ProfileField
                             label="Trạng thái"
                             value={
-                                <span
-                                    className={`inline-flex h-6 items-center rounded-full px-2 text-[11px] font-black ${CUSTOMER_STATUS_CLASS_NAMES[customer.status]}`}
-                                >
+                                <StatusBadge tone={CUSTOMER_STATUS_TONES[customer.status]}>
                                     {CUSTOMER_STATUS_LABELS[customer.status]}
-                                </span>
+                                </StatusBadge>
                             }
                         />
                     </ProfileSection>
@@ -498,12 +477,7 @@ function CustomerProfilePanel({
 
                     <ProfileSection
                         action={
-                            <button
-                                className="h-7 rounded-lg border border-[#dce5e1] bg-white px-2.5 text-[11px] font-black text-[#536171] hover:bg-[#f4f8f5]"
-                                type="button"
-                            >
-                                Thêm ghi chú
-                            </button>
+                            <Button size="sm">Thêm ghi chú</Button>
                         }
                         title="Ghi chú nội bộ"
                     >
@@ -601,14 +575,10 @@ function ProgressTab({
                             Theo dõi điều kiện hiện tại và hạng đủ điều kiện trong kỳ.
                         </p>
                     </div>
-                    <button
-                        className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-[#bfd5c6] bg-white px-3 text-xs font-black text-[#159734] hover:bg-[#f3fbf5]"
-                        onClick={onAdjust}
-                        type="button"
-                    >
+                    <Button onClick={onAdjust} size="sm">
                         <SlidersHorizontal size={15} aria-hidden="true" />
                         Điều chỉnh hạng
-                    </button>
+                    </Button>
                 </div>
                 <div className="grid gap-0 md:grid-cols-2 md:divide-x md:divide-[#eef2f0]">
                     <TierSummary
@@ -700,24 +670,24 @@ function HistoryTab({
         <section className="overflow-hidden rounded-xl border border-[#e0e8e4] bg-white">
             <SectionHeader title="Lịch sử thay đổi hạng" />
             <div className="overflow-auto max-md:hidden">
-                <table className="w-full min-w-[920px] border-separate border-spacing-0 text-xs">
-                    <thead>
-                        <tr>
-                            <TableHead>Thời gian hiệu lực</TableHead>
-                            <TableHead>Hạng áp dụng</TableHead>
-                            <TableHead>Loại thay đổi</TableHead>
-                            <TableHead>Lý do</TableHead>
-                            <TableHead>Năm xét hạng</TableHead>
-                            <TableHead>Trạng thái</TableHead>
-                        </tr>
-                    </thead>
+                <Table className="min-w-[920px]">
+                    <TableHead>
+                        <TableRow>
+                            <TableHeaderCell>Thời gian hiệu lực</TableHeaderCell>
+                            <TableHeaderCell>Hạng áp dụng</TableHeaderCell>
+                            <TableHeaderCell>Loại thay đổi</TableHeaderCell>
+                            <TableHeaderCell>Lý do</TableHeaderCell>
+                            <TableHeaderCell>Năm xét hạng</TableHeaderCell>
+                            <TableHeaderCell>Trạng thái</TableHeaderCell>
+                        </TableRow>
+                    </TableHead>
                     <tbody>
                         {history.map((item) => {
                             const expanded = expandedId === item.id;
 
                             return (
                                 <Fragment key={item.id}>
-                                    <tr
+                                    <TableRow
                                         className={`cursor-pointer ${item.status === "ACTIVE" ? "bg-[#f3fbf5]" : "bg-white"} hover:bg-[#f8faf9]`}
                                         onClick={() => setExpandedId(expanded ? null : item.id)}
                                     >
@@ -736,25 +706,25 @@ function HistoryTab({
                                         <TableCell>{item.note || "Không có ghi chú"}</TableCell>
                                         <TableCell>{item.qualificationYear ?? "Không áp dụng"}</TableCell>
                                         <TableCell>
-                                            <StatusPill value={assignmentStatusLabel(item.status)} />
+                                            <StatusBadge tone="success">{assignmentStatusLabel(item.status)}</StatusBadge>
                                         </TableCell>
-                                    </tr>
+                                    </TableRow>
                                     {expanded ? (
-                                        <tr key={`${item.id}-detail`}>
-                                            <td className="border-t border-[#eef2f0] bg-[#fbfcfb] px-4 py-3" colSpan={6}>
+                                        <TableRow key={`${item.id}-detail`}>
+                                            <TableCell className="bg-[#fbfcfb]" colSpan={6}>
                                                 <div className="grid gap-2 text-xs font-bold text-[#657282] md:grid-cols-3">
                                                     <DetailLine label="Ghi chú" value={item.note || "Không có ghi chú"} />
                                                     <DetailLine label="Người thực hiện" value="Hệ thống" />
                                                     <DetailLine label="Thời điểm tạo" value={formatDateTime(item.effectiveFrom)} />
                                                 </div>
-                                            </td>
-                                        </tr>
+                                            </TableCell>
+                                        </TableRow>
                                     ) : null}
                                 </Fragment>
                             );
                         })}
                     </tbody>
-                </table>
+                </Table>
             </div>
             <div className="grid gap-2 p-3 md:hidden">
                 {history.map((item) => (
@@ -800,14 +770,10 @@ function TransactionsTab({
                             Theo dõi các giao dịch ảnh hưởng đến xét hạng khách hàng.
                         </p>
                     </div>
-                    <button
-                        className="inline-flex h-9 items-center gap-2 rounded-lg border border-[#dce5e1] bg-white px-3 text-xs font-black text-[#536171] hover:bg-[#f4f8f5]"
-                        onClick={onRefresh}
-                        type="button"
-                    >
+                    <Button onClick={onRefresh} size="sm">
                         <RefreshCw size={14} aria-hidden="true" />
                         Làm mới
-                    </button>
+                    </Button>
                 </div>
                 <div className="mt-4 grid gap-2 md:grid-cols-[minmax(220px,1fr)_170px_170px_auto]">
                     <label className="relative block">
@@ -843,21 +809,21 @@ function TransactionsTab({
             ) : (
                 <>
                     <div className="overflow-auto max-md:hidden">
-                        <table className="w-full min-w-[920px] border-separate border-spacing-0 text-xs">
-                            <thead>
-                                <tr>
-                                    <TableHead>Ngày giao dịch</TableHead>
-                                    <TableHead>Mã hóa đơn</TableHead>
-                                    <TableHead>Loại giao dịch</TableHead>
-                                    <TableHead align="right">Số tiền ảnh hưởng</TableHead>
-                                    <TableHead align="right">Số đơn ảnh hưởng</TableHead>
-                                    <TableHead>Trạng thái</TableHead>
-                                    <TableHead>Ghi chú</TableHead>
-                                </tr>
-                            </thead>
+                        <Table className="min-w-[920px]">
+                            <TableHead>
+                                <TableRow>
+                                    <TableHeaderCell>Ngày giao dịch</TableHeaderCell>
+                                    <TableHeaderCell>Mã hóa đơn</TableHeaderCell>
+                                    <TableHeaderCell>Loại giao dịch</TableHeaderCell>
+                                    <TableHeaderCell className="text-right">Số tiền ảnh hưởng</TableHeaderCell>
+                                    <TableHeaderCell className="text-right">Số đơn ảnh hưởng</TableHeaderCell>
+                                    <TableHeaderCell>Trạng thái</TableHeaderCell>
+                                    <TableHeaderCell>Ghi chú</TableHeaderCell>
+                                </TableRow>
+                            </TableHead>
                             <tbody>
                                 {rows.map((transaction) => (
-                                    <tr key={transaction.id}>
+                                    <TableRow key={transaction.id}>
                                         <TableCell>{formatDateTime(transaction.occurredAt)}</TableCell>
                                         <TableCell>
                                             <span className="font-black text-[#172317]">
@@ -865,14 +831,14 @@ function TransactionsTab({
                                             </span>
                                         </TableCell>
                                         <TableCell>{transactionTypeLabel(transaction.transactionType)}</TableCell>
-                                        <TableCell align="right">{formatCurrency(transaction.amount)}</TableCell>
-                                        <TableCell align="right">{formatSignedNumber(transaction.orderCountDelta)}</TableCell>
-                                        <TableCell><StatusPill value="Hợp lệ" /></TableCell>
+                                        <TableCell className="text-right">{formatCurrency(transaction.amount)}</TableCell>
+                                        <TableCell className="text-right">{formatSignedNumber(transaction.orderCountDelta)}</TableCell>
+                                        <TableCell><StatusBadge tone="success">Hợp lệ</StatusBadge></TableCell>
                                         <TableCell>{transaction.reason ?? transaction.metadata ?? "Đủ điều kiện xét hạng"}</TableCell>
-                                    </tr>
+                                    </TableRow>
                                 ))}
                             </tbody>
-                        </table>
+                        </Table>
                     </div>
                     <div className="grid gap-2 p-3 md:hidden">
                         {rows.map((transaction) => (
@@ -887,29 +853,14 @@ function TransactionsTab({
                 </>
             )}
 
-            <footer className="flex items-center justify-between border-t border-[#eef2f0] px-4 py-3 text-xs font-bold text-[#657282]">
-                <span>
-                    Trang {(transactions?.page ?? page) + 1}/{transactions?.totalPages ?? 1}
-                </span>
-                <div className="flex gap-2">
-                    <button
-                        className="h-8 rounded-lg border border-[#dce5e1] bg-white px-3 disabled:opacity-50"
-                        disabled={transactions?.first ?? true}
-                        onClick={() => onPageChange(Math.max(page - 1, 0))}
-                        type="button"
-                    >
-                        Trước
-                    </button>
-                    <button
-                        className="h-8 rounded-lg border border-[#dce5e1] bg-white px-3 disabled:opacity-50"
-                        disabled={transactions?.last ?? true}
-                        onClick={() => onPageChange(page + 1)}
-                        type="button"
-                    >
-                        Sau
-                    </button>
-                </div>
-            </footer>
+            <TablePagination
+                itemLabel="giao dịch"
+                onPageChange={onPageChange}
+                page={transactions?.page ?? page}
+                pageSize={transactions?.size ?? rows.length}
+                totalItems={transactions?.totalElements ?? 0}
+                totalPages={transactions?.totalPages ?? 1}
+            />
         </section>
     );
 }
@@ -978,10 +929,8 @@ function ManualTierAdjustmentDialog({
                                     {error}
                                 </div>
                             ) : null}
-                            <label className="grid gap-1.5 text-sm font-bold text-slate-700">
-                                <span>Hạng mới</span>
-                                <select
-                                    className="h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-900 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
+                            <Field label="Hạng mới">
+                                <NativeSelect
                                     onChange={(event) => setTierId(event.currentTarget.value)}
                                     value={tierId}
                                 >
@@ -991,21 +940,17 @@ function ManualTierAdjustmentDialog({
                                             {tier.name} ({tier.code})
                                         </option>
                                     ))}
-                                </select>
-                            </label>
-                            <label className="grid gap-1.5 text-sm font-bold text-slate-700">
-                                <span>Ngày hiệu lực</span>
-                                <input
-                                    className="h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-900 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
+                                </NativeSelect>
+                            </Field>
+                            <Field label="Ngày hiệu lực">
+                                <TextInput
                                     onChange={(event) => setEffectiveFrom(event.currentTarget.value)}
                                     type="datetime-local"
                                     value={effectiveFrom}
                                 />
-                            </label>
-                            <label className="grid gap-1.5 text-sm font-bold text-slate-700">
-                                <span>Lý do</span>
-                                <select
-                                    className="h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-900 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
+                            </Field>
+                            <Field label="Lý do">
+                                <NativeSelect
                                     onChange={(event) => setReason(event.currentTarget.value)}
                                     value={reason}
                                 >
@@ -1014,35 +959,24 @@ function ManualTierAdjustmentDialog({
                                     <option>Chăm sóc khách hàng</option>
                                     <option>Sửa sai dữ liệu</option>
                                     <option>Khác</option>
-                                </select>
-                            </label>
-                            <label className="grid gap-1.5 text-sm font-bold text-slate-700">
-                                <span>Ghi chú chi tiết</span>
-                                <textarea
-                                    className="min-h-24 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-900 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
+                                </NativeSelect>
+                            </Field>
+                            <Field label="Ghi chú chi tiết">
+                                <TextArea
                                     onChange={(event) => setNote(event.currentTarget.value)}
                                     placeholder="Ví dụ: Điều chỉnh theo quyết định chăm sóc khách hàng"
                                     value={note}
                                 />
-                            </label>
+                            </Field>
                         </div>
                         <DialogFooter>
-                            <button
-                                className="inline-flex h-10 items-center justify-center rounded-xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 transition-colors hover:bg-slate-50"
-                                disabled={saving}
-                                onClick={() => onOpenChange(false)}
-                                type="button"
-                            >
+                            <Button disabled={saving} onClick={() => onOpenChange(false)}>
                                 Hủy
-                            </button>
-                            <button
-                                className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-[#159734] px-4 text-sm font-bold text-white shadow-sm transition-colors hover:bg-[#12862d] disabled:opacity-60"
-                                disabled={saving}
-                                type="submit"
-                            >
+                            </Button>
+                            <Button disabled={saving} type="submit" variant="primary">
                                 {saving ? <LoaderCircle className="animate-spin" size={16} aria-hidden="true" /> : null}
                                 Lưu điều chỉnh
-                            </button>
+                            </Button>
                         </DialogFooter>
                     </form>
                 </DialogContent>
@@ -1107,16 +1041,15 @@ function CopyButton({
     onClick: () => void;
 }) {
     return (
-        <button
+        <IconButton
             aria-label={label}
-            className="grid size-7 shrink-0 place-items-center rounded-lg border border-[#dce5e1] text-[#536171] hover:bg-[#f4f8f5] disabled:cursor-not-allowed disabled:opacity-40"
             disabled={disabled}
             onClick={onClick}
             title={label}
-            type="button"
+            variant="secondary"
         >
             <Copy size={13} aria-hidden="true" />
-        </button>
+        </IconButton>
     );
 }
 
@@ -1233,77 +1166,6 @@ function CompactRecord({
             </div>
             <p className="mt-1 text-xs font-bold text-[#718078]">{meta}</p>
         </article>
-    );
-}
-
-function MenuAction({
-    danger = false,
-    icon: Icon,
-    label,
-    onClick
-}: {
-    danger?: boolean;
-    icon: LucideIcon;
-    label: string;
-    onClick: () => void;
-}) {
-    return (
-        <button
-            className={`flex h-10 w-full items-center gap-2 px-3 text-left text-xs font-black ${
-                danger
-                    ? "text-[#c4422e] hover:bg-[#fff5f3]"
-                    : "text-[#536171] hover:bg-[#f4f8f5] hover:text-[#172317]"
-            }`}
-            onClick={onClick}
-            type="button"
-        >
-            <Icon size={15} aria-hidden="true" />
-            {label}
-        </button>
-    );
-}
-
-function TableHead({
-    align = "left",
-    children
-}: {
-    align?: "left" | "right";
-    children: ReactNode;
-}) {
-    return (
-        <th
-            className={`sticky top-0 z-[1] bg-[#f8faf9] px-3 py-2 font-black text-[#556477] ${
-                align === "right" ? "text-right" : "text-left"
-            }`}
-        >
-            {children}
-        </th>
-    );
-}
-
-function TableCell({
-    align = "left",
-    children
-}: {
-    align?: "left" | "right";
-    children: ReactNode;
-}) {
-    return (
-        <td
-            className={`border-t border-[#eef2f0] px-3 py-3 font-bold text-[#657282] ${
-                align === "right" ? "text-right" : "text-left"
-            }`}
-        >
-            {children}
-        </td>
-    );
-}
-
-function StatusPill({ value }: { value: string }) {
-    return (
-        <span className="inline-flex h-7 items-center rounded-full bg-[#eaf8ee] px-2.5 text-[11px] font-black text-[#116f28] ring-1 ring-emerald-200">
-            {value}
-        </span>
     );
 }
 

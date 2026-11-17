@@ -1,5 +1,5 @@
 import { AlertCircle, LoaderCircle } from "lucide-react";
-import { type FormEvent, type ReactNode, useState } from "react";
+import { type FormEvent, useState } from "react";
 
 import {
   DialogContent,
@@ -8,10 +8,11 @@ import {
   DialogHeader,
   DialogTitle,
 } from "../../../components/ui/dialog";
+import { Button } from "../../../components/ui/Button";
+import { Field, TextArea, TextInput } from "../../../components/ui/Field";
 import { authorizationApi, describeAuthorizationError } from "../services/authorization.api";
 import type { PermissionResponse } from "../types/authorization.types";
 import { normalizePermissionName, validatePermissionForm } from "../utils/authorization.utils";
-import { fieldClass, primaryButton, secondaryButton } from "./authorization-ui";
 
 /** Tạo mới (không truyền `permission`) hoặc sửa metadata (truyền `permission`; tên không đổi được). */
 export function PermissionFormDialog({
@@ -65,15 +66,15 @@ export function PermissionFormDialog({
 
       <form noValidate onSubmit={(event) => void submit(event)}>
         <div className="grid max-h-[68vh] gap-5 overflow-y-auto p-6">
-          <FormField
+          <Field
             hint={isEdit ? "Định danh không thể thay đổi." : "Chữ thường, số, dấu gạch ngang. Ví dụ: order:create, inventory:receive"}
             label="Định danh"
             required={!isEdit}
           >
-            <input
+            <TextInput
               autoCapitalize="none"
               autoFocus={!isEdit}
-              className={`${fieldClass} font-mono`}
+              className="font-mono"
               disabled={isEdit}
               maxLength={64}
               onChange={(event) => setName(event.target.value)}
@@ -81,26 +82,25 @@ export function PermissionFormDialog({
               spellCheck={false}
               value={name}
             />
-          </FormField>
-          <FormField label="Tên hiển thị" required>
-            <input
+          </Field>
+          <Field label="Tên hiển thị" required>
+            <TextInput
               autoFocus={isEdit}
-              className={fieldClass}
               maxLength={100}
               onChange={(event) => setDisplayName(event.target.value)}
               placeholder="vd: Tạo đơn bán"
               value={displayName}
             />
-          </FormField>
-          <FormField hint="Tối đa 255 ký tự." label="Mô tả">
-            <textarea
-              className={`${fieldClass} h-24 resize-none py-2`}
+          </Field>
+          <Field hint="Tối đa 255 ký tự." label="Mô tả">
+            <TextArea
+              className="h-24 resize-none"
               maxLength={255}
               onChange={(event) => setDescription(event.target.value)}
               placeholder="Quyền này cho phép làm gì?"
               value={description}
             />
-          </FormField>
+          </Field>
           {error ? (
             <div
               className="flex items-start gap-2 rounded-xl border border-[#f1c8c1] bg-[#fff5f3] px-4 py-3 text-sm font-bold text-[#a43a2a]"
@@ -112,38 +112,15 @@ export function PermissionFormDialog({
           ) : null}
         </div>
         <DialogFooter>
-          <button className={secondaryButton} disabled={submitting} onClick={onCancel} type="button">
+          <Button disabled={submitting} onClick={onCancel}>
             Hủy
-          </button>
-          <button className={primaryButton} disabled={submitting} type="submit">
+          </Button>
+          <Button disabled={submitting} type="submit" variant="primary">
             {submitting ? <LoaderCircle className="animate-spin" size={16} aria-hidden="true" /> : null}
             {submitting ? "Đang lưu..." : isEdit ? "Lưu thay đổi" : "Tạo quyền"}
-          </button>
+          </Button>
         </DialogFooter>
       </form>
     </DialogContent>
-  );
-}
-
-function FormField({
-  children,
-  hint,
-  label,
-  required = false,
-}: {
-  children: ReactNode;
-  hint?: string;
-  label: string;
-  required?: boolean;
-}) {
-  return (
-    <label className="grid content-start gap-2">
-      <span className="text-xs font-bold text-[#536171]">
-        {label}
-        {required ? <span className="ml-1 text-[#c4422e]">*</span> : null}
-      </span>
-      {children}
-      {hint ? <span className="text-xs font-semibold text-[#8793a1]">{hint}</span> : null}
-    </label>
   );
 }

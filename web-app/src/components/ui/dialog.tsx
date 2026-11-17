@@ -61,7 +61,7 @@ export function DialogContent({
 
     return createPortal(
         <div
-            className="fixed inset-0 z-50 grid place-items-center bg-[#172317]/10 p-4"
+            className="fixed inset-0 z-50 grid place-items-center bg-[#0d1b12]/35 p-4"
             onClick={(event) => {
                 if (event.target === event.currentTarget) {
                     context.onOpenChange(false);

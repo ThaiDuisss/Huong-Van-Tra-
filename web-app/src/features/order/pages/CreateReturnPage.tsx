@@ -5,11 +5,22 @@ import {
     ChevronLeft,
     ChevronRight,
     Info,
-    LoaderCircle,
-    Search
+    LoaderCircle
 } from "lucide-react";
 import { useEffect, useMemo, useState, type KeyboardEvent } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import { TablePagination } from "../../../components/shared/list/TablePagination";
+import { Button } from "../../../components/ui/Button";
+import { Field, TextArea, TextInput } from "../../../components/ui/Field";
+import { SearchInput } from "../../../components/ui/SearchInput";
+import { StatusBadge, type BadgeTone } from "../../../components/ui/StatusBadge";
+import {
+    Table,
+    TableCell,
+    TableHead,
+    TableHeaderCell,
+    TableRow
+} from "../../../components/ui/Table";
 import { routePaths } from "../../../routes/path";
 
 import { getOrderById, getOrders } from "../services/order.api";
@@ -689,13 +700,9 @@ export function CreateReturnPage() {
                                 Hàng hoàn sẽ được kiểm tra tình trạng trước khi xử lý nhập kho và hoàn tiền (nếu có).
                             </span>
                         </div>
-                        <button
-                            type="button"
-                            className={styles.policySubtleLink}
-                            onClick={() => setIsPolicyModalOpen(true)}
-                        >
+                        <Button onClick={() => setIsPolicyModalOpen(true)} size="xs" variant="link">
                             Xem chính sách chi tiết
-                        </button>
+                        </Button>
                     </div>
 
                     {/* Accordion List for each selected item */}
@@ -732,14 +739,13 @@ export function CreateReturnPage() {
                     </div>
 
                     {/* General Return Note */}
-                    <label className={styles.fullField}>
-                        <span>Ghi chú phiếu hoàn</span>
-                        <textarea
+                    <Field label="Ghi chú phiếu hoàn">
+                        <TextArea
                             onChange={(event) => setReturnNote(event.target.value)}
                             placeholder="Ghi chú chung nếu có"
                             value={returnNote}
                         />
-                    </label>
+                    </Field>
 
                     {/* Consolidated Eligibility Verification */}
                     <ReturnEligibilityStatus
@@ -781,10 +787,10 @@ export function CreateReturnPage() {
     return (
         <section className={styles.page}>
             <header className={styles.header}>
-                <button className={styles.backButton} onClick={handleBackToList} type="button">
+                <Button onClick={handleBackToList}>
                     <ArrowLeft size={18} aria-hidden="true" />
                     Quay lại
-                </button>
+                </Button>
                 <div className={styles.title}>
                     <h1>Tạo phiếu hoàn hàng</h1>
                     <p>Thực hiện theo các bước để tạo phiếu hoàn</p>
@@ -841,25 +847,22 @@ export function CreateReturnPage() {
                     orderCode={selectedOrder?.orderCode ?? selectedOrderSummary?.orderCode ?? null}
                     refundRequired={refundRequired}
                 />
-                <button
-                    className={styles.secondaryButton}
+                <Button
                     disabled={wizardStep === 1 || isSubmitting}
                     onClick={() =>
                         setWizardStep((step) => Math.max(1, step - 1) as WizardStep)
                     }
-                    type="button"
                 >
                     <ChevronLeft size={18} aria-hidden="true" />
                     Quay lại
-                </button>
+                </Button>
 
                 {wizardStep < 4 ? (
-                    <button
-                        className={styles.primaryButton}
+                    <Button
                         aria-busy={isNextLoading || undefined}
                         disabled={isNextDisabled}
                         onClick={moveToNextStep}
-                        type="button"
+                        variant="primary"
                     >
                         {isNextLoading ? (
                             <>
@@ -872,14 +875,9 @@ export function CreateReturnPage() {
                                 <ChevronRight size={18} aria-hidden="true" />
                             </>
                         )}
-                    </button>
+                    </Button>
                 ) : (
-                    <button
-                        className={styles.primaryButton}
-                        disabled={isCreateDisabled}
-                        onClick={submitReturn}
-                        type="button"
-                    >
+                    <Button disabled={isCreateDisabled} onClick={submitReturn} variant="primary">
                         {isSubmitting ? (
                             <>
                                 <LoaderCircle className={styles.spinner} size={18} aria-hidden="true" />
@@ -888,7 +886,7 @@ export function CreateReturnPage() {
                         ) : (
                             "Tạo phiếu hoàn hàng"
                         )}
-                    </button>
+                    </Button>
                 )}
             </footer>
 
@@ -959,15 +957,12 @@ function OrderPicker({
     return (
         <div className={styles.orderPicker}>
             <div className={styles.orderPickerHeader}>
-                <label className={styles.searchBox}>
-                    <Search size={18} aria-hidden="true" />
-                    <input
-                        aria-label="Tìm đơn hàng cần hoàn"
-                        onChange={(event) => onSearchChange(event.target.value)}
-                        placeholder="Tìm mã đơn, khách hàng, SĐT..."
-                        value={searchTerm}
-                    />
-                </label>
+                <SearchInput
+                    aria-label="Tìm đơn hàng cần hoàn"
+                    onChange={onSearchChange}
+                    placeholder="Tìm mã đơn, khách hàng, SĐT..."
+                    value={searchTerm}
+                />
                 <label className={styles.timeSelect}>
                     <CalendarDays size={18} aria-hidden="true" />
                     <select
@@ -990,36 +985,32 @@ function OrderPicker({
 
             {timeFilter === "CUSTOM" ? (
                 <div className={styles.customDateRange}>
-                    <label>
-                        <span>Từ ngày</span>
-                        <input
+                    <Field label="Từ ngày">
+                        <TextInput
                             aria-label="Từ ngày mua hàng"
-                            className={styles.dateInput}
                             onChange={(event) =>
                                 onCustomFromDateChange(event.target.value)
                             }
                             type="date"
                             value={customFromDate}
                         />
-                    </label>
-                    <label>
-                        <span>Đến ngày</span>
-                        <input
+                    </Field>
+                    <Field label="Đến ngày">
+                        <TextInput
                             aria-label="Đến ngày mua hàng"
-                            className={styles.dateInput}
                             onChange={(event) =>
                                 onCustomToDateChange(event.target.value)
                             }
                             type="date"
                             value={customToDate}
                         />
-                    </label>
+                    </Field>
                 </div>
             ) : null}
 
             <div className={styles.orderResults}>
                 <div className={styles.orderTableWrap}>
-                    <table className={styles.orderTable}>
+                    <Table className={styles.orderTable}>
                         <colgroup>
                             <col style={{ width: "22%" }} />
                             <col style={{ width: "28%" }} />
@@ -1027,35 +1018,35 @@ function OrderPicker({
                             <col style={{ width: "14%" }} />
                             <col style={{ width: "18%" }} />
                         </colgroup>
-                        <thead>
-                            <tr>
-                                <th>Mã đơn hàng</th>
-                                <th>Khách hàng</th>
-                                <th>Thời gian</th>
-                                <th>Tình trạng hoàn</th>
-                                <th>Giá trị đơn hàng</th>
-                            </tr>
-                        </thead>
+                        <TableHead>
+                            <TableRow>
+                                <TableHeaderCell>Mã đơn hàng</TableHeaderCell>
+                                <TableHeaderCell>Khách hàng</TableHeaderCell>
+                                <TableHeaderCell>Thời gian</TableHeaderCell>
+                                <TableHeaderCell className="text-right">Tình trạng hoàn</TableHeaderCell>
+                                <TableHeaderCell className="text-center">Giá trị đơn hàng</TableHeaderCell>
+                            </TableRow>
+                        </TableHead>
                         <tbody>
                             {isLoading ? (
-                                <tr>
-                                    <td className={styles.emptyCell} colSpan={5}>
+                                <TableRow>
+                                    <TableCell className={styles.emptyCell} colSpan={5}>
                                         <strong>Đang tìm kiếm</strong>
                                         <span>Đang tải danh sách đơn hàng</span>
-                                    </td>
-                                </tr>
+                                    </TableCell>
+                                </TableRow>
                             ) : null}
                             {!isLoading && searchError ? (
-                                <tr>
-                                    <td className={styles.emptyCell} colSpan={5}>
+                                <TableRow>
+                                    <TableCell className={styles.emptyCell} colSpan={5}>
                                         <strong>Không tải được đơn hàng</strong>
                                         <span>{searchError}</span>
-                                    </td>
-                                </tr>
+                                    </TableCell>
+                                </TableRow>
                             ) : null}
                             {!isLoading && !searchError
                                 ? orderResults.map((order, index) => (
-                                      <tr
+                                      <TableRow
                                           aria-selected={
                                               selectedOrderSummary?.id === order.id
                                           }
@@ -1075,25 +1066,25 @@ function OrderPicker({
                                           }
                                           tabIndex={0}
                                       >
-                                          <td className={styles.orderCodeCell}>
+                                          <TableCell className={styles.orderCodeCell}>
                                               {getOrderCode(order)}
-                                          </td>
-                                          <td>{getCustomerDisplay(order)}</td>
-                                          <td className={styles.orderDateCell}>
+                                          </TableCell>
+                                          <TableCell>{getCustomerDisplay(order)}</TableCell>
+                                          <TableCell className={styles.orderDateCell}>
                                               {formatDateTime(order.createdAt)}
-                                          </td>
-                                          <td>
+                                          </TableCell>
+                                          <TableCell className="text-right">
                                               <OrderReturnStatusTag order={order} />
-                                          </td>
-                                          <td className={styles.orderAmountCell}>
+                                          </TableCell>
+                                          <TableCell className={`text-center ${styles.orderAmountCell}`}>
                                               {formatCurrency(order.finalAmount)}
-                                          </td>
-                                      </tr>
+                                          </TableCell>
+                                      </TableRow>
                                   ))
                                 : null}
                             {!isLoading && !searchError && orderResults.length === 0 ? (
-                                <tr>
-                                    <td className={styles.emptyCell} colSpan={5}>
+                                <TableRow>
+                                    <TableCell className={styles.emptyCell} colSpan={5}>
                                         <strong>
                                             {hasSearchTerm || hasTimeFilter
                                                 ? "Không tìm thấy đơn hàng"
@@ -1104,56 +1095,39 @@ function OrderPicker({
                                                 ? "Không có đơn hàng đủ điều kiện phù hợp với từ khóa."
                                                 : "Không có đơn hàng đủ điều kiện hoàn."}
                                         </span>
-                                    </td>
-                                </tr>
+                                    </TableCell>
+                                </TableRow>
                             ) : null}
                         </tbody>
-                    </table>
+                    </Table>
                 </div>
                 {!isLoading && !searchError && totalElements > 0 ? (
-                    <div className={styles.orderSearchPagination}>
-                        <button
-                            className={styles.secondaryButton}
-                            disabled={currentPage === 0}
-                            onClick={() => onPageChange(Math.max(0, currentPage - 1))}
-                            type="button"
-                        >
-                            <ChevronLeft size={16} aria-hidden="true" />
-                            Trước
-                        </button>
-                        <span>
-                            Trang {currentPage + 1} / {totalPages}
-                        </span>
-                        <button
-                            className={styles.secondaryButton}
-                            disabled={currentPage >= totalPages - 1}
-                            onClick={() =>
-                                onPageChange(Math.min(totalPages - 1, currentPage + 1))
-                            }
-                            type="button"
-                        >
-                            Sau
-                            <ChevronRight size={16} aria-hidden="true" />
-                        </button>
-                    </div>
+                    <TablePagination
+                        itemLabel="đơn hàng"
+                        onPageChange={onPageChange}
+                        page={currentPage}
+                        pageSize={orderPage.size || orderResults.length}
+                        totalItems={totalElements}
+                        totalPages={totalPages}
+                    />
                 ) : null}
             </div>
         </div>
     );
 }
 
-const ORDER_RETURN_STATUS_TAGS: Record<string, { label: string; className: string }> = {
-    NONE: { label: "Chưa hoàn", className: "bg-[#eef3f1] text-[#536078]" },
-    PARTIALLY_RETURNED: { label: "Đã hoàn một phần", className: "bg-[#fef3c7] text-[#b45309]" },
-    FULLY_RETURNED: { label: "Đã hoàn hết", className: "bg-[#ffecec] text-[#df2525]" }
+const ORDER_RETURN_STATUS_TAGS: Record<string, { label: string; tone: BadgeTone }> = {
+    NONE: { label: "Chưa hoàn", tone: "neutral" },
+    PARTIALLY_RETURNED: { label: "Đã hoàn một phần", tone: "warning" },
+    FULLY_RETURNED: { label: "Đã hoàn hết", tone: "danger" }
 };
 
 function OrderReturnStatusTag({ order }: { order: OrderSummaryResponse }) {
     const tag = ORDER_RETURN_STATUS_TAGS[order.returnStatus ?? "NONE"] ?? ORDER_RETURN_STATUS_TAGS.NONE;
     return (
-        <span className={`inline-flex h-6 items-center whitespace-nowrap rounded-md px-2 text-xs font-black ${tag.className}`}>
+        <StatusBadge shape="tag" tone={tag.tone}>
             {order.returnStatusLabel?.trim() || tag.label}
-        </span>
+        </StatusBadge>
     );
 }
 

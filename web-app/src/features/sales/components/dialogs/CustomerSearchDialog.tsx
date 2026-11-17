@@ -12,6 +12,8 @@ import {
   useState
 } from "react";
 
+import { Button, IconButton } from "../../../../components/ui/Button";
+import { StatusBadge, type BadgeTone } from "../../../../components/ui/StatusBadge";
 import { formatCurrency } from "../../services/money";
 import type { SaleCustomer } from "../../types/sale.types";
 
@@ -39,20 +41,20 @@ function getInitials(name: string) {
     .toUpperCase();
 }
 
-function getTierClassName(tier: SaleCustomer["tier"]) {
+function getTierTone(tier: SaleCustomer["tier"]): BadgeTone {
   if (tier === "VIP Kim Cương") {
-    return "bg-blue-100 text-blue-700";
+    return "info";
   }
 
   if (tier === "VIP Vàng") {
-    return "bg-amber-100 text-amber-700";
+    return "warning";
   }
 
   if (tier === "VIP Bạc") {
-    return "bg-neutral-200 text-neutral-700";
+    return "neutral";
   }
 
-  return "bg-hvt-green-100 text-hvt-green-800";
+  return "success";
 }
 
 function CustomerAvatar({ customer }: { customer: SaleCustomer }) {
@@ -170,14 +172,9 @@ export function CustomerSearchDialog({
           </div>
         </div>
 
-        <button
-          type="button"
-          className="grid size-8 place-items-center rounded-lg text-gray-500 hover:bg-neutral-100"
-          aria-label="Đóng tìm khách hàng"
-          onClick={closeDialog}
-        >
+        <IconButton aria-label="Đóng tìm khách hàng" onClick={closeDialog}>
           <X size={20} aria-hidden="true" />
-        </button>
+        </IconButton>
       </header>
 
       <label className="mb-4 flex h-10 items-center gap-2 rounded-lg border border-pos-border px-3 focus-within:border-hvt-green-700">
@@ -217,7 +214,7 @@ export function CustomerSearchDialog({
             onSelect={selectCustomer}
           />
 
-          {hasMore && <button type="button" className="w-full py-2 text-sm font-semibold text-[#159734]" onClick={onLoadMore}>Xem thêm khách hàng</button>}
+          {hasMore && <Button className="w-full" onClick={onLoadMore} variant="link">Xem thêm khách hàng</Button>}
         </>
       ) : null}
 
@@ -236,9 +233,8 @@ export function CustomerSearchDialog({
         </div>
       ) : null}
 
-      <button
-        type="button"
-        className="mt-3 flex h-9 w-full items-center justify-center gap-2 rounded-full border border-pos-border text-sm font-semibold text-hvt-green-800 hover:bg-hvt-green-50"
+      <Button
+        className="mt-3 w-full"
         onClick={() => {
           setQuery("");
           onCreate();
@@ -246,7 +242,7 @@ export function CustomerSearchDialog({
       >
         <UserPlus size={17} aria-hidden="true" />
         Tạo khách hàng mới
-      </button>
+      </Button>
     </div>
   );
 }
@@ -305,11 +301,7 @@ function CustomerGroup({
               </span>
 
               <span className="grid justify-items-end gap-0.5 text-right">
-                <span
-                  className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${getTierClassName(customer.tier)}`}
-                >
-                  {customer.tier}
-                </span>
+                <StatusBadge size="sm" tone={getTierTone(customer.tier)}>{customer.tier}</StatusBadge>
                 <span className="text-xs text-neutral-500">
                   {customer.customerCode}
                 </span>

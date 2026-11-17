@@ -1,5 +1,6 @@
 import { Clock3, Store, Timer, Truck } from "lucide-react";
 
+import { StatusBadge } from "../../../../components/ui/StatusBadge";
 import { formatCurrency } from "../../services/money";
 import type { DeliveryOption } from "../../types/delivery.types";
 
@@ -109,9 +110,7 @@ export function DeliveryOptionCard({
               {getModeLabel(option)}
             </strong>
             {option.recommended ? (
-              <span className="rounded-full bg-[#fff7e8] px-2 py-0.5 text-[10px] font-black text-[#c77906]">
-                Đề xuất
-              </span>
+              <StatusBadge size="sm" tone="warning">Đề xuất</StatusBadge>
             ) : null}
           </span>
           <span className="mt-0.5 block text-xs font-semibold text-[#53678f]">
@@ -139,22 +138,14 @@ export function DeliveryOptionCard({
 
       <span className="ml-14 flex flex-wrap gap-2 text-[11px] font-black">
         {option.availableNow ? (
-          <span className="rounded-full bg-[#eaf8ed] px-2 py-0.5 text-[#159734]">
-            Có thể giao ngay
-          </span>
+          <StatusBadge size="sm" tone="success">Có thể giao ngay</StatusBadge>
         ) : option.availableLater ? (
-          <span className="rounded-full bg-[#fff7e8] px-2 py-0.5 text-[#9b5d05]">
-            Chưa thể giao ngay
-          </span>
+          <StatusBadge size="sm" tone="warning">Chưa thể giao ngay</StatusBadge>
         ) : (
-          <span className="rounded-full bg-red-100 px-2 py-0.5 text-red-700">
-            Không khả dụng
-          </span>
+          <StatusBadge size="sm" tone="danger">Không khả dụng</StatusBadge>
         )}
         {option.recommendationReason ? (
-          <span className="rounded-full bg-[#eef4ff] px-2 py-0.5 text-[#315aa6]">
-            {option.recommendationReason}
-          </span>
+          <StatusBadge size="sm" tone="info">{option.recommendationReason}</StatusBadge>
         ) : null}
       </span>
 

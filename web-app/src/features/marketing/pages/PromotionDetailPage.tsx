@@ -16,6 +16,23 @@ import {
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { Link, Navigate, useParams } from "react-router-dom";
 
+import { Button, IconButton } from "../../../components/ui/Button";
+import { buttonClassName } from "../../../components/ui/button-styles";
+import {
+    Field,
+    NativeSelect,
+    TextArea,
+    TextInput
+} from "../../../components/ui/Field";
+import { ModalShell } from "../../../components/ui/Overlay";
+import { StatusBadge } from "../../../components/ui/StatusBadge";
+import {
+    Table,
+    TableCell,
+    TableHead,
+    TableHeaderCell,
+    TableRow
+} from "../../../components/ui/Table";
 import styles from "../components/discount-programs/DiscountProgramPage.module.css";
 import { eventApi } from "../services/event.api";
 import { promotionApi } from "../services/promotion.api";
@@ -30,6 +47,7 @@ import type {
     PromotionTargetResponse
 } from "../types/promotion.types";
 import { formatDiscountDateTimeCompact } from "../utils/discount-programs";
+import { getMarketingStatusTone } from "../utils/event-labels";
 import {
     getPromotionApplyMethodLabel,
     getPromotionStatusLabel,
@@ -46,16 +64,6 @@ type DetailModal =
     | { kind: "condition"; mode: "edit"; value: PromotionConditionResponse };
 
 type DetailSectionId = "information" | "event" | "benefits" | "targets" | "conditions";
-
-const statusClassNames: Record<string, string> = {
-    DRAFT: styles.statusInactive,
-    SCHEDULED: styles.statusScheduled,
-    ACTIVE: styles.statusActive,
-    PAUSED: styles.statusPaused,
-    EXPIRED: styles.statusExpired,
-    ENDED: styles.statusUsed,
-    CANCELLED: styles.statusCancelled
-};
 
 const benefitTypeLabels: Record<string, string> = {
     PERCENT_DISCOUNT: "Giảm theo phần trăm",
@@ -376,7 +384,7 @@ export function PromotionDetailPage() {
                 </div>
                 <Link
                     to={routePaths.discountPrograms}
-                    className={`${styles.secondaryButton} ${styles.compactButton}`}
+                    className={buttonClassName({ variant: "secondary" })}
                 >
                     <ChevronLeft size={17} aria-hidden="true" />
                     Quay lại danh sách
@@ -410,7 +418,11 @@ export function PromotionDetailPage() {
                     </nav>
                     <h1 className={styles.detailTitle}>{promotion.name}</h1>
                     <div className={styles.metaLine}>
-                        <PromotionDetailStatusBadge status={promotion.status} />
+                        <StatusBadge
+                            tone={getMarketingStatusTone(promotion.status)}
+                        >
+                            {getPromotionStatusLabel(promotion.status)}
+                        </StatusBadge>
                         <span aria-hidden="true">·</span>
                         <span className={styles.metaItem}>
                             <CalendarDays size={15} aria-hidden="true" />
@@ -421,9 +433,7 @@ export function PromotionDetailPage() {
                 </div>
 
                 <div className={styles.actions}>
-                    <button
-                        className={`${styles.secondaryButton} ${styles.compactButton}`}
-                        type="button"
+                    <Button
                         onClick={() => {
                             setExpandedSections(
                                 allSectionsOpen
@@ -444,19 +454,19 @@ export function PromotionDetailPage() {
                             <ChevronsDown size={17} aria-hidden="true" />
                         )}
                         {allSectionsOpen ? "Thu gọn tất cả" : "Hiện tất cả"}
-                    </button>
+                    </Button>
                     <Link
                         to={`${routePaths.discountCodes}?promotionId=${encodeURIComponent(
                             promotion.id
                         )}&promotionName=${encodeURIComponent(promotion.name)}`}
-                        className={`${styles.secondaryButton} ${styles.compactButton}`}
+                        className={buttonClassName({ variant: "secondary" })}
                     >
                         <TicketPercent size={17} aria-hidden="true" />
                         Xem coupon
                     </Link>
                     <Link
                         to={routePaths.discountPrograms}
-                        className={`${styles.secondaryButton} ${styles.compactButton}`}
+                        className={buttonClassName({ variant: "secondary" })}
                     >
                         <ChevronLeft size={17} aria-hidden="true" />
                         Quay lại danh sách
@@ -588,45 +598,44 @@ export function PromotionDetailPage() {
                 onToggle={() => toggleSection("benefits")}
                 action={
                     canModifyDetails ? (
-                        <button
-                            className={styles.editButton}
-                            type="button"
+                        <Button
+                            size="sm"
                             onClick={() =>
                                 setModal({ kind: "benefit", mode: "create" })
                             }
                         >
                             <Plus size={15} aria-hidden="true" />
                             Thêm quyền lợi
-                        </button>
+                        </Button>
                     ) : null
                 }
             >
-                <table className={styles.smallTable}>
-                    <thead>
-                        <tr>
-                            <th>Loại quyền lợi</th>
-                            <th>Giá trị</th>
-                            <th>Giảm tối đa</th>
-                            <th>Quà tặng / số lượng</th>
-                            <th>Lý do</th>
-                            {canModifyDetails ? <th>Thao tác</th> : null}
-                        </tr>
-                    </thead>
+                <Table>
+                    <TableHead>
+                        <TableRow>
+                            <TableHeaderCell>Loại quyền lợi</TableHeaderCell>
+                            <TableHeaderCell>Giá trị</TableHeaderCell>
+                            <TableHeaderCell>Giảm tối đa</TableHeaderCell>
+                            <TableHeaderCell>Quà tặng / số lượng</TableHeaderCell>
+                            <TableHeaderCell>Lý do</TableHeaderCell>
+                            {canModifyDetails ? <TableHeaderCell>Thao tác</TableHeaderCell> : null}
+                        </TableRow>
+                    </TableHead>
                     <tbody>
                         {benefits.map((benefit) => (
-                            <tr key={benefit.id}>
-                                <td>
+                            <TableRow key={benefit.id}>
+                                <TableCell>
                                     {formatEnum(
                                         benefit.benefitType,
                                         benefitTypeLabels
                                     )}
-                                </td>
-                                <td>{formatValue(benefit.value)}</td>
-                                <td>{formatValue(benefit.maxDiscount)}</td>
-                                <td>
+                                </TableCell>
+                                <TableCell>{formatValue(benefit.value)}</TableCell>
+                                <TableCell>{formatValue(benefit.maxDiscount)}</TableCell>
+                                <TableCell>
                                     {formatGiftSummary(benefit)}
-                                </td>
-                                <td>{formatText(benefit.reason)}</td>
+                                </TableCell>
+                                <TableCell>{formatText(benefit.reason)}</TableCell>
                                 {canModifyDetails ? (
                                     <ActionCell
                                         disabled={actionLoading === benefit.id}
@@ -640,10 +649,10 @@ export function PromotionDetailPage() {
                                         onDelete={() => void deleteBenefit(benefit)}
                                     />
                                 ) : null}
-                            </tr>
+                            </TableRow>
                         ))}
                     </tbody>
-                </table>
+                </Table>
             </RelatedSection>
 
             <RelatedSection
@@ -655,43 +664,42 @@ export function PromotionDetailPage() {
                 onToggle={() => toggleSection("targets")}
                 action={
                     canModifyDetails ? (
-                        <button
-                            className={styles.editButton}
-                            type="button"
+                        <Button
+                            size="sm"
                             onClick={() =>
                                 setModal({ kind: "target", mode: "create" })
                             }
                         >
                             <Plus size={15} aria-hidden="true" />
                             Thêm phạm vi
-                        </button>
+                        </Button>
                     ) : null
                 }
             >
-                <table className={styles.smallTable}>
-                    <thead>
-                        <tr>
-                            <th>Loại phạm vi</th>
-                            <th>ID phạm vi</th>
-                            <th>Loại trừ</th>
-                            <th>Cấu hình riêng</th>
-                            <th>Lý do</th>
-                            {canModifyDetails ? <th>Thao tác</th> : null}
-                        </tr>
-                    </thead>
+                <Table>
+                    <TableHead>
+                        <TableRow>
+                            <TableHeaderCell>Loại phạm vi</TableHeaderCell>
+                            <TableHeaderCell>ID phạm vi</TableHeaderCell>
+                            <TableHeaderCell>Loại trừ</TableHeaderCell>
+                            <TableHeaderCell>Cấu hình riêng</TableHeaderCell>
+                            <TableHeaderCell>Lý do</TableHeaderCell>
+                            {canModifyDetails ? <TableHeaderCell>Thao tác</TableHeaderCell> : null}
+                        </TableRow>
+                    </TableHead>
                     <tbody>
                         {targets.map((target) => (
-                            <tr key={target.id}>
-                                <td>
+                            <TableRow key={target.id}>
+                                <TableCell>
                                     {formatEnum(
                                         target.targetType,
                                         targetTypeLabels
                                     )}
-                                </td>
-                                <td>{formatText(target.targetId)}</td>
-                                <td>{target.excluded ? "Có" : "Không"}</td>
-                                <td>{formatTargetOverride(target)}</td>
-                                <td>{formatText(target.reason)}</td>
+                                </TableCell>
+                                <TableCell>{formatText(target.targetId)}</TableCell>
+                                <TableCell>{target.excluded ? "Có" : "Không"}</TableCell>
+                                <TableCell>{formatTargetOverride(target)}</TableCell>
+                                <TableCell>{formatText(target.reason)}</TableCell>
                                 {canModifyDetails ? (
                                     <ActionCell
                                         disabled={actionLoading === target.id}
@@ -705,10 +713,10 @@ export function PromotionDetailPage() {
                                         onDelete={() => void deleteTarget(target)}
                                     />
                                 ) : null}
-                            </tr>
+                            </TableRow>
                         ))}
                     </tbody>
-                </table>
+                </Table>
             </RelatedSection>
 
             <RelatedSection
@@ -720,50 +728,49 @@ export function PromotionDetailPage() {
                 onToggle={() => toggleSection("conditions")}
                 action={
                     canModifyDetails ? (
-                        <button
-                            className={styles.editButton}
-                            type="button"
+                        <Button
+                            size="sm"
                             onClick={() =>
                                 setModal({ kind: "condition", mode: "create" })
                             }
                         >
                             <Plus size={15} aria-hidden="true" />
                             Thêm điều kiện
-                        </button>
+                        </Button>
                     ) : null
                 }
             >
-                <table className={styles.smallTable}>
-                    <thead>
-                        <tr>
-                            <th>Loại điều kiện</th>
-                            <th>Toán tử</th>
-                            <th>Giá trị</th>
-                            {canModifyDetails ? <th>Thao tác</th> : null}
-                        </tr>
-                    </thead>
+                <Table>
+                    <TableHead>
+                        <TableRow>
+                            <TableHeaderCell>Loại điều kiện</TableHeaderCell>
+                            <TableHeaderCell>Toán tử</TableHeaderCell>
+                            <TableHeaderCell>Giá trị</TableHeaderCell>
+                            {canModifyDetails ? <TableHeaderCell>Thao tác</TableHeaderCell> : null}
+                        </TableRow>
+                    </TableHead>
                     <tbody>
                         {conditions.map((condition) => (
-                            <tr key={condition.id}>
-                                <td>
+                            <TableRow key={condition.id}>
+                                <TableCell>
                                     {formatEnum(
                                         condition.conditionType,
                                         conditionTypeLabels
                                     )}
-                                </td>
-                                <td>
+                                </TableCell>
+                                <TableCell>
                                     {formatEnum(
                                         condition.operator,
                                         conditionOperatorLabels
                                     )}
-                                </td>
-                                <td>
+                                </TableCell>
+                                <TableCell>
                                     <code>
                                         {formatJsonPreview(
                                             condition.conditionValue
                                         )}
                                     </code>
-                                </td>
+                                </TableCell>
                                 {canModifyDetails ? (
                                     <ActionCell
                                         disabled={actionLoading === condition.id}
@@ -779,10 +786,10 @@ export function PromotionDetailPage() {
                                         }
                                     />
                                 ) : null}
-                            </tr>
+                            </TableRow>
                         ))}
                     </tbody>
-                </table>
+                </Table>
             </RelatedSection>
 
             {modal?.kind === "benefit" ? (
@@ -827,18 +834,6 @@ export function PromotionDetailPage() {
                 />
             ) : null}
         </section>
-    );
-}
-
-function PromotionDetailStatusBadge({ status }: { status: string }) {
-    return (
-        <span
-            className={`${styles.statusBadge} ${
-                statusClassNames[status] ?? styles.statusInactive
-            }`}
-        >
-            {getPromotionStatusLabel(status)}
-        </span>
     );
 }
 
@@ -956,28 +951,24 @@ function ActionCell({
     onDelete(): void;
 }) {
     return (
-        <td>
+        <TableCell>
             <div className="flex justify-end gap-2">
-                <button
-                    className={styles.tableIconButton}
-                    type="button"
+                <IconButton
                     disabled={disabled}
                     onClick={onEdit}
                     aria-label="Chỉnh sửa"
                 >
                     <Edit3 size={16} aria-hidden="true" />
-                </button>
-                <button
-                    className={styles.tableIconButton}
-                    type="button"
+                </IconButton>
+                <IconButton
                     disabled={disabled}
                     onClick={onDelete}
                     aria-label="Xóa"
                 >
                     <Trash2 size={16} aria-hidden="true" />
-                </button>
+                </IconButton>
             </div>
-        </td>
+        </TableCell>
     );
 }
 
@@ -1228,22 +1219,26 @@ function ConfigModal({
     children: ReactNode;
 }) {
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 p-4">
-            <section className="max-h-[90vh] w-full max-w-4xl overflow-y-auto rounded-xl bg-white p-6 shadow-xl">
+        <ModalShell
+            className="w-full max-w-4xl p-6"
+            closeOnBackdrop={false}
+            closeOnEscape={false}
+            labelledBy="promotion-config-title"
+            onClose={onClose}
+        >
+            <>
                 <header className="mb-5 flex items-start justify-between gap-4">
                     <div>
-                        <h2 className="text-xl font-bold text-[#17213a]">
+                        <h2
+                            className="text-xl font-bold text-[#17213a]"
+                            id="promotion-config-title"
+                        >
                             {title}
                         </h2>
                     </div>
-                    <button
-                        type="button"
-                        onClick={onClose}
-                        className="rounded-lg p-2 hover:bg-[#f2f4f7]"
-                        aria-label="Đóng form"
-                    >
+                    <IconButton aria-label="Đóng form" onClick={onClose}>
                         <X size={20} aria-hidden="true" />
-                    </button>
+                    </IconButton>
                 </header>
 
                 <form
@@ -1258,25 +1253,20 @@ function ConfigModal({
                     </section>
 
                     <footer className={styles.eventPanelFooter}>
-                        <button
-                            className={styles.secondaryButton}
-                            type="button"
-                            disabled={submitting}
-                            onClick={onClose}
-                        >
+                        <Button disabled={submitting} onClick={onClose}>
                             Hủy
-                        </button>
-                        <button
-                            className={styles.primaryButton}
+                        </Button>
+                        <Button
+                            variant="primary"
                             type="submit"
                             disabled={submitting}
                         >
                             {submitting ? "Đang lưu..." : "Lưu"}
-                        </button>
+                        </Button>
                     </footer>
                 </form>
-            </section>
-        </div>
+            </>
+        </ModalShell>
     );
 }
 
@@ -1292,14 +1282,13 @@ function InputField({
     onChange(value: string): void;
 }) {
     return (
-        <label className={styles.detailField}>
-            <span>{label}</span>
-            <input
+        <Field label={label}>
+            <TextInput
                 type={type}
                 value={value}
                 onChange={(event) => onChange(event.currentTarget.value)}
             />
-        </label>
+        </Field>
     );
 }
 
@@ -1317,9 +1306,8 @@ function SelectField({
     onChange(value: string): void;
 }) {
     return (
-        <label className={styles.detailField}>
-            <span>{label}</span>
-            <select
+        <Field label={label}>
+            <NativeSelect
                 value={value}
                 onChange={(event) => onChange(event.currentTarget.value)}
             >
@@ -1328,8 +1316,8 @@ function SelectField({
                         {labels[option] ?? option}
                     </option>
                 ))}
-            </select>
-        </label>
+            </NativeSelect>
+        </Field>
     );
 }
 
@@ -1345,14 +1333,13 @@ function TextAreaField({
     onChange(value: string): void;
 }) {
     return (
-        <label className={`${styles.detailField} ${styles.detailFieldFull}`}>
-            <span>{label}</span>
-            <textarea
+        <Field className={styles.detailFieldFull} label={label}>
+            <TextArea
                 rows={rows}
                 value={value}
                 onChange={(event) => onChange(event.currentTarget.value)}
             />
-        </label>
+        </Field>
     );
 }
 

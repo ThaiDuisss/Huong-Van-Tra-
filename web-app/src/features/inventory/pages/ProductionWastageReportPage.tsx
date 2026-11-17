@@ -1,6 +1,8 @@
 import { Download, Factory, Flame, PackageX } from "lucide-react";
 import { useEffect, useState } from "react";
 
+import { Button } from "../../../components/ui/Button";
+import { Table, TableCell, TableHead, TableHeaderCell, TableRow } from "../../../components/ui/Table";
 import { toast } from "../../../components/ui/Toast";
 import { InventoryPageHeader } from "../components/InventoryManagementComponents";
 import { inventoryReportApi, type ProductionWastageReportResponse } from "../services/inventoryReport.api";
@@ -34,14 +36,10 @@ export function ProductionWastageReportPage() {
     <section className="grid gap-5">
       <InventoryPageHeader
         actions={
-          <button
-            className="inline-flex h-10 items-center gap-2 rounded-lg border border-[#d8eadc] bg-white px-4 text-sm font-black text-[#159734] transition hover:bg-[#f4faf5]"
-            onClick={() => toast.success("Xuất báo cáo hao hụt thành công.")}
-            type="button"
-          >
+          <Button onClick={() => toast.success("Xuất báo cáo hao hụt thành công.")}>
             <Download size={16} />
             Xuất Excel
-          </button>
+          </Button>
         }
         description="Theo dõi chênh lệch định mức nguyên liệu dự kiến (BOM) so với thực tế tiêu hao trong quá trình chế biến & sản xuất."
         eyebrow="Báo cáo / Sản xuất"
@@ -96,32 +94,32 @@ export function ProductionWastageReportPage() {
           <div className="p-4 text-sm font-bold text-red-700 bg-red-50 rounded-lg">{error}</div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm">
-              <thead className="bg-[#eaf7ec] text-xs font-black uppercase text-[#172317]">
-                <tr>
-                  <th className="px-4 py-3">Mã nguyên liệu</th>
-                  <th>Tên nguyên liệu</th>
-                  <th>Định mức (BOM)</th>
-                  <th>Thực tế xuất</th>
-                  <th>Hao hụt (Chênh lệch)</th>
-                  <th>Tỷ lệ hao hụt</th>
-                  <th>Giá trị tổn thất</th>
-                </tr>
-              </thead>
+            <Table>
+              <TableHead>
+                <TableRow>
+                  <TableHeaderCell>Mã nguyên liệu</TableHeaderCell>
+                  <TableHeaderCell>Tên nguyên liệu</TableHeaderCell>
+                  <TableHeaderCell>Định mức (BOM)</TableHeaderCell>
+                  <TableHeaderCell>Thực tế xuất</TableHeaderCell>
+                  <TableHeaderCell>Hao hụt (Chênh lệch)</TableHeaderCell>
+                  <TableHeaderCell>Tỷ lệ hao hụt</TableHeaderCell>
+                  <TableHeaderCell>Giá trị tổn thất</TableHeaderCell>
+                </TableRow>
+              </TableHead>
               <tbody>
                 {data?.materials.map((mat) => (
-                  <tr className="hover:bg-[#f8fbf8]" key={mat.materialCode}>
-                    <td className="border-t border-[#edf0f4] px-4 py-3 font-black text-[#159734]">{mat.materialCode}</td>
-                    <td className="border-t border-[#edf0f4] font-semibold">{mat.materialName}</td>
-                    <td className="border-t border-[#edf0f4]">{formatVietnamNumber(mat.plannedQuantity)} {mat.unitSymbol}</td>
-                    <td className="border-t border-[#edf0f4]">{formatVietnamNumber(mat.actualQuantity)} {mat.unitSymbol}</td>
-                    <td className="border-t border-[#edf0f4] font-black text-red-600">+{formatVietnamNumber(mat.wastageQuantity)} {mat.unitSymbol}</td>
-                    <td className="border-t border-[#edf0f4] font-black text-red-600">{mat.wastageRate}%</td>
-                    <td className="border-t border-[#edf0f4] font-black text-[#172317]">{formatVnd(mat.estimatedLossValue)}</td>
-                  </tr>
+                  <TableRow className="hover:bg-[#f8fbf8]" key={mat.materialCode}>
+                    <TableCell className="font-black text-[#159734]">{mat.materialCode}</TableCell>
+                    <TableCell className="font-semibold">{mat.materialName}</TableCell>
+                    <TableCell>{formatVietnamNumber(mat.plannedQuantity)} {mat.unitSymbol}</TableCell>
+                    <TableCell>{formatVietnamNumber(mat.actualQuantity)} {mat.unitSymbol}</TableCell>
+                    <TableCell className="font-black text-red-600">+{formatVietnamNumber(mat.wastageQuantity)} {mat.unitSymbol}</TableCell>
+                    <TableCell className="font-black text-red-600">{mat.wastageRate}%</TableCell>
+                    <TableCell className="font-black text-[#172317]">{formatVnd(mat.estimatedLossValue)}</TableCell>
+                  </TableRow>
                 ))}
               </tbody>
-            </table>
+            </Table>
           </div>
         )}
       </section>

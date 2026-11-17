@@ -13,6 +13,20 @@ import { Fragment, useState } from "react";
 import type { ReactNode } from "react";
 import { Link } from "react-router-dom";
 
+import { Button, IconButton } from "../../../../components/ui/Button";
+import { buttonClassName } from "../../../../components/ui/button-styles";
+import { Field, TextArea, TextInput } from "../../../../components/ui/Field";
+import {
+    StatusBadge,
+    type BadgeTone
+} from "../../../../components/ui/StatusBadge";
+import {
+    Table,
+    TableCell,
+    TableHead,
+    TableHeaderCell,
+    TableRow
+} from "../../../../components/ui/Table";
 import {
     Select,
     SelectContent,
@@ -34,7 +48,8 @@ import {
 import {
     getEventAudienceLabel,
     getEventStatusLabel,
-    getEventTypeLabel
+    getEventTypeLabel,
+    getMarketingStatusTone
 } from "../../utils/event-labels";
 import {
     hasEventFormErrors,
@@ -72,28 +87,18 @@ export type EventAction = EventStatusActionType;
 
 type EventPanelMode = "detail" | "edit";
 
-const statusClassNames: Record<string, string> = {
-    ACTIVE: styles.statusActive,
-    SCHEDULED: styles.statusScheduled,
-    DRAFT: styles.statusInactive,
-    PAUSED: styles.statusPaused,
-    EXPIRED: styles.statusExpired,
-    ENDED: styles.statusUsed,
-    CANCELLED: styles.statusCancelled
-};
-
-const eventTypeClassNames: Record<string, string> = {
-    TIME_BASED: styles.typeSeasonal,
-    ORDER_AMOUNT_BASED: styles.typeOrderAmount,
-    ORDER_COUNT_BASED: styles.typeOrderCount,
-    ITEM_QUANTITY_BASED: styles.typeItemQuantity,
-    LOYALTY_POINT_BASED: styles.typeLoyalty,
-    MANUAL_CAMPAIGN: styles.typeManual,
-    SEASONAL_CAMPAIGN: styles.typeSeasonal,
-    FLASH_SALE: styles.typeFlash,
-    CLEARANCE_CAMPAIGN: styles.typeClearance,
-    LOYALTY_CAMPAIGN: styles.typeLoyalty,
-    ORDER_INCENTIVE: styles.typeOrder
+const eventTypeTones: Record<string, BadgeTone> = {
+    TIME_BASED: "info",
+    ORDER_AMOUNT_BASED: "warning",
+    ORDER_COUNT_BASED: "sky",
+    ITEM_QUANTITY_BASED: "teal",
+    LOYALTY_POINT_BASED: "violet",
+    MANUAL_CAMPAIGN: "neutral",
+    SEASONAL_CAMPAIGN: "info",
+    FLASH_SALE: "danger",
+    CLEARANCE_CAMPAIGN: "pending",
+    LOYALTY_CAMPAIGN: "violet",
+    ORDER_INCENTIVE: "cyan"
 };
 
 function toDateTimeLocal(value: string) {
@@ -191,7 +196,7 @@ export function DiscountProgramTable({
     return (
         <section className={styles.tableCard}>
             <div className={styles.tableScroll}>
-                <table className={styles.table}>
+                <Table className={styles.table}>
                     <colgroup>
                         <col className={styles.eventNameColumn} />
                         <col className={styles.statusColumn} />
@@ -199,15 +204,15 @@ export function DiscountProgramTable({
                         <col className={styles.typeColumn} />
                         <col className={styles.actionColumn} />
                     </colgroup>
-                    <thead>
-                        <tr>
-                            <th>Sự kiện</th>
-                            <th>Trạng thái</th>
-                            <th>Thời gian</th>
-                            <th>Loại</th>
-                            <th>Thao tác</th>
-                        </tr>
-                    </thead>
+                    <TableHead>
+                        <TableRow>
+                            <TableHeaderCell>Sự kiện</TableHeaderCell>
+                            <TableHeaderCell>Trạng thái</TableHeaderCell>
+                            <TableHeaderCell>Thời gian</TableHeaderCell>
+                            <TableHeaderCell>Loại</TableHeaderCell>
+                            <TableHeaderCell>Thao tác</TableHeaderCell>
+                        </TableRow>
+                    </TableHead>
                     <tbody>
                         {loading ? (
                             <EventTableSkeleton />
@@ -227,7 +232,7 @@ export function DiscountProgramTable({
 
                             return (
                                 <Fragment key={event.id}>
-                                    <tr
+                                    <TableRow
                                         className={`${zebraClass} ${
                                             expanded
                                                 ? styles.expandedSummaryRow
@@ -235,7 +240,7 @@ export function DiscountProgramTable({
                                         }`}
                                         onClick={() => openDetail(event)}
                                     >
-                                        <td>
+                                        <TableCell>
                                             <span
                                                 className={
                                                     expanded
@@ -245,37 +250,43 @@ export function DiscountProgramTable({
                                             >
                                                 {event.name}
                                             </span>
-                                        </td>
-                                        <td>
-                                            <StatusBadge event={event} />
-                                        </td>
-                                        <td>
+                                        </TableCell>
+                                        <TableCell>
+                                            <StatusBadge
+                                                dot
+                                                tone={getMarketingStatusTone(
+                                                    event.status
+                                                )}
+                                            >
+                                                {getEventStatusLabel(
+                                                    event.status
+                                                )}
+                                            </StatusBadge>
+                                        </TableCell>
+                                        <TableCell>
                                             <EventTimeRange event={event} />
-                                        </td>
-                                        <td>
-                                            <span
-                                                className={`${styles.typePill} ${
-                                                    eventTypeClassNames[
+                                        </TableCell>
+                                        <TableCell>
+                                            <StatusBadge
+                                                shape="tag"
+                                                tone={
+                                                    eventTypeTones[
                                                         event.eventType
-                                                    ] ?? styles.typeDefault
-                                                }`}
+                                                    ] ?? "neutral"
+                                                }
                                             >
                                                 {getEventTypeLabel(
                                                     event.eventType
                                                 )}
-                                            </span>
-                                        </td>
-                                        <td className={styles.actionCell}>
+                                            </StatusBadge>
+                                        </TableCell>
+                                        <TableCell className={styles.actionCell}>
                                             <div
                                                 className={
                                                     styles.rowMenuAnchor
                                                 }
                                             >
-                                                <button
-                                                    className={
-                                                        styles.tableIconButton
-                                                    }
-                                                    type="button"
+                                                <IconButton
                                                     aria-label={`Mở thao tác ${event.name}`}
                                                     onClick={(clickEvent) => {
                                                         clickEvent.stopPropagation();
@@ -291,7 +302,7 @@ export function DiscountProgramTable({
                                                         size={19}
                                                         aria-hidden="true"
                                                     />
-                                                </button>
+                                                </IconButton>
 
                                                 {openMenuEventId ===
                                                 event.id ? (
@@ -364,14 +375,14 @@ export function DiscountProgramTable({
                                                     </div>
                                                 ) : null}
                                             </div>
-                                        </td>
-                                    </tr>
+                                        </TableCell>
+                                    </TableRow>
 
                                     {expanded ? (
-                                        <tr
+                                        <TableRow
                                             className={styles.expandedDetailRow}
                                         >
-                                            <td colSpan={5}>
+                                            <TableCell colSpan={5}>
                                                 {panelMode === "detail" ? (
                                                     <EventDetailView
                                                         event={event}
@@ -448,15 +459,15 @@ export function DiscountProgramTable({
                                                         }}
                                                     />
                                                 ) : null}
-                                            </td>
-                                        </tr>
+                                            </TableCell>
+                                        </TableRow>
                                     ) : null}
                                 </Fragment>
                             );
                             })
                         )}
                     </tbody>
-                </table>
+                </Table>
             </div>
 
             {!loading && events.length === 0 ? (
@@ -485,21 +496,21 @@ function EventTableSkeleton() {
                     index % 2 === 0 ? styles.rowOdd : styles.rowEven;
 
                 return (
-                    <tr
+                    <TableRow
                         key={`event-loading-${index}`}
                         className={`${zebraClass} ${styles.loadingRow}`}
                     >
-                        <td>
+                        <TableCell>
                             <span
                                 className={`${styles.skeletonLine} ${styles.skeletonTitle}`}
                             />
-                        </td>
-                        <td>
+                        </TableCell>
+                        <TableCell>
                             <span
                                 className={`${styles.skeletonBlock} ${styles.skeletonStatus}`}
                             />
-                        </td>
-                        <td>
+                        </TableCell>
+                        <TableCell>
                             <div className={styles.skeletonTimeRange}>
                                 <div className={styles.skeletonTimePoint}>
                                     <span
@@ -519,32 +530,19 @@ function EventTableSkeleton() {
                                     />
                                 </div>
                             </div>
-                        </td>
-                        <td>
+                        </TableCell>
+                        <TableCell>
                             <span
                                 className={`${styles.skeletonBlock} ${styles.skeletonType}`}
                             />
-                        </td>
-                        <td className={styles.actionCell}>
+                        </TableCell>
+                        <TableCell className={styles.actionCell}>
                             <span className={styles.skeletonIcon} />
-                        </td>
-                    </tr>
+                        </TableCell>
+                    </TableRow>
                 );
             })}
         </>
-    );
-}
-
-function StatusBadge({ event }: { event: EventResponse }) {
-    return (
-        <span
-            className={`${styles.statusBadge} ${
-                statusClassNames[event.status] ?? styles.statusInactive
-            }`}
-        >
-            <CalendarDays size={15} aria-hidden="true" />
-            {getEventStatusLabel(event.status)}
-        </span>
     );
 }
 
@@ -638,21 +636,21 @@ function EventDetailView({
                             {statusActions.length > 0 ? (
                                 <div className={styles.statusActions}>
                                     {statusActions.map((statusAction) => (
-                                        <button
+                                        <Button
                                             key={statusAction.targetStatus}
-                                            className={`${styles.actionButton} ${
+                                            size="sm"
+                                            variant={
                                                 statusAction.danger
-                                                    ? styles.dangerButton
-                                                    : ""
-                                            }`}
-                                            type="button"
+                                                    ? "dangerOutline"
+                                                    : "secondary"
+                                            }
                                             disabled={disabled}
                                             onClick={() =>
                                                 onAction(statusAction.action)
                                             }
                                         >
                                             {statusAction.label}
-                                        </button>
+                                        </Button>
                                     ))}
                                 </div>
                             ) : (
@@ -667,7 +665,7 @@ function EventDetailView({
 
             <footer className={styles.eventPanelFooter}>
                 <Link
-                    className={styles.secondaryButton}
+                    className={buttonClassName({ variant: "secondary" })}
                     to={`${routePaths.discountPrograms}?eventId=${encodeURIComponent(
                         event.id
                     )}&eventName=${encodeURIComponent(event.name)}`}
@@ -675,33 +673,22 @@ function EventDetailView({
                     Chuyển sang chương trình giảm giá
                 </Link>
 
-                <button
-                    className={styles.secondaryButton}
-                    type="button"
-                    onClick={onClose}
-                >
-                    Đóng
-                </button>
+                <Button onClick={onClose}>Đóng</Button>
                 {deletable ? (
-                    <button
-                        className={`${styles.secondaryButton} ${styles.dangerOutlineButton}`}
-                        type="button"
+                    <Button
+                        variant="dangerOutline"
                         disabled={disabled}
                         onClick={onRemove}
                     >
                         <Trash2 size={16} aria-hidden="true" />
                         Xóa
-                    </button>
+                    </Button>
                 ) : null}
                 {editable ? (
-                    <button
-                        className={styles.primaryButton}
-                        type="button"
-                        onClick={onEdit}
-                    >
+                    <Button variant="primary" onClick={onEdit}>
                         <Pencil size={16} aria-hidden="true" />
                         Chỉnh sửa
-                    </button>
+                    </Button>
                 ) : null}
             </footer>
         </div>
@@ -761,23 +748,17 @@ function EventEditForm({
                     </span>
                     <h2>{event.name}</h2>
                 </div>
-                <button
-                    className={styles.tableIconButton}
-                    type="button"
-                    onClick={onCancel}
-                    aria-label="Hủy chỉnh sửa"
-                >
+                <IconButton onClick={onCancel} aria-label="Hủy chỉnh sửa">
                     <X size={18} aria-hidden="true" />
-                </button>
+                </IconButton>
             </header>
 
             <div className={styles.editFormSections}>
                 <section className={styles.editFormSection}>
                     <h3>Thông tin cơ bản</h3>
                     <div className={styles.detailEditGrid}>
-                        <label className={styles.detailField}>
-                            <span>Tên sự kiện</span>
-                            <input
+                        <Field label="Tên sự kiện" error={errors.name}>
+                            <TextInput
                                 value={form.name}
                                 onChange={(inputEvent) =>
                                     onChange(
@@ -786,15 +767,9 @@ function EventEditForm({
                                     )
                                 }
                             />
-                            {errors.name ? (
-                                <span className={styles.fieldError}>
-                                    {errors.name}
-                                </span>
-                            ) : null}
-                        </label>
+                        </Field>
 
-                        <label className={styles.detailField}>
-                            <span>Loại sự kiện</span>
+                        <Field label="Loại sự kiện" error={errors.eventType}>
                             <Select
                                 className="w-full"
                                 value={form.eventType}
@@ -807,7 +782,7 @@ function EventEditForm({
                             >
                                 <SelectTrigger
                                     aria-label="Loại sự kiện"
-                                    className="h-[42px] w-full rounded-lg border-[#cbd5e1] px-3 text-sm text-[#334155] shadow-none hover:bg-white"
+                                    className="h-10 w-full rounded-lg border-[#dfe6ee] px-3 text-sm text-[#172317] shadow-none hover:bg-white"
                                 >
                                     <SelectValue />
                                 </SelectTrigger>
@@ -819,18 +794,14 @@ function EventEditForm({
                                     ))}
                                 </SelectContent>
                             </Select>
-                            {errors.eventType ? (
-                                <span className={styles.fieldError}>
-                                    {errors.eventType}
-                                </span>
-                            ) : null}
-                        </label>
+                        </Field>
 
-                        <label
-                            className={`${styles.detailField} ${styles.detailFieldFull}`}
+                        <Field
+                            className={styles.detailFieldFull}
+                            label="Mô tả"
+                            error={errors.description}
                         >
-                            <span>Mô tả</span>
-                            <textarea
+                            <TextArea
                                 rows={3}
                                 value={form.description ?? ""}
                                 onChange={(inputEvent) =>
@@ -840,21 +811,15 @@ function EventEditForm({
                                     )
                                 }
                             />
-                            {errors.description ? (
-                                <span className={styles.fieldError}>
-                                    {errors.description}
-                                </span>
-                            ) : null}
-                        </label>
+                        </Field>
                     </div>
                 </section>
 
                 <section className={styles.editFormSection}>
                     <h3>Thời gian</h3>
                     <div className={styles.detailEditGrid}>
-                        <label className={styles.detailField}>
-                            <span>Bắt đầu</span>
-                            <input
+                        <Field label="Bắt đầu" error={errors.startAt}>
+                            <TextInput
                                 type="datetime-local"
                                 value={form.startAt}
                                 onChange={(inputEvent) =>
@@ -864,16 +829,10 @@ function EventEditForm({
                                     )
                                 }
                             />
-                            {errors.startAt ? (
-                                <span className={styles.fieldError}>
-                                    {errors.startAt}
-                                </span>
-                            ) : null}
-                        </label>
+                        </Field>
 
-                        <label className={styles.detailField}>
-                            <span>Kết thúc</span>
-                            <input
+                        <Field label="Kết thúc" error={errors.endAt}>
+                            <TextInput
                                 type="datetime-local"
                                 value={form.endAt}
                                 onChange={(inputEvent) =>
@@ -883,19 +842,13 @@ function EventEditForm({
                                     )
                                 }
                             />
-                            {errors.endAt ? (
-                                <span className={styles.fieldError}>
-                                    {errors.endAt}
-                                </span>
-                            ) : null}
-                        </label>
+                        </Field>
                     </div>
                 </section>
 
                 <section className={styles.editFormSection}>
                     <h3>Đối tượng</h3>
-                    <label className={styles.detailField}>
-                        <span>Loại đối tượng</span>
+                    <Field label="Loại đối tượng" error={errors.audience}>
                         <Select
                             className="w-full"
                             value={form.audience}
@@ -908,7 +861,7 @@ function EventEditForm({
                         >
                             <SelectTrigger
                                 aria-label="Loại đối tượng"
-                                className="h-[42px] w-full rounded-lg border-[#cbd5e1] px-3 text-sm text-[#334155] shadow-none hover:bg-white"
+                                className="h-10 w-full rounded-lg border-[#dfe6ee] px-3 text-sm text-[#172317] shadow-none hover:bg-white"
                             >
                                 <SelectValue />
                             </SelectTrigger>
@@ -923,32 +876,17 @@ function EventEditForm({
                                 ))}
                             </SelectContent>
                         </Select>
-                        {errors.audience ? (
-                            <span className={styles.fieldError}>
-                                {errors.audience}
-                            </span>
-                        ) : null}
-                    </label>
+                    </Field>
                 </section>
             </div>
 
             <footer className={styles.eventPanelFooter}>
-                <button
-                    className={styles.secondaryButton}
-                    type="button"
-                    onClick={onCancel}
-                    disabled={disabled}
-                >
+                <Button onClick={onCancel} disabled={disabled}>
                     Hủy
-                </button>
-                <button
-                    className={styles.primaryButton}
-                    type="button"
-                    disabled={disabled}
-                    onClick={onSave}
-                >
+                </Button>
+                <Button variant="primary" disabled={disabled} onClick={onSave}>
                     Lưu thay đổi
-                </button>
+                </Button>
             </footer>
         </div>
     );

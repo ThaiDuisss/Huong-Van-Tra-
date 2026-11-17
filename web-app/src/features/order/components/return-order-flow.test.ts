@@ -21,6 +21,13 @@ import { ReturnPolicyModal } from "./ReturnPolicyModal";
 import { ReturnEligibilityStatus } from "./ReturnEligibilityStatus";
 import { ReturnConfirmationSummary } from "./ReturnConfirmationSummary";
 
+// ReturnPolicyModal dựng bằng ModalShell (createPortal); renderToStaticMarkup không hỗ trợ portal
+// nên trong test cho nội dung render tại chỗ.
+vi.mock("react-dom", async (importOriginal) => ({
+    ...(await importOriginal<typeof import("react-dom")>()),
+    createPortal: (node: React.ReactNode) => node
+}));
+
 function html(node: React.ReactElement) {
     return renderToStaticMarkup(node);
 }
@@ -375,6 +382,8 @@ describe("Return Order Flow UI/UX & Logic (T01 - T22)", () => {
     // T16: Mở/đóng chính sách -> Không mất dữ liệu form
     it("T16: opens policy modal with detailed terms and handles closing without resetting form", () => {
         const onClose = vi.fn();
+        // Môi trường test là node: ModalShell cần `document.body` làm đích portal.
+        vi.stubGlobal("document", { body: {} });
         const markup = html(
             createElement(ReturnPolicyModal, {
                 isOpen: true,
@@ -382,6 +391,7 @@ describe("Return Order Flow UI/UX & Logic (T01 - T22)", () => {
                 policies: ["Chính sách 1: Kiểm định QC", "Chính sách 2: Thời hạn 7 ngày"]
             })
         );
+        vi.unstubAllGlobals();
 
         expect(markup).toContain("Chính sách hoàn hàng chi tiết");
         expect(markup).toContain("Chính sách 1: Kiểm định QC");

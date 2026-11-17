@@ -1,12 +1,15 @@
 import { AlertCircle, LoaderCircle, Save } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
+import { Button } from "../../../components/ui/Button";
+import { TextInput } from "../../../components/ui/Field";
+import { StatusBadge } from "../../../components/ui/StatusBadge";
 import { DashboardListSkeleton } from "../../dashboard/components/DashboardStates";
 import { InventoryErrorState } from "../../inventory/components/InventoryManagementComponents";
 import { authorizationApi, describeAuthorizationError } from "../services/authorization.api";
 import type { BusinessRoleResponse, PermissionResponse } from "../types/authorization.types";
 import { diffSelection, groupPermissionsByModule, hasSelectionChanged } from "../utils/authorization.utils";
-import { checkboxCard, fieldClass, primaryButton, secondaryButton } from "./authorization-ui";
+import { checkboxCard } from "./authorization-ui";
 
 /** Chọn vai trò, tick quyền, lưu. Backend chỉ thêm/gỡ phần chênh lệch. */
 export function RolePermissionEditor({
@@ -150,9 +153,9 @@ export function RolePermissionEditor({
                 <span className="text-sm font-bold text-[#172317]">{item.label}</span>
                 <span className="font-mono text-[11px] text-[#8793a1]">{item.name}</span>
               </span>
-              <span className="rounded-md bg-[#eaf7ec] px-2 py-0.5 text-[11px] font-black text-[#1b583e]">
+              <StatusBadge shape="tag" tone="success">
                 {item.permissionCount}
-              </span>
+              </StatusBadge>
             </button>
           );
         })}
@@ -173,12 +176,13 @@ export function RolePermissionEditor({
               </span>
             ) : null}
           </div>
-          <input
-            className={`${fieldClass} h-10 w-56`}
-            onChange={(event) => setFilter(event.target.value)}
-            placeholder="Lọc quyền..."
-            value={filter}
-          />
+          <div className="w-56">
+            <TextInput
+              onChange={(event) => setFilter(event.target.value)}
+              placeholder="Lọc quyền..."
+              value={filter}
+            />
+          </div>
         </div>
 
         {loadingAssigned ? (
@@ -232,13 +236,13 @@ export function RolePermissionEditor({
                 Thêm {diff.added.length}, gỡ {diff.removed.length}
               </span>
             ) : null}
-            <button className={secondaryButton} disabled={!changed || saving} onClick={() => setDraft(assigned)} type="button">
+            <Button disabled={!changed || saving} onClick={() => setDraft(assigned)}>
               Hoàn tác
-            </button>
-            <button className={primaryButton} disabled={!changed || saving} onClick={() => void save()} type="button">
+            </Button>
+            <Button disabled={!changed || saving} onClick={() => void save()} variant="primary">
               {saving ? <LoaderCircle className="animate-spin" size={16} aria-hidden="true" /> : <Save size={16} aria-hidden="true" />}
               {saving ? "Đang lưu..." : "Lưu thay đổi"}
-            </button>
+            </Button>
           </div>
         ) : null}
       </section>

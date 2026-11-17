@@ -2,6 +2,7 @@ import { Download, Upload } from "lucide-react";
 import { useCallback, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
+import { StatusBadge } from "../../../components/ui/StatusBadge";
 import { toast } from "../../../components/ui/Toast";
 import { SearchableDropdown } from "../../manufacturing/components/shared/SearchableDropdown";
 import type { LookupItem } from "../../manufacturing/components/shared/SearchableDropdown";
@@ -179,20 +180,17 @@ export function UnitListPage() {
                                 {item.name}
                             </TableCell>
                             <TableCell>
-                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-lg bg-gray-100 text-gray-700 font-mono text-sm font-semibold">
+                                <StatusBadge className="font-mono" shape="tag">
                                     {item.symbol}
-                                </span>
+                                </StatusBadge>
                             </TableCell>
                             <TableCell>
-                                <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
-                                    item.type === "WEIGHT"
-                                        ? "bg-blue-100 text-blue-700"
-                                        : item.type === "VOLUME"
-                                            ? "bg-purple-100 text-purple-700"
-                                            : "bg-emerald-100 text-emerald-700"
-                                }`}>
+                                <StatusBadge
+                                    shape="tag"
+                                    tone={item.type === "WEIGHT" ? "info" : item.type === "VOLUME" ? "violet" : "success"}
+                                >
                                     {item.type === "WEIGHT" ? "Khối lượng" : item.type === "VOLUME" ? "Thể tích" : "Đếm"}
-                                </span>
+                                </StatusBadge>
                             </TableCell>
                             <TableCell>
                                 <CatalogStatusBadge status={item.status} />

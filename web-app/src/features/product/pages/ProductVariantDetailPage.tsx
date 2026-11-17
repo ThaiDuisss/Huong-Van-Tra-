@@ -1,5 +1,8 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
+import { Button, IconButton } from "../../../components/ui/Button";
+import { StatusBadge } from "../../../components/ui/StatusBadge";
+import { Table, TableCell, TableHead, TableHeaderCell, TableRow } from "../../../components/ui/Table";
 import { productVariantApi } from "../services/productVariant.api";
 import { unitApi } from "../services/unit.api";
 import { bomApi } from "../../manufacturing/services/bom.api";
@@ -73,18 +76,12 @@ export function ProductVariantDetailPage() {
                     <h2 className="text-lg font-bold text-red-800 mb-2">Đã xảy ra lỗi</h2>
                     <p className="text-sm font-medium text-red-600 mb-4">{error || "Không tìm thấy mặt hàng."}</p>
                     <div className="flex gap-3 justify-center">
-                        <button
-                            className="px-4 py-2 bg-white text-gray-700 font-bold border border-gray-300 rounded-xl hover:bg-gray-50 active:scale-95 transition-all text-sm shadow-sm"
-                            onClick={() => navigate("/system/product-variants")}
-                        >
+                        <Button onClick={() => navigate("/system/product-variants")}>
                             Quay lại danh sách
-                        </button>
-                        <button
-                            className="px-4 py-2 bg-pos-primary text-white font-bold rounded-xl hover:bg-hvt-green-700 active:scale-95 transition-all text-sm shadow-sm"
-                            onClick={loadData}
-                        >
+                        </Button>
+                        <Button onClick={loadData} variant="primary">
                             Thử lại
-                        </button>
+                        </Button>
                     </div>
                 </div>
             </div>
@@ -96,13 +93,15 @@ export function ProductVariantDetailPage() {
             {/* Header section */}
             <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between border-b border-neutral-100 pb-5">
                 <div className="flex items-center gap-3.5">
-                    <button
+                    <IconButton
+                        aria-label="Quay lại danh sách mặt hàng"
                         onClick={() => navigate("/system/product-variants")}
-                        className="grid h-10 w-10 place-items-center rounded-xl border border-pos-border bg-white text-gray-600 transition-all hover:bg-neutral-50 hover:text-gray-900 active:scale-95 shadow-sm"
+                        size="md"
                         title="Quay lại danh sách mặt hàng"
+                        variant="secondary"
                     >
                         <ArrowLeft size={20} />
-                    </button>
+                    </IconButton>
                     <div>
                         <div className="flex items-center gap-2.5">
                             <h1 className="text-2xl font-bold tracking-tight text-gray-900">
@@ -116,26 +115,21 @@ export function ProductVariantDetailPage() {
                     </div>
                 </div>
                 <div className="flex items-center gap-3">
-                    <button
-                        onClick={() => setShowPrintModal(true)}
+                    <Button
                         disabled={!variant.barcode}
-                        className={`flex items-center gap-1.5 rounded-xl border border-pos-border bg-white px-4 py-2.5 text-sm font-bold shadow-xs transition-all cursor-pointer ${
-                            variant.barcode
-                                ? "text-gray-700 hover:bg-neutral-50 active:scale-95"
-                                : "text-gray-400 opacity-60 cursor-not-allowed"
-                        }`}
+                        onClick={() => setShowPrintModal(true)}
                         title={variant.barcode ? "In mã vạch" : "Mặt hàng này chưa có mã vạch"}
                     >
-                        <Printer size={16} className={variant.barcode ? "text-pos-primary" : "text-gray-400"} />
+                        <Printer size={16} />
                         In mã vạch
-                    </button>
-                    <button
+                    </Button>
+                    <Button
                         onClick={() => navigate("/system/product-variants", { state: { editVariantId: variant.id } })}
-                        className="flex items-center gap-1.5 rounded-xl bg-[#07883a] px-4.5 py-2.5 text-sm font-bold text-white shadow-md hover:bg-hvt-green-700 active:scale-95 transition-all cursor-pointer"
+                        variant="primary"
                     >
                         <Pencil size={16} />
                         Chỉnh sửa Mặt hàng / BOM
-                    </button>
+                    </Button>
                 </div>
             </div>
 
@@ -217,14 +211,10 @@ export function ProductVariantDetailPage() {
                                 />
                             </div>
                             {variant.barcode ? (
-                                <button
-                                    type="button"
-                                    onClick={() => setShowPrintModal(true)}
-                                    className="mt-3 flex items-center gap-1.5 text-xs font-bold text-pos-primary hover:text-hvt-green-700 cursor-pointer active:scale-95 transition-all"
-                                >
+                                <Button className="mt-3 px-0" onClick={() => setShowPrintModal(true)} size="xs" variant="link">
                                     <Printer size={14} />
                                     In mã vạch này
-                                </button>
+                                </Button>
                             ) : (
                                 <span className="mt-3 text-xs text-amber-600 font-medium">
                                     Chưa có mã vạch để in
@@ -238,9 +228,9 @@ export function ProductVariantDetailPage() {
                 <div className="flex flex-col lg:col-span-2 rounded-2xl bg-white border border-neutral-100 shadow-pos-card overflow-hidden">
                     <div className="bg-[#eaf7ec] px-5 py-4 border-b border-[#edf0f4] flex items-center justify-between">
                         <h2 className="text-base font-bold text-gray-900">Định mức nguyên liệu (BOM)</h2>
-                        <span className="text-xs font-bold bg-[#07883a]/10 text-[#07883a] px-2 py-0.5 rounded-full">
+                        <StatusBadge tone="success">
                             {bomItems.length} nguyên liệu
-                        </span>
+                        </StatusBadge>
                     </div>
 
                     <div className="flex-1 p-5 min-h-[300px]">
@@ -253,36 +243,36 @@ export function ProductVariantDetailPage() {
                                 <p className="text-sm text-gray-500 mt-1 max-w-sm mb-5">
                                     Mặt hàng này hiện chưa được khai báo định mức nguyên liệu (BOM). Bạn cần khai báo để thực hiện sản xuất.
                                 </p>
-                                <button
+                                <Button
                                     onClick={() => navigate("/system/product-variants", { state: { editVariantId: variant.id } })}
-                                    className="flex items-center gap-1.5 rounded-xl bg-[#07883a] px-5 py-2.5 text-sm font-bold text-white shadow-sm hover:bg-hvt-green-700 active:scale-95 transition-all cursor-pointer"
+                                    variant="primary"
                                 >
                                     <Pencil size={16} />
                                     Khai báo ngay
-                                </button>
+                                </Button>
                             </div>
                         ) : (
                             <div className="overflow-x-auto">
-                                <table className="min-w-full border-separate border-spacing-0 text-left text-sm">
-                                    <thead className="bg-neutral-50 text-xs font-bold text-gray-500 uppercase tracking-wider">
-                                        <tr>
-                                            <th className="h-10 align-middle px-4 py-0 border-b border-neutral-200/80">Nguyên liệu</th>
-                                            <th className="h-10 align-middle px-4 py-0 border-b border-neutral-200/80 text-right">Định lượng</th>
-                                            <th className="h-10 align-middle px-4 py-0 border-b border-neutral-200/80">Đơn vị</th>
-                                            <th className="h-10 align-middle px-4 py-0 border-b border-neutral-200/80 text-right">Hao hụt</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-neutral-100 font-medium text-gray-700">
+                                <Table>
+                                    <TableHead>
+                                        <TableRow>
+                                            <TableHeaderCell>Nguyên liệu</TableHeaderCell>
+                                            <TableHeaderCell className="text-right">Định lượng</TableHeaderCell>
+                                            <TableHeaderCell>Đơn vị</TableHeaderCell>
+                                            <TableHeaderCell className="text-right">Hao hụt</TableHeaderCell>
+                                        </TableRow>
+                                    </TableHead>
+                                    <tbody className="font-medium text-gray-700">
                                         {bomItems.map((item) => (
-                                            <tr key={item.id} className="hover:bg-neutral-50/50 transition-colors">
-                                                <td className="h-12 align-middle px-4 py-0 font-bold text-gray-800">{item.ingredient.name}</td>
-                                                <td className="h-12 align-middle px-4 py-0 text-right font-mono">{item.quantity}</td>
-                                                <td className="h-12 align-middle px-4 py-0">{item.unit.symbol}</td>
-                                                <td className="h-12 align-middle px-4 py-0 text-right">{item.wasteRate}%</td>
-                                            </tr>
+                                            <TableRow key={item.id} className="hover:bg-neutral-50/50 transition-colors">
+                                                <TableCell className="font-bold text-gray-800">{item.ingredient.name}</TableCell>
+                                                <TableCell className="text-right font-mono">{item.quantity}</TableCell>
+                                                <TableCell>{item.unit.symbol}</TableCell>
+                                                <TableCell className="text-right">{item.wasteRate}%</TableCell>
+                                            </TableRow>
                                         ))}
                                     </tbody>
-                                </table>
+                                </Table>
                             </div>
                         )}
                     </div>

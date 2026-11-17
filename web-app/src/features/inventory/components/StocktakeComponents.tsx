@@ -1,4 +1,4 @@
-import { ArrowUpDown, ChevronRight, ClipboardCheck, Filter, Plus, RefreshCw } from "lucide-react";
+import { ArrowUpDown, ChevronRight, Filter, Plus, RefreshCw } from "lucide-react";
 import { useState } from "react";
 import { Link } from "react-router-dom";
 
@@ -9,7 +9,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from "../../../components/ui/select";
-import { SearchBox } from "../../manufacturing/components/shared/SearchBox";
+import { DataTable, type DataTableColumn } from "../../../components/shared/list/DataTable";
+import { ListFilterToolbar } from "../../../components/shared/list/ListFilterToolbar";
+import { ListPageHeader } from "../../../components/shared/list/ListPageHeader";
+import { TablePagination } from "../../../components/shared/list/TablePagination";
+import { Button } from "../../../components/ui/Button";
+import { buttonClassName } from "../../../components/ui/button-styles";
+import { Field, NativeSelect } from "../../../components/ui/Field";
+import { ModalShell } from "../../../components/ui/Overlay";
+import { type BadgeTone, StatusBadge as UiStatusBadge } from "../../../components/ui/StatusBadge";
 import {
   stocktakeScopeLabels,
   stocktakeStatusFilterOptions,
@@ -25,22 +33,20 @@ import { formatVietnamDateTime } from "../utils/inventory-format";
 
 export function StocktakePageHeader({ onRefresh }: { onRefresh: () => void }) {
   return (
-    <header className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-      <div className="grid gap-1">
-        <h1 className="text-2xl font-bold text-gray-800 sm:text-3xl">Kiểm kê kho</h1>
-        <p className="text-sm text-gray-500">
-          Theo dõi số đếm thực tế, chênh lệch và phiếu điều chỉnh tồn kho.
-        </p>
-      </div>
-      <div className="flex gap-2.5">
-        <button className={secondaryButton} onClick={onRefresh} type="button">
-          <RefreshCw size={17} /> Làm mới
-        </button>
-        <Link className={primaryButton} to="/management/inventory/stocktakes/new">
-          <Plus size={17} /> Tạo phiên kiểm kê
-        </Link>
-      </div>
-    </header>
+    <ListPageHeader
+      actions={
+        <>
+          <Button onClick={onRefresh}>
+            <RefreshCw size={17} /> Làm mới
+          </Button>
+          <Link className={buttonClassName({ variant: "primary" })} to="/management/inventory/stocktakes/new">
+            <Plus size={17} /> Tạo phiên kiểm kê
+          </Link>
+        </>
+      }
+      description="Theo dõi số đếm thực tế, chênh lệch và phiếu điều chỉnh tồn kho."
+      title="Kiểm kê kho"
+    />
   );
 }
 
@@ -68,58 +74,29 @@ export function StocktakeFilterBar({
   }
 
   return (
-    <section className="rounded-2xl bg-white p-3 shadow-pos-card">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <nav
-          aria-label="Lọc theo trạng thái kiểm kê"
-          className="flex min-w-0 flex-1 gap-2 overflow-x-auto"
-        >
-          {[{ label: "Tất cả", value: "ALL" as const }, ...stocktakeStatusFilterOptions].map(
-            ({ label, value }) => {
-              const active = query.status === value;
-              return (
-                <button
-                  aria-pressed={active}
-                  className={`inline-flex h-8 shrink-0 items-center rounded-full border px-3 text-xs font-extrabold transition-colors ${
-                    active
-                      ? "border-[#159734] bg-[#eaf8ee] text-[#116f28] shadow-[0_1px_2px_rgba(21,151,52,0.08)]"
-                      : "border-[#dce5e1] bg-white text-[#536171] hover:border-[#b8cac1] hover:text-[#172317]"
-                  }`}
-                  key={value}
-                  onClick={() => onChange({ page: 0, status: value })}
-                  type="button"
-                >
-                  {label}
-                </button>
-              );
-            },
-          )}
-        </nav>
-        <div className="flex min-w-0 flex-wrap items-center justify-end gap-2.5">
-          <div className="w-full min-w-[240px] md:w-[320px]">
-            <SearchBox
-              onChange={(keyword) => onChange({ keyword, page: 0 })}
-              placeholder="Tìm mã kiểm kê..."
-              value={query.keyword}
-            />
-          </div>
-          <button
-            aria-expanded={filterOpen}
-            className={`${toolbarButton} relative`}
-            onClick={openFilter}
-            type="button"
-          >
-            <Filter size={17} aria-hidden="true" />
-            Bộ lọc
-            {appliedFilterCount > 0 ? (
-              <span className="absolute -right-1.5 -top-1.5 grid min-w-5 place-items-center rounded-full bg-[#159734] px-1.5 text-[10px] font-black leading-5 text-white shadow-sm">
-                {appliedFilterCount}
-              </span>
-            ) : null}
-          </button>
-          <SortSelect onChange={(sort) => onChange({ page: 0, sort })} value={query.sort} />
-        </div>
-      </div>
+    <>
+      <ListFilterToolbar
+        activeChip={query.status}
+        chips={[{ key: "ALL", label: "Tất cả" }, ...stocktakeStatusFilterOptions.map(({ label, value }) => ({ key: value, label }))]}
+        chipsLabel="Lọc theo trạng thái kiểm kê"
+        onChipChange={(status) => onChange({ page: 0, status: status as StocktakeListQuery["status"] })}
+        search={{
+          onChange: (keyword) => onChange({ keyword, page: 0 }),
+          placeholder: "Tìm mã kiểm kê...",
+          value: query.keyword,
+        }}
+      >
+        <Button aria-expanded={filterOpen} className="relative" onClick={openFilter} size="search">
+          <Filter size={17} aria-hidden="true" />
+          Bộ lọc
+          {appliedFilterCount > 0 ? (
+            <span className="absolute -right-1.5 -top-1.5 grid min-w-5 place-items-center rounded-full bg-[#159734] px-1.5 text-[10px] font-black leading-5 text-white shadow-sm">
+              {appliedFilterCount}
+            </span>
+          ) : null}
+        </Button>
+        <SortSelect onChange={(sort) => onChange({ page: 0, sort })} value={query.sort} />
+      </ListFilterToolbar>
       {filterOpen ? (
         <StocktakeFilterPopover
           branches={branches}
@@ -136,7 +113,7 @@ export function StocktakeFilterBar({
           onChange={setFilterDraft}
         />
       ) : null}
-    </section>
+    </>
   );
 }
 
@@ -156,17 +133,16 @@ function StocktakeFilterPopover({
   onClear: () => void;
 }) {
   return (
-    <div className="fixed inset-0 z-50 grid place-items-center bg-[#172317]/10 p-5">
-      <div className="w-[min(560px,calc(100vw-32px))] overflow-hidden rounded-2xl border border-[#dce5e1] bg-white shadow-[0_24px_60px_rgba(24,39,28,0.18)]">
+    <ModalShell
+      className="w-[min(560px,calc(100vw-32px))]"
+      labelledBy="stocktake-filter-title"
+      onClose={onCancel}
+    >
         <div className="flex min-h-16 items-center justify-between border-b border-[#eef2f0] px-6">
-          <h2 className="text-base font-black text-[#172317]">Bộ lọc kiểm kê</h2>
-          <button
-            className="text-xs font-bold text-[#159734] hover:text-[#116f28]"
-            onClick={onClear}
-            type="button"
-          >
+          <h2 className="text-base font-black text-[#172317]" id="stocktake-filter-title">Bộ lọc kiểm kê</h2>
+          <Button onClick={onClear} size="xs" variant="link">
             Xóa tất cả
-          </button>
+          </Button>
         </div>
         <div className="grid gap-5 p-6 sm:grid-cols-2">
           <SelectField
@@ -191,15 +167,12 @@ function StocktakeFilterPopover({
           />
         </div>
         <div className="flex items-center justify-end gap-3 border-t border-[#eef2f0] bg-white px-6 py-4">
-          <button className={toolbarButton} onClick={onCancel} type="button">
-            Hủy
-          </button>
-          <button className={primaryToolbarButton} onClick={onApply} type="button">
+          <Button onClick={onCancel}>Hủy</Button>
+          <Button onClick={onApply} variant="primary">
             Áp dụng bộ lọc
-          </button>
+          </Button>
         </div>
-      </div>
-    </div>
+    </ModalShell>
   );
 }
 
@@ -220,7 +193,7 @@ function SortSelect({
     <Select onValueChange={(next) => onChange(next as StocktakeSort)} value={value}>
       <SelectTrigger
         aria-label="Sắp xếp danh sách kiểm kê"
-        className={`${toolbarButton} min-w-[210px]`}
+        className={`${sortTrigger} min-w-[210px]`}
       >
         <ArrowUpDown size={17} aria-hidden="true" />
         <SelectValue />
@@ -235,6 +208,20 @@ function SortSelect({
     </Select>
   );
 }
+
+const stocktakeColumns: DataTableColumn<StocktakeSummary>[] = [
+  { className: "font-black text-[#159734]", header: "Mã kiểm kê", key: "countCode", render: (item) => item.countCode },
+  { header: "Chi nhánh", key: "branch", render: (item) => item.branch.name },
+  { header: "Phạm vi", key: "scope", render: (item) => item.scopeLabel },
+  { header: "Trạng thái", key: "status", render: (item) => <StatusBadge status={item.status} /> },
+  { className: "font-bold", header: "Tiến độ", key: "progress", render: (item) => `${item.countedLines}/${item.totalLines}` },
+  { header: "Chênh lệch", key: "variance", render: (item) => item.varianceLines },
+  {
+    header: "Bắt đầu",
+    key: "startedAt",
+    render: (item) => (item.startedAt ? formatVietnamDateTime(item.startedAt) : "-"),
+  },
+];
 
 export function StocktakeTable({
   loading,
@@ -251,131 +238,52 @@ export function StocktakeTable({
   page: number;
   onPageChange: (page: number) => void;
 }) {
-  const empty = !loading && stocktakes.length === 0;
   return (
-    <section className="grid min-h-[360px] flex-1 grid-rows-[minmax(0,1fr)_auto] overflow-hidden rounded-xl border border-[#dce5e1] bg-white shadow-[0_12px_32px_rgba(31,53,43,0.06)]">
-      <div className="min-h-0 overflow-auto">
-        <table className="w-full min-w-[940px] border-separate border-spacing-0 text-[13px] text-[#233025]">
-          <thead className="sticky top-0 z-10 bg-[#f3f7f4] text-left text-xs font-black uppercase text-[#536171]">
-            <tr>
-              {[
-                "Mã kiểm kê",
-                "Chi nhánh",
-                "Phạm vi",
-                "Trạng thái",
-                "Tiến độ",
-                "Chênh lệch",
-                "Bắt đầu",
-                "",
-              ].map((label) => (
-                <th className="border-b border-[#dce5e1] px-4 py-3" key={label}>
-                  {label}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody className={loading && stocktakes.length ? "opacity-50" : ""}>
-            {loading && !stocktakes.length
-              ? Array.from({ length: 7 }, (_, row) => (
-                  <tr key={row}>
-                    {Array.from({ length: 8 }, (_, cell) => (
-                      <td className="border-b border-[#edf2ef] px-4 py-4" key={cell}>
-                        <span className="block h-4 animate-pulse rounded bg-[#edf3f0]" />
-                      </td>
-                    ))}
-                  </tr>
-                ))
-              : null}
-            {empty ? (
-              <tr>
-                <td colSpan={8}>
-                  <div className="grid min-h-[300px] place-items-center p-8 text-center">
-                    <div>
-                      <ClipboardCheck className="mx-auto text-[#159734]" />
-                      <h2 className="mt-3 font-black">Chưa có phiên kiểm kê phù hợp</h2>
-                      <p className="mt-1 text-sm text-[#697684]">
-                        Thử thay đổi bộ lọc hoặc tạo phiên kiểm kê mới.
-                      </p>
-                    </div>
-                  </div>
-                </td>
-              </tr>
-            ) : null}
-            {stocktakes.map((item, index) => (
-              <tr className={index % 2 ? "bg-[#f8faf9]" : "bg-white"} key={item.id}>
-                <td className="border-b border-[#edf2ef] px-4 py-3 font-black text-[#159734]">
-                  {item.countCode}
-                </td>
-                <td className="border-b border-[#edf2ef] px-4 py-3">{item.branch.name}</td>
-                <td className="border-b border-[#edf2ef] px-4 py-3">{item.scopeLabel}</td>
-                <td className="border-b border-[#edf2ef] px-4 py-3">
-                  <StatusBadge status={item.status} />
-                </td>
-                <td className="border-b border-[#edf2ef] px-4 py-3 font-bold">
-                  {item.countedLines}/{item.totalLines}
-                </td>
-                <td className="border-b border-[#edf2ef] px-4 py-3">{item.varianceLines}</td>
-                <td className="border-b border-[#edf2ef] px-4 py-3">
-                  {item.startedAt ? formatVietnamDateTime(item.startedAt) : "-"}
-                </td>
-                <td className="border-b border-[#edf2ef] px-4 py-3">
-                  <Link
-                    aria-label={`Mở ${item.countCode}`}
-                    className="grid size-8 place-items-center rounded-lg text-[#159734] hover:bg-[#eaf8ee]"
-                    to={`/management/inventory/stocktakes/${item.id}`}
-                  >
-                    <ChevronRight size={18} />
-                  </Link>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      <footer className="flex min-h-[54px] items-center justify-between border-t border-[#e4ece8] px-4 text-xs font-bold text-[#657282]">
-        <span>Tổng {totalElements.toLocaleString("vi-VN")} phiên kiểm kê</span>
-        <div className="flex items-center gap-2">
-          <button
-            className={pageButton}
-            disabled={loading || page <= 0}
-            onClick={() => onPageChange(page - 1)}
-            type="button"
-          >
-            Trước
-          </button>
-          <span>
-            Trang {page + 1}/{Math.max(totalPages, 1)}
-          </span>
-          <button
-            className={pageButton}
-            disabled={loading || page + 1 >= totalPages}
-            onClick={() => onPageChange(page + 1)}
-            type="button"
-          >
-            Sau
-          </button>
-        </div>
-      </footer>
-    </section>
+    <DataTable
+      caption="Danh sách phiên kiểm kê"
+      columns={stocktakeColumns}
+      emptyDescription="Thử thay đổi bộ lọc hoặc tạo phiên kiểm kê mới."
+      emptyTitle="Chưa có phiên kiểm kê phù hợp"
+      getRowKey={(item) => item.id}
+      loading={loading}
+      minWidth={940}
+      pagination={
+        <TablePagination
+          disabled={loading}
+          itemLabel="phiên kiểm kê"
+          onPageChange={onPageChange}
+          page={page}
+          pageSize={Math.max(stocktakes.length, 1)}
+          summary={<>Tổng {totalElements.toLocaleString("vi-VN")} phiên kiểm kê</>}
+          totalItems={totalElements}
+          totalPages={totalPages}
+        />
+      }
+      rowActions={(item) => (
+        <Link
+          aria-label={`Mở ${item.countCode}`}
+          className="grid size-8 place-items-center rounded-lg text-[#159734] hover:bg-[#eaf8ee]"
+          to={`/management/inventory/stocktakes/${item.id}`}
+        >
+          <ChevronRight size={18} />
+        </Link>
+      )}
+      rows={stocktakes}
+    />
   );
 }
 
-const statusBadgeStyles: Record<StocktakeSummary["status"], string> = {
-  CANCELLED: "bg-red-50 text-red-700",
-  COMPLETED: "bg-emerald-50 text-emerald-700",
-  COUNTING: "bg-sky-50 text-sky-700",
-  DRAFT: "bg-slate-100 text-slate-700",
-  PENDING_APPROVAL: "bg-amber-50 text-amber-700",
+
+const statusBadgeTones: Record<StocktakeSummary["status"], BadgeTone> = {
+  CANCELLED: "danger",
+  COMPLETED: "success",
+  COUNTING: "sky",
+  DRAFT: "neutral",
+  PENDING_APPROVAL: "warning",
 };
 
 export function StatusBadge({ status }: { status: StocktakeSummary["status"] }) {
-  return (
-    <span
-      className={`inline-flex rounded-full px-2.5 py-1 text-xs font-black ${statusBadgeStyles[status]}`}
-    >
-      {stocktakeStatusLabels[status]}
-    </span>
-  );
+  return <UiStatusBadge tone={statusBadgeTones[status]}>{stocktakeStatusLabels[status]}</UiStatusBadge>;
 }
 
 function SelectField({
@@ -390,29 +298,18 @@ function SelectField({
   value: string;
 }) {
   return (
-    <label className="grid gap-2 text-xs font-bold text-[#536171]">
-      {label}
-      <select
-        className="h-11 min-w-[172px] rounded-lg border border-[#dce5e1] bg-white px-3 text-sm font-semibold text-[#172317] outline-none focus:border-[#159734]"
-        onChange={(event) => onChange(event.currentTarget.value)}
-        value={value}
-      >
+    <Field label={label}>
+      <NativeSelect onChange={(event) => onChange(event.currentTarget.value)} value={value}>
         {options.map((option) => (
           <option key={option.value} value={option.value}>
             {option.label}
           </option>
         ))}
-      </select>
-    </label>
+      </NativeSelect>
+    </Field>
   );
 }
 
-const primaryButton =
-  "inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-[#159734] px-4 text-sm font-bold text-white hover:bg-[#12862d]";
-const secondaryButton =
-  "inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-[#dce5e1] bg-white px-4 text-sm font-bold text-[#536171] hover:bg-[#f7faf8] disabled:opacity-50";
-const toolbarButton =
+// Kit gap: SelectTrigger chưa có cỡ 44px cho thanh công cụ (cạnh SearchInput), nên giữ class riêng.
+const sortTrigger =
   "inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-[#dce5e1] bg-white px-4 text-sm font-bold text-[#273a2b] shadow-sm transition-colors hover:bg-[#f7fbf8]";
-const primaryToolbarButton =
-  "inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-[#159734] px-4 text-sm font-bold text-white shadow-sm transition-colors hover:bg-[#12862d]";
-const pageButton = "h-8 rounded-lg border border-[#dce5e1] px-3 disabled:opacity-40";

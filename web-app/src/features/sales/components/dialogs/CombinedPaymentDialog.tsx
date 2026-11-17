@@ -8,6 +8,9 @@ import {
   X
 } from "lucide-react";
 
+import { Button, IconButton } from "../../../../components/ui/Button";
+import { ModalShell } from "../../../../components/ui/Overlay";
+import { StatusBadge } from "../../../../components/ui/StatusBadge";
 import { formatCurrency } from "../../services/money";
 
 interface CombinedPaymentDialogProps {
@@ -60,11 +63,12 @@ export function CombinedPaymentDialog({
   const remaining = Math.max(0, total - allocated);
 
   return (
-    <section
-      aria-labelledby="combined-payment-dialog-title"
-      className="w-[590px] max-w-[calc(100vw-32px)] rounded-xl bg-white p-0 shadow-[0_26px_80px_rgba(10,25,18,0.28)]"
-      role="dialog"
-      aria-modal="true"
+    <ModalShell
+      className="w-[590px] max-w-[calc(100vw-32px)]"
+      closeOnBackdrop={false}
+      closeOnEscape={false}
+      labelledBy="combined-payment-dialog-title"
+      onClose={onClose}
     >
       <header className="flex items-start justify-between border-b border-[#edf0f4] px-6 py-5">
         <div>
@@ -82,14 +86,9 @@ export function CombinedPaymentDialog({
             Chia số tiền hóa đơn cho nhiều phương thức thanh toán.
           </p>
         </div>
-        <button
-          type="button"
-          onClick={onClose}
-          className="grid size-9 place-items-center rounded-lg text-[#1f2a44] hover:bg-[#f4f6f8]"
-          aria-label="Đóng thanh toán tổng hợp"
-        >
-          <X size={24} aria-hidden="true" />
-        </button>
+        <IconButton aria-label="Đóng thanh toán tổng hợp" onClick={onClose}>
+          <X size={20} aria-hidden="true" />
+        </IconButton>
       </header>
 
       <div className="grid gap-4 px-6 py-4">
@@ -140,22 +139,17 @@ export function CombinedPaymentDialog({
                       readOnly
                     />
                   </label>
-                  <span
-                    className={`inline-flex min-h-[30px] items-center justify-center rounded-md px-3 py-2 text-[12px] font-extrabold ${
-                      row.confirmed
-                        ? "bg-[#eaf8ed] text-[#159734]"
-                        : "bg-[#fff3e8] text-[#ff6b00]"
-                    }`}
+                  <StatusBadge
+                    className="justify-center"
+                    shape="tag"
+                    tone={row.confirmed ? "success" : "pending"}
+                    truncate={false}
                   >
                     {row.status}
-                  </span>
-                  <button
-                    type="button"
-                    className="grid size-8 place-items-center rounded-lg text-red-500 hover:bg-red-50"
-                    aria-label={`Xóa phương thức ${row.label}`}
-                  >
+                  </StatusBadge>
+                  <IconButton aria-label={`Xóa phương thức ${row.label}`} tone="danger">
                     <Trash2 size={17} aria-hidden="true" />
-                  </button>
+                  </IconButton>
                 </div>
               );
             })}
@@ -171,23 +165,15 @@ export function CombinedPaymentDialog({
         </button>
 
         <footer className="grid grid-cols-2 gap-6 pt-2">
-          <button
-            type="button"
-            onClick={onClose}
-            className="h-12 rounded-lg border border-[#dfe6ee] text-[14px] font-extrabold text-[#1f2a44] hover:bg-[#f4f6f8]"
-          >
+          <Button onClick={onClose} size="lg">
             Hủy
-          </button>
-          <button
-            type="button"
-            onClick={onConfirm}
-            className="h-12 rounded-lg bg-[#07883a] text-[14px] font-extrabold text-white shadow-[0_10px_22px_rgba(7,136,58,0.24)]"
-          >
+          </Button>
+          <Button onClick={onConfirm} size="lg" variant="primary">
             Xác nhận thanh toán
-          </button>
+          </Button>
         </footer>
       </div>
-    </section>
+    </ModalShell>
   );
 }
 

@@ -1,5 +1,6 @@
 import { CheckCheck, Wifi, WifiOff } from "lucide-react";
 
+import { Button } from "../../../components/ui/Button";
 import type { NotificationResponse } from "../types/notification.types";
 
 interface NotificationPanelProps {
@@ -47,15 +48,10 @@ export function NotificationPanel({
                     </p>
                 </div>
 
-                <button
-                    type="button"
-                    onClick={onMarkAllRead}
-                    disabled={unreadCount === 0}
-                    className="inline-flex h-8 items-center gap-1 rounded-lg border border-[#d8eadc] px-2 text-[11px] font-bold text-[#159734] disabled:cursor-not-allowed disabled:opacity-40"
-                >
+                <Button disabled={unreadCount === 0} onClick={onMarkAllRead} size="sm">
                     <CheckCheck size={14} aria-hidden="true" />
                     Đọc hết
-                </button>
+                </Button>
             </header>
 
             <div className="mt-3 grid max-h-[420px] gap-2 overflow-y-auto pr-1">

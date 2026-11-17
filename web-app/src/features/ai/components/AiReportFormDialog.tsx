@@ -8,6 +8,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "../../../components/ui/dialog";
+import { Button } from "../../../components/ui/Button";
 import type { AiReportMetadata } from "../types/ai-report.types";
 import {
   AI_REPORT_PENDING_MESSAGE,
@@ -110,22 +111,13 @@ export function AiReportFormDialog({
             ) : null}
           </div>
           <DialogFooter>
-            <button
-              className="h-10 rounded-lg border border-pos-border px-4 text-sm font-bold text-[#536078] hover:bg-neutral-50 disabled:opacity-60"
-              disabled={busy}
-              onClick={onClose}
-              type="button"
-            >
+            <Button disabled={busy} onClick={onClose}>
               Hủy
-            </button>
+            </Button>
             <span title={!onSubmit ? AI_REPORT_PENDING_MESSAGE : undefined}>
-              <button
-                className="h-10 rounded-lg bg-[#159734] px-4 text-sm font-bold text-white hover:bg-[#12862d] disabled:cursor-not-allowed disabled:opacity-50"
-                disabled={busy || !onSubmit || submitDisabled}
-                type="submit"
-              >
+              <Button disabled={busy || !onSubmit || submitDisabled} type="submit" variant="primary">
                 {busy ? "Đang lưu..." : submitLabel}
-              </button>
+              </Button>
             </span>
           </DialogFooter>
         </form>

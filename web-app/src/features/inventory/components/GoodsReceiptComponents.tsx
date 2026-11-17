@@ -9,6 +9,12 @@ import {
 } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { Link, useNavigate } from "react-router-dom";
+
+import { Button } from "../../../components/ui/Button";
+import { buttonClassName } from "../../../components/ui/button-styles";
+import { Field, NativeSelect, TextInput } from "../../../components/ui/Field";
+import { type BadgeTone, StatusBadge } from "../../../components/ui/StatusBadge";
+import { Table, TableCell, TableHead, TableHeaderCell, TableRow } from "../../../components/ui/Table";
 import { Pagination } from "../../manufacturing/components/shared/Pagination";
 import { SearchableDropdown } from "../../manufacturing/components/shared/SearchableDropdown";
 import { useLookupDropdown } from "../../manufacturing/components/shared/useLookupDropdown";
@@ -45,15 +51,15 @@ import {
     formatVnd
 } from "../utils/inventory-format";
 
-const statusTone: Record<GoodsReceiptStatus, string> = {
-    DRAFT: "border-slate-200 bg-slate-50 text-slate-700",
-    PENDING_APPROVAL: "border-amber-200 bg-amber-50 text-amber-700",
-    APPROVED: "border-blue-200 bg-blue-50 text-blue-700",
-    REJECTED: "border-red-200 bg-red-50 text-red-700",
-    RECEIVING: "border-cyan-200 bg-cyan-50 text-cyan-700",
-    PENDING_EXCEPTION_APPROVAL: "border-orange-200 bg-orange-50 text-orange-700",
-    POSTED: "border-green-200 bg-green-50 text-green-700",
-    CANCELLED: "border-slate-200 bg-slate-50 text-slate-600"
+const statusTone: Record<GoodsReceiptStatus, BadgeTone> = {
+    DRAFT: "neutral",
+    PENDING_APPROVAL: "warning",
+    APPROVED: "info",
+    REJECTED: "danger",
+    RECEIVING: "cyan",
+    PENDING_EXCEPTION_APPROVAL: "pending",
+    POSTED: "success",
+    CANCELLED: "neutral"
 };
 
 function statusIcon(status: GoodsReceiptStatus) {
@@ -74,28 +80,24 @@ export function GoodsReceiptStatusBadge({
     status: GoodsReceiptStatus;
 }) {
     return (
-        <span
-            className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-black ${statusTone[status]}`}
-        >
-            {statusIcon(status)}
-            {goodsReceiptStatusLabels[status]}
-        </span>
+        <StatusBadge tone={statusTone[status]}>
+            <span className="inline-flex items-center gap-1.5">
+                {statusIcon(status)}
+                {goodsReceiptStatusLabels[status]}
+            </span>
+        </StatusBadge>
     );
 }
 
 export function QcBadge({ result }: { result: QcResult }) {
     return (
-        <span className="inline-flex rounded-full bg-[#f7f8fb] px-2.5 py-1 text-xs font-black text-[#536078]">
-            {qcResultLabels[result]}
-        </span>
+        <StatusBadge>{qcResultLabels[result]}</StatusBadge>
     );
 }
 
 export function CostBadge({ status }: { status: CostStatus }) {
     return (
-        <span className="inline-flex rounded-full bg-[#edf8ef] px-2.5 py-1 text-xs font-black text-[#159734]">
-            {costStatusLabels[status]}
-        </span>
+        <StatusBadge tone="success">{costStatusLabels[status]}</StatusBadge>
     );
 }
 
@@ -360,13 +362,7 @@ export function GoodsReceiptFilterBar({
                     value={query.receivedTo}
                 />
                 <div className="flex items-end">
-                    <button
-                        className="h-10 rounded-lg border border-[#dce5e1] px-4 text-sm font-black text-[#536078] hover:bg-[#f7f8fb]"
-                        onClick={onReset}
-                        type="button"
-                    >
-                        Xóa bộ lọc
-                    </button>
+                    <Button onClick={onReset}>Xóa bộ lọc</Button>
                 </div>
             </div>
         </section>
@@ -382,26 +378,26 @@ export function GoodsReceiptTable({
 
     return (
         <div className="overflow-x-auto rounded-xl border border-[#e8eef0] bg-white shadow-pos-card">
-            <table className="w-full min-w-[1180px] border-separate border-spacing-0 text-left text-sm">
-                <thead className="bg-[#eaf7ec] text-xs font-black text-[#172317]">
-                    <tr>
-                        <TableHead>Mã phiếu</TableHead>
-                        <TableHead>Nhà cung cấp</TableHead>
-                        <TableHead>PO</TableHead>
-                        <TableHead>Kho nhận</TableHead>
-                        <TableHead align="right">Số dòng</TableHead>
-                        <TableHead align="right">Tổng nhận</TableHead>
-                        <TableHead>QC</TableHead>
-                        <TableHead>Giá</TableHead>
-                        <TableHead>Trạng thái</TableHead>
-                        <TableHead>Ngày nhận</TableHead>
-                        <TableHead>Người tạo</TableHead>
-                        <TableHead align="right">Thao tác</TableHead>
-                    </tr>
-                </thead>
+            <Table className="min-w-[1180px]">
+                <TableHead>
+                    <TableRow>
+                        <Th>Mã phiếu</Th>
+                        <Th>Nhà cung cấp</Th>
+                        <Th>PO</Th>
+                        <Th>Kho nhận</Th>
+                        <Th align="right">Số dòng</Th>
+                        <Th align="right">Tổng nhận</Th>
+                        <Th>QC</Th>
+                        <Th>Giá</Th>
+                        <Th>Trạng thái</Th>
+                        <Th>Ngày nhận</Th>
+                        <Th>Người tạo</Th>
+                        <Th align="right">Thao tác</Th>
+                    </TableRow>
+                </TableHead>
                 <tbody>
                     {receipts.map((receipt) => (
-                        <tr
+                        <TableRow
                             className="cursor-pointer bg-white hover:bg-[#f8fbf8]"
                             key={receipt.id}
                             onClick={() =>
@@ -410,7 +406,7 @@ export function GoodsReceiptTable({
                                 )
                             }
                         >
-                            <TableCell strong>
+                            <Td strong>
                                 <Link
                                     className="text-[#159734] hover:underline"
                                     onClick={(event) => event.stopPropagation()}
@@ -418,47 +414,47 @@ export function GoodsReceiptTable({
                                 >
                                     {receipt.code}
                                 </Link>
-                            </TableCell>
-                            <TableCell>{receipt.supplier.name}</TableCell>
-                            <TableCell>{receipt.purchaseOrderCode ?? "Ngoài PO"}</TableCell>
-                            <TableCell>{receipt.receivingLocation.name}</TableCell>
-                            <TableCell align="right">
+                            </Td>
+                            <Td>{receipt.supplier.name}</Td>
+                            <Td>{receipt.purchaseOrderCode ?? "Ngoài PO"}</Td>
+                            <Td>{receipt.receivingLocation.name}</Td>
+                            <Td align="right">
                                 {formatVietnamNumber(receipt.totalLines)}
-                            </TableCell>
-                            <TableCell align="right">
+                            </Td>
+                            <Td align="right">
                                 {formatVietnamNumber(
                                     receipt.totalReceivedQuantity
                                 )}
-                            </TableCell>
-                            <TableCell>
+                            </Td>
+                            <Td>
                                 <QcBadge result={receipt.qcResult} />
-                            </TableCell>
-                            <TableCell>
+                            </Td>
+                            <Td>
                                 <CostBadge status={receipt.costStatus} />
-                            </TableCell>
-                            <TableCell>
+                            </Td>
+                            <Td>
                                 <GoodsReceiptStatusBadge
                                     status={receipt.status}
                                 />
-                            </TableCell>
-                            <TableCell>
+                            </Td>
+                            <Td>
                                 {formatVietnamDateTime(receipt.receivedAt)}
-                            </TableCell>
-                            <TableCell>{receipt.createdBy.name}</TableCell>
-                            <TableCell align="right">
+                            </Td>
+                            <Td>{receipt.createdBy.name}</Td>
+                            <Td align="right">
                                 <Link
-                                    className="inline-flex h-9 items-center gap-2 rounded-lg border border-[#d8eadc] px-3 text-xs font-black text-[#159734] hover:bg-[#f4faf5]"
+                                    className={buttonClassName({ size: "sm" })}
                                     onClick={(event) => event.stopPropagation()}
                                     to={`/management/inventory/receipts/${receipt.id}`}
                                 >
                                     <Eye size={15} aria-hidden="true" />
                                     Xem
                                 </Link>
-                            </TableCell>
-                        </tr>
+                            </Td>
+                        </TableRow>
                     ))}
                 </tbody>
-            </table>
+            </Table>
         </div>
     );
 }
@@ -495,80 +491,80 @@ export function GoodsReceiptLineTable({
     return (
         <div className="grid gap-3">
             <div className="overflow-x-auto rounded-xl border border-[#e8eef0] bg-white">
-                <table className="w-full min-w-[900px] text-left text-sm">
-                    <thead className="bg-[#f4faf5] text-xs font-black text-[#315f3c]">
-                        <tr>
-                            <TableHead>Tên nguyên liệu</TableHead>
-                            <TableHead>Ngoại lệ</TableHead>
-                            <TableHead align="right">Số đặt</TableHead>
-                            <TableHead align="right">Số nhận</TableHead>
-                            <TableHead align="right">Thiếu</TableHead>
-                            <TableHead align="right">Thừa</TableHead>
-                            <TableHead align="right">Đạt QC</TableHead>
-                            <TableHead align="right">Không đạt</TableHead>
+                <Table className="min-w-[900px]">
+                    <TableHead>
+                        <TableRow>
+                            <Th>Tên nguyên liệu</Th>
+                            <Th>Ngoại lệ</Th>
+                            <Th align="right">Số đặt</Th>
+                            <Th align="right">Số nhận</Th>
+                            <Th align="right">Thiếu</Th>
+                            <Th align="right">Thừa</Th>
+                            <Th align="right">Đạt QC</Th>
+                            <Th align="right">Không đạt</Th>
                             {isPosted ? (
                                 <>
-                                    <TableHead align="right">Nhập kho</TableHead>
-                                    <TableHead align="right">Trả NCC</TableHead>
-                                    <TableHead>Cách xử lý</TableHead>
+                                    <Th align="right">Nhập kho</Th>
+                                    <Th align="right">Trả NCC</Th>
+                                    <Th>Cách xử lý</Th>
                                 </>
                             ) : null}
-                            <TableHead>Ngày sản xuất</TableHead>
-                            <TableHead>Hạn sử dụng</TableHead>
-                        </tr>
-                    </thead>
+                            <Th>Ngày sản xuất</Th>
+                            <Th>Hạn sử dụng</Th>
+                        </TableRow>
+                    </TableHead>
                     <tbody>
                         {pagedLines.map((line) => (
-                            <tr key={line.id} className={hasLineException(line) ? "bg-amber-50/40" : undefined}>
-                                <TableCell strong>{line.materialName}</TableCell>
-                                <TableCell>
+                            <TableRow key={line.id} className={hasLineException(line) ? "bg-amber-50/40" : undefined}>
+                                <Td strong>{line.materialName}</Td>
+                                <Td>
                                     <LineExceptionBadges line={line} />
-                                </TableCell>
-                                <TableCell align="right">
+                                </Td>
+                                <Td align="right">
                                     {line.orderedQuantity ?? "-"}
-                                </TableCell>
-                                <TableCell align="right">
+                                </Td>
+                                <Td align="right">
                                     {formatVietnamNumber(line.receivedQuantity)}
-                                </TableCell>
-                                <TableCell align="right">
+                                </Td>
+                                <Td align="right">
                                     {line.shortageQuantity > 0
                                         ? formatVietnamNumber(line.shortageQuantity)
                                         : "0"}
-                                </TableCell>
-                                <TableCell align="right">
+                                </Td>
+                                <Td align="right">
                                     {line.surplusQuantity > 0
                                         ? formatVietnamNumber(line.surplusQuantity)
                                         : "0"}
-                                </TableCell>
-                                <TableCell align="right">
+                                </Td>
+                                <Td align="right">
                                     {formatVietnamNumber(line.qc.passedQuantity)}
-                                </TableCell>
-                                <TableCell align="right">
+                                </Td>
+                                <Td align="right">
                                     {formatVietnamNumber(line.qc.failedQuantity)}
-                                </TableCell>
+                                </Td>
                                 {isPosted ? (
                                     <>
-                                        <TableCell align="right" strong>
+                                        <Td align="right" strong>
                                             {formatVietnamNumber(line.postedQuantity ?? line.qc.passedQuantity)}
-                                        </TableCell>
-                                        <TableCell align="right">
+                                        </Td>
+                                        <Td align="right">
                                             {formatVietnamNumber(line.returnedQuantity)}
-                                        </TableCell>
-                                        <TableCell>
+                                        </Td>
+                                        <Td>
                                             <LineResolutionText line={line} />
-                                        </TableCell>
+                                        </Td>
                                     </>
                                 ) : null}
-                                <TableCell>
+                                <Td>
                                     {formatVietnamDateTime(line.manufacturedAt)}
-                                </TableCell>
-                                <TableCell>
+                                </Td>
+                                <Td>
                                     {formatVietnamDateTime(line.expiryDate)}
-                                </TableCell>
-                            </tr>
+                                </Td>
+                            </TableRow>
                         ))}
                     </tbody>
-                </table>
+                </Table>
             </div>
             {totalLines > pageSize ? (
                 <Pagination
@@ -615,58 +611,58 @@ export function GoodsReceiptCostTable({
 }) {
     return (
         <div className="overflow-x-auto rounded-xl border border-[#e8eef0] bg-white">
-            <table className="w-full min-w-[1080px] text-left text-sm">
-                <thead className="bg-[#f4faf5] text-xs font-black text-[#315f3c]">
-                    <tr>
-                        <TableHead>Tên nguyên liệu</TableHead>
-                        <TableHead align="right">Đơn giá nhập</TableHead>
-                        <TableHead align="right">Accepted</TableHead>
-                        <TableHead align="right">Discount</TableHead>
-                        <TableHead align="right">Tax</TableHead>
-                        <TableHead align="right">Shipping</TableHead>
-                        <TableHead align="right">Other</TableHead>
-                        <TableHead align="right">Net amount</TableHead>
-                        <TableHead align="right">Final unit cost</TableHead>
-                        <TableHead>Trạng thái</TableHead>
-                    </tr>
-                </thead>
+            <Table className="min-w-[1080px]">
+                <TableHead>
+                    <TableRow>
+                        <Th>Tên nguyên liệu</Th>
+                        <Th align="right">Đơn giá nhập</Th>
+                        <Th align="right">Accepted</Th>
+                        <Th align="right">Discount</Th>
+                        <Th align="right">Tax</Th>
+                        <Th align="right">Shipping</Th>
+                        <Th align="right">Other</Th>
+                        <Th align="right">Net amount</Th>
+                        <Th align="right">Final unit cost</Th>
+                        <Th>Trạng thái</Th>
+                    </TableRow>
+                </TableHead>
                 <tbody>
                     {receipt.lines.map((line) => (
-                        <tr key={line.id}>
-                            <TableCell strong>{line.materialName}</TableCell>
-                            <TableCell align="right">
+                        <TableRow key={line.id}>
+                            <Td strong>{line.materialName}</Td>
+                            <Td align="right">
                                 {formatVnd(line.cost.purchaseUnitPrice)}
-                            </TableCell>
-                            <TableCell align="right">
+                            </Td>
+                            <Td align="right">
                                 {formatVietnamNumber(
                                     line.cost.acceptedQuantity
                                 )}
-                            </TableCell>
-                            <TableCell align="right">
+                            </Td>
+                            <Td align="right">
                                 {formatVnd(line.cost.discount)}
-                            </TableCell>
-                            <TableCell align="right">
+                            </Td>
+                            <Td align="right">
                                 {formatVnd(line.cost.tax)}
-                            </TableCell>
-                            <TableCell align="right">
+                            </Td>
+                            <Td align="right">
                                 {formatVnd(line.cost.allocatedShippingCost)}
-                            </TableCell>
-                            <TableCell align="right">
+                            </Td>
+                            <Td align="right">
                                 {formatVnd(line.cost.otherCost)}
-                            </TableCell>
-                            <TableCell align="right">
+                            </Td>
+                            <Td align="right">
                                 {formatVnd(line.cost.lineNetAmount)}
-                            </TableCell>
-                            <TableCell align="right">
+                            </Td>
+                            <Td align="right">
                                 {formatVnd(line.cost.finalUnitCost)}
-                            </TableCell>
-                            <TableCell>
+                            </Td>
+                            <Td>
                                 <CostBadge status={line.cost.status} />
-                            </TableCell>
-                        </tr>
+                            </Td>
+                        </TableRow>
                     ))}
                 </tbody>
-            </table>
+            </Table>
         </div>
     );
 }
@@ -799,16 +795,14 @@ function TextFilter({
     value: string;
 }) {
     return (
-        <label className="grid gap-1.5 text-xs font-black text-[#536078]">
-            {label}
-            <input
+        <Field label={label}>
+            <TextInput
                 aria-label={label}
-                className="h-10 rounded-lg border border-pos-border px-3 text-sm font-semibold text-[#172317] outline-none focus:border-[#159734]"
                 onChange={(event) => onChange(event.currentTarget.value)}
                 type={type}
                 value={value}
             />
-        </label>
+        </Field>
     );
 }
 
@@ -856,11 +850,9 @@ function SelectFilter({
     value: string;
 }) {
     return (
-        <label className="grid gap-1.5 text-xs font-black text-[#536078]">
-            {label}
-            <select
+        <Field label={label}>
+            <NativeSelect
                 aria-label={label}
-                className="h-10 rounded-lg border border-pos-border px-3 text-sm font-semibold text-[#172317] outline-none focus:border-[#159734]"
                 onChange={(event) => onChange(event.currentTarget.value)}
                 value={value}
             >
@@ -869,12 +861,12 @@ function SelectFilter({
                         {option.label}
                     </option>
                 ))}
-            </select>
-        </label>
+            </NativeSelect>
+        </Field>
     );
 }
 
-function TableHead({
+function Th({
     align = "left",
     children
 }: {
@@ -882,16 +874,13 @@ function TableHead({
     children: ReactNode;
 }) {
     return (
-        <th
-            className={`border-b border-[#dce8df] px-4 py-3 ${align === "right" ? "text-right" : "text-left"
-                }`}
-        >
+        <TableHeaderCell className={align === "right" ? "text-right" : undefined}>
             {children}
-        </th>
+        </TableHeaderCell>
     );
 }
 
-function TableCell({
+function Td({
     align = "left",
     children,
     strong = false
@@ -901,12 +890,11 @@ function TableCell({
     strong?: boolean;
 }) {
     return (
-        <td
-            className={`border-b border-[#edf0f4] px-4 py-3 ${align === "right" ? "text-right" : "text-left"
-                } ${strong ? "font-black text-[#172317]" : "font-semibold text-[#536078]"}`}
+        <TableCell
+            className={`${align === "right" ? "text-right" : ""} ${strong ? "font-black text-[#172317]" : "font-semibold text-[#536078]"}`}
         >
             {children}
-        </td>
+        </TableCell>
     );
 }
 

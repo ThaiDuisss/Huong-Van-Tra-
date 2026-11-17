@@ -12,7 +12,16 @@ import { type ReactNode, useEffect, useId, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { CUSTOMER_RETURN_QC_ROLES, useAuthorization } from "../../../../auth/role-utils";
-import { LIST_PRIMARY_BUTTON, LIST_SECONDARY_BUTTON } from "../../../../components/shared/list/list-ui.constants";
+import { Button, IconButton } from "../../../../components/ui/Button";
+import { ModalShell } from "../../../../components/ui/Overlay";
+import { StatusBadge, type BadgeTone } from "../../../../components/ui/StatusBadge";
+import {
+    Table,
+    TableCell,
+    TableHead,
+    TableHeaderCell,
+    TableRow
+} from "../../../../components/ui/Table";
 import { routePaths } from "../../../../routes/path";
 import { InspectionStatusBadge } from "../../../inventory/components/CustomerReturnInspectionComponents";
 import { CustomerReturnWarehouseInspectionModal } from "../../../inventory/components/CustomerReturnWarehouseInspectionModal";
@@ -64,11 +73,11 @@ interface ReturnDetailModalProps {
     initialTab?: DetailTab;
 }
 
-const DISPOSITION_LABELS: Record<CustomerReturnQcResult, { label: string; tone: string }> = {
-    RESTOCK: { label: "Đạt chất lượng", tone: "border-[#bbf0c8] bg-[#e9f8ed] text-[#07883a]" },
-    DAMAGED: { label: "Hàng hỏng", tone: "border-[#fecaca] bg-[#fef2f2] text-[#dc2626]" },
-    QUARANTINE: { label: "Cách ly (lịch sử)", tone: "border-[#fde68a] bg-[#fffbeb] text-[#d97706]" },
-    WRITE_OFF: { label: "Tiêu hủy", tone: "border-[#cbd5e1] bg-[#f1f5f9] text-[#475569]" }
+const DISPOSITION_LABELS: Record<CustomerReturnQcResult, { label: string; tone: BadgeTone }> = {
+    RESTOCK: { label: "Đạt chất lượng", tone: "success" },
+    DAMAGED: { label: "Hàng hỏng", tone: "danger" },
+    QUARANTINE: { label: "Cách ly (lịch sử)", tone: "warning" },
+    WRITE_OFF: { label: "Tiêu hủy", tone: "neutral" }
 };
 
 export function ReturnDetailModal({
@@ -95,11 +104,11 @@ export function ReturnDetailModal({
     const [openingInspection, setOpeningInspection] = useState(false);
     const [warehouseInspection, setWarehouseInspection] = useState<CustomerReturnInspection | null>(null);
     const [submittedInspection, setSubmittedInspection] = useState(false);
-    const panelRef = useRef<HTMLElement>(null);
+    const panelRef = useRef<HTMLDivElement>(null);
     const titleId = useId();
     const childModalOpen = Boolean(confirm || inspectionSource || warehouseInspection);
 
-    // Đóng bằng Escape (khi không có hộp thoại con), trả focus về phần tử trước đó.
+    // Trả focus về phần tử trước đó khi đóng. Escape do ModalShell xử lý (tắt khi có hộp thoại con).
     useEffect(() => {
         const previous = document.activeElement;
         panelRef.current?.focus({ preventScroll: true });
@@ -107,14 +116,6 @@ export function ReturnDetailModal({
             if (previous instanceof HTMLElement && previous.isConnected) previous.focus({ preventScroll: true });
         };
     }, []);
-    useEffect(() => {
-        if (childModalOpen) return;
-        const onKeyDown = (event: KeyboardEvent) => {
-            if (event.key === "Escape") onClose();
-        };
-        window.addEventListener("keydown", onKeyDown);
-        return () => window.removeEventListener("keydown", onKeyDown);
-    }, [childModalOpen, onClose]);
 
     const items = returnItem.items ?? [];
     const summaryLines = qcSummary?.lines ?? [];
@@ -192,31 +193,31 @@ export function ReturnDetailModal({
     if (returnItem.status === "CREATED") {
         if (allowCancel) {
             headerActions.push(
-                <button className={LIST_SECONDARY_BUTTON} disabled={transitioning} key="cancel" onClick={() => setConfirm("cancel")} type="button">
+                <Button disabled={transitioning} key="cancel" onClick={() => setConfirm("cancel")}>
                     <XCircle size={17} aria-hidden="true" />
                     Hủy phiếu
-                </button>
+                </Button>
             );
         }
         headerActions.push(
-            <button className={LIST_PRIMARY_BUTTON} disabled={transitioning} key="receive" onClick={() => setConfirm("receive")} type="button">
+            <Button disabled={transitioning} key="receive" onClick={() => setConfirm("receive")} variant="primary">
                 <PackageCheck size={17} aria-hidden="true" />
                 Xác nhận nhận hàng
-            </button>
+            </Button>
         );
     } else if (canExecuteQc && (openInspection || canStartInspection)) {
         headerActions.push(
-            <button className={LIST_PRIMARY_BUTTON} disabled={openingInspection} key="inspect" onClick={startInspection} type="button">
+            <Button disabled={openingInspection} key="inspect" onClick={startInspection} variant="primary">
                 <ClipboardCheck size={17} aria-hidden="true" />
                 {openingInspection ? "Đang mở..." : openInspection ? "Tiếp tục kiểm hàng" : "Kiểm hàng"}
-            </button>
+            </Button>
         );
     } else if (isPendingRefund) {
         headerActions.push(
-            <button className={LIST_PRIMARY_BUTTON} key="refund" onClick={goToRefund} type="button">
+            <Button key="refund" onClick={goToRefund} variant="primary">
                 Đi tới hoàn tiền
                 <ArrowRight size={17} aria-hidden="true" />
-            </button>
+            </Button>
         );
     }
 
@@ -228,14 +229,15 @@ export function ReturnDetailModal({
     ];
 
     return (
-        <div className="fixed inset-0 z-50 grid place-items-center bg-[rgba(15,23,42,0.4)] p-4 sm:p-6" onClick={onClose} role="presentation">
-            <aside
-                aria-labelledby={titleId}
-                aria-modal="true"
-                className="flex max-h-[min(880px,calc(100vh-48px))] w-full max-w-[880px] flex-col overflow-hidden rounded-2xl bg-[#f6f8f7] shadow-[0_24px_60px_rgba(31,53,43,0.28)] outline-none"
-                onClick={(event) => event.stopPropagation()}
+        <ModalShell
+            className="w-full max-w-[880px]"
+            closeOnEscape={!childModalOpen}
+            labelledBy={titleId}
+            onClose={onClose}
+        >
+            <div
+                className="flex max-h-[min(880px,calc(90vh-2px))] flex-col bg-[#f6f8f7] outline-none"
                 ref={panelRef}
-                role="dialog"
                 tabIndex={-1}
             >
                 <header className="border-b border-[#e4ece8] bg-white px-6 pb-0 pt-5">
@@ -253,23 +255,23 @@ export function ReturnDetailModal({
                             </p>
                         </div>
                         <div className="flex shrink-0 items-center gap-2">
-                            <button
+                            <IconButton
                                 aria-label="Tải lại chi tiết"
-                                className="grid size-10 place-items-center rounded-xl border border-[#dce5e1] bg-white text-[#536171] hover:bg-[#f7fbf8] disabled:opacity-50"
                                 disabled={loading}
                                 onClick={reload}
-                                type="button"
+                                size="md"
+                                variant="secondary"
                             >
                                 <RefreshCw className={loading ? "animate-spin" : ""} size={16} aria-hidden="true" />
-                            </button>
-                            <button
+                            </IconButton>
+                            <IconButton
                                 aria-label="Đóng chi tiết phiếu hoàn"
-                                className="grid size-10 place-items-center rounded-xl border border-[#dce5e1] bg-white text-[#536171] hover:bg-[#f7fbf8]"
                                 onClick={onClose}
-                                type="button"
+                                size="md"
+                                variant="secondary"
                             >
                                 <X size={18} aria-hidden="true" />
-                            </button>
+                            </IconButton>
                         </div>
                     </div>
                     {headerActions.length ? <div className="mt-4 flex flex-wrap justify-end gap-2">{headerActions}</div> : null}
@@ -313,61 +315,55 @@ export function ReturnDetailModal({
                         <RefundTab data={data} onGoToRefund={goToRefund} refundBlockReason={refundBlockReason} />
                     ) : null}
                 </div>
-            </aside>
+            </div>
 
             {confirm ? (
-                <div className="relative z-[80]" onClick={(event) => event.stopPropagation()} role="presentation">
-                    <ConfirmDialog
-                        confirmLabel={confirm === "receive" ? "Xác nhận nhận hàng" : "Hủy phiếu"}
-                        confirmVariant={confirm === "receive" ? "primary" : "danger"}
-                        description={confirm === "receive"
-                            ? `Xác nhận cửa hàng đã nhận hàng trả của phiếu ${getReturnCode(returnItem)}? Sau khi nhận hàng, phiếu không thể hủy.`
-                            : `Bạn có chắc muốn hủy phiếu hoàn ${getReturnCode(returnItem)}?`}
-                        error={confirmError}
-                        onCancel={() => {
-                            if (transitioning) return;
-                            setConfirm(null);
-                            setConfirmError("");
-                        }}
-                        onConfirm={runTransition}
-                        submitting={transitioning}
-                        title={confirm === "receive" ? "Xác nhận nhận hàng" : "Hủy phiếu hoàn"}
-                    />
-                </div>
+                <ConfirmDialog
+                    confirmLabel={confirm === "receive" ? "Xác nhận nhận hàng" : "Hủy phiếu"}
+                    confirmVariant={confirm === "receive" ? "primary" : "danger"}
+                    description={confirm === "receive"
+                        ? `Xác nhận cửa hàng đã nhận hàng trả của phiếu ${getReturnCode(returnItem)}? Sau khi nhận hàng, phiếu không thể hủy.`
+                        : `Bạn có chắc muốn hủy phiếu hoàn ${getReturnCode(returnItem)}?`}
+                    error={confirmError}
+                    onCancel={() => {
+                        if (transitioning) return;
+                        setConfirm(null);
+                        setConfirmError("");
+                    }}
+                    onConfirm={runTransition}
+                    submitting={transitioning}
+                    title={confirm === "receive" ? "Xác nhận nhận hàng" : "Hủy phiếu hoàn"}
+                />
             ) : null}
 
             {inspectionSource ? (
-                <div onClick={(event) => event.stopPropagation()} role="presentation">
-                    <ReturnInspectionModal
-                        isOpen
-                        onClose={() => setInspectionSource(null)}
-                        onRefresh={() => notifyChanged()}
-                        onSuccess={(updated) => {
-                            setSubmittedInspection(true);
-                            notifyChanged(updated);
-                        }}
-                        onToast={onToast}
-                        qcSummary={inspectionSource.qcSummary}
-                        returnItem={inspectionSource.returnItem}
-                    />
-                </div>
+                <ReturnInspectionModal
+                    isOpen
+                    onClose={() => setInspectionSource(null)}
+                    onRefresh={() => notifyChanged()}
+                    onSuccess={(updated) => {
+                        setSubmittedInspection(true);
+                        notifyChanged(updated);
+                    }}
+                    onToast={onToast}
+                    qcSummary={inspectionSource.qcSummary}
+                    returnItem={inspectionSource.returnItem}
+                />
             ) : null}
 
             {warehouseInspection ? (
-                <div onClick={(event) => event.stopPropagation()} role="presentation">
-                    <CustomerReturnWarehouseInspectionModal
-                        inspectionId={warehouseInspection.id}
-                        isOpen
-                        key={warehouseInspection.id}
-                        onClose={() => setWarehouseInspection(null)}
-                        onSuccess={() => notifyChanged()}
-                        returnCode={returnItem.returnCode}
-                        returnId={returnItem.id}
-                        returnItem={returnItem}
-                    />
-                </div>
+                <CustomerReturnWarehouseInspectionModal
+                    inspectionId={warehouseInspection.id}
+                    isOpen
+                    key={warehouseInspection.id}
+                    onClose={() => setWarehouseInspection(null)}
+                    onSuccess={() => notifyChanged()}
+                    returnCode={returnItem.returnCode}
+                    returnId={returnItem.id}
+                    returnItem={returnItem}
+                />
             ) : null}
-        </div>
+        </ModalShell>
     );
 }
 
@@ -423,33 +419,33 @@ function ItemsTab({ returnItem }: { returnItem: OrderReturnListRow }) {
     return (
         <Card title={`Sản phẩm khách trả (${items.length})`}>
             <div className="overflow-x-auto">
-                <table className="w-full min-w-[560px] text-left text-[13px]">
-                    <thead className="text-[11px] font-black uppercase text-[#556477]">
-                        <tr className="border-b border-[#e4ece8]">
-                            <th className="py-2 pr-3">Sản phẩm</th>
-                            <th className="px-3 py-2 text-right">SL hoàn</th>
-                            <th className="px-3 py-2">Lý do</th>
-                            <th className="px-3 py-2">Tình trạng</th>
-                        </tr>
-                    </thead>
+                <Table className="min-w-[560px]">
+                    <TableHead>
+                        <TableRow>
+                            <TableHeaderCell>Sản phẩm</TableHeaderCell>
+                            <TableHeaderCell className="text-right">SL hoàn</TableHeaderCell>
+                            <TableHeaderCell>Lý do</TableHeaderCell>
+                            <TableHeaderCell>Tình trạng</TableHeaderCell>
+                        </TableRow>
+                    </TableHead>
                     <tbody>
                         {items.map((item, index) => (
-                            <tr className="border-b border-[#eef2f0] align-top last:border-b-0" key={item.id ?? index}>
-                                <td className="py-3 pr-3">
+                            <TableRow key={item.id ?? index}>
+                                <TableCell>
                                     <strong className="block text-[#172317]">{item.productNameSnapshot || "Sản phẩm"}</strong>
                                     <span className="text-xs font-semibold text-[#697684]">
                                         {item.skuSnapshot || "--"}
                                         {item.variantNameSnapshot ? ` · ${item.variantNameSnapshot}` : ""}
                                     </span>
                                     {item.note ? <p className="mt-1 text-xs text-[#536078]">Ghi chú: {item.note}</p> : null}
-                                </td>
-                                <td className="px-3 py-3 text-right font-black">{formatReturnQuantity(item.quantity)}</td>
-                                <td className="px-3 py-3">{getReturnReasonLabel(item.reason)}</td>
-                                <td className="px-3 py-3">{getReturnConditionLabel(item.condition)}</td>
-                            </tr>
+                                </TableCell>
+                                <TableCell className="text-right font-black">{formatReturnQuantity(item.quantity)}</TableCell>
+                                <TableCell>{getReturnReasonLabel(item.reason)}</TableCell>
+                                <TableCell>{getReturnConditionLabel(item.condition)}</TableCell>
+                            </TableRow>
                         ))}
                     </tbody>
-                </table>
+                </Table>
             </div>
         </Card>
     );
@@ -506,7 +502,7 @@ function InspectionTab({
             {qcSummaryError ? (
                 <Notice tone="danger" title="Không tải được dữ liệu kiểm hàng từ Kho">
                     {qcSummaryError}{" "}
-                    <button className="font-black text-[#159734] underline" onClick={reload} type="button">Thử lại</button>
+                    <Button onClick={reload} size="xs" variant="link">Thử lại</Button>
                 </Notice>
             ) : null}
 
@@ -551,13 +547,14 @@ function InspectionTab({
                                     {" · "}Tạo {formatDateTime(inspection.createdAt)}
                                     {inspection.postedAt ? ` · Xử lý kho ${formatDateTime(inspection.postedAt)}` : ""}
                                 </span>
-                                <button
-                                    className="ml-auto font-black text-[#159734] hover:underline"
+                                <Button
+                                    className="ml-auto"
                                     onClick={() => onOpenInspection(inspection)}
-                                    type="button"
+                                    size="xs"
+                                    variant="link"
                                 >
                                     {inspection.status === "POSTED" || inspection.status === "CANCELLED" ? "Xem kết quả" : "Tiếp tục kiểm hàng"}
-                                </button>
+                                </Button>
                             </li>
                         ))}
                     </ul>
@@ -585,13 +582,13 @@ function QcLine({ line, returnItem }: { line: CustomerReturnQcSummaryLine; retur
                         {line.dispositions.map((disposition, index) => {
                             const meta = disposition.result ? DISPOSITION_LABELS[disposition.result] : undefined;
                             return (
-                                <span
-                                    className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 font-black ${meta?.tone ?? "border-[#e5e7eb] bg-[#f3f4f6] text-[#374151]"}`}
+                                <StatusBadge
                                     key={`${disposition.result}-${disposition.destinationLocationId ?? index}`}
+                                    tone={meta?.tone ?? "neutral"}
                                 >
                                     {meta?.label ?? disposition.result ?? "--"} · {formatReturnQuantity(disposition.quantity)}
                                     {disposition.destinationLocationName ? ` (${disposition.destinationLocationName})` : ""}
-                                </span>
+                                </StatusBadge>
                             );
                         })}
                     </div>
@@ -636,10 +633,10 @@ function RefundTab({
                                 : "Hàng trả đã kiểm và xử lý kho xong. Tiếp tục hoàn tiền cho khách hàng."}
                         </span>
                     </div>
-                    <button className={LIST_PRIMARY_BUTTON} onClick={onGoToRefund} type="button">
+                    <Button onClick={onGoToRefund} variant="primary">
                         Đi tới hoàn tiền
                         <ArrowRight size={17} aria-hidden="true" />
-                    </button>
+                    </Button>
                 </div>
             ) : null}
             <Card title="Thông tin hoàn tiền">

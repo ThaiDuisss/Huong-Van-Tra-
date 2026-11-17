@@ -1,3 +1,4 @@
+import { Table, TableCell, TableHead, TableHeaderCell, TableRow } from "../../../components/ui/Table";
 import type { ActionLogResponse } from "../types/action-log.types";
 import {
   formatDuration,
@@ -7,9 +8,6 @@ import {
   shortId,
 } from "../utils/action-log.utils";
 import { ActionLogStatusBadge, HttpMethodTag } from "./ActionLogStatusBadge";
-
-const headClass = "whitespace-nowrap border-b border-[#dce8df] px-4 py-2.5";
-const cellClass = "border-b border-[#edf0f4] px-4 py-2.5 align-middle";
 
 /** Bảng theo class của `DashboardTable`; cả dòng bấm được (và focus bằng bàn phím) để mở chi tiết. */
 export function ActionLogTable({
@@ -23,23 +21,23 @@ export function ActionLogTable({
 }) {
   return (
     <div className="min-w-0 overflow-x-auto">
-      <table className="w-full min-w-[980px] text-left text-sm">
-        <thead className="bg-[#eaf7ec] text-xs font-black text-[#172317]">
-          <tr>
-            <th className={headClass} scope="col">Thời gian</th>
-            <th className={headClass} scope="col">Người thực hiện</th>
-            <th className={headClass} scope="col">Hành động</th>
-            <th className={headClass} scope="col">Đối tượng</th>
-            <th className={headClass} scope="col">Phân hệ</th>
-            <th className={headClass} scope="col">Kết quả</th>
-            <th className={`${headClass} text-right`} scope="col">Thời lượng</th>
-          </tr>
-        </thead>
+      <Table className="min-w-[980px]">
+        <TableHead>
+          <TableRow>
+            <TableHeaderCell>Thời gian</TableHeaderCell>
+            <TableHeaderCell>Người thực hiện</TableHeaderCell>
+            <TableHeaderCell>Hành động</TableHeaderCell>
+            <TableHeaderCell>Đối tượng</TableHeaderCell>
+            <TableHeaderCell>Phân hệ</TableHeaderCell>
+            <TableHeaderCell>Kết quả</TableHeaderCell>
+            <TableHeaderCell className="text-right">Thời lượng</TableHeaderCell>
+          </TableRow>
+        </TableHead>
         <tbody>
           {rows.map((row) => {
             const selected = row.id === selectedId;
             return (
-              <tr
+              <TableRow
                 className={`cursor-pointer outline-none transition-colors focus-visible:bg-[#eef7f0] ${
                   selected ? "bg-[#eef7f0]" : "hover:bg-[#f8fbf8]"
                 }`}
@@ -53,10 +51,10 @@ export function ActionLogTable({
                 }}
                 tabIndex={0}
               >
-                <td className={`${cellClass} whitespace-nowrap tabular-nums text-[#172317]`}>
+                <TableCell className="whitespace-nowrap tabular-nums text-[#172317]">
                   {formatOccurredAt(row.occurredAt)}
-                </td>
-                <td className={cellClass}>
+                </TableCell>
+                <TableCell>
                   <div className="grid">
                     <span className="font-bold text-[#172317]">{row.username ?? "Không rõ"}</span>
                     {row.userId ? (
@@ -65,8 +63,8 @@ export function ActionLogTable({
                       </span>
                     ) : null}
                   </div>
-                </td>
-                <td className={cellClass}>
+                </TableCell>
+                <TableCell>
                   <div className="grid gap-0.5">
                     <span className="font-bold text-[#172317]">{humanizeAction(row.action)}</span>
                     <span className="flex min-w-0 items-center gap-1.5">
@@ -76,8 +74,8 @@ export function ActionLogTable({
                       </span>
                     </span>
                   </div>
-                </td>
-                <td className={cellClass}>
+                </TableCell>
+                <TableCell>
                   {row.entityType || row.entityId ? (
                     <div className="grid">
                       <span className="font-semibold text-[#172317]">{row.entityType ?? "—"}</span>
@@ -90,21 +88,21 @@ export function ActionLogTable({
                   ) : (
                     <span className="text-[#8793a1]">—</span>
                   )}
-                </td>
-                <td className={`${cellClass} whitespace-nowrap font-semibold text-[#536078]`}>
+                </TableCell>
+                <TableCell className="whitespace-nowrap font-semibold text-[#536078]">
                   {getServiceLabel(row.service)}
-                </td>
-                <td className={cellClass}>
+                </TableCell>
+                <TableCell>
                   <ActionLogStatusBadge status={row.status} />
-                </td>
-                <td className={`${cellClass} whitespace-nowrap text-right tabular-nums text-[#536078]`}>
+                </TableCell>
+                <TableCell className="whitespace-nowrap text-right tabular-nums text-[#536078]">
                   {formatDuration(row.durationMs)}
-                </td>
-              </tr>
+                </TableCell>
+              </TableRow>
             );
           })}
         </tbody>
-      </table>
+      </Table>
     </div>
   );
 }

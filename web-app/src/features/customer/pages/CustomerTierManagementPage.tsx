@@ -8,9 +8,16 @@ import {
     SearchX,
     UsersRound
 } from "lucide-react";
-import { type ReactNode, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
+import {
+    DataTable,
+    type DataTableColumn
+} from "../../../components/shared/list/DataTable";
+import { ListPageHeader } from "../../../components/shared/list/ListPageHeader";
+import { Button, IconButton } from "../../../components/ui/Button";
 import { Dialog } from "../../../components/ui/dialog";
+import { StatusBadge } from "../../../components/ui/StatusBadge";
 import {
     Select,
     SelectContent,
@@ -45,11 +52,6 @@ const TABS: Array<{
     { label: "Đang hoạt động", status: "ACTIVE" },
     { label: "Ngừng áp dụng", status: "INACTIVE" }
 ];
-
-const TIER_SECONDARY_ACTION_CLASS =
-    "inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-[#dce5e1] bg-white px-4 text-sm font-bold text-[#273a2b] shadow-sm transition-colors hover:bg-[#f7fbf8]";
-const TIER_PRIMARY_ACTION_CLASS =
-    "inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-[#159734] px-4 text-sm font-bold text-white shadow-sm transition-colors hover:bg-[#12862d]";
 
 const TIER_SORT_OPTIONS: Array<{ label: string; value: TierSort }> = [
     { value: "spendingDesc", label: "Chi tiêu cao nhất" },
@@ -160,35 +162,30 @@ export function CustomerTierManagementPage() {
 
     return (
         <section className="grid gap-4 text-[#172317]">
-            <header className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-                <div className="grid gap-1">
-                    <h1 className="text-2xl font-bold text-gray-800 sm:text-3xl">
-                        Quản lý hạng khách hàng
-                    </h1>
-                    <p className="max-w-2xl text-sm text-gray-500">
-                        Thiết lập điều kiện xét hạng, quyền lợi và trạng thái áp dụng.
-                    </p>
-                </div>
-
-                <div className="flex min-w-0 flex-1 flex-wrap items-center justify-end gap-2.5">
-                    <div className="w-full min-w-[240px] md:w-[360px]">
-                        <SearchBox
-                            value={query}
-                            placeholder="Tìm tên hoặc mã hạng..."
-                            onChange={setQuery}
-                        />
-                    </div>
-                    <button
-                        className={TIER_PRIMARY_ACTION_CLASS}
-                        onClick={openCreateDialog}
-                        type="button"
-                    >
-                        <Plus size={17} aria-hidden="true" />
-                        <span className="max-md:hidden">Tạo hạng mới</span>
-                        <span className="hidden max-md:inline">Tạo hạng</span>
-                    </button>
-                </div>
-            </header>
+            <ListPageHeader
+                actions={
+                    <>
+                        <div className="w-full min-w-[240px] md:w-[360px]">
+                            <SearchBox
+                                value={query}
+                                placeholder="Tìm tên hoặc mã hạng..."
+                                onChange={setQuery}
+                            />
+                        </div>
+                        <Button
+                            onClick={openCreateDialog}
+                            size="search"
+                            variant="primary"
+                        >
+                            <Plus size={17} aria-hidden="true" />
+                            <span className="max-md:hidden">Tạo hạng mới</span>
+                            <span className="hidden max-md:inline">Tạo hạng</span>
+                        </Button>
+                    </>
+                }
+                description="Thiết lập điều kiện xét hạng, quyền lợi và trạng thái áp dụng."
+                title="Quản lý hạng khách hàng"
+            />
 
             {error ? (
                 <div className="rounded-xl border border-[#f1c8c1] bg-[#fff5f3] px-4 py-3 text-sm font-bold text-[#a43a2a]">
@@ -234,7 +231,7 @@ export function CustomerTierManagementPage() {
                     >
                         <SelectTrigger
                             aria-label="Sắp xếp hạng khách hàng"
-                            className={`${TIER_SECONDARY_ACTION_CLASS} h-11 min-w-[190px]`}
+                            className="h-11 min-w-[190px]"
                         >
                             <ArrowDownUp size={16} aria-hidden="true" />
                             <SelectValue />
@@ -302,99 +299,114 @@ function CustomerTierTable({
     onEdit: (tier: CustomerTierView) => void;
     onStatusChange: (tier: CustomerTierView) => void;
 }) {
+    const columns: DataTableColumn<CustomerTierView>[] = [
+        {
+            key: "code",
+            header: "Mã hạng",
+            className: "font-black text-[#172317]",
+            render: (tier) => tier.code
+        },
+        {
+            key: "name",
+            header: "Hạng khách hàng",
+            render: (tier) => (
+                <div className="flex min-w-[190px] items-center gap-3">
+                    <span
+                        className="size-3 shrink-0 rounded-full ring-4 ring-slate-100"
+                        style={{ backgroundColor: tier.colorCode }}
+                    />
+                    <span className="min-w-0">
+                        <strong className="block truncate font-black text-[#172317]">
+                            {tier.name}
+                        </strong>
+                        <span className="mt-0.5 block text-xs font-semibold text-[#697684]">
+                            {tier.colorCode.toUpperCase()}
+                        </span>
+                    </span>
+                </div>
+            )
+        },
+        {
+            key: "minSpending",
+            header: "Chi tiêu tối thiểu",
+            render: (tier) => formatCurrency(tier.minSpending)
+        },
+        {
+            key: "minOrderCount",
+            header: "Số đơn tối thiểu",
+            render: (tier) => <>{tier.minOrderCount.toLocaleString("vi-VN")} đơn</>
+        },
+        {
+            key: "customerCount",
+            header: "Số khách hàng",
+            render: (tier) => (
+                <span className="inline-flex items-center gap-1.5 font-black text-[#172317]">
+                    <UsersRound size={15} aria-hidden="true" />
+                    {tier.customerCount.toLocaleString("vi-VN")}
+                </span>
+            )
+        },
+        {
+            key: "status",
+            header: "Trạng thái",
+            render: (tier) => (
+                <StatusBadge tone={tier.status === "ACTIVE" ? "success" : "neutral"}>
+                    {tier.status === "ACTIVE" ? "Đang hoạt động" : "Ngừng áp dụng"}
+                </StatusBadge>
+            )
+        },
+        {
+            key: "actions",
+            header: "Thao tác",
+            align: "right",
+            width: "160px",
+            hideOnMobile: true,
+            render: (tier) => (
+                <div className="flex justify-end gap-2">
+                    <IconButton
+                        aria-label={`Chỉnh sửa ${tier.name}`}
+                        onClick={() => onEdit(tier)}
+                        variant="secondary"
+                    >
+                        <Pencil size={15} aria-hidden="true" />
+                    </IconButton>
+                    <IconButton
+                        aria-label={
+                            tier.status === "ACTIVE"
+                                ? `Ngừng áp dụng ${tier.name}`
+                                : `Áp dụng lại ${tier.name}`
+                        }
+                        disabled={statusChangingTierId === tier.id}
+                        onClick={() => onStatusChange(tier)}
+                        variant={tier.status === "ACTIVE" ? "dangerOutline" : "secondary"}
+                    >
+                        {statusChangingTierId === tier.id ? (
+                            <LoaderCircle
+                                className="animate-spin"
+                                size={15}
+                                aria-hidden="true"
+                            />
+                        ) : tier.status === "ACTIVE" ? (
+                            <PowerOff size={15} aria-hidden="true" />
+                        ) : (
+                            <Power size={15} aria-hidden="true" />
+                        )}
+                    </IconButton>
+                </div>
+            )
+        }
+    ];
+
     return (
-        <section className="overflow-hidden rounded-xl border border-[#dce5e1] bg-white shadow-[0_12px_32px_rgba(31,53,43,0.06)]">
-            <div className="overflow-auto">
-                <table className="w-full min-w-[1080px] border-separate border-spacing-0 text-[13px] text-[#233025]">
-                    <thead>
-                        <tr>
-                            <TableHead>Mã hạng</TableHead>
-                            <TableHead>Hạng khách hàng</TableHead>
-                            <TableHead>Chi tiêu tối thiểu</TableHead>
-                            <TableHead>Số đơn tối thiểu</TableHead>
-                            <TableHead>Số khách hàng</TableHead>
-                            <TableHead>Trạng thái</TableHead>
-                            <TableHead className="w-[160px] text-right">Thao tác</TableHead>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {tiers.map((tier, index) => (
-                            <tr
-                                className={index % 2 === 1 ? "[&>td]:bg-[#f6f9f7]" : ""}
-                                key={tier.id}
-                            >
-                                <TableCell>
-                                    <span className="font-black text-[#172317]">
-                                        {tier.code}
-                                    </span>
-                                </TableCell>
-                                <TableCell>
-                                    <div className="flex min-w-[190px] items-center gap-3">
-                                        <span
-                                            className="size-3 shrink-0 rounded-full ring-4 ring-slate-100"
-                                            style={{ backgroundColor: tier.colorCode }}
-                                        />
-                                        <span className="min-w-0">
-                                            <strong className="block truncate font-black text-[#172317]">
-                                                {tier.name}
-                                            </strong>
-                                            <span className="mt-0.5 block text-xs font-semibold text-[#697684]">
-                                                {tier.colorCode.toUpperCase()}
-                                            </span>
-                                        </span>
-                                    </div>
-                                </TableCell>
-                                <TableCell>{formatCurrency(tier.minSpending)}</TableCell>
-                                <TableCell>
-                                    {tier.minOrderCount.toLocaleString("vi-VN")} đơn
-                                </TableCell>
-                                <TableCell>
-                                    <span className="inline-flex items-center gap-1.5 font-black text-[#172317]">
-                                        <UsersRound size={15} aria-hidden="true" />
-                                        {tier.customerCount.toLocaleString("vi-VN")}
-                                    </span>
-                                </TableCell>
-                                <TableCell>
-                                    <StatusBadge status={tier.status} />
-                                </TableCell>
-                                <TableCell>
-                                    <div className="flex justify-end gap-2">
-                                        <IconButton
-                                            label={`Chỉnh sửa ${tier.name}`}
-                                            onClick={() => onEdit(tier)}
-                                        >
-                                            <Pencil size={15} aria-hidden="true" />
-                                        </IconButton>
-                                        <IconButton
-                                            danger={tier.status === "ACTIVE"}
-                                            disabled={statusChangingTierId === tier.id}
-                                            label={
-                                                tier.status === "ACTIVE"
-                                                    ? `Ngừng áp dụng ${tier.name}`
-                                                    : `Áp dụng lại ${tier.name}`
-                                            }
-                                            onClick={() => onStatusChange(tier)}
-                                        >
-                                            {statusChangingTierId === tier.id ? (
-                                                <LoaderCircle
-                                                    className="animate-spin"
-                                                    size={15}
-                                                    aria-hidden="true"
-                                                />
-                                            ) : tier.status === "ACTIVE" ? (
-                                                <PowerOff size={15} aria-hidden="true" />
-                                            ) : (
-                                                <Power size={15} aria-hidden="true" />
-                                            )}
-                                        </IconButton>
-                                    </div>
-                                </TableCell>
-                            </tr>
-                        ))}
-                    </tbody>
-                </table>
-            </div>
-        </section>
+        <DataTable
+            caption="Danh sách hạng khách hàng"
+            columns={columns}
+            emptyTitle="Không tìm thấy hạng khách hàng"
+            getRowKey={(tier) => tier.id}
+            loading={false}
+            minWidth={1080}
+            rows={tiers}
+        />
     );
 }
 
@@ -426,14 +438,10 @@ function CustomerTierEmptyState({ onCreate }: { onCreate: () => void }) {
                 <p className="mt-1.5 text-sm font-semibold text-slate-500">
                     Thử thay đổi từ khóa tìm kiếm hoặc tạo hạng mới.
                 </p>
-                <button
-                    className="mt-5 inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-[#159734] px-4 text-sm font-bold text-white shadow-sm transition-colors hover:bg-[#12862d] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-200"
-                    onClick={onCreate}
-                    type="button"
-                >
+                <Button className="mt-5" onClick={onCreate} variant="primary">
                     <Plus size={16} aria-hidden="true" />
                     Tạo hạng mới
-                </button>
+                </Button>
             </div>
         </section>
     );
@@ -503,78 +511,6 @@ function getTierStatusCounts(tiers: CustomerTierView[]) {
             ALL: 0,
             INACTIVE: 0
         }
-    );
-}
-
-function StatusBadge({ status }: { status: CustomerTierStatus }) {
-    const active = status === "ACTIVE";
-
-    return (
-        <span
-            className={`inline-flex h-7 items-center rounded-full px-2.5 text-[11px] font-black ${
-                active
-                    ? "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200"
-                    : "bg-slate-100 text-slate-600 ring-1 ring-slate-200"
-            }`}
-        >
-            {active ? "Đang hoạt động" : "Ngừng áp dụng"}
-        </span>
-    );
-}
-
-function IconButton({
-    children,
-    danger = false,
-    disabled = false,
-    label,
-    onClick
-}: {
-    children: ReactNode;
-    danger?: boolean;
-    disabled?: boolean;
-    label: string;
-    onClick: () => void;
-}) {
-    return (
-        <button
-            aria-label={label}
-            className={`grid size-8 place-items-center rounded-lg border transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${
-                danger
-                    ? "border-[#efc9c2] bg-white text-[#c4422e] hover:bg-[#fff5f3]"
-                    : "border-[#dce5e1] bg-white text-[#536171] hover:bg-[#f7fbf8] hover:text-[#172317]"
-            }`}
-            disabled={disabled}
-            onClick={onClick}
-            type="button"
-        >
-            {children}
-        </button>
-    );
-}
-
-function TableHead({
-    children,
-    className = ""
-}: {
-    children: ReactNode;
-    className?: string;
-}) {
-    return (
-        <th className={`sticky top-0 z-[1] h-10 whitespace-nowrap border-b border-[#e4ece8] bg-[#f8faf9] px-3 text-left text-[11px] font-black uppercase text-[#556477] ${className}`}>
-            {children}
-        </th>
-    );
-}
-
-function TableCell({
-    children
-}: {
-    children: ReactNode;
-}) {
-    return (
-        <td className="h-[58px] whitespace-nowrap border-b border-[#eef2f0] bg-white px-3 align-middle">
-            {children}
-        </td>
     );
 }
 

@@ -18,6 +18,8 @@ import {
   OrderStatusFilters,
   OrderToolbar,
 } from "./OrderListUI";
+import { Button } from "../../../../components/ui/Button";
+import { SearchInput } from "../../../../components/ui/SearchInput";
 import { getOrderPageNumbers, getOrderRecordRange } from "./order-list-ui.utils";
 
 function elements(node: ReactNode): ReactElement[] {
@@ -26,6 +28,17 @@ function elements(node: ReactNode): ReactElement[] {
       ? [child, ...elements(child.props.children)]
       : [],
   );
+}
+/** Như `elements`, nhưng mở cả component hàm (không dùng hook) để tới được thẻ DOM bên trong. */
+function renderedElements(node: ReactNode): ReactElement[] {
+  return Children.toArray(node).flatMap((child) => {
+    if (!isValidElement<{ children?: ReactNode }>(child)) return [];
+    if (typeof child.type === "function") {
+      const render = child.type as (props: unknown) => ReactNode;
+      return renderedElements(render(child.props));
+    }
+    return [child, ...renderedElements(child.props.children)];
+  });
 }
 function button(element: ReactElement) {
   return element.props as ButtonHTMLAttributes<HTMLButtonElement>;
@@ -66,7 +79,7 @@ describe("shared Order list presentation", () => {
         onKeyDown,
       },
     });
-    const input = elements(tree).find((node) => node.type === "input")!;
+    const input = elements(tree).find((node) => node.type === SearchInput)!;
     expect(input.props).toMatchObject({
       value: "HD-01",
       onChange,
@@ -205,7 +218,7 @@ describe("shared Order list presentation", () => {
       description: "Lỗi API cụ thể",
       onRetry: retry,
     });
-    const action = elements(tree).find((node) => node.type === "button")!;
+    const action = elements(tree).find((node) => node.type === Button)!;
     button(action).onClick?.({} as React.MouseEvent<HTMLButtonElement>);
     expect(retry).toHaveBeenCalledTimes(1);
     expect(html(tree)).toContain("Lỗi API cụ thể");
@@ -225,7 +238,7 @@ describe("shared Order list presentation", () => {
       onPageChange: vi.fn(),
     });
     expect(html(tree)).toContain("Hiển thị 26 - 50 trong 83 hóa đơn");
-    expect(html(tree)).toContain('aria-current="page">3');
+    expect(html(tree)).toMatch(/aria-current="page"[^>]*>3</);
   });
 
   it("uses the server page count and sends bounded Previous/Next selections", () => {
@@ -238,7 +251,7 @@ describe("shared Order list presentation", () => {
       itemLabel: "dòng",
       onPageChange: change,
     });
-    const buttons = elements(tree).filter((node) => node.type === "button");
+    const buttons = renderedElements(tree).filter((node) => node.type === "button");
     expect(buttons).toHaveLength(5);
     button(buttons[0]).onClick?.({} as React.MouseEvent<HTMLButtonElement>);
     button(buttons.at(-1)!).onClick?.({} as React.MouseEvent<HTMLButtonElement>);
@@ -258,7 +271,7 @@ describe("shared Order list presentation", () => {
       itemLabel: "phiếu",
       onPageChange: vi.fn(),
     });
-    const buttons = elements(tree).filter((node) => node.type === "button");
+    const buttons = renderedElements(tree).filter((node) => node.type === "button");
     expect(button(buttons[0]).disabled).toBe(true);
     expect(button(buttons.at(-1)!).disabled).toBe(true);
     const busy = OrderPagination({
@@ -271,7 +284,7 @@ describe("shared Order list presentation", () => {
       disabled: true,
     });
     expect(
-      elements(busy)
+      renderedElements(busy)
         .filter((node) => node.type === "button")
         .every((node) => button(node).disabled),
     ).toBe(true);
@@ -311,7 +324,6 @@ describe("shared style propagation across Order list routes", () => {
       ])
         expect(tags.filter((tag) => tag.tagName.getText(file) === component)).toHaveLength(1);
       expect(source).toContain('from "../components/shared/OrderListUI"');
-      expect(source).toContain('from "../components/shared/OrderListUI.module.css"');
       expect(source).not.toMatch(
         /styles\.(page|header|tableCard|tableWrap|pagination|filterToolbar)\b/,
       );
@@ -334,7 +346,7 @@ describe("shared style propagation across Order list routes", () => {
     const css = readFileSync(new URL("./OrderListUI.module.css", import.meta.url), "utf8");
     expect(source).toContain('from "./OrderListUI.module.css"');
     expect(css).toContain("--order-ui-gap: 12px");
-    expect(css.match(/gap: var\(--order-ui-gap\)/g)!.length).toBeGreaterThanOrEqual(3);
+    expect(css.match(/gap: var\(--order-ui-gap\)/g)!.length).toBeGreaterThanOrEqual(2);
     expect(css).toContain("@media (max-width: 640px)");
     expect(css).not.toContain("!important");
   });

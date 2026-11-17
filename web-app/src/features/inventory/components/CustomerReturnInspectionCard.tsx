@@ -12,6 +12,10 @@ import {
     Trash2
 } from "lucide-react";
 
+import { IconButton } from "@/components/ui/Button";
+import { TextArea } from "@/components/ui/Field";
+import { StatusBadge } from "@/components/ui/StatusBadge";
+
 import {
     RETURN_CONDITIONS,
     RETURN_CONDITION_LABELS,
@@ -209,41 +213,34 @@ export function CustomerReturnInspectionCard({
                 <div className="flex items-center gap-2">
                     {/* Status badge */}
                     {isPosted ? (
-                        <span className={`${styles.statusPill} ${styles.statusPillPosted}`}>
-                            <Check size={13} aria-hidden="true" />
-                            Đã hạch toán
-                        </span>
+                        <StatusBadge shape="tag" tone="success">
+                            <span className="inline-flex items-center gap-1"><Check size={13} aria-hidden="true" />Đã hạch toán</span>
+                        </StatusBadge>
                     ) : editable ? (
                         attemptedSubmit && hasAnyError ? (
-                            <span className={`${styles.statusPill} ${styles.statusPillError}`}>
-                                <AlertCircle size={13} aria-hidden="true" />
-                                Có lỗi
-                            </span>
+                            <StatusBadge shape="tag" tone="danger">
+                                <span className="inline-flex items-center gap-1"><AlertCircle size={13} aria-hidden="true" />Có lỗi</span>
+                            </StatusBadge>
                         ) : isCompleted ? (
-                            <span className={`${styles.statusPill} ${styles.statusPillSuccess}`}>
-                                <CheckCircle2 size={13} aria-hidden="true" />
-                                Đã nhập đủ
-                            </span>
+                            <StatusBadge shape="tag" tone="success">
+                                <span className="inline-flex items-center gap-1"><CheckCircle2 size={13} aria-hidden="true" />Đã nhập đủ</span>
+                            </StatusBadge>
                         ) : (
-                            <span className={`${styles.statusPill} ${styles.statusPillPending}`}>
-                                Chưa nhập đủ
-                            </span>
+                            <StatusBadge shape="tag">Chưa nhập đủ</StatusBadge>
                         )
                     ) : null}
 
                     {isCollapsible ? (
-                        <button
+                        <IconButton
                             aria-expanded={isExpanded}
                             aria-label={isExpanded ? "Thu gọn sản phẩm" : "Mở rộng sản phẩm"}
-                            className={styles.chevronButton}
                             onClick={(e) => {
                                 e.stopPropagation();
                                 onToggleExpand?.();
                             }}
-                            type="button"
                         >
                             {isExpanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
-                        </button>
+                        </IconButton>
                     ) : null}
                 </div>
             </div>
@@ -434,8 +431,7 @@ export function CustomerReturnInspectionCard({
                                 <label className={styles.fieldLabel} htmlFor={`${cardId}-note`}>
                                     4. Ghi chú kiểm định <span className="text-xs font-normal text-[#64748b]">(tùy chọn)</span>
                                 </label>
-                                <textarea
-                                    className={styles.textareaControl}
+                                <TextArea
                                     id={`${cardId}-note`}
                                     maxLength={500}
                                     onChange={(e) => onChange({ note: e.target.value })}

@@ -1,6 +1,7 @@
 import { AlertCircle, LoaderCircle, ShieldCheck, ShieldOff } from "lucide-react";
 import { useState } from "react";
 
+import { Button } from "../../../components/ui/Button";
 import {
     DialogContent,
     DialogDescription,
@@ -8,11 +9,7 @@ import {
     DialogHeader,
     DialogTitle
 } from "../../../components/ui/dialog";
-import {
-    CUSTOMER_BUTTON_BASE,
-    CUSTOMER_COMPACT_BUTTON,
-    CUSTOMER_STATUS_LABELS
-} from "../constants/customer-list.constants";
+import { CUSTOMER_STATUS_LABELS } from "../constants/customer-list.constants";
 import { customerApi } from "../services/customer.api";
 import type { CustomerResponse } from "../types/customer.types";
 import {
@@ -96,27 +93,17 @@ export function CustomerStatusDialog({
                 )}
             </div>
             <DialogFooter>
-                <button
-                    className={`${CUSTOMER_BUTTON_BASE} ${CUSTOMER_COMPACT_BUTTON}`}
-                    disabled={saving}
-                    onClick={onCancel}
-                    type="button"
-                >
+                <Button disabled={saving} onClick={onCancel}>
                     Hủy
-                </button>
-                <button
-                    className={`${CUSTOMER_BUTTON_BASE} text-white disabled:opacity-60 ${
-                        deactivating
-                            ? "bg-[#c4422e] hover:bg-[#a93425]"
-                            : "bg-[#159734] hover:bg-[#12862d]"
-                    }`}
+                </Button>
+                <Button
+                    variant={deactivating ? "danger" : "primary"}
                     disabled={saving}
                     onClick={() => void changeStatus()}
-                    type="button"
                 >
                     {saving && <LoaderCircle className="animate-spin" size={16} />}
                     {saving ? "Đang cập nhật..." : customerStatusActionLabel(customer.status)}
-                </button>
+                </Button>
             </DialogFooter>
         </DialogContent>
     );

@@ -1,5 +1,9 @@
-import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useState } from "react";
+
+import { TablePagination } from "../../../components/shared/list/TablePagination";
+import { Button } from "../../../components/ui/Button";
+import { TextInput } from "../../../components/ui/Field";
+import { StatusBadge } from "../../../components/ui/StatusBadge";
 import {
     Dialog,
     DialogContent,
@@ -32,6 +36,8 @@ interface QcDraftLine {
     isIngredient: boolean;
     note?: string;
 }
+
+const QC_PAGE_SIZE_OPTIONS = [3, 5, 10] as const;
 
 interface Props {
     open: boolean;
@@ -175,15 +181,15 @@ export function GoodsReceiptInspectionModal({
                                 <div key={line.lineId} className="grid gap-2 rounded-lg border border-[#e8eef0] p-3.5 bg-[#fbfdfb]">
                                     <div className="flex justify-between items-center font-bold text-sm text-[#172317]">
                                         <span>#{index + 1}. {line.materialName}</span>
-                                        <span className="text-xs text-[#536078] bg-slate-100 px-2 py-1 rounded">
+                                        <StatusBadge shape="tag">
                                             Đặt hàng: <strong className="text-[#172317]">{formatVietnamNumber(line.orderedQuantity)}</strong> {line.unit}
-                                        </span>
+                                        </StatusBadge>
                                     </div>
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3 items-start mt-1">
                                         <div>
                                             <label className="text-xs font-bold text-[#536078]">Số lượng thực nhận ({line.unit}):</label>
-                                            <input
-                                                className="mt-1 h-9 w-full rounded-lg border border-[#dce5e1] px-3 text-sm font-bold text-[#172317]"
+                                            <TextInput
+                                                className="mt-1"
                                                 min="0"
                                                 step="any"
                                                 type="number"
@@ -246,9 +252,9 @@ export function GoodsReceiptInspectionModal({
                                                     </span>
                                                     <span>{line.materialName}</span>
                                                 </span>
-                                                <span className="text-xs text-[#536078] bg-slate-100 px-2.5 py-1 rounded-md">
+                                                <StatusBadge shape="tag">
                                                     Thực nhận: <strong className="text-[#172317]">{formatVietnamNumber(line.receivedQuantity)}</strong> {line.unit}
-                                                </span>
+                                                </StatusBadge>
                                             </div>
                                             {lineError && (
                                                 <div className="text-xs font-bold text-red-700 bg-red-100 border border-red-300 p-2.5 rounded-md flex items-start gap-2">
@@ -259,8 +265,8 @@ export function GoodsReceiptInspectionModal({
                                             <div className="flex flex-col lg:flex-row gap-3 items-start flex-wrap">
                                                 <div className="flex-1 min-w-[130px]">
                                                     <label className="text-xs font-bold text-[#159734]">Số lượng đạt:</label>
-                                                    <input
-                                                        className="mt-1 h-9 w-full rounded-lg border border-[#dce5e1] px-3 text-sm font-bold text-[#159734] outline-none focus:border-[#159734]"
+                                                    <TextInput
+                                                        className="mt-1"
                                                         min="0"
                                                         max={line.receivedQuantity}
                                                         step="any"
@@ -280,8 +286,8 @@ export function GoodsReceiptInspectionModal({
                                                 </div>
                                                 <div className="flex-1 min-w-[130px]">
                                                     <label className="text-xs font-bold text-red-600">Số lượng lỗi:</label>
-                                                    <input
-                                                        className="mt-1 h-9 w-full rounded-lg border border-[#dce5e1] px-3 text-sm font-bold text-red-600 outline-none focus:border-red-500"
+                                                    <TextInput
+                                                        className="mt-1"
                                                         min="0"
                                                         max={line.receivedQuantity}
                                                         step="any"
@@ -301,8 +307,8 @@ export function GoodsReceiptInspectionModal({
                                                 </div>
                                                 <div className="flex-1 min-w-[150px]">
                                                     <label className="text-xs font-bold text-[#315f3c]">Mã lô NCC </label>
-                                                    <input
-                                                        className="mt-1 h-8 w-full rounded border border-[#dce5e1] px-2 text-xs font-semibold text-[#172317] outline-none focus:border-[#159734] bg-white"
+                                                    <TextInput
+                                                        className="mt-1"
                                                         placeholder="LOT-2026-001"
                                                         type="text"
                                                         value={line.supplierLot}
@@ -318,8 +324,8 @@ export function GoodsReceiptInspectionModal({
                                                 </div>
                                                 <div className="flex-1 min-w-[130px]">
                                                     <label className="text-xs font-bold text-[#315f3c]">Ngày sản xuất (MFG) *:</label>
-                                                    <input
-                                                        className="mt-1 h-8 w-full rounded border border-[#dce5e1] px-2 text-xs font-semibold text-[#172317] outline-none focus:border-[#159734] bg-white"
+                                                    <TextInput
+                                                        className="mt-1"
                                                         type="date"
                                                         value={line.manufactureDate}
                                                         onChange={(e) => {
@@ -335,8 +341,8 @@ export function GoodsReceiptInspectionModal({
                                                 {!line.isIngredient && (
                                                 <div className="flex-1 min-w-[130px]">
                                                     <label className="text-xs font-bold text-[#315f3c]">Hạn sử dụng (EXP) *:</label>
-                                                    <input
-                                                        className="mt-1 h-8 w-full rounded border border-[#dce5e1] px-2 text-xs font-semibold text-[#172317] outline-none focus:border-[#159734] bg-white"
+                                                    <TextInput
+                                                        className="mt-1"
                                                         type="date"
                                                         value={line.expiryDate}
                                                         onChange={(e) => {
@@ -356,63 +362,19 @@ export function GoodsReceiptInspectionModal({
                                     })}
                                 </div>
 
-                                {/* PAGINATION */}
-                                <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[#edf0f4] px-6 py-2.5 text-xs bg-[#fafbfc]">
-                                    <div className="text-[#536078] font-bold">
-                                        Hiển thị <span className="text-[#172317]">{qcDraft.length > 0 ? startQcIdx + 1 : 0} - {endQcIdx}</span> trên tổng <span className="text-[#172317]">{qcDraft.length}</span> nguyên liệu
-                                    </div>
-                                    <div className="flex flex-wrap items-center gap-3">
-                                        <div className="flex items-center gap-1.5 text-[#697684] font-bold">
-                                            <span>Hiển thị:</span>
-                                            <select
-                                                className="h-8 rounded-lg border border-[#dce5e1] bg-white px-2 text-xs font-bold text-[#172317] outline-none focus:border-[#159734]"
-                                                value={qcPageSize}
-                                                onChange={(e) => {
-                                                    onQcPageSizeChange(Number(e.target.value));
-                                                    onQcPageChange(1);
-                                                }}
-                                            >
-                                                <option value={3}>3 dòng / trang</option>
-                                                <option value={5}>5 dòng / trang</option>
-                                                <option value={10}>10 dòng / trang</option>
-                                            </select>
-                                        </div>
-                                        {totalQcPages > 1 && (
-                                            <div className="flex items-center gap-1">
-                                                <button
-                                                    type="button"
-                                                    disabled={safeQcPage <= 1}
-                                                    onClick={() => onQcPageChange(Math.max(1, safeQcPage - 1))}
-                                                    className="grid size-8 place-items-center rounded-lg border border-[#dce5e1] text-[#536078] hover:bg-white disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
-                                                >
-                                                    <ChevronLeft size={16} />
-                                                </button>
-                                                {Array.from({ length: totalQcPages }, (_, i) => i + 1).map((p) => (
-                                                    <button
-                                                        key={p}
-                                                        type="button"
-                                                        onClick={() => onQcPageChange(p)}
-                                                        className={`grid size-8 place-items-center rounded-lg text-xs font-black transition-colors cursor-pointer ${
-                                                            p === safeQcPage
-                                                                ? "bg-[#7c3aed] text-white shadow-sm"
-                                                                : "border border-[#dce5e1] bg-white text-[#536078] hover:bg-[#f7f8fb]"
-                                                        }`}
-                                                    >
-                                                        {p}
-                                                    </button>
-                                                ))}
-                                                <button
-                                                    type="button"
-                                                    disabled={safeQcPage >= totalQcPages}
-                                                    onClick={() => onQcPageChange(Math.min(totalQcPages, safeQcPage + 1))}
-                                                    className="grid size-8 place-items-center rounded-lg border border-[#dce5e1] text-[#536078] hover:bg-white disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
-                                                >
-                                                    <ChevronRight size={16} />
-                                                </button>
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
+                                <TablePagination
+                                    itemLabel="nguyên liệu"
+                                    onPageChange={(nextPage) => onQcPageChange(nextPage + 1)}
+                                    onPageSizeChange={(size) => {
+                                        onQcPageSizeChange(size);
+                                        onQcPageChange(1);
+                                    }}
+                                    page={safeQcPage - 1}
+                                    pageSize={qcPageSize}
+                                    pageSizeOptions={QC_PAGE_SIZE_OPTIONS}
+                                    totalItems={qcDraft.length}
+                                    totalPages={totalQcPages}
+                                />
                             </>
                         )}
                     </>
@@ -428,23 +390,13 @@ export function GoodsReceiptInspectionModal({
                 )}
 
                 <DialogFooter className="sticky bottom-0 px-6 py-3 border-t border-[#eef2f0] bg-white">
-                    <button
-                        className="h-10 rounded-lg border border-[#dce5e1] px-4 text-sm font-bold text-[#536078] hover:bg-[#f7f8fb] cursor-pointer"
-                        disabled={isLoading}
-                        onClick={() => onOpenChange(false)}
-                        type="button"
-                    >
+                    <Button disabled={isLoading} onClick={() => onOpenChange(false)}>
                         Hủy
-                    </button>
-                    <button
-                        className={`h-10 rounded-lg px-5 text-sm font-black text-white disabled:opacity-60 cursor-pointer shadow-sm ${
-                            tab === "receive"
-                                ? "bg-[#0891b2] hover:bg-[#0e7490]"
-                                : "bg-[#7c3aed] hover:bg-[#6d28d9]"
-                        }`}
+                    </Button>
+                    <Button
                         disabled={tab === "receive" ? isLoading : isQcSubmitDisabled}
                         onClick={tab === "receive" ? handleReceiveSubmit : handleQcSubmit}
-                        type="button"
+                        variant="primary"
                         title={tab === "qc" && hasQcErrors ? "Vui lòng sửa các lỗi trước khi tiếp tục" : ""}
                     >
                         {isLoading
@@ -452,7 +404,7 @@ export function GoodsReceiptInspectionModal({
                             : tab === "receive"
                                 ? "Tiếp tục sang Kiểm định Chất lượng →"
                                 : "Hoàn tất Kiểm định QC & Khai báo Lô"}
-                    </button>
+                    </Button>
                 </DialogFooter>
             </DialogContent>
         </Dialog>

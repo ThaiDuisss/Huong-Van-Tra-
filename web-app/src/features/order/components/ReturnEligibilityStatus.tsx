@@ -1,4 +1,6 @@
 import { CheckCircle2, LoaderCircle, XCircle } from "lucide-react";
+
+import { Button } from "../../../components/ui/Button";
 import type { OrderItemResponse } from "../types/order.types";
 import type { OrderReturnEligibilityResponse } from "../types/order-return.types";
 import styles from "../pages/CreateReturnPage.module.css";
@@ -67,13 +69,9 @@ export function ReturnEligibilityStatus({
                         <span>Chưa thể kiểm tra điều kiện hoàn hàng.</span>
                     </div>
                     {onRetry && (
-                        <button
-                            type="button"
-                            className={styles.retryInlineButton}
-                            onClick={onRetry}
-                        >
+                        <Button onClick={onRetry} size="xs" variant="dangerOutline">
                             Thử lại
-                        </button>
+                        </Button>
                     )}
                 </div>
             );
@@ -88,13 +86,7 @@ export function ReturnEligibilityStatus({
                     <strong>Chưa thể kiểm tra điều kiện hoàn hàng. Vui lòng thử lại.</strong>
                 </div>
                 {onRetry && (
-                    <button
-                        type="button"
-                        className={styles.secondaryButton}
-                        onClick={onRetry}
-                    >
-                        Kiểm tra lại
-                    </button>
+                    <Button onClick={onRetry}>Kiểm tra lại</Button>
                 )}
             </div>
         );

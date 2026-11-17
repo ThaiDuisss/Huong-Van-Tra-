@@ -123,19 +123,9 @@ export function PriceListPage() {
                 effectiveTo: toDateInput(item.effectiveTo),
                 status: item.status
             })}
-            renderExtraRowActions={(item, closeMenu) => (
-                <button
-                    className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-sm text-[#172317] hover:bg-[#f0fbef] hover:text-[#159734] font-medium transition-colors cursor-pointer"
-                    onClick={() => {
-                        closeMenu();
-                        setHistoryOf(item);
-                    }}
-                    type="button"
-                >
-                    <History size={14} aria-hidden="true" />
-                    Lịch sử thay đổi giá
-                </button>
-            )}
+            extraRowActions={(item) => [
+                { label: "Lịch sử thay đổi giá", icon: <History size={14} />, onSelect: () => setHistoryOf(item) }
+            ]}
             columns={[
                 { key: "name", label: "Tên bảng giá" },
                 { key: "branch", label: "Chi nhánh" },

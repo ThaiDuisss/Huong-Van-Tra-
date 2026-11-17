@@ -1,6 +1,8 @@
 import { Check, Copy, KeyRound, Lock, LockOpen, Pencil, X } from "lucide-react";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 
+import { Button, IconButton } from "../../../components/ui/Button";
+import { Drawer } from "../../../components/ui/Overlay";
 import { accountApi, describeAccountError } from "../services/account.api";
 import type { AccountResponse } from "../types/account.types";
 import { formatAccountDate, getAccountDisplayName } from "../utils/account.utils";
@@ -16,16 +18,16 @@ function CopyButton({ value }: { value: string }) {
   }, [copied]);
 
   return (
-    <button
+    <IconButton
       aria-label={copied ? "Đã sao chép" : "Sao chép"}
-      className="inline-flex size-6 shrink-0 items-center justify-center rounded text-[#8793a1] transition hover:bg-[#eef3ef] hover:text-[#159734]"
+      className="text-[#8793a1] hover:text-[#159734]"
       onClick={() => {
         void navigator.clipboard?.writeText(value).then(() => setCopied(true));
       }}
-      type="button"
+      size="xs"
     >
       {copied ? <Check size={14} aria-hidden="true" /> : <Copy size={14} aria-hidden="true" />}
-    </button>
+    </IconButton>
   );
 }
 
@@ -50,8 +52,7 @@ function Section({ children, title }: { children: ReactNode; title: string }) {
   );
 }
 
-const actionButtonClass =
-  "inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-lg border px-4 text-sm font-black transition disabled:cursor-not-allowed disabled:opacity-50";
+
 
 /**
  * Chi tiết tài khoản. Hiển thị ngay dữ liệu của dòng đang chọn, đồng thời tải lại bản mới nhất từ
@@ -75,26 +76,13 @@ export function AccountDetailDrawer({
   onResetPassword: (account: AccountResponse) => void;
   onToggleStatus: (account: AccountResponse) => void;
 }) {
-  const closeButtonRef = useRef<HTMLButtonElement>(null);
+
   // Gắn bản chi tiết với đúng object `account` đã dùng để tải, tránh hiện dữ liệu cũ sau khi sửa/khóa.
   const [fresh, setFresh] = useState<{ source: AccountResponse; detail: AccountResponse } | null>(null);
   const [loadError, setLoadError] = useState<{ id: string; message: string } | null>(null);
   const accountId = account?.id ?? null;
 
-  useEffect(() => {
-    if (!accountId) return;
-    closeButtonRef.current?.focus();
-  }, [accountId]);
 
-  useEffect(() => {
-    if (!accountId || escapeDisabled) return;
-
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose();
-    };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [accountId, escapeDisabled, onClose]);
 
   // `account` đổi tham chiếu sau mỗi lần sửa/khóa nên chi tiết cũng được tải lại.
   useEffect(() => {
@@ -127,20 +115,7 @@ export function AccountDetailDrawer({
   const statusLocked = !view.editable || (isSelf && view.enabled);
 
   return (
-    <div className="fixed inset-0 z-50 flex justify-end">
-      <button
-        aria-label="Đóng chi tiết"
-        className="absolute inset-0 cursor-default bg-[#0d1b12]/30"
-        onClick={onClose}
-        tabIndex={-1}
-        type="button"
-      />
-      <aside
-        aria-labelledby="account-detail-title"
-        aria-modal="true"
-        className="relative flex h-full w-full max-w-[520px] flex-col bg-[#f7f8fb] shadow-pos-panel"
-        role="dialog"
-      >
+    <Drawer key={accountId} labelledBy="account-detail-title" closeOnEscape={!escapeDisabled} onClose={onClose}>
         <header className="flex items-start justify-between gap-3 border-b border-[#e8eef0] bg-white px-5 py-4">
           <div className="grid min-w-0 gap-1.5">
             <p className="text-xs font-black uppercase text-[#159734]">Chi tiết tài khoản</p>
@@ -153,15 +128,9 @@ export function AccountDetailDrawer({
               {isSelf ? <span className="text-xs font-black text-[#159734]">Tài khoản của bạn</span> : null}
             </div>
           </div>
-          <button
-            aria-label="Đóng"
-            className="inline-flex size-9 shrink-0 items-center justify-center rounded-lg border border-pos-border bg-white text-[#536078] transition hover:border-[#159734] hover:text-[#159734]"
-            onClick={onClose}
-            ref={closeButtonRef}
-            type="button"
-          >
+          <IconButton aria-label="Đóng" autoFocus onClick={onClose} size="md" variant="secondary">
             <X size={18} aria-hidden="true" />
-          </button>
+          </IconButton>
         </header>
 
         <div className="grid flex-1 content-start gap-4 overflow-y-auto px-5 py-4">
@@ -211,40 +180,25 @@ export function AccountDetailDrawer({
         </div>
 
         <footer className="flex flex-wrap gap-2 border-t border-[#e8eef0] bg-white px-5 py-3">
-          <button
-            className={`${actionButtonClass} border-[#d8eadc] bg-white text-[#159734] hover:bg-[#f4faf5]`}
-            disabled={!view.editable}
-            onClick={() => onEdit(view)}
-            type="button"
-          >
+          <Button className="flex-1" disabled={!view.editable} onClick={() => onEdit(view)}>
             <Pencil size={16} aria-hidden="true" />
             Chỉnh sửa
-          </button>
-          <button
-            className={`${actionButtonClass} border-[#f0dfb8] bg-white text-[#b7791f] hover:bg-[#fffaf0]`}
-            disabled={!view.editable}
-            onClick={() => onResetPassword(view)}
-            type="button"
-          >
+          </Button>
+          <Button className="flex-1" disabled={!view.editable} onClick={() => onResetPassword(view)}>
             <KeyRound size={16} aria-hidden="true" />
             Đặt lại mật khẩu
-          </button>
-          <button
-            className={`${actionButtonClass} ${
-              view.enabled
-                ? "border-red-200 bg-white text-red-700 hover:bg-red-50"
-                : "border-[#159734] bg-[#159734] text-white hover:bg-[#12862d]"
-            }`}
+          </Button>
+          <Button
+            className="flex-1"
             disabled={statusLocked}
             onClick={() => onToggleStatus(view)}
             title={isSelf && view.enabled ? "Bạn không thể tự khóa tài khoản của mình" : undefined}
-            type="button"
+            variant={view.enabled ? "dangerOutline" : "primary"}
           >
             {view.enabled ? <Lock size={16} aria-hidden="true" /> : <LockOpen size={16} aria-hidden="true" />}
             {view.enabled ? "Khóa tài khoản" : "Mở khóa"}
-          </button>
+          </Button>
         </footer>
-      </aside>
-    </div>
+    </Drawer>
   );
 }

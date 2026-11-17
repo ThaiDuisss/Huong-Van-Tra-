@@ -1,8 +1,7 @@
-import { ChevronLeft, ChevronRight } from "lucide-react";
-
-import styles from "./discount-programs/DiscountProgramPage.module.css";
+import { TablePagination } from "../../../components/shared/list/TablePagination";
 
 interface MarketingPaginationProps {
+    /** Trang hiện tại, tính từ 1. */
     page: number;
     pageCount: number;
     totalItems: number;
@@ -13,6 +12,7 @@ interface MarketingPaginationProps {
 
 const pageSizeOptions = [10, 20, 50] as const;
 
+/** Phân trang của các màn marketing; giao diện lấy từ `TablePagination` dùng chung. */
 export function MarketingPagination({
     page,
     pageCount,
@@ -21,56 +21,16 @@ export function MarketingPagination({
     onPageChange,
     onPageSizeChange
 }: MarketingPaginationProps) {
-    const firstItem = totalItems === 0 ? 0 : (page - 1) * pageSize + 1;
-    const lastItem = Math.min(page * pageSize, totalItems);
-    const safePageCount = Math.max(1, pageCount);
-    const canGoBack = page > 1;
-    const canGoForward = page < safePageCount;
-
     return (
-        <footer className={styles.footer}>
-            <span>
-                Hiển thị {firstItem} - {lastItem} trong số {totalItems}{" "}
-                kết quả
-            </span>
-
-            <div className={styles.paginationControls}>
-                <label className={styles.pageSize}>
-                    <select
-                        value={pageSize}
-                        onChange={(event) =>
-                            onPageSizeChange(
-                                Number(event.currentTarget.value)
-                            )
-                        }
-                    >
-                        {pageSizeOptions.map((option) => (
-                            <option key={option} value={option}>
-                                {option} / trang
-                            </option>
-                        ))}
-                    </select>
-                </label>
-                <span className={styles.pageButton}>{page}</span>
-                <button
-                    className={styles.pagerButton}
-                    type="button"
-                    disabled={!canGoBack}
-                    onClick={() => onPageChange(page - 1)}
-                    aria-label="Trang trước"
-                >
-                    <ChevronLeft size={17} aria-hidden="true" />
-                </button>
-                <button
-                    className={styles.pagerButton}
-                    type="button"
-                    disabled={!canGoForward}
-                    onClick={() => onPageChange(page + 1)}
-                    aria-label="Trang sau"
-                >
-                    <ChevronRight size={17} aria-hidden="true" />
-                </button>
-            </div>
-        </footer>
+        <TablePagination
+            itemLabel="kết quả"
+            onPageChange={(zeroBased) => onPageChange(zeroBased + 1)}
+            onPageSizeChange={onPageSizeChange}
+            page={page - 1}
+            pageSize={pageSize}
+            pageSizeOptions={pageSizeOptions}
+            totalItems={totalItems}
+            totalPages={pageCount}
+        />
     );
 }

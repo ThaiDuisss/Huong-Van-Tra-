@@ -13,6 +13,12 @@
 - Dùng alias `@/` thay cho `../../..` khi import từ `src/lib`.
 - Khi nối API thật cho một màn còn mock, xóa luôn file mock tương ứng trong `features/<module>/mocks`.
 
+## Giao diện dùng chung
+
+- Nút, popup, drawer, bảng, phân trang, ô nhập, ô tìm kiếm, huy hiệu trạng thái, menu ⋮ lấy từ `src/components/ui` và `src/components/shared` (bảng tra trong `src/components/README.md`).
+- Không tự dựng lớp phủ `fixed inset-0`, không viết `<button className="…">` cho nút hành động thông thường, không chép kiểu dáng của component chung vào feature.
+- Thiếu biến thể thì thêm prop vào component chung rồi dùng, không tạo bản sao trong feature.
+
 ## POS
 
 - Desktop-first, tối thiểu 1280px, trang phải lấp đầy viewport.

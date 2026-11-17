@@ -1,6 +1,7 @@
 import { AlertCircle, CheckCircle2, X } from "lucide-react";
 import { useEffect } from "react";
 
+import { TableCell, TableRow } from "../../../components/ui/Table";
 import styles from "./discount-programs/DiscountProgramPage.module.css";
 
 export interface MarketingNotice {
@@ -58,12 +59,13 @@ export function MarketingTableSkeleton({
     return (
         <>
             {Array.from({ length: rows }, (_, rowIndex) => (
-                <tr
+                <TableRow
                     key={`marketing-loading-${rowIndex}`}
-                    className={`${rowIndex % 2 === 0 ? styles.rowOdd : styles.rowEven} ${styles.loadingRow}`}
+                    className={styles.loadingRow}
+                    striped
                 >
                     {Array.from({ length: columns }, (__, columnIndex) => (
-                        <td key={columnIndex}>
+                        <TableCell key={columnIndex}>
                             <span
                                 className={`${styles.skeletonBlock} ${
                                     columnIndex === 0
@@ -73,9 +75,9 @@ export function MarketingTableSkeleton({
                                           : styles.skeletonStatus
                                 }`}
                             />
-                        </td>
+                        </TableCell>
                     ))}
-                </tr>
+                </TableRow>
             ))}
         </>
     );

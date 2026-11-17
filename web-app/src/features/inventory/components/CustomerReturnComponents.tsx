@@ -1,6 +1,11 @@
 import { AlertTriangle, CheckCircle2, Clock3, RotateCcw } from "lucide-react";
 import { Link } from "react-router-dom";
 
+import { DataTable, type DataTableColumn } from "@/components/shared/list/DataTable";
+import { Button } from "@/components/ui/Button";
+import { Field, NativeSelect, TextInput } from "@/components/ui/Field";
+import { type BadgeTone, StatusBadge } from "@/components/ui/StatusBadge";
+
 import {
     customerReturnReasonLabels,
     customerReturnReasons,
@@ -20,18 +25,18 @@ import {
     formatVnd
 } from "../utils/inventory-format";
 
-const statusTone: Record<CustomerReturnStatus, string> = {
-    ACCEPTED: "border-emerald-200 bg-emerald-50 text-emerald-700",
-    CANCELLED: "border-slate-200 bg-slate-50 text-slate-600",
-    COMPLETED: "border-green-200 bg-green-50 text-green-700",
-    DISPOSAL_REQUIRED: "border-red-200 bg-red-50 text-red-700",
-    DRAFT: "border-slate-200 bg-slate-50 text-slate-700",
-    PENDING_MANAGER_REVIEW: "border-amber-200 bg-amber-50 text-amber-700",
-    PENDING_QC: "border-purple-200 bg-purple-50 text-purple-700",
-    RECEIVED_IN_QUARANTINE: "border-sky-200 bg-sky-50 text-sky-700",
-    REJECTED: "border-red-200 bg-red-50 text-red-700",
-    REQUESTED: "border-amber-200 bg-amber-50 text-amber-700",
-    RESTOCK_APPROVED: "border-blue-200 bg-blue-50 text-blue-700"
+const statusTone: Record<CustomerReturnStatus, BadgeTone> = {
+    ACCEPTED: "success",
+    CANCELLED: "neutral",
+    COMPLETED: "success",
+    DISPOSAL_REQUIRED: "danger",
+    DRAFT: "neutral",
+    PENDING_MANAGER_REVIEW: "warning",
+    PENDING_QC: "violet",
+    RECEIVED_IN_QUARANTINE: "sky",
+    REJECTED: "danger",
+    REQUESTED: "warning",
+    RESTOCK_APPROVED: "info"
 };
 
 function statusIcon(status: CustomerReturnStatus) {
@@ -41,7 +46,11 @@ function statusIcon(status: CustomerReturnStatus) {
 }
 
 export function CustomerReturnStatusBadge({ status }: { status: CustomerReturnStatus }) {
-    return <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-black ${statusTone[status]}`}>{statusIcon(status)}{customerReturnStatusLabels[status]}</span>;
+    return (
+        <StatusBadge tone={statusTone[status]}>
+            <span className="inline-flex items-center gap-1.5">{statusIcon(status)}{customerReturnStatusLabels[status]}</span>
+        </StatusBadge>
+    );
 }
 
 export function CustomerReturnFilterBar({ branches, onChange, onReset, query }: { branches: InventoryLocationSummary[]; onChange: (patch: Partial<CustomerReturnListQuery>) => void; onReset: () => void; query: CustomerReturnListQuery }) {
@@ -57,36 +66,35 @@ export function CustomerReturnFilterBar({ branches, onChange, onReset, query }: 
                 <TextField label="Request date từ" onChange={(requestedFrom) => onChange({ page: 0, requestedFrom })} type="date" value={query.requestedFrom} />
                 <TextField label="Request date đến" onChange={(requestedTo) => onChange({ page: 0, requestedTo })} type="date" value={query.requestedTo} />
             </div>
-            <div className="flex justify-end"><button className="h-10 rounded-lg border border-[#dce5e1] px-4 text-sm font-black text-[#536078]" onClick={onReset} type="button">Xóa bộ lọc</button></div>
+            <div className="flex justify-end"><Button onClick={onReset}>Xóa bộ lọc</Button></div>
         </section>
     );
 }
 
+const returnColumns: DataTableColumn<CustomerReturnSummary>[] = [
+    { className: "font-black", header: "Return code", key: "code", render: (item) => <Link className="text-[#159734] hover:underline" to={`/management/inventory/customer-returns/${item.id}`}>{item.code}</Link> },
+    { header: "Order", key: "order", render: (item) => item.orderCode },
+    { header: "Customer", key: "customer", render: (item) => item.customerName },
+    { header: "Branch", key: "branch", render: (item) => item.branch.name },
+    { header: "Reason", key: "reason", render: (item) => customerReturnReasonLabels[item.reason] },
+    { header: "Status", key: "status", render: (item) => <CustomerReturnStatusBadge status={item.status} /> },
+    { header: "Refund", key: "refund", render: (item) => customerReturnRefundStatusLabels[item.refundStatus] },
+    { header: "Qty", key: "quantity", render: (item) => formatVietnamNumber(item.totalQuantity) },
+    { className: "font-bold", header: "Value", key: "value", render: (item) => formatVnd(item.totalValue) },
+    { header: "Request date", key: "requestedAt", render: (item) => formatVietnamDateTime(item.requestedAt) }
+];
+
 export function CustomerReturnTable({ returns }: { returns: CustomerReturnSummary[] }) {
     return (
-        <div className="overflow-x-auto rounded-xl border border-[#e8eef0] bg-white shadow-pos-card">
-            <table className="w-full min-w-[1080px] text-left text-sm">
-                <thead className="bg-[#eaf7ec] text-xs font-black uppercase text-[#172317]">
-                    <tr><th className="px-4 py-3">Return code</th><th>Order</th><th>Customer</th><th>Branch</th><th>Reason</th><th>Status</th><th>Refund</th><th>Qty</th><th>Value</th><th>Request date</th></tr>
-                </thead>
-                <tbody>
-                    {returns.map((item) => (
-                        <tr className="hover:bg-[#f8fbf8]" key={item.id}>
-                            <td className="border-t border-[#edf0f4] px-4 py-3 font-black"><Link className="text-[#159734] hover:underline" to={`/management/inventory/customer-returns/${item.id}`}>{item.code}</Link></td>
-                            <td className="border-t border-[#edf0f4]">{item.orderCode}</td>
-                            <td className="border-t border-[#edf0f4]">{item.customerName}</td>
-                            <td className="border-t border-[#edf0f4]">{item.branch.name}</td>
-                            <td className="border-t border-[#edf0f4]">{customerReturnReasonLabels[item.reason]}</td>
-                            <td className="border-t border-[#edf0f4]"><CustomerReturnStatusBadge status={item.status} /></td>
-                            <td className="border-t border-[#edf0f4]">{customerReturnRefundStatusLabels[item.refundStatus]}</td>
-                            <td className="border-t border-[#edf0f4]">{formatVietnamNumber(item.totalQuantity)}</td>
-                            <td className="border-t border-[#edf0f4] font-bold">{formatVnd(item.totalValue)}</td>
-                            <td className="border-t border-[#edf0f4]">{formatVietnamDateTime(item.requestedAt)}</td>
-                        </tr>
-                    ))}
-                </tbody>
-            </table>
-        </div>
+        <DataTable
+            caption="Danh sách phiếu trả hàng"
+            columns={returnColumns}
+            emptyTitle="Không có dữ liệu"
+            getRowKey={(item) => item.id}
+            loading={false}
+            minWidth={1080}
+            rows={returns}
+        />
     );
 }
 
@@ -95,9 +103,9 @@ export function CustomerReturnEmpty({ text }: { text: string }) {
 }
 
 function TextField({ label, onChange, type = "text", value }: { label: string; onChange: (value: string) => void; type?: string; value: string }) {
-    return <label className="grid gap-1.5 text-xs font-black text-[#536078]">{label}<input className="h-10 rounded-lg border border-pos-border px-3 text-sm font-bold text-[#172317]" onChange={(event) => onChange(event.currentTarget.value)} type={type} value={value} /></label>;
+    return <Field label={label}><TextInput onChange={(event) => onChange(event.currentTarget.value)} type={type} value={value} /></Field>;
 }
 
 function SelectField({ label, onChange, options, value }: { label: string; onChange: (value: string) => void; options: Array<{ label: string; value: string }>; value: string }) {
-    return <label className="grid gap-1.5 text-xs font-black text-[#536078]">{label}<select className="h-10 rounded-lg border border-pos-border px-3 text-sm font-bold text-[#172317]" onChange={(event) => onChange(event.currentTarget.value)} value={value}>{options.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>;
+    return <Field label={label}><NativeSelect onChange={(event) => onChange(event.currentTarget.value)} value={value}>{options.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</NativeSelect></Field>;
 }

@@ -2,6 +2,9 @@ import { useEffect, useState } from "react";
 import { Link, Navigate, useParams } from "react-router-dom";
 import { ArrowLeft, CheckCircle2, ShieldAlert } from "lucide-react";
 import { CUSTOMER_RETURN_QC_ROLES, useAuthorization } from "../../../auth/role-utils";
+import { Button } from "../../../components/ui/Button";
+import { buttonClassName } from "../../../components/ui/button-styles";
+import { StatusBadge } from "../../../components/ui/StatusBadge";
 import { getReturnErrorMessage, getReturnReasonLabel } from "../../order/utils/order-return.utils";
 import type { ReturnReason } from "../../order/types/order-return.types";
 import { InspectionStatusBadge } from "../components/CustomerReturnInspectionComponents";
@@ -158,7 +161,7 @@ export function CustomerReturnDetailPage() {
             <div className="rounded-xl border border-[#e8eef0] bg-white p-8 text-center shadow-pos-card">
                 <p className="font-bold">Không tìm thấy phiếu kiểm định</p>
                 <p className="mt-1 text-sm text-[#697684]">Phiếu hoàn chưa có phiếu kiểm định kho hoặc mã phiếu không tồn tại.</p>
-                <Link className="mt-4 inline-flex items-center gap-2 rounded-lg bg-[#159734] px-4 py-2 text-sm font-black text-white hover:bg-[#12822c]" to="/management/inventory/customer-returns">
+                <Link className={buttonClassName({ variant: "primary", className: "mt-4" })} to="/management/inventory/customer-returns">
                     Quay lại danh sách khách trả hàng
                 </Link>
             </div>
@@ -208,7 +211,7 @@ export function CustomerReturnDetailPage() {
                                 </p>
                             </div>
                             {selectedLine.posted ? <div className="grid justify-items-end gap-1 text-xs">
-                                <span className="rounded-full bg-green-50 px-2.5 py-1 font-black text-green-700">Đã xử lý</span>
+                                <StatusBadge tone="success">Đã xử lý</StatusBadge>
                                 <span className="font-semibold text-[#697684]">{selectedLine.result === "WRITE_OFF" ? "Giao dịch tiêu hủy" : "Giao dịch nhận hàng trả"}</span>
                                 {selectedLine.disposalRequestId ? <Link className="font-black text-[#159734] hover:underline" to={`/management/inventory/disposals/${selectedLine.disposalRequestId}`}>{selectedLine.disposalRequestCode ?? "Xem phiếu tiêu hủy"}</Link> : null}
                             </div> : null}
@@ -236,9 +239,9 @@ export function CustomerReturnDetailPage() {
                             </p>
                         ) : <p className="text-xs font-semibold text-[#697684]">Sẵn sàng xác nhận và hạch toán kho.</p>}
                     </div>
-                    <button className="h-11 rounded-xl bg-[#159734] px-5 text-sm font-black text-white shadow-sm hover:bg-[#12822c] disabled:opacity-60" disabled={cannotPost} onClick={() => void handlePostInspection()} type="button">
+                    <Button disabled={cannotPost} onClick={() => void handlePostInspection()} size="lg" variant="primary">
                         {submitting ? "Đang xử lý..." : "Xác nhận xử lý"}
-                    </button>
+                    </Button>
                 </footer>
             ) : null}
         </> : null}

@@ -2,7 +2,9 @@ import { ArrowLeft, CheckCircle2, ClipboardCheck, ShieldAlert } from "lucide-rea
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, Navigate, useParams } from "react-router-dom";
 
-import { LIST_PRIMARY_BUTTON } from "@/components/shared/list/list-ui.constants";
+import { Button } from "@/components/ui/Button";
+import { buttonClassName } from "@/components/ui/button-styles";
+import { Table, TableCell, TableHead, TableHeaderCell, TableRow } from "@/components/ui/Table";
 
 import { useAuthorization } from "../../../auth/useAuthorization";
 import { ConfirmDialog } from "../../product/components/ConfirmDialog";
@@ -116,22 +118,22 @@ export function DisposalDetailPage() {
                 {disposal && isPending ? (
                     <div className="flex flex-wrap items-center gap-2">
                         {isCustomerReturn && inspectionLink ? (
-                            <Link className={LIST_PRIMARY_BUTTON} to={inspectionLink}>
+                            <Link className={buttonClassName({ variant: "primary", size: "lg" })} to={inspectionLink}>
                                 <ClipboardCheck size={17} aria-hidden="true" /> Mở phiếu kiểm định để xác nhận
                             </Link>
                         ) : null}
                         {!isCustomerReturn && canApprove ? (
-                            <button
-                                className={LIST_PRIMARY_BUTTON}
+                            <Button
                                 disabled={submitting}
                                 onClick={() => {
                                     setError("");
                                     setConfirmOpen(true);
                                 }}
-                                type="button"
+                                size="lg"
+                                variant="primary"
                             >
                                 <CheckCircle2 size={17} aria-hidden="true" /> Phê duyệt
-                            </button>
+                            </Button>
                         ) : null}
                     </div>
                 ) : null}
@@ -159,32 +161,32 @@ export function DisposalDetailPage() {
                             </span>
                         </div>
                         <div className="overflow-x-auto">
-                            <table className="w-full min-w-[480px] text-left text-sm">
-                                <thead className="bg-[#f8faf9] text-[11px] font-black uppercase text-[#556477]">
-                                    <tr>
-                                        <th className="px-4 py-2.5">Sản phẩm</th>
-                                        <th className="px-4 py-2.5">SKU</th>
-                                        <th className="px-4 py-2.5 text-right">Số lượng</th>
-                                    </tr>
-                                </thead>
+                            <Table className="min-w-[480px]">
+                                <TableHead>
+                                    <TableRow>
+                                        <TableHeaderCell>Sản phẩm</TableHeaderCell>
+                                        <TableHeaderCell>SKU</TableHeaderCell>
+                                        <TableHeaderCell className="text-right">Số lượng</TableHeaderCell>
+                                    </TableRow>
+                                </TableHead>
                                 <tbody>
                                     {disposal.lines.map((line) => (
-                                        <tr key={line.id}>
-                                            <td className="border-t border-[#edf0f4] px-4 py-3 font-bold">{line.skuName}</td>
-                                            <td className="border-t border-[#edf0f4] px-4 py-3 text-[#536078]">{line.skuCode}</td>
-                                            <td className="border-t border-[#edf0f4] px-4 py-3 text-right font-black">
+                                        <TableRow key={line.id}>
+                                            <TableCell className="font-bold">{line.skuName}</TableCell>
+                                            <TableCell className="text-[#536078]">{line.skuCode}</TableCell>
+                                            <TableCell className="text-right font-black">
                                                 {formatVietnamNumber(line.quantity)}
-                                            </td>
-                                        </tr>
+                                            </TableCell>
+                                        </TableRow>
                                     ))}
                                 </tbody>
                                 <tfoot>
-                                    <tr className="bg-[#f8faf9]">
-                                        <td className="border-t border-[#e4ece8] px-4 py-3 font-black" colSpan={2}>Tổng cộng</td>
-                                        <td className="border-t border-[#e4ece8] px-4 py-3 text-right font-black">{formatVietnamNumber(totalQuantity)}</td>
-                                    </tr>
+                                    <TableRow className="border-t border-[#e4ece8] bg-[#f8faf9]">
+                                        <TableCell className="font-black" colSpan={2}>Tổng cộng</TableCell>
+                                        <TableCell className="text-right font-black">{formatVietnamNumber(totalQuantity)}</TableCell>
+                                    </TableRow>
                                 </tfoot>
-                            </table>
+                            </Table>
                         </div>
                         {disposal.note ? (
                             <div className="rounded-lg bg-[#f7f8fb] p-3 text-sm">

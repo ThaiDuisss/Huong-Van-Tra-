@@ -1,4 +1,4 @@
-import { Search } from "lucide-react";
+import { SearchInput } from "../../../../components/ui/SearchInput";
 
 interface SearchBoxProps {
     value: string;
@@ -7,28 +7,14 @@ interface SearchBoxProps {
     className?: string;
 }
 
-export function SearchBox({
-    value,
-    placeholder,
-    onChange,
-    className = "xl:max-w-[420px]"
-}: SearchBoxProps) {
+/** Ô tìm kiếm ở đầu trang danh sách; kiểu dáng lấy từ `SearchInput` dùng chung. */
+export function SearchBox({ value, placeholder, onChange, className = "xl:max-w-[420px]" }: SearchBoxProps) {
     return (
-        <label className={`flex h-11 min-w-0 flex-1 items-center gap-3 rounded-xl border border-pos-border bg-white px-4 text-sm shadow-sm focus-within:border-hvt-green-700 sm:min-w-[280px] ${className}`}>
-            <Search
-                size={18}
-                className="text-gray-500"
-                aria-hidden="true"
-            />
-            <span className="sr-only">{placeholder}</span>
-            <input
-                className="min-w-0 flex-1 bg-transparent outline-none placeholder:text-gray-500"
-                value={value}
-                placeholder={placeholder}
-                onChange={(event) =>
-                    onChange(event.currentTarget.value)
-                }
-            />
-        </label>
+        <SearchInput
+            className={`sm:min-w-[280px] ${className}`}
+            onChange={onChange}
+            placeholder={placeholder}
+            value={value}
+        />
     );
 }

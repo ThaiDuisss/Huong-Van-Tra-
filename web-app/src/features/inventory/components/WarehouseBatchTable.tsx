@@ -1,3 +1,6 @@
+import { StatusBadge } from "@/components/ui/StatusBadge";
+import { Table, TableCell, TableHead, TableHeaderCell, TableRow } from "@/components/ui/Table";
+
 import { formatVietnamDateTime } from "../utils/inventory-format";
 import type { WarehouseBatchResponse } from "../services/warehouseBatch.api";
 
@@ -20,13 +23,13 @@ export function WarehouseBatchTable({ batches, loading, onBatchSelect, showExpir
     const getStatusBadge = (status: string) => {
         switch (status) {
             case "AWAITING_QC":
-                return <span className="inline-flex px-2 py-1 text-xs font-bold bg-yellow-50 text-yellow-700 rounded">Chờ kiểm chất lượng</span>;
+                return <StatusBadge shape="tag" tone="warning">Chờ kiểm chất lượng</StatusBadge>;
             case "AVAILABLE":
-                return <span className="inline-flex px-2 py-1 text-xs font-bold bg-green-50 text-green-700 rounded">Sẵn sàng</span>;
+                return <StatusBadge shape="tag" tone="success">Sẵn sàng</StatusBadge>;
             case "DEPLETED":
-                return <span className="inline-flex px-2 py-1 text-xs font-bold bg-gray-50 text-gray-700 rounded">Hết hàng</span>;
+                return <StatusBadge shape="tag">Hết hàng</StatusBadge>;
             default:
-                return <span className="inline-flex px-2 py-1 text-xs font-bold bg-gray-50 text-gray-700 rounded">{status}</span>;
+                return <StatusBadge shape="tag">{status}</StatusBadge>;
         }
     };
 
@@ -45,56 +48,56 @@ export function WarehouseBatchTable({ batches, loading, onBatchSelect, showExpir
 
     return (
         <div className="overflow-x-auto">
-            <table className="w-full border-collapse">
-                <thead>
-                    <tr className="border-b border-gray-200 bg-gray-50">
-                        <th className="px-4 py-2 text-left text-xs font-bold text-gray-700">Mã lô</th>
-                        <th className="px-4 py-2 text-left text-xs font-bold text-gray-700">Mã lô NCC</th>
-                        <th className="px-4 py-2 text-left text-xs font-bold text-gray-700">Ngày SX</th>
-                        {showExpiry && <th className="px-4 py-2 text-left text-xs font-bold text-gray-700">Hạn sử dụng</th>}
-                        <th className="px-4 py-2 text-right text-xs font-bold text-gray-700">SL ban đầu</th>
-                        <th className="px-4 py-2 text-right text-xs font-bold text-gray-700">SL còn lại</th>
-                        <th className="px-4 py-2 text-right text-xs font-bold text-gray-700">Tồn khả dụng</th>
-                        <th className="px-4 py-2 text-center text-xs font-bold text-gray-700">Đơn vị</th>
-                        <th className="px-4 py-2 text-center text-xs font-bold text-gray-700">Trạng thái</th>
-                        {showExpiry && <th className="px-4 py-2 text-center text-xs font-bold text-gray-700">Còn lại</th>}
-                    </tr>
-                </thead>
+            <Table>
+                <TableHead>
+                    <TableRow>
+                        <TableHeaderCell>Mã lô</TableHeaderCell>
+                        <TableHeaderCell>Mã lô NCC</TableHeaderCell>
+                        <TableHeaderCell>Ngày SX</TableHeaderCell>
+                        {showExpiry && <TableHeaderCell>Hạn sử dụng</TableHeaderCell>}
+                        <TableHeaderCell className="text-right">SL ban đầu</TableHeaderCell>
+                        <TableHeaderCell className="text-right">SL còn lại</TableHeaderCell>
+                        <TableHeaderCell className="text-right">Tồn khả dụng</TableHeaderCell>
+                        <TableHeaderCell className="text-center">Đơn vị</TableHeaderCell>
+                        <TableHeaderCell className="text-center">Trạng thái</TableHeaderCell>
+                        {showExpiry && <TableHeaderCell className="text-center">Còn lại</TableHeaderCell>}
+                    </TableRow>
+                </TableHead>
                 <tbody>
                     {batches.map((batch) => (
-                        <tr
+                        <TableRow
                             key={batch.batchId}
-                            className="border-b border-gray-100 hover:bg-gray-50 cursor-pointer"
+                            className="cursor-pointer hover:bg-gray-50"
                             onClick={() => onBatchSelect?.(batch)}
                         >
-                            <td className="px-4 py-2 text-sm font-bold text-gray-900">{batch.batchCode}</td>
-                            <td className="px-4 py-2 text-sm text-gray-600">{batch.supplierBatchCode || "-"}</td>
-                            <td className="px-4 py-2 text-sm text-gray-600">
+                            <TableCell className="text-sm font-bold text-gray-900">{batch.batchCode}</TableCell>
+                            <TableCell className="text-sm text-gray-600">{batch.supplierBatchCode || "-"}</TableCell>
+                            <TableCell className="text-sm text-gray-600">
                                 {batch.manufactureDate ? formatVietnamDateTime(batch.manufactureDate) : "-"}
-                            </td>
+                            </TableCell>
                             {showExpiry && (
-                                <td className="px-4 py-2 text-sm text-gray-600">
+                                <TableCell className="text-sm text-gray-600">
                                     {batch.expiryDate ? formatVietnamDateTime(batch.expiryDate) : "-"}
-                                </td>
+                                </TableCell>
                             )}
-                            <td className="px-4 py-2 text-sm text-right text-gray-600">
+                            <TableCell className="text-sm text-right text-gray-600">
                                 {(batch.quantityOnHand + batch.quantityReserved + batch.quantityBlocked).toFixed(2)}
-                            </td>
-                            <td className="px-4 py-2 text-sm text-right font-bold text-gray-900">
+                            </TableCell>
+                            <TableCell className="text-sm text-right font-bold text-gray-900">
                                 {batch.quantityOnHand.toFixed(2)}
-                            </td>
-                            <td className="px-4 py-2 text-sm text-right font-bold text-green-600">
+                            </TableCell>
+                            <TableCell className="text-sm text-right font-bold text-green-600">
                                 {batch.availableQuantity.toFixed(2)}
-                            </td>
-                              <td className="px-4 py-2 text-sm text-center text-gray-700 font-medium">
+                            </TableCell>
+                              <TableCell className="text-sm text-center text-gray-700 font-medium">
                                 {batch.unitSymbol}
-                            </td>
-                            <td className="px-4 py-2 text-center">{getStatusBadge(batch.status)}</td>
-                            {showExpiry && <td className="px-4 py-2 text-center">{getExpiryBadge(batch.daysUntilExpiry)}</td>}
-                        </tr>
+                            </TableCell>
+                            <TableCell className="text-center">{getStatusBadge(batch.status)}</TableCell>
+                            {showExpiry && <TableCell className="text-center">{getExpiryBadge(batch.daysUntilExpiry)}</TableCell>}
+                        </TableRow>
                     ))}
                 </tbody>
-            </table>
+            </Table>
         </div>
     );
 }

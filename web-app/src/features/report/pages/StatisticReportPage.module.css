@@ -8,28 +8,6 @@
     padding: 24px;
 }
 
-.header {
-    display: flex;
-    align-items: flex-end;
-    justify-content: space-between;
-    gap: 16px;
-    flex-wrap: wrap;
-}
-
-.title h1 {
-    margin: 0;
-    color: #172317;
-    font-size: 26px;
-    font-weight: 900;
-}
-
-.title p {
-    margin: 4px 0 0;
-    color: #697684;
-    font-size: 14px;
-    font-weight: 700;
-}
-
 .tabs {
     display: inline-flex;
     gap: 4px;
@@ -72,51 +50,9 @@
     padding: 14px;
 }
 
-.field,
-.inlineField {
-    display: grid;
-    gap: 6px;
-    color: #536078;
-    font-size: 12px;
-    font-weight: 900;
-}
-
-.field {
-    min-width: 170px;
-}
-
-.field input,
-.field select,
-.inlineField select {
-    height: 42px;
-    border: 1px solid #dbe5df;
-    border-radius: 8px;
-    background: #fff;
-    padding: 0 12px;
-    color: #172317;
-    font-size: 14px;
-    font-weight: 700;
-}
-
 .presets {
     display: flex;
     gap: 8px;
-}
-
-.presets button {
-    height: 42px;
-    border: 1px solid #dbe5df;
-    border-radius: 8px;
-    background: #fff;
-    padding: 0 14px;
-    color: #172317;
-    font-size: 13px;
-    font-weight: 900;
-    cursor: pointer;
-}
-
-.presets button:hover {
-    background: #f4f7f5;
 }
 
 .summaryGrid {
@@ -176,42 +112,6 @@
 
 .tableWrap {
     overflow-x: auto;
-}
-
-.reportTable {
-    width: 100%;
-    min-width: 860px;
-    border-collapse: collapse;
-    font-size: 13px;
-    text-align: left;
-}
-
-.reportTable th {
-    background: #eaf7ec;
-    color: #172317;
-    font-size: 12px;
-    font-weight: 900;
-}
-
-.reportTable th,
-.reportTable td {
-    border-top: 1px solid #edf0f4;
-    padding: 12px;
-    vertical-align: middle;
-}
-
-.reportTable tbody tr:hover {
-    background: #f8fbf8;
-}
-
-.reportTable .numeric {
-    text-align: right;
-    font-variant-numeric: tabular-nums;
-}
-
-.reportTable .rankColumn {
-    width: 64px;
-    text-align: center;
 }
 
 .rank {
@@ -283,11 +183,6 @@
 @media (max-width: 720px) {
     .page {
         padding: 16px;
-    }
-
-    .field {
-        flex: 1 1 140px;
-        min-width: 0;
     }
 
     .tableTools {

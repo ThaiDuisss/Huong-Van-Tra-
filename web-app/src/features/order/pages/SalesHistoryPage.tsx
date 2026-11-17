@@ -1,6 +1,8 @@
 import { AlertTriangle, Download, FileUp, RefreshCw } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import { ListPageHeader } from "../../../components/shared/list/ListPageHeader";
+import { Button } from "../../../components/ui/Button";
 import { toast } from "../../../components/ui/Toast";
 import { SalesHistoryFilters } from "../components/sales-history/SalesHistoryFilters";
 import { SalesOrderDetailDrawer } from "../components/sales-history/SalesOrderDetailDrawer";
@@ -338,50 +340,39 @@ export function SalesHistoryPage() {
 
     return (
         <section className={styles.page}>
-            <div className={styles.header}>
-                <div>
-                    <h1>Bán hàng hôm nay</h1>
-                    <p>
-                        Theo dõi doanh thu, hóa đơn và giao dịch trong ngày.
-                    </p>
-                </div>
-                <div className={styles.headerActions}>
-                    <input
-                        ref={importInputRef}
-                        accept=".xlsx,.xls,.csv"
-                        className={styles.hiddenFileInput}
-                        onChange={(event) => {
-                            handleImportFile(event.target.files?.[0]);
-                            event.target.value = "";
-                        }}
-                        type="file"
-                    />
-                    <button
-                        className={styles.secondaryButton}
-                        onClick={handleClickImport}
-                        type="button"
-                    >
-                        <FileUp size={17} aria-hidden="true" />
-                        Nhập file
-                    </button>
-                    <button
-                        className={styles.secondaryButton}
-                        onClick={handleExportFile}
-                        type="button"
-                    >
-                        <Download size={17} aria-hidden="true" />
-                        Xuất file
-                    </button>
-                    <button
-                        className={styles.refreshButton}
-                        onClick={() => setRefreshKey((key) => key + 1)}
-                        type="button"
-                    >
-                        <RefreshCw size={17} aria-hidden="true" />
-                        Làm mới
-                    </button>
-                </div>
-            </div>
+            <ListPageHeader
+                actions={
+                    <>
+                        <input
+                            ref={importInputRef}
+                            accept=".xlsx,.xls,.csv"
+                            className={styles.hiddenFileInput}
+                            onChange={(event) => {
+                                handleImportFile(event.target.files?.[0]);
+                                event.target.value = "";
+                            }}
+                            type="file"
+                        />
+                        <Button onClick={handleClickImport} size="lg">
+                            <FileUp size={17} aria-hidden="true" />
+                            Nhập file
+                        </Button>
+                        <Button onClick={handleExportFile} size="lg">
+                            <Download size={17} aria-hidden="true" />
+                            Xuất file
+                        </Button>
+                        <Button
+                            onClick={() => setRefreshKey((key) => key + 1)}
+                            size="lg"
+                        >
+                            <RefreshCw size={17} aria-hidden="true" />
+                            Làm mới
+                        </Button>
+                    </>
+                }
+                description="Theo dõi doanh thu, hóa đơn và giao dịch trong ngày."
+                title="Bán hàng hôm nay"
+            />
 
             {error ? (
                 <div className={styles.alert} role="alert">

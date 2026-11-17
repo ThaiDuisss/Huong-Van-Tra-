@@ -5,6 +5,9 @@ import {
     getEventAudienceLabel,
     getEventTypeLabel
 } from "../../utils/event-labels";
+import { Button, IconButton } from "../../../../components/ui/Button";
+import { Field, TextArea, TextInput } from "../../../../components/ui/Field";
+import { ModalShell } from "../../../../components/ui/Overlay";
 import {
     Select,
     SelectContent,
@@ -20,7 +23,6 @@ import {
     type EventFormErrors
 } from "../../utils/event-form-validation";
 import { eventApi } from "../../services/event.api";
-import styles from "../discount-programs/DiscountProgramPage.module.css";
 import type {
     EventCreateRequest,
     EventResponse
@@ -160,230 +162,157 @@ export function EventCreateModal({
     }
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 p-4">
-            <section className="w-full max-w-2xl rounded-2xl bg-white p-6 shadow-xl">
-                <header className="mb-5 flex items-start justify-between gap-4">
-                    <div>
-                        <h2 className="text-xl font-bold text-[#17213a]">
-                            Tạo sự kiện khuyến mãi
-                        </h2>
-
-                        <p className="mt-1 text-sm font-medium text-[#667085]">
-                            Sự kiện dùng để nhóm các chương trình giảm giá,
-                            coupon và campaign marketing.
-                        </p>
-                    </div>
-
-                    <button
-                        type="button"
-                        onClick={onClose}
-                        className="rounded-lg p-2 hover:bg-[#f2f4f7]"
-                        aria-label="Đóng form"
+        <ModalShell
+            className="w-full max-w-2xl p-6"
+            closeOnBackdrop={false}
+            closeOnEscape={false}
+            labelledBy="event-create-title"
+            onClose={onClose}
+        >
+            <header className="mb-5 flex items-start justify-between gap-4">
+                <div>
+                    <h2
+                        className="text-xl font-bold text-[#17213a]"
+                        id="event-create-title"
                     >
-                        <X size={20} aria-hidden="true" />
-                    </button>
-                </header>
+                        Tạo sự kiện khuyến mãi
+                    </h2>
 
-                {error ? (
-                    <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">
-                        {error}
-                    </div>
-                ) : null}
+                    <p className="mt-1 text-sm font-medium text-[#667085]">
+                        Sự kiện dùng để nhóm các chương trình giảm giá, coupon
+                        và campaign marketing.
+                    </p>
+                </div>
 
-                <form onSubmit={handleSubmit} className="space-y-4">
-                    <label className="block">
-                        <span className="mb-1 block text-sm font-bold text-[#344054]">
-                            Tên sự kiện
-                        </span>
+                <IconButton aria-label="Đóng form" onClick={onClose}>
+                    <X size={20} aria-hidden="true" />
+                </IconButton>
+            </header>
 
-                        <input
-                            value={form.name}
-                            onChange={(event) =>
-                                updateField("name", event.currentTarget.value)
-                            }
-                            placeholder="Tet Holiday Campaign 2027"
-                            className="w-full rounded-xl border border-[#d0d5dd] bg-white px-4 py-3 text-sm font-semibold outline-none focus:border-[#009b4d]"
-                        />
-                        {fieldErrors.name ? (
-                            <span className={styles.fieldError}>
-                                {fieldErrors.name}
-                            </span>
-                        ) : null}
-                    </label>
+            {error ? (
+                <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">
+                    {error}
+                </div>
+            ) : null}
 
-                    <label className="block">
-                        <span className="mb-1 block text-sm font-bold text-[#344054]">
-                            Mô tả
-                        </span>
+            <form onSubmit={handleSubmit} className="space-y-4">
+                <Field label="Tên sự kiện" error={fieldErrors.name}>
+                    <TextInput
+                        value={form.name}
+                        onChange={(event) =>
+                            updateField("name", event.currentTarget.value)
+                        }
+                        placeholder="Tet Holiday Campaign 2027"
+                    />
+                </Field>
 
-                        <textarea
-                            value={form.description}
+                <Field label="Mô tả" error={fieldErrors.description}>
+                    <TextArea
+                        value={form.description}
+                        onChange={(event) =>
+                            updateField(
+                                "description",
+                                event.currentTarget.value
+                            )
+                        }
+                        placeholder="Chiến dịch khuyến mãi Tết cho toàn bộ khách hàng"
+                        rows={3}
+                        className="resize-none"
+                    />
+                </Field>
+
+                <div className="grid gap-4 md:grid-cols-2">
+                    <Field
+                        label="Thời gian bắt đầu"
+                        error={fieldErrors.startAt}
+                    >
+                        <TextInput
+                            type="datetime-local"
+                            value={form.startAt}
                             onChange={(event) =>
                                 updateField(
-                                    "description",
+                                    "startAt",
                                     event.currentTarget.value
                                 )
                             }
-                            placeholder="Chiến dịch khuyến mãi Tết cho toàn bộ khách hàng"
-                            rows={3}
-                            className="w-full resize-none rounded-xl border border-[#d0d5dd] bg-white px-4 py-3 text-sm font-semibold outline-none focus:border-[#009b4d]"
                         />
-                        {fieldErrors.description ? (
-                            <span className={styles.fieldError}>
-                                {fieldErrors.description}
-                            </span>
-                        ) : null}
-                    </label>
+                    </Field>
 
-                    <div className="grid gap-4 md:grid-cols-2">
-                        <label className="block">
-                            <span className="mb-1 block text-sm font-bold text-[#344054]">
-                                Thời gian bắt đầu
-                            </span>
+                    <Field label="Thời gian kết thúc" error={fieldErrors.endAt}>
+                        <TextInput
+                            type="datetime-local"
+                            value={form.endAt}
+                            onChange={(event) =>
+                                updateField("endAt", event.currentTarget.value)
+                            }
+                        />
+                    </Field>
+                </div>
 
-                            <input
-                                type="datetime-local"
-                                value={form.startAt}
-                                onChange={(event) =>
-                                    updateField(
-                                        "startAt",
-                                        event.currentTarget.value
-                                    )
-                                }
-                                className="w-full rounded-xl border border-[#d0d5dd] bg-white px-4 py-3 text-sm font-semibold outline-none focus:border-[#009b4d]"
-                            />
-                            {fieldErrors.startAt ? (
-                                <span className={styles.fieldError}>
-                                    {fieldErrors.startAt}
-                                </span>
-                            ) : null}
-                        </label>
-
-                        <label className="block">
-                            <span className="mb-1 block text-sm font-bold text-[#344054]">
-                                Thời gian kết thúc
-                            </span>
-
-                            <input
-                                type="datetime-local"
-                                value={form.endAt}
-                                onChange={(event) =>
-                                    updateField(
-                                        "endAt",
-                                        event.currentTarget.value
-                                    )
-                                }
-                                className="w-full rounded-xl border border-[#d0d5dd] bg-white px-4 py-3 text-sm font-semibold outline-none focus:border-[#009b4d]"
-                            />
-                            {fieldErrors.endAt ? (
-                                <span className={styles.fieldError}>
-                                    {fieldErrors.endAt}
-                                </span>
-                            ) : null}
-                        </label>
-                    </div>
-
-                    <div className="grid gap-4 md:grid-cols-2">
-                        <label className="block">
-                            <span className="mb-1 block text-sm font-bold text-[#344054]">
-                                Loại sự kiện
-                            </span>
-
-                            <div className="relative">
-                                <Select
-                                    className="w-full"
-                                    value={form.eventType}
-                                    onValueChange={(value) =>
-                                        updateField(
-                                            "eventType",
-                                            value
-                                        )
-                                    }
-                                >
-                                    <SelectTrigger
-                                        aria-label="Loại sự kiện"
-                                        className="h-[46px] w-full rounded-xl border-[#d0d5dd] px-4 text-sm text-[#344054] shadow-none hover:bg-white"
-                                    >
-                                        <SelectValue placeholder="Chọn loại sự kiện" />
-                                    </SelectTrigger>
-                                    <SelectContent className="z-[90] rounded-xl border-[#d0d5dd] p-1.5 shadow-[0_18px_40px_rgba(15,23,42,0.16)]">
-                                        {eventTypes.map((type) => (
-                                            <SelectItem key={type} value={type}>
-                                                {getEventTypeLabel(type)}
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
-                            </div>
-                            {fieldErrors.eventType ? (
-                                <span className={styles.fieldError}>
-                                    {fieldErrors.eventType}
-                                </span>
-                            ) : null}
-                        </label>
-
-                        <label className="block">
-                            <span className="mb-1 block text-sm font-bold text-[#344054]">
-                                Đối tượng áp dụng
-                            </span>
-
-                            <div className="relative">
-                                <Select
-                                    className="w-full"
-                                    value={form.audience}
-                                    onValueChange={(value) =>
-                                        updateField(
-                                            "audience",
-                                            value
-                                        )
-                                    }
-                                >
-                                    <SelectTrigger
-                                        aria-label="Đối tượng áp dụng"
-                                        className="h-[46px] w-full rounded-xl border-[#d0d5dd] px-4 text-sm text-[#344054] shadow-none hover:bg-white"
-                                    >
-                                        <SelectValue placeholder="Chọn đối tượng" />
-                                    </SelectTrigger>
-                                    <SelectContent className="z-[90] rounded-xl border-[#d0d5dd] p-1.5 shadow-[0_18px_40px_rgba(15,23,42,0.16)]">
-                                        {eventAudiences.map((audience) => (
-                                            <SelectItem
-                                                key={audience}
-                                                value={audience}
-                                            >
-                                                {getEventAudienceLabel(audience)}
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
-                            </div>
-                            {fieldErrors.audience ? (
-                                <span className={styles.fieldError}>
-                                    {fieldErrors.audience}
-                                </span>
-                            ) : null}
-                        </label>
-                    </div>
-
-                    <footer className="mt-6 flex justify-end gap-3">
-                        <button
-                            type="button"
-                            onClick={onClose}
-                            className={styles.secondaryButton}
-                            disabled={submitting}
+                <div className="grid gap-4 md:grid-cols-2">
+                    <Field label="Loại sự kiện" error={fieldErrors.eventType}>
+                        <Select
+                            className="w-full"
+                            value={form.eventType}
+                            onValueChange={(value) =>
+                                updateField("eventType", value)
+                            }
                         >
-                            Hủy
-                        </button>
+                            <SelectTrigger
+                                aria-label="Loại sự kiện"
+                                className="h-10 w-full rounded-lg border-[#dfe6ee] px-3 text-sm text-[#172317] shadow-none hover:bg-white"
+                            >
+                                <SelectValue placeholder="Chọn loại sự kiện" />
+                            </SelectTrigger>
+                            <SelectContent className="z-[90] rounded-xl border-[#d0d5dd] p-1.5 shadow-[0_18px_40px_rgba(15,23,42,0.16)]">
+                                {eventTypes.map((type) => (
+                                    <SelectItem key={type} value={type}>
+                                        {getEventTypeLabel(type)}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </Field>
 
-                        <button
-                            type="submit"
-                            className={styles.primaryButton}
-                            disabled={submitting}
+                    <Field label="Đối tượng áp dụng" error={fieldErrors.audience}>
+                        <Select
+                            className="w-full"
+                            value={form.audience}
+                            onValueChange={(value) =>
+                                updateField("audience", value)
+                            }
                         >
-                            {submitting ? "Đang tạo..." : "Tạo sự kiện"}
-                        </button>
-                    </footer>
-                </form>
-            </section>
-        </div>
+                            <SelectTrigger
+                                aria-label="Đối tượng áp dụng"
+                                className="h-10 w-full rounded-lg border-[#dfe6ee] px-3 text-sm text-[#172317] shadow-none hover:bg-white"
+                            >
+                                <SelectValue placeholder="Chọn đối tượng" />
+                            </SelectTrigger>
+                            <SelectContent className="z-[90] rounded-xl border-[#d0d5dd] p-1.5 shadow-[0_18px_40px_rgba(15,23,42,0.16)]">
+                                {eventAudiences.map((audience) => (
+                                    <SelectItem key={audience} value={audience}>
+                                        {getEventAudienceLabel(audience)}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </Field>
+                </div>
+
+                <footer className="mt-6 flex justify-end gap-3">
+                    <Button onClick={onClose} disabled={submitting}>
+                        Hủy
+                    </Button>
+
+                    <Button
+                        type="submit"
+                        variant="primary"
+                        disabled={submitting}
+                    >
+                        {submitting ? "Đang tạo..." : "Tạo sự kiện"}
+                    </Button>
+                </footer>
+            </form>
+        </ModalShell>
     );
 }

@@ -1,5 +1,9 @@
 import { Printer, X } from "lucide-react";
+import { useId } from "react";
 
+import { Button, IconButton } from "../../../../components/ui/Button";
+import { ModalShell } from "../../../../components/ui/Overlay";
+import { StatusBadge, type BadgeTone } from "../../../../components/ui/StatusBadge";
 import type { SalesOrderDetail } from "../../types/sales-history.types";
 import {
     formatCurrency,
@@ -36,16 +40,16 @@ function getDetailItemCount(order: SalesOrderDetail) {
     );
 }
 
-function getStatusClass(order: SalesOrderDetail) {
+function getStatusTone(order: SalesOrderDetail): BadgeTone {
     if (order.paymentStatus === "PAID" || order.status === "COMPLETED") {
-        return styles.statusPaid;
+        return "success";
     }
 
     if (order.status === "CANCELLED") {
-        return styles.statusCancelled;
+        return "danger";
     }
 
-    return styles.statusUnpaid;
+    return "pending";
 }
 
 function getItemLineTotal(item: NonNullable<SalesOrderDetail["items"]>[number]) {
@@ -64,33 +68,23 @@ export function SalesOrderDetailDrawer({
     onClose,
     onPrint
 }: SalesOrderDetailDrawerProps) {
+    const titleId = useId();
+
     if (!open) {
         return null;
     }
 
     return (
-        <div
-            className={styles.drawerBackdrop}
-            onClick={onClose}
-            role="presentation"
+        <ModalShell
+            className={styles.detailDrawer}
+            labelledBy={titleId}
+            onClose={onClose}
         >
-            <aside
-                aria-label="Chi tiết hóa đơn"
-                aria-modal="true"
-                className={styles.detailDrawer}
-                onClick={(event) => event.stopPropagation()}
-                role="dialog"
-            >
                 <div className={styles.drawerHeader}>
-                    <h2>Chi tiết hóa đơn</h2>
-                    <button
-                        aria-label="Đóng"
-                        className={styles.iconButton}
-                        onClick={onClose}
-                        type="button"
-                    >
+                    <h2 id={titleId}>Chi tiết hóa đơn</h2>
+                    <IconButton aria-label="Đóng" onClick={onClose}>
                         <X size={18} aria-hidden="true" />
-                    </button>
+                    </IconButton>
                 </div>
 
                 {loading ? (
@@ -144,27 +138,23 @@ export function SalesOrderDetailDrawer({
                                     <div>
                                         <dt>Thanh toán</dt>
                                         <dd>
-                                            <span className={styles.paymentBadge}>
+                                            <StatusBadge shape="tag">
                                                 {getSalesPaymentMethodLabel(
                                                     order.paymentMethod,
                                                     order.paymentMethodLabel
                                                 )}
-                                            </span>
+                                            </StatusBadge>
                                         </dd>
                                     </div>
                                     <div>
                                         <dt>Trạng thái</dt>
                                         <dd>
-                                            <span
-                                                className={`${styles.statusBadge} ${getStatusClass(
-                                                    order
-                                                )}`}
-                                            >
+                                            <StatusBadge tone={getStatusTone(order)}>
                                                 {getSalesStatusLabel(
                                                     order.status,
                                                     order.statusLabel
                                                 )}
-                                            </span>
+                                            </StatusBadge>
                                         </dd>
                                     </div>
                                 </dl>
@@ -253,21 +243,11 @@ export function SalesOrderDetailDrawer({
                         </div>
 
                         <div className={styles.drawerFooter}>
-                            <button
-                                className={styles.secondaryButton}
-                                onClick={onClose}
-                                type="button"
-                            >
-                                Đóng
-                            </button>
-                            <button
-                                className={styles.primaryButton}
-                                onClick={() => onPrint(order)}
-                                type="button"
-                            >
+                            <Button onClick={onClose}>Đóng</Button>
+                            <Button onClick={() => onPrint(order)} variant="primary">
                                 <Printer size={17} aria-hidden="true" />
                                 In lại hóa đơn
-                            </button>
+                            </Button>
                         </div>
                     </>
                 ) : null}
@@ -280,7 +260,6 @@ export function SalesOrderDetailDrawer({
                         </div>
                     </div>
                 ) : null}
-            </aside>
-        </div>
+        </ModalShell>
     );
 }

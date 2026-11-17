@@ -1,3 +1,5 @@
+import { Button } from "../../../components/ui/Button";
+import { NativeSelect } from "../../../components/ui/Field";
 import type { DashboardLocationOption } from "../hooks/useDashboardData";
 import type { DashboardFilters } from "../types/dashboard.types";
 import { dashboardTimeRangeOptions, defaultDashboardFilters } from "../utils/dashboard-filters";
@@ -54,8 +56,8 @@ export function DashboardFilterBar({
       {showLocation && locations.length > 0 ? (
         <label className="flex items-center gap-2 text-[13px] font-[900] text-[#536078]">
           Kho:
-          <select
-            className="h-[34px] min-w-[200px] rounded-lg border border-pos-border bg-white px-3 text-sm font-semibold text-[#172317] outline-none focus:border-[#159734]"
+          <span className="min-w-[200px]">
+          <NativeSelect
             onChange={(event) => onChange({ ...filters, locationId: event.currentTarget.value })}
             value={filters.locationId}
           >
@@ -65,18 +67,15 @@ export function DashboardFilterBar({
                 {location.name}
               </option>
             ))}
-          </select>
+          </NativeSelect>
+          </span>
         </label>
       ) : null}
 
       {isDirty ? (
-        <button
-          className="ml-auto text-[13px] font-black text-[#159734] hover:underline"
-          onClick={() => onChange(defaultDashboardFilters)}
-          type="button"
-        >
+        <Button className="ml-auto" onClick={() => onChange(defaultDashboardFilters)} size="sm" variant="link">
           Đặt lại
-        </button>
+        </Button>
       ) : null}
     </div>
   );

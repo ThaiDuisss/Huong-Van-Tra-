@@ -5,6 +5,7 @@ import {
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
+import { Button } from "../../../components/ui/Button";
 import styles from "./ExportDropdown.module.css";
 
 export type ExportMode = "all" | "filtered";
@@ -13,7 +14,6 @@ interface ExportDropdownProps {
     allDescription: string;
     allFilenamePrefix: string;
     allLabel: string;
-    buttonClassName: string;
     emptyFilteredMessage: string;
     fallbackErrorMessage: string;
     filteredDescription: string;
@@ -67,7 +67,6 @@ export function ExportDropdown({
     allDescription,
     allFilenamePrefix,
     allLabel,
-    buttonClassName,
     emptyFilteredMessage,
     fallbackErrorMessage,
     filteredDescription,
@@ -160,13 +159,12 @@ export function ExportDropdown({
     return (
         <>
             <div className={styles.exportMenuWrap} ref={menuRef}>
-                <button
+                <Button
                     aria-busy={isExporting}
                     aria-expanded={isMenuOpen}
-                    className={buttonClassName}
                     disabled={isExporting}
                     onClick={() => setIsMenuOpen((open) => !open)}
-                    type="button"
+                    size="lg"
                 >
                     {isExporting ? (
                         <LoaderCircle
@@ -179,7 +177,7 @@ export function ExportDropdown({
                     )}
                     {isExporting ? "Đang xuất..." : "Xuất file"}
                     <ChevronDown size={16} aria-hidden="true" />
-                </button>
+                </Button>
                 {isMenuOpen ? (
                     <div className={styles.exportMenu} role="menu">
                         <button

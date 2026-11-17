@@ -38,7 +38,7 @@ kafka-config:
 
 kafka-consumer-config:
   enabled: true
-  group-id: Promotion-Service-order-events
+  group-id: promotion-service-order-events
   key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
   value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
   auto-offset-reset: earliest

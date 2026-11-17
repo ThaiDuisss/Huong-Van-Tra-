@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { X } from "lucide-react";
 
+import { IconButton } from "../../../components/ui/Button";
 import type {
     OrderDetailResponse,
     OrderSummaryResponse
@@ -88,7 +89,7 @@ export function InvoiceDetailPanel({
 
     return (
         <aside
-            className="flex min-h-0 flex-col overflow-auto rounded-xl border border-[#edf0f4] bg-white p-7 shadow-[0_16px_38px_rgb(31_53_43_/_0.05)]"
+            className="flex min-h-0 flex-col overflow-auto p-7"
             aria-label="Thông tin hóa đơn"
         >
             <div className="flex items-center justify-between gap-3 border-b border-[#edf0f4] pb-5">
@@ -96,14 +97,9 @@ export function InvoiceDetailPanel({
                     Thông tin hóa đơn
                 </h2>
                 {onClose ? (
-                    <button
-                        type="button"
-                        className="grid size-9 place-items-center rounded-lg text-[#536078] hover:bg-[#f4f6f8]"
-                        aria-label="Đóng thông tin hóa đơn"
-                        onClick={onClose}
-                    >
+                    <IconButton aria-label="Đóng thông tin hóa đơn" onClick={onClose}>
                         <X size={18} aria-hidden="true" />
-                    </button>
+                    </IconButton>
                 ) : null}
             </div>
 

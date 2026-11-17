@@ -16,7 +16,7 @@ public class PromotionReservationConfirmConsumer {
 
     @KafkaListener(
             topics = "${promotion.order.events.topics.usage-commit:promotion.usage-commit.requested}",
-            groupId = "${spring.application.name:promotion-service}-order-events"
+            groupId = "${kafka-consumer-config.group-id:promotion-service-order-events}"
     )
     public void handle(ConsumerRecord<String, String> record, Acknowledgment acknowledgment) {
         promotionReservationConfirmInboxService.handle(record);

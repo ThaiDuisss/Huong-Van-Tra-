@@ -1,10 +1,20 @@
-import {
-    ChevronLeft,
-    ChevronRight,
-    Search
-} from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
+import {
+    DataTable,
+    type DataTableColumn
+} from "../../../components/shared/list/DataTable";
+import { ListPageHeader } from "../../../components/shared/list/ListPageHeader";
+import { TablePagination } from "../../../components/shared/list/TablePagination";
+import { Field, NativeSelect, TextInput } from "../../../components/ui/Field";
+import { StatusBadge } from "../../../components/ui/StatusBadge";
+import {
+    Table,
+    TableCell,
+    TableHead,
+    TableHeaderCell,
+    TableRow
+} from "../../../components/ui/Table";
 import { TimeSidebar } from "../../../components/shared/TimeSidebar";
 import {
     buildTodayTimeNode,
@@ -105,14 +115,6 @@ function displayText(value?: string | null, fallback = "--") {
     return value?.trim() || fallback;
 }
 
-function getPageNumbers(totalPages: number, currentPage: number) {
-    const pageCount = Math.max(totalPages, 1);
-    const start = Math.max(0, Math.min(currentPage - 2, pageCount - 5));
-    const length = Math.min(pageCount, 5);
-
-    return Array.from({ length }, (_, index) => start + index);
-}
-
 function getBranchLabel(branches: InventoryLocationSummary[], branchId?: string | null) {
     if (!branchId) {
         return "--";
@@ -163,7 +165,6 @@ export function ReturnRefundReportPage() {
     const selectedBranchId = branchId === "ALL" ? undefined : branchId;
     const selectedReturnStatus = returnStatus === "ALL" ? undefined : returnStatus;
     const selectedRefundStatus = refundStatus === "ALL" ? undefined : refundStatus;
-    const rows = reportPage.content ?? [];
     const totalElements = reportPage.totalElements ?? 0;
     const totalPages = Math.max(reportPage.totalPages ?? 0, 1);
     const fromRecord = totalElements > 0 ? reportPage.number * reportPage.size + 1 : 0;
@@ -280,6 +281,83 @@ export function ReturnRefundReportPage() {
         timeRange?.toDate
     ]);
 
+    // Giữ hành vi cũ: đang tải thì không hiện dòng của trang trước.
+    const visibleRows = useMemo(
+        () => (detailsLoading ? [] : reportPage.content ?? []),
+        [detailsLoading, reportPage.content]
+    );
+    const columns = useMemo<DataTableColumn<OrderReturnReportDetail>[]>(
+        () => [
+            {
+                key: "returnCode",
+                header: "Mã phiếu hoàn",
+                className: "font-black",
+                render: (row) => displayText(row.returnCode)
+            },
+            { key: "orderCode", header: "Mã đơn hàng", render: (row) => displayText(row.orderCode) },
+            { key: "branch", header: "Chi nhánh", render: (row) => getBranchLabel(branches, row.branchId) },
+            {
+                key: "customer",
+                header: "Khách hàng",
+                render: (row) => (
+                    <>
+                        <strong>{displayText(row.customerName, "Khách lẻ")}</strong>
+                        <div className={styles.muted}>{displayText(row.customerPhone)}</div>
+                    </>
+                )
+            },
+            {
+                key: "returnStatus",
+                header: "Trạng thái hoàn hàng",
+                render: (row) => (
+                    <StatusBadge
+                        tone={
+                            row.returnStatus === "COMPLETED"
+                                ? "success"
+                                : row.returnStatus === "CANCELLED"
+                                  ? "neutral"
+                                  : "warning"
+                        }
+                    >
+                        {row.returnStatus ? RETURN_STATUS_LABELS[row.returnStatus] : "--"}
+                    </StatusBadge>
+                )
+            },
+            {
+                key: "qcStatus",
+                header: "Trạng thái QC",
+                render: (row) => (
+                    <StatusBadge
+                        tone={
+                            row.qcStatus === "COMPLETED"
+                                ? "success"
+                                : row.qcStatus === "PARTIAL"
+                                  ? "warning"
+                                  : "neutral"
+                        }
+                    >
+                        {row.qcStatus ? CUSTOMER_RETURN_QC_STATUS_LABELS[row.qcStatus] : "Chưa kiểm tra"}
+                    </StatusBadge>
+                )
+            },
+            { key: "refundAmount", header: "Tiền hoàn", render: (row) => formatCurrency(row.refundAmount) },
+            { key: "method", header: "Phương thức", render: (row) => getMethodLabel(row.method) },
+            {
+                key: "paymentStatus",
+                header: "Trạng thái thanh toán",
+                render: (row) => (
+                    <>
+                        <div>{getPaymentStatusLabel(row.paymentStatus)}</div>
+                        <div className={styles.muted}>{getRefundStatusLabel(row.refundStatus)}</div>
+                    </>
+                )
+            },
+            { key: "createdAt", header: "Ngày tạo", render: (row) => formatDateTime(row.returnCreatedAt) },
+            { key: "refundedAt", header: "Ngày hoàn tiền", render: (row) => formatDateTime(row.refundedAt) }
+        ],
+        [branches]
+    );
+
     const selectTimeNode = (node: TimeNode) => {
         setSelectedTimeNode(node);
         setPage(0);
@@ -301,31 +379,24 @@ export function ReturnRefundReportPage() {
             />
 
             <div className={styles.content}>
-                <header className={styles.header}>
-                    <div className={styles.title}>
-                        <h1>Báo cáo hoàn hàng & hoàn tiền</h1>
-                        <p>Theo dõi phiếu hoàn, tiền đã hoàn và kết quả QC trong kỳ.</p>
-                    </div>
-                </header>
+                <ListPageHeader
+                    description="Theo dõi phiếu hoàn, tiền đã hoàn và kết quả QC trong kỳ."
+                    title="Báo cáo hoàn hàng & hoàn tiền"
+                />
 
                 <section className={styles.filterPanel}>
-                    <label className={styles.field}>
-                        Tìm kiếm
-                        <span className={styles.searchBox}>
-                            <Search size={18} aria-hidden="true" />
-                            <input
-                                onChange={(event) => {
-                                    setKeyword(event.target.value);
-                                    setPage(0);
-                                }}
-                                placeholder="Mã phiếu, mã đơn, khách hàng, SĐT..."
-                                value={keyword}
-                            />
-                        </span>
-                    </label>
-                    <label className={styles.field}>
-                        Chi nhánh
-                        <select
+                    <Field label="Tìm kiếm">
+                        <TextInput
+                            onChange={(event) => {
+                                setKeyword(event.target.value);
+                                setPage(0);
+                            }}
+                            placeholder="Mã phiếu, mã đơn, khách hàng, SĐT..."
+                            value={keyword}
+                        />
+                    </Field>
+                    <Field label="Chi nhánh">
+                        <NativeSelect
                             onChange={(event) => {
                                 setBranchId(event.target.value);
                                 setPage(0);
@@ -338,11 +409,10 @@ export function ReturnRefundReportPage() {
                                     {branch.name}
                                 </option>
                             ))}
-                        </select>
-                    </label>
-                    <label className={styles.field}>
-                        Trạng thái hoàn hàng
-                        <select
+                        </NativeSelect>
+                    </Field>
+                    <Field label="Trạng thái hoàn hàng">
+                        <NativeSelect
                             onChange={(event) => {
                                 setReturnStatus(event.target.value as ReturnStatusFilter);
                                 setPage(0);
@@ -354,11 +424,10 @@ export function ReturnRefundReportPage() {
                                     {option.label}
                                 </option>
                             ))}
-                        </select>
-                    </label>
-                    <label className={styles.field}>
-                        Trạng thái hoàn tiền
-                        <select
+                        </NativeSelect>
+                    </Field>
+                    <Field label="Trạng thái hoàn tiền">
+                        <NativeSelect
                             onChange={(event) => {
                                 setRefundStatus(event.target.value as RefundStatusFilter);
                                 setPage(0);
@@ -370,8 +439,8 @@ export function ReturnRefundReportPage() {
                                     {option.label}
                                 </option>
                             ))}
-                        </select>
-                    </label>
+                        </NativeSelect>
+                    </Field>
                 </section>
 
                 <section className={styles.summaryGrid}>
@@ -400,24 +469,28 @@ export function ReturnRefundReportPage() {
 
                     <div className={styles.card}>
                         <h2>Lý do hoàn hàng</h2>
-                        <table className={styles.reasonTable}>
-                            <thead>
-                                <tr>
-                                    <th>Lý do</th>
-                                    <th>Dòng</th>
-                                    <th>Số lượng</th>
-                                </tr>
-                            </thead>
+                        <Table>
+                            <TableHead>
+                                <TableRow>
+                                    <TableHeaderCell className="pl-0">Lý do</TableHeaderCell>
+                                    <TableHeaderCell className="text-right">Dòng</TableHeaderCell>
+                                    <TableHeaderCell className="pr-0 text-right">Số lượng</TableHeaderCell>
+                                </TableRow>
+                            </TableHead>
                             <tbody>
                                 {(summary.reasonBreakdown ?? []).map((item) => (
-                                    <tr key={item.reason}>
-                                        <td>{RETURN_REASON_LABELS[item.reason] ?? item.reason}</td>
-                                        <td>{item.itemCount}</td>
-                                        <td>{formatQuantity(item.quantity)}</td>
-                                    </tr>
+                                    <TableRow key={item.reason}>
+                                        <TableCell className="pl-0">
+                                            {RETURN_REASON_LABELS[item.reason] ?? item.reason}
+                                        </TableCell>
+                                        <TableCell className="text-right">{item.itemCount}</TableCell>
+                                        <TableCell className="pr-0 text-right">
+                                            {formatQuantity(item.quantity)}
+                                        </TableCell>
+                                    </TableRow>
                                 ))}
                             </tbody>
-                        </table>
+                        </Table>
                     </div>
 
                     <div className={styles.card}>
@@ -434,108 +507,37 @@ export function ReturnRefundReportPage() {
                     </div>
                 </section>
 
-                <section className={styles.tableCard}>
+                <section className={styles.tableSection}>
                     <div className={styles.tableHeader}>
                         <h2>Chi tiết phiếu hoàn</h2>
                         <span className={styles.muted}>Nguồn tổng hợp từ Order, Payment và Inventory</span>
                     </div>
 
-                    {error ? <div className={styles.errorBox}>{error}</div> : null}
-
-                    <div className={styles.tableWrap}>
-                        <table className={styles.reportTable}>
-                            <thead>
-                                <tr>
-                                    <th>Mã phiếu hoàn</th>
-                                    <th>Mã đơn hàng</th>
-                                    <th>Chi nhánh</th>
-                                    <th>Khách hàng</th>
-                                    <th>Trạng thái hoàn hàng</th>
-                                    <th>Trạng thái QC</th>
-                                    <th>Tiền hoàn</th>
-                                    <th>Phương thức</th>
-                                    <th>Trạng thái thanh toán</th>
-                                    <th>Ngày tạo</th>
-                                    <th>Ngày hoàn tiền</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {detailsLoading ? (
-                                    <EmptyRow message="Đang tải dữ liệu báo cáo..." />
-                                ) : null}
-                                {!detailsLoading && !error
-                                    ? rows.map((row) => (
-                                          <tr key={row.returnId}>
-                                              <td>
-                                                  <strong>{displayText(row.returnCode)}</strong>
-                                              </td>
-                                              <td>{displayText(row.orderCode)}</td>
-                                              <td>{getBranchLabel(branches, row.branchId)}</td>
-                                              <td>
-                                                  <strong>{displayText(row.customerName, "Khách lẻ")}</strong>
-                                                  <div className={styles.muted}>{displayText(row.customerPhone)}</div>
-                                              </td>
-                                              <td>
-                                                  <Pill tone={row.returnStatus === "COMPLETED" ? "green" : row.returnStatus === "CANCELLED" ? "gray" : "amber"}>
-                                                      {row.returnStatus ? RETURN_STATUS_LABELS[row.returnStatus] : "--"}
-                                                  </Pill>
-                                              </td>
-                                              <td>
-                                                  <Pill tone={row.qcStatus === "COMPLETED" ? "green" : row.qcStatus === "PARTIAL" ? "amber" : "gray"}>
-                                                      {row.qcStatus ? CUSTOMER_RETURN_QC_STATUS_LABELS[row.qcStatus] : "Chưa kiểm tra"}
-                                                  </Pill>
-                                              </td>
-                                              <td>{formatCurrency(row.refundAmount)}</td>
-                                              <td>{getMethodLabel(row.method)}</td>
-                                              <td>
-                                                  <div>{getPaymentStatusLabel(row.paymentStatus)}</div>
-                                                  <div className={styles.muted}>{getRefundStatusLabel(row.refundStatus)}</div>
-                                              </td>
-                                              <td>{formatDateTime(row.returnCreatedAt)}</td>
-                                              <td>{formatDateTime(row.refundedAt)}</td>
-                                          </tr>
-                                      ))
-                                    : null}
-                                {!detailsLoading && !error && rows.length === 0 ? (
-                                    <EmptyRow message="Không có dữ liệu hoàn hàng trong khoảng thời gian này." />
-                                ) : null}
-                            </tbody>
-                        </table>
-                    </div>
-
-                    <div className={styles.pagination}>
-                        <span>
-                            Hiển thị <strong>{fromRecord} - {toRecord}</strong> trong {totalElements} dòng
-                        </span>
-                        <div className={styles.pageTools}>
-                            <button
-                                className={styles.pageButton}
-                                disabled={page === 0}
-                                onClick={() => setPage((current) => Math.max(0, current - 1))}
-                                type="button"
-                            >
-                                <ChevronLeft size={15} aria-hidden="true" />
-                            </button>
-                            {getPageNumbers(totalPages, page).map((pageNumber) => (
-                                <button
-                                    className={`${styles.pageButton} ${pageNumber === page ? styles.activePage : ""}`}
-                                    key={pageNumber}
-                                    onClick={() => setPage(pageNumber)}
-                                    type="button"
-                                >
-                                    {pageNumber + 1}
-                                </button>
-                            ))}
-                            <button
-                                className={styles.pageButton}
-                                disabled={page >= totalPages - 1}
-                                onClick={() => setPage((current) => Math.min(totalPages - 1, current + 1))}
-                                type="button"
-                            >
-                                <ChevronRight size={15} aria-hidden="true" />
-                            </button>
-                        </div>
-                    </div>
+                    <DataTable
+                        caption="Chi tiết phiếu hoàn"
+                        columns={columns}
+                        emptyTitle="Không có dữ liệu hoàn hàng trong khoảng thời gian này."
+                        error={error}
+                        getRowKey={(row) => row.returnId}
+                        loading={detailsLoading}
+                        minWidth={1180}
+                        pagination={
+                            <TablePagination
+                                itemLabel="dòng"
+                                onPageChange={setPage}
+                                page={page}
+                                pageSize={reportPage.size}
+                                summary={
+                                    <>
+                                        Hiển thị <strong>{fromRecord} - {toRecord}</strong> trong {totalElements} dòng
+                                    </>
+                                }
+                                totalItems={totalElements}
+                                totalPages={totalPages}
+                            />
+                        }
+                        rows={visibleRows}
+                    />
                 </section>
             </div>
         </section>
@@ -580,25 +582,5 @@ function BreakdownBar({
                 <span style={{ width: `${width}%` }} />
             </div>
         </div>
-    );
-}
-
-function Pill({
-    children,
-    tone
-}: {
-    children: string;
-    tone: "amber" | "blue" | "gray" | "green";
-}) {
-    return <span className={`${styles.pill} ${styles[tone]}`}>{children}</span>;
-}
-
-function EmptyRow({ message }: { message: string }) {
-    return (
-        <tr>
-            <td className={styles.emptyCell} colSpan={11}>
-                {message}
-            </td>
-        </tr>
     );
 }

@@ -2,6 +2,7 @@ import { ArrowLeft, Ban, CheckCircle2, Pencil, Send, XCircle } from "lucide-reac
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 
+import { Button } from "../../../components/ui/Button";
 import { useAuthorization } from "../../../auth/role-utils";
 import {
     Dialog,
@@ -11,6 +12,8 @@ import {
     DialogHeader,
     DialogTitle
 } from "../../../components/ui/dialog";
+import { TextArea } from "../../../components/ui/Field";
+import { Table, TableCell, TableHead, TableHeaderCell, TableRow } from "../../../components/ui/Table";
 import { routePaths } from "../../../routes/path";
 import { DashboardListSkeleton } from "../../dashboard/components/DashboardStates";
 import { InventoryErrorState, InventoryPageHeader } from "../components/InventoryManagementComponents";
@@ -22,9 +25,6 @@ import {
     formatReplenishmentQuantity,
     shelfReplenishmentEditPath
 } from "../utils/shelfReplenishment.utils";
-
-const headClass = "whitespace-nowrap border-b border-[#dce8df] px-4 py-2.5";
-const cellClass = "border-b border-[#edf0f4] px-4 py-2.5 align-middle";
 
 type SlipAction = "submit" | "approve" | "reject" | "cancel" | "review";
 
@@ -137,87 +137,50 @@ export function ShelfReplenishmentDetailPage() {
     }
 
     const busy = pendingAction !== null;
-    const actionButton =
-        "inline-flex h-10 items-center gap-2 rounded-lg px-4 text-sm font-black transition disabled:opacity-60";
-
     return (
         <section className="grid gap-5">
             <InventoryPageHeader
                 actions={
                     <>
-                        <button
-                            className={`${actionButton} border border-pos-border bg-white text-[#536078] hover:bg-neutral-50`}
-                            onClick={() => navigate(routePaths.shelfReplenishments)}
-                            type="button"
-                        >
+                        <Button onClick={() => navigate(routePaths.shelfReplenishments)}>
                             <ArrowLeft aria-hidden="true" size={16} />
                             Danh sách phiếu
-                        </button>
+                        </Button>
                         {slip?.status === "DRAFT" ? (
                             <>
-                                <button
-                                    className={`${actionButton} border border-pos-border bg-white text-[#172317] hover:bg-neutral-50`}
-                                    disabled={busy}
-                                    onClick={() => navigate(shelfReplenishmentEditPath(slip.id))}
-                                    type="button"
-                                >
+                                <Button disabled={busy} onClick={() => navigate(shelfReplenishmentEditPath(slip.id))}>
                                     <Pencil aria-hidden="true" size={16} />
                                     Sửa
-                                </button>
-                                <button
-                                    className={`${actionButton} bg-[#07883a] text-white hover:opacity-90`}
-                                    disabled={busy}
-                                    onClick={() => void runAction("submit")}
-                                    type="button"
-                                >
+                                </Button>
+                                <Button disabled={busy} onClick={() => void runAction("submit")} variant="primary">
                                     <Send aria-hidden="true" size={16} />
                                     Gửi duyệt
-                                </button>
+                                </Button>
                             </>
                         ) : null}
                         {slip?.status === "PENDING_APPROVAL" && canDecide ? (
                             <>
-                                <button
-                                    className={`${actionButton} border border-orange-200 bg-white text-orange-700 hover:bg-orange-50`}
-                                    disabled={busy}
-                                    onClick={() => setRejectOpen(true)}
-                                    type="button"
-                                >
+                                <Button disabled={busy} onClick={() => setRejectOpen(true)} variant="dangerOutline">
                                     <Ban aria-hidden="true" size={16} />
                                     Từ chối
-                                </button>
-                                <button
-                                    className={`${actionButton} bg-[#07883a] text-white hover:opacity-90`}
-                                    disabled={busy}
-                                    onClick={() => void runAction("approve")}
-                                    type="button"
-                                >
+                                </Button>
+                                <Button disabled={busy} onClick={() => void runAction("approve")} variant="primary">
                                     <CheckCircle2 aria-hidden="true" size={16} />
                                     {pendingAction === "approve" ? "Đang duyệt..." : "Duyệt & chuyển lên kệ"}
-                                </button>
+                                </Button>
                             </>
                         ) : null}
                         {slip?.status === "POSTED" && slip.pendingReview && isApproverRole ? (
-                            <button
-                                className={`${actionButton} bg-[#07883a] text-white hover:opacity-90`}
-                                disabled={busy}
-                                onClick={() => void runAction("review")}
-                                type="button"
-                            >
+                            <Button disabled={busy} onClick={() => void runAction("review")} variant="primary">
                                 <CheckCircle2 aria-hidden="true" size={16} />
                                 {pendingAction === "review" ? "Đang duyệt..." : "Duyệt phiếu"}
-                            </button>
+                            </Button>
                         ) : null}
                         {slip && (slip.status === "DRAFT" || slip.status === "PENDING_APPROVAL") && canCancel ? (
-                            <button
-                                className={`${actionButton} border border-red-200 bg-white text-red-700 hover:bg-red-50`}
-                                disabled={busy}
-                                onClick={() => void runAction("cancel")}
-                                type="button"
-                            >
+                            <Button disabled={busy} onClick={() => void runAction("cancel")} variant="dangerOutline">
                                 <XCircle aria-hidden="true" size={16} />
                                 Hủy phiếu
-                            </button>
+                            </Button>
                         ) : null}
                     </>
                 }
@@ -331,34 +294,34 @@ export function ShelfReplenishmentDetailPage() {
 
                     <div className="min-w-0 overflow-hidden rounded-xl border border-[#e8eef0] bg-white shadow-pos-card">
                         <div className="overflow-x-auto">
-                            <table className="w-full min-w-[820px] text-left text-sm">
-                                <thead className="bg-[#eaf7ec] text-xs font-black text-[#172317]">
-                                    <tr>
-                                        <th className={headClass} scope="col">#</th>
-                                        <th className={headClass} scope="col">Mặt hàng</th>
-                                        <th className={`${headClass} text-right`} scope="col">Cần lên kệ</th>
-                                        <th className={`${headClass} text-right`} scope="col">Còn trong kho</th>
-                                        <th className={`${headClass} text-right`} scope="col">Đang trên kệ</th>
-                                        <th className={`${headClass} text-right`} scope="col">Đã chuyển</th>
-                                    </tr>
-                                </thead>
+                            <Table className="min-w-[820px]">
+                                <TableHead>
+                                    <TableRow>
+                                        <TableHeaderCell>#</TableHeaderCell>
+                                        <TableHeaderCell>Mặt hàng</TableHeaderCell>
+                                        <TableHeaderCell className="text-right">Cần lên kệ</TableHeaderCell>
+                                        <TableHeaderCell className="text-right">Còn trong kho</TableHeaderCell>
+                                        <TableHeaderCell className="text-right">Đang trên kệ</TableHeaderCell>
+                                        <TableHeaderCell className="text-right">Đã chuyển</TableHeaderCell>
+                                    </TableRow>
+                                </TableHead>
                                 <tbody>
                                     {slip.lines.length === 0 ? (
-                                        <tr>
-                                            <td className="px-4 py-8 text-center font-semibold text-[#697684]" colSpan={6}>
+                                        <TableRow>
+                                            <TableCell className="py-8 text-center font-semibold text-[#697684]" colSpan={6}>
                                                 Phiếu chưa có mặt hàng nào.
-                                            </td>
-                                        </tr>
+                                            </TableCell>
+                                        </TableRow>
                                     ) : (
                                         slip.lines.map((line) => {
                                             const open = slip.status === "DRAFT" || slip.status === "PENDING_APPROVAL";
                                             const short = open && line.warehouseAvailable < line.quantity;
                                             return (
-                                                <tr key={line.id}>
-                                                    <td className={`${cellClass} tabular-nums text-[#697684]`}>
+                                                <TableRow key={line.id}>
+                                                    <TableCell className="tabular-nums text-[#697684]">
                                                         {line.lineNo}
-                                                    </td>
-                                                    <td className={cellClass}>
+                                                    </TableCell>
+                                                    <TableCell>
                                                         <div className="grid">
                                                             <span className="font-bold text-[#172317]">
                                                                 {line.itemName}
@@ -369,30 +332,30 @@ export function ShelfReplenishmentDetailPage() {
                                                                 </span>
                                                             ) : null}
                                                         </div>
-                                                    </td>
-                                                    <td className={`${cellClass} text-right font-bold tabular-nums text-[#172317]`}>
+                                                    </TableCell>
+                                                    <TableCell className="text-right font-bold tabular-nums text-[#172317]">
                                                         {formatReplenishmentQuantity(line.quantity)}
-                                                    </td>
-                                                    <td
-                                                        className={`${cellClass} text-right tabular-nums ${
+                                                    </TableCell>
+                                                    <TableCell
+                                                        className={`text-right tabular-nums ${
                                                             short ? "font-bold text-red-700" : "text-[#172317]"
                                                         }`}
                                                     >
                                                         {formatReplenishmentQuantity(line.warehouseAvailable)}
                                                         {short ? " (thiếu)" : ""}
-                                                    </td>
-                                                    <td className={`${cellClass} text-right tabular-nums text-[#172317]`}>
+                                                    </TableCell>
+                                                    <TableCell className="text-right tabular-nums text-[#172317]">
                                                         {formatReplenishmentQuantity(line.shelfOnHand)}
-                                                    </td>
-                                                    <td className={`${cellClass} text-right tabular-nums text-[#172317]`}>
+                                                    </TableCell>
+                                                    <TableCell className="text-right tabular-nums text-[#172317]">
                                                         {formatReplenishmentQuantity(line.transferredQuantity)}
-                                                    </td>
-                                                </tr>
+                                                    </TableCell>
+                                                </TableRow>
                                             );
                                         })
                                     )}
                                 </tbody>
-                            </table>
+                            </Table>
                         </div>
                     </div>
                 </>
@@ -412,8 +375,7 @@ export function ShelfReplenishmentDetailPage() {
                         </DialogDescription>
                     </DialogHeader>
                     <div className="px-6 py-4">
-                        <textarea
-                            className="w-full rounded-lg border border-[#dce5e1] p-3 text-sm outline-none focus:border-orange-500"
+                        <TextArea
                             maxLength={1000}
                             placeholder="Ví dụ: Kệ còn đủ hàng, số lượng yêu cầu quá nhiều..."
                             rows={3}
@@ -422,22 +384,16 @@ export function ShelfReplenishmentDetailPage() {
                         />
                     </div>
                     <DialogFooter>
-                        <button
-                            className="h-10 rounded-lg border border-[#dce5e1] px-4 text-sm font-bold text-[#536078]"
-                            disabled={busy}
-                            onClick={() => setRejectOpen(false)}
-                            type="button"
-                        >
+                        <Button disabled={busy} onClick={() => setRejectOpen(false)}>
                             Hủy
-                        </button>
-                        <button
-                            className="h-10 rounded-lg bg-orange-600 px-5 text-sm font-black text-white hover:bg-orange-700 disabled:opacity-60"
+                        </Button>
+                        <Button
                             disabled={busy || !rejectReason.trim()}
                             onClick={() => void submitReject()}
-                            type="button"
+                            variant="warning"
                         >
                             {pendingAction === "reject" ? "Đang từ chối..." : "Xác nhận từ chối"}
-                        </button>
+                        </Button>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>

@@ -1,6 +1,11 @@
 import { ChevronDown, ChevronUp, Plus, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import { Button, IconButton } from "@/components/ui/Button";
+import { NativeSelect, TextInput } from "@/components/ui/Field";
+import { StatusBadge } from "@/components/ui/StatusBadge";
+import { Table, TableCell, TableHead, TableHeaderCell, TableRow } from "@/components/ui/Table";
+
 import type { ImportItemsListProps } from "../../product/components/ImportBatchPanel";
 import type { ImportBatchItem } from "../../product/types/import-batch.types";
 import { unitApi } from "../../product/services/unit.api";
@@ -226,12 +231,9 @@ function ItemRow({
                     </div>
                 </div>
                 <div className="flex shrink-0 items-center gap-1.5">
-                    <span
-                        className={`inline-flex h-6 items-center rounded-full px-2 text-[11px] font-bold ${isValid ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-700"
-                            }`}
-                    >
+                    <StatusBadge tone={isValid ? "success" : "danger"}>
                         {isValid ? "Hợp lệ" : `${item.validationErrors.length} lỗi`}
-                    </span>
+                    </StatusBadge>
                 </div>
             </button>
 
@@ -281,8 +283,7 @@ function ItemRow({
                     <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                         <div className="grid gap-1.5">
                             <label className="text-xs font-bold text-[#536078]">Ngày dự kiến giao</label>
-                            <input
-                                className="h-10 rounded-lg border border-pos-border px-3 text-sm outline-none focus:border-hvt-green-600"
+                            <TextInput
                                 disabled={!editable}
                                 onChange={(e) => setExpectedDate(e.target.value)}
                                 type="date"
@@ -292,8 +293,7 @@ function ItemRow({
 
                         <div className="grid gap-1.5">
                             <label className="text-xs font-bold text-[#536078]">Ghi chú</label>
-                            <input
-                                className="h-10 rounded-lg border border-pos-border px-3 text-sm outline-none focus:border-hvt-green-600"
+                            <TextInput
                                 disabled={!editable}
                                 onChange={(e) => setNote(e.target.value)}
                                 placeholder="Ghi chú phiếu nhập..."
@@ -307,14 +307,10 @@ function ItemRow({
                         <div className="flex items-center justify-between">
                             <label className="text-xs font-bold text-[#536078]">Dòng nguyên liệu</label>
                             {editable ? (
-                                <button
-                                    className="inline-flex h-8 items-center gap-1 rounded-lg border border-[#07883a] bg-white px-2.5 text-xs font-bold text-[#07883a] hover:bg-green-50"
-                                    onClick={addLine}
-                                    type="button"
-                                >
+                                <Button onClick={addLine} size="sm">
                                     <Plus size={13} aria-hidden="true" />
                                     Thêm dòng
-                                </button>
+                                </Button>
                             ) : null}
                         </div>
 
@@ -328,24 +324,23 @@ function ItemRow({
                             </div>
                         ) : (
                             <div className="overflow-x-auto rounded-lg border border-pos-border">
-                                <table className="w-full text-left text-xs">
-                                    <thead className="bg-neutral-50 text-[11px] font-bold uppercase text-gray-500">
-                                        <tr>
-                                            <th className="p-2 w-5/12">Nguyên liệu *</th>
-                                            <th className="p-2 w-2/12">Số lượng đặt *</th>
-                                            <th className="p-2 w-3/12">Ghi chú</th>
-                                            <th className="p-2 w-1/12 text-center">Xóa</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-pos-border bg-white">
+                                <Table>
+                                    <TableHead>
+                                        <TableRow>
+                                            <TableHeaderCell className="w-5/12">Nguyên liệu *</TableHeaderCell>
+                                            <TableHeaderCell className="w-2/12">Số lượng đặt *</TableHeaderCell>
+                                            <TableHeaderCell className="w-3/12">Ghi chú</TableHeaderCell>
+                                            <TableHeaderCell className="w-1/12 text-center">Xóa</TableHeaderCell>
+                                        </TableRow>
+                                    </TableHead>
+                                    <tbody>
                                         {lines.map((line, index) => (
-                                            <tr key={index}>
-                                                <td className="p-2 align-top">
+                                            <TableRow key={index}>
+                                                <TableCell className="align-top">
 
                                                     {line.isNewIngredient ? (
                                                         <div className="grid gap-1.5">
-                                                            <input
-                                                                className="h-9 w-full rounded-lg border border-pos-border px-2 text-xs outline-none"
+                                                            <TextInput
                                                                 disabled={!editable}
                                                                 onChange={(e) => updateLine(index, "newIngredientName", e.target.value)}
                                                                 placeholder="Tên nguyên liệu mới *..."
@@ -353,8 +348,7 @@ function ItemRow({
                                                                 value={line.newIngredientName}
                                                             />
                                                             <div className="grid grid-cols-2 gap-1.5">
-                                                                <input
-                                                                    className="h-9 w-full rounded-lg border border-pos-border px-2 text-xs outline-none"
+                                                                <TextInput
                                                                     disabled={!editable}
                                                                     onChange={(e) => updateLine(index, "newIngredientCode", e.target.value)}
                                                                     placeholder="Mã NL (để trống tự sinh)..."
@@ -387,8 +381,7 @@ function ItemRow({
                                                         </div>
                                                     ) : (
                                                         <>
-                                                            <select
-                                                                className="h-9 w-full rounded-lg border border-pos-border px-2 text-xs outline-none"
+                                                            <NativeSelect
                                                                 disabled={!editable || !supplierId}
                                                                 onChange={(e) => updateLine(index, "inventoryItemId", e.target.value)}
                                                                 value={line.inventoryItemId}
@@ -405,7 +398,7 @@ function ItemRow({
                                                                         {m.name} ({m.skuCode}) — {m.unit}
                                                                     </option>
                                                                 ))}
-                                                            </select>
+                                                            </NativeSelect>
                                                             {supplierId && !materialsLoading && materials.length === 0 ? (
                                                                 <p className="mt-1 text-[11px] font-bold text-amber-600">
                                                                     Nhà cung cấp này chưa có nguyên liệu nào.
@@ -427,10 +420,9 @@ function ItemRow({
                                                             {errorByField.get(`items[${index}].inventoryItemId`)}
                                                         </p>
                                                     ) : null}
-                                                </td>
-                                                <td className="p-2 align-top">
-                                                    <input
-                                                        className="h-9 w-full rounded-lg border border-pos-border px-2 text-xs outline-none"
+                                                </TableCell>
+                                                <TableCell className="align-top">
+                                                    <TextInput
                                                         disabled={!editable}
                                                         onChange={(e) => updateLine(index, "orderedQuantity", Number(e.target.value))}
                                                         step="any"
@@ -442,54 +434,39 @@ function ItemRow({
                                                             {errorByField.get(`items[${index}].orderedQuantity`)}
                                                         </p>
                                                     ) : null}
-                                                </td>
-                                                <td className="p-2 align-top">
-                                                    <input
-                                                        className="h-9 w-full rounded-lg border border-pos-border px-2 text-xs outline-none"
+                                                </TableCell>
+                                                <TableCell className="align-top">
+                                                    <TextInput
                                                         disabled={!editable}
                                                         onChange={(e) => updateLine(index, "note", e.target.value)}
                                                         type="text"
                                                         value={line.note}
                                                     />
-                                                </td>
-                                                <td className="p-2 text-center align-top">
+                                                </TableCell>
+                                                <TableCell className="text-center align-top">
                                                     {editable ? (
-                                                        <button
-                                                            aria-label="Xóa dòng"
-                                                            className="grid size-8 place-items-center rounded-lg text-red-500 hover:bg-red-50"
-                                                            onClick={() => removeLine(index)}
-                                                            type="button"
-                                                        >
+                                                        <IconButton aria-label="Xóa dòng" onClick={() => removeLine(index)} tone="danger">
                                                             <Trash2 size={14} aria-hidden="true" />
-                                                        </button>
+                                                        </IconButton>
                                                     ) : null}
-                                                </td>
-                                            </tr>
+                                                </TableCell>
+                                            </TableRow>
                                         ))}
                                     </tbody>
-                                </table>
+                                </Table>
                             </div>
                         )}
                     </div>
 
                     {editable ? (
                         <div className="flex items-center justify-between pt-1">
-                            <button
-                                className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-red-200 bg-white px-3 text-xs font-bold text-red-600 hover:bg-red-50"
-                                onClick={() => void onDelete()}
-                                type="button"
-                            >
+                            <Button onClick={() => void onDelete()} size="sm" variant="dangerOutline">
                                 <Trash2 size={14} aria-hidden="true" />
                                 Xóa dòng
-                            </button>
-                            <button
-                                className="inline-flex h-9 items-center rounded-lg bg-[#159734] px-4 text-xs font-black text-white hover:bg-[#12802c] disabled:opacity-50"
-                                disabled={saving}
-                                onClick={() => void handleSave()}
-                                type="button"
-                            >
+                            </Button>
+                            <Button disabled={saving} onClick={() => void handleSave()} size="sm" variant="primary">
                                 {saving ? "Đang lưu..." : "Lưu dòng này"}
-                            </button>
+                            </Button>
                         </div>
                     ) : null}
                 </div>
