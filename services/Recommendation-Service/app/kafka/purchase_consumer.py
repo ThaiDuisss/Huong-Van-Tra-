@@ -30,11 +30,13 @@ def create_kafka_consumer(settings: Settings | None = None) -> Consumer:
     Factory creating a confluent-kafka Consumer with manual offset commit.
     """
     cfg = settings or get_settings()
+    if cfg.kafka_enable_auto_commit:
+        raise ValueError("Kafka auto-commit must be disabled for transactional ingestion")
     conf = {
         "bootstrap.servers": cfg.kafka_bootstrap_servers,
         "group.id": cfg.kafka_group_id,
         "auto.offset.reset": cfg.kafka_auto_offset_reset,
-        "enable.auto.commit": cfg.kafka_enable_auto_commit,  # False
+        "enable.auto.commit": False,
         "enable.auto.offset.store": False,
     }
     return Consumer(conf)

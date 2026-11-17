@@ -84,6 +84,8 @@ class ReturnKafkaConsumer:
             raw_value = msg
 
         payload = decode_kafka_payload(raw_value)
+        headers = msg.headers() if callable(getattr(msg, "headers", None)) else None
+        ReturnEventAdapter.validate_headers(payload, headers)
 
         # 3. Normalize into CanonicalInteractions (filters out operational returns)
         interactions = self.adapter.to_canonical_interactions(payload)

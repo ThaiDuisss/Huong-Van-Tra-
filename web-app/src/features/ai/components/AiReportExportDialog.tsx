@@ -29,6 +29,8 @@ export function AiReportExportDialog({api, actor, onClose, onExported}: {
   const running = useRef(false);
   const bomController = useRef<AbortController | null>(null);
   useEffect(() => () => bomController.current?.abort(), []);
+  const isBom = kind === "CUSTOM_BOM";
+  const hasRecovery = isBom ? bomRetrying : retrying;
 
   async function submitBom() {
     if (!bomAttempt.current) bomAttempt.current = {requestId: crypto.randomUUID(), reportType: "CUSTOM_BOM",
@@ -52,7 +54,7 @@ export function AiReportExportDialog({api, actor, onClose, onExported}: {
       if (controller.signal.aborted) return;
       setBomRetrying(true);
       setError(failure instanceof ApiError && failure.status === 503
-        ? "Nguồn model/dataset BOM chưa được cấu hình hoặc không khả dụng. Vui lòng liên hệ quản trị."
+        ? "Nguồn dữ liệu báo cáo BOM chưa sẵn sàng. Vui lòng liên hệ quản trị."
         : aiReportErrorMessage(failure, "Không thể xuất báo cáo BOM. Vui lòng thử lại cùng lượt xuất."));
     } finally {
       running.current = false;
@@ -103,33 +105,42 @@ export function AiReportExportDialog({api, actor, onClose, onExported}: {
                 }} />{label}
               </label>)}
           </fieldset>
-          {kind === "PRODUCT" ? <div className="grid grid-cols-2 gap-4">
-            <label className="grid gap-2 text-sm font-semibold">Từ ngày
-              <input aria-label="Từ ngày" type="date" value={fromDate} max={today} disabled={busy || retrying}
-                className="h-10 rounded-lg border border-pos-border px-3" onChange={(event) => setFromDate(event.target.value)} /></label>
-            <label className="grid gap-2 text-sm font-semibold">Đến ngày
-              <input aria-label="Đến ngày" type="date" value={toDate} min={fromDate} max={today} disabled={busy || retrying}
-                className="h-10 rounded-lg border border-pos-border px-3" onChange={(event) => setToDate(event.target.value)} /></label>
-          </div> : <div className="grid gap-3">
-            <p className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm font-semibold text-amber-950">
-              DỮ LIỆU MÔ PHỎNG (SYNTHETIC) — KHÔNG PHẢI BÁO CÁO KINH DOANH THỰC TẾ.
-            </p>
-            <p className="text-sm text-[#536078]">BOM 4 sheet · CUSTOM_BOM/REPEAT · Top-5 tại 01/04/2026 UTC, đối chiếu TEST đến trước 01/05/2026 UTC. Kỳ BOM cố định, không dùng kỳ sản phẩm.</p>
-            <p className="text-xs leading-5 text-[#536078]">Dùng quyền đăng nhập hiện tại. Bản xuất được lưu theo mã xuất của hệ thống; danh sách báo cáo gốc không tự thêm bản xuất này.</p>
-            {bomRetrying ? <p className="text-sm text-[#536078]">Thử lại giữ nguyên mã lượt xuất và tải file đã tạo nếu đã có receipt.</p> : null}
-          </div>}
+          <div className="grid gap-2">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <label className="grid min-w-0 gap-2 text-sm font-semibold">Từ ngày
+                <input aria-label="Từ ngày" aria-describedby={isBom ? "ai-export-date-note" : undefined}
+                  type="date" value={isBom ? "" : fromDate} max={today} disabled={isBom || busy || retrying}
+                  className="h-10 min-w-0 w-full rounded-lg border border-pos-border px-3 disabled:cursor-not-allowed disabled:bg-[#f1f5f3] disabled:text-[#697684]"
+                  onChange={(event) => setFromDate(event.target.value)} /></label>
+              <label className="grid min-w-0 gap-2 text-sm font-semibold">Đến ngày
+                <input aria-label="Đến ngày" aria-describedby={isBom ? "ai-export-date-note" : undefined}
+                  type="date" value={isBom ? "" : toDate} min={isBom ? undefined : fromDate} max={today} disabled={isBom || busy || retrying}
+                  className="h-10 min-w-0 w-full rounded-lg border border-pos-border px-3 disabled:cursor-not-allowed disabled:bg-[#f1f5f3] disabled:text-[#697684]"
+                  onChange={(event) => setToDate(event.target.value)} /></label>
+            </div>
+            {isBom ? <p id="ai-export-date-note" className="text-sm text-[#536078]">
+              Báo cáo BOM dùng dữ liệu cố định, chưa hỗ trợ lọc theo ngày.
+            </p> : null}
+          </div>
+          {isBom ? <p className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm font-semibold text-amber-950">
+            Dữ liệu mô phỏng (Synthetic), không phản ánh kinh doanh thực tế.
+          </p> : null}
           {busy ? <p role="status" className="text-sm font-semibold">{stage}</p> : null}
           {error ? <p role="alert" className="text-sm font-semibold text-red-700">{error}</p> : null}
-          {kind === "PRODUCT" && retrying ? <p className="text-sm text-[#536078]">Thử lại sẽ dùng cùng lượt xuất để tránh tạo file trùng.</p> : null}
+          {hasRecovery ? <div className="grid justify-items-start gap-2 text-sm text-[#536078]">
+            <p>Thử lại sẽ dùng cùng lượt xuất để tránh tạo file trùng.</p>
+            <button type="button" disabled={busy} className="font-semibold text-[#159734] underline disabled:opacity-50"
+              onClick={() => {
+                if (isBom) {bomAttempt.current = null; saveBomExportRecovery(actor, null); setBomRetrying(false);}
+                else {attempt.current = null; saveBusinessExportRecovery(actor, null); setRetrying(false);}
+                setError(null);
+              }}>{isBom ? "Tạo lượt xuất mới" : "Chọn kỳ khác"}</button>
+          </div> : null}
         </div>
         <DialogFooter>
           <button type="button" disabled={busy} onClick={onClose} className="h-10 rounded-lg border border-pos-border px-4 text-sm font-bold disabled:opacity-50">Đóng</button>
-          {kind === "PRODUCT" && retrying ? <button type="button" disabled={busy} className="h-10 rounded-lg border border-pos-border px-4 text-sm font-bold"
-            onClick={() => {attempt.current = null; saveBusinessExportRecovery(actor, null); setRetrying(false); setError(null);}}>Chọn kỳ khác</button> : null}
-          {kind === "CUSTOM_BOM" && bomRetrying ? <button type="button" disabled={busy} className="h-10 rounded-lg border border-pos-border px-4 text-sm font-bold"
-            onClick={() => {bomAttempt.current = null; saveBomExportRecovery(actor, null); setBomRetrying(false); setError(null);}}>Tạo lượt xuất BOM mới</button> : null}
           <button type="submit" disabled={busy} className="h-10 rounded-lg bg-[#159734] px-4 text-sm font-bold text-white disabled:opacity-50">
-            {busy ? stage : "Xuất báo cáo"}</button>
+            Xuất báo cáo</button>
         </DialogFooter>
       </form>
     </DialogContent>
