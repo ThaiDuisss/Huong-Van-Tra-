@@ -195,7 +195,7 @@ export function GoodsReceiptCreatePage() {
 
                 setRejectionReason(
                     receipt.status === "REJECTED"
-                        ? receipt.auditEvents.find((event) => event.type === "REJECT")?.reason ?? ""
+                        ? receipt.auditEvents.find((event) => event.type === "Từ chối" || event.type === "REJECT")?.reason ?? ""
                         : ""
                 );
                 setForm({

@@ -66,7 +66,16 @@ export interface UserSnapshot {
 
 export interface InventoryAuditEvent {
     id: string;
+    // Phiếu nhập kho dùng nhãn tiếng Việt; QC và trả hàng vẫn dùng mã. Giữ cả hai cho tới khi thống nhất.
     type:
+        | "CREATE_DRAFT"
+        | "SUBMIT"
+        | "APPROVE"
+        | "REJECT"
+        | "POST"
+        | "CANCEL"
+        | "REVERSE"
+        | "QC"
         | "Tạo"
         | "Nhận hàng"
         | "Duyệt"
