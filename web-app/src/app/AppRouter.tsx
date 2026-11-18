@@ -1,4 +1,4 @@
-import { Navigate, Outlet, Route, Routes, useParams } from "react-router-dom";
+import { Navigate, Outlet, Route, Routes, useLocation, useParams } from "react-router-dom";
 
 import { NotFoundPage } from "./NotFoundPage";
 import { SystemShell } from "../components/layout/System/SystemShell";
@@ -83,6 +83,7 @@ import { ShelfManagementPage } from "../features/inventory/pages/ShelfManagement
 import { WarehouseInventoryPage } from "../features/inventory/pages/WarehouseInventoryPage";
 import { useAuth } from "../auth/auth-context";
 import { ProtectedRoute } from "../auth/ProtectedRoute";
+import { PERMISSIONS } from "../auth/permissions";
 import {
   ACCOUNT_ROLES,
   ACTION_LOG_ROLES,
@@ -123,6 +124,15 @@ function RedirectToManufacturingProductionOrderDetail() {
       replace
     />
   );
+}
+
+/** Preserve parameters and query strings from bookmarked backoffice return/refund links. */
+function LegacyOrderReturnRedirect({ target }: { target: string }) {
+  const { orderId, returnId } = useParams();
+  const { search, hash } = useLocation();
+  const path = target.replace(":orderId", encodeURIComponent(orderId ?? ""))
+    .replace(":returnId", encodeURIComponent(returnId ?? ""));
+  return <Navigate replace to={`${path}${search}${hash}`} />;
 }
 
 function RoleBasedRedirect() {
@@ -208,6 +218,30 @@ export function AppRouter() {
         }
       />
 
+      <Route element={
+        <ProtectedRoute roles={POS_WORKSPACE_ROLES} permissions={[PERMISSIONS.ORDER_VIEW]} requireRolesAndPermissions>
+          <PosShell><Outlet /></PosShell>
+        </ProtectedRoute>
+      }>
+        <Route path={routePaths.returns} element={<OrderReturnPage />} />
+        <Route path={routePaths.returnDetail} element={<OrderReturnDetailPage />} />
+        <Route path={routePaths.refunds} element={<OrderRefundPage />} />
+        <Route element={
+          <ProtectedRoute roles={POS_WORKSPACE_ROLES} permissions={[PERMISSIONS.ORDER_RETURN]} requireRolesAndPermissions>
+            <Outlet />
+          </ProtectedRoute>
+        }>
+          <Route path={routePaths.returnCreate} element={<CreateReturnPage />} />
+          <Route path={routePaths.orderReturnCreate} element={<CreateReturnPage />} />
+        </Route>
+      </Route>
+
+      <Route path="/system/orders/returns" element={<LegacyOrderReturnRedirect target={routePaths.returns} />} />
+      <Route path="/system/orders/returns/create" element={<LegacyOrderReturnRedirect target={routePaths.returnCreate} />} />
+      <Route path="/system/orders/returns/:returnId" element={<LegacyOrderReturnRedirect target={routePaths.returnDetail} />} />
+      <Route path="/system/orders/:orderId/returns/create" element={<LegacyOrderReturnRedirect target={routePaths.orderReturnCreate} />} />
+      <Route path="/system/orders/refunds" element={<LegacyOrderReturnRedirect target={routePaths.refunds} />} />
+
       <Route
         path={routePaths.posBackorders}
         element={
@@ -275,13 +309,8 @@ export function AppRouter() {
         </Route>
         <Route element={<RoleGate roles={ORDER_ROLES} />}>
           <Route path="orders" element={<OrderListPage />} />
-          <Route path="orders/:orderId/returns/create" element={<CreateReturnPage />} />
           <Route path="orders/invoices" element={<InvoiceListPage />} />
           <Route path="orders/invoices/:invoiceId" element={<InvoiceDetailPage />} />
-          <Route path="orders/returns" element={<OrderReturnPage />} />
-          <Route path="orders/returns/create" element={<CreateReturnPage />} />
-          <Route path="orders/returns/:returnId" element={<OrderReturnDetailPage />} />
-          <Route path="orders/refunds" element={<OrderRefundPage />} />
         </Route>
         <Route element={<RoleGate roles={REPORT_ROLES} />}>
           <Route path="reports/returns" element={<ReturnRefundReportPage />} />
@@ -426,11 +455,17 @@ export function AppRouter() {
           <Route path="inventory/stocktakes/new" element={<StocktakeCreatePage />} />
           <Route path="inventory/stocktakes/:stocktakeId" element={<StocktakeDetailPage />} />
           <Route path="inventory/stocktake-adjustments" element={<StocktakeAdjustmentListPage />} />
-          <Route path="inventory/customer-returns" element={<CustomerReturnListPage />} />
-          <Route
-            path="inventory/customer-returns/:returnId"
-            element={<CustomerReturnDetailPage />}
-          />
+          <Route element={
+            <ProtectedRoute roles={INVENTORY_OPERATION_ROLES} permissions={[PERMISSIONS.INVENTORY_VIEW]} requireRolesAndPermissions>
+              <Outlet />
+            </ProtectedRoute>
+          }>
+            <Route path="inventory/customer-returns" element={<CustomerReturnListPage />} />
+            <Route
+              path="inventory/customer-returns/:returnId"
+              element={<CustomerReturnDetailPage />}
+            />
+          </Route>
           <Route path="inventory/disposals" element={<DisposalListPage />} />
           <Route path="inventory/disposals/:disposalId" element={<DisposalDetailPage />} />
           <Route path="inventory/reports/stock-category-analysis" element={<StockCategoryAnalysisPage />} />

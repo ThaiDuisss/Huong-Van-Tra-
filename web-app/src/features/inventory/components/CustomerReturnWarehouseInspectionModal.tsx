@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { AlertCircle, CheckCircle2, PackageCheck, RotateCw, X } from "lucide-react";
-import { CUSTOMER_RETURN_QC_ROLES, useAuthorization } from "@/auth/role-utils";
+import { useOrderReturnAccess } from "@/auth/order-return-access";
 
 import { Button, IconButton } from "@/components/ui/Button";
 import { ModalShell } from "@/components/ui/Overlay";
@@ -85,8 +85,7 @@ export function CustomerReturnWarehouseInspectionModal({
     inspectionId: explicitInspectionId,
     onSuccess
 }: CustomerReturnWarehouseInspectionModalProps) {
-    const { hasAnyRole } = useAuthorization();
-    const canExecuteQc = hasAnyRole(CUSTOMER_RETURN_QC_ROLES);
+    const { canDisposition: canExecuteQc } = useOrderReturnAccess();
 
     const [loading, setLoading] = useState(true);
     const [submitting, setSubmitting] = useState(false);

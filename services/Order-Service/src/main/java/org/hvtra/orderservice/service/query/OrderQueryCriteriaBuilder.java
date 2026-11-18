@@ -91,6 +91,13 @@ public class OrderQueryCriteriaBuilder {
         };
     }
 
+    /** Payment received is independent of later refunds in the invoice presentation. */
+    public Specification<Order> paidInvoicePayments() {
+        return (root, query, criteriaBuilder) -> root.get("paymentStatus").in(
+                PaymentStatus.PAID, PaymentStatus.PARTIALLY_REFUNDED, PaymentStatus.REFUNDED
+        );
+    }
+
     public String normalizeSort(String sort) {
         if (sort == null || sort.isBlank()) {
             return SORT_BUSINESS_STATUS;

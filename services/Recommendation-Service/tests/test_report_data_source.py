@@ -173,7 +173,7 @@ class SourceExportTests(DbFixture, unittest.TestCase):
         response=self.export(); self.assertEqual(response.status_code,200,response.text)
         record=self.record(); self.assertEqual(record.evidence['report_source']['bundle_sha256'],sha256(self.raw))
         presentation=record.evidence['presentation']
-        self.assertEqual(presentation['schema'],'sale-pos-ai-report-v2')
+        self.assertEqual(presentation['schema'],'sale-pos-ai-report-v3')
         self.assertEqual(record.evidence['source_timezone'],'NOT_VERIFIED')
         self.assertEqual(record.evidence['customer_exposure'],'NOT_VERIFIED')
         self.assertTrue(record.evidence['methodology_notes'])

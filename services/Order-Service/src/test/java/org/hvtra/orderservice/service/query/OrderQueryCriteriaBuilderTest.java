@@ -47,6 +47,16 @@ class OrderQueryCriteriaBuilderTest {
 
     @Test
     @SuppressWarnings("unchecked")
+    void paidInvoiceIncludesCapturedPaymentsAfterPartialOrFullRefund() {
+        Root<Order> root = mock(Root.class);
+        Path<PaymentStatus> paymentStatusPath = mock(Path.class);
+        when(root.<PaymentStatus>get("paymentStatus")).thenReturn(paymentStatusPath);
+        criteriaBuilder.paidInvoicePayments().toPredicate(root, null, null);
+        verify(paymentStatusPath).in(PaymentStatus.PAID, PaymentStatus.PARTIALLY_REFUNDED, PaymentStatus.REFUNDED);
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
     void keepsKeywordUnpaidAliasAndOrderTypeNormalization() {
         Root<Order> root = mock(Root.class);
         CriteriaQuery<?> query = mock(CriteriaQuery.class);

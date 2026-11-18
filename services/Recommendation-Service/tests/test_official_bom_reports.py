@@ -119,6 +119,20 @@ class OfficialBomLifecycleTests(DbFixture, unittest.TestCase):
         self.assertNotEqual(other["id"], receipt["id"])
         self.assertEqual(other["createdBy"], B)
 
+    def test_bom_period_is_authenticated_and_selected_dates_reach_builder(self):
+        path = self.base + "/bom-period"
+        self.assertEqual(self.client.get(path).status_code, 401)
+        self.assertEqual(self.client.get(path, headers=signed(roles="CUSTOMER")).status_code, 403)
+        self.assertEqual(self.client.get(path, headers=signed()).json(), {"fromDate": "2026-04-01", "toDate": "2026-04-30"})
+        selected = dict(self.payload, fromDate="2026-04-07", toDate="2026-04-07")
+        with patch("app.service.business_report_service.build_bom",
+                   return_value=(b"filtered", {"report_type": "CUSTOM_BOM", "report_source": SOURCE})) as builder:
+            result = self.export(selected)
+            self.assertEqual(result.status_code, 200)
+            self.assertEqual(result.json()["fileName"], "AI_Report_HuongVanTra_20260407_20260407.xlsx")
+            builder.assert_called_once_with(self.cfg, SOURCE, date(2026, 4, 7), date(2026, 4, 7))
+        self.assertEqual(self.export(dict(selected, toDate="2026-04-08")).status_code, 409)
+
     def test_legacy_product_response_and_generator_remain_unchanged(self):
         payload = dict(requestId=str(uuid4()), fromDate="2026-04-01", toDate="2026-04-30")
         with patch("app.service.business_report_service.build_bom", side_effect=AssertionError("No BOM route")), \
@@ -184,9 +198,11 @@ class OfficialBomArtifactTests(unittest.TestCase):
     def tearDownClass(cls):
         cls.guard.stop()
 
-    def test_five_sheet_v3_workbook_protocol_and_reference_results(self):
+    def test_workbook_protocol_and_reference_results_with_customer_lookup(self):
         workbook = load_workbook(BytesIO(self.content))
         self.assertEqual(workbook.sheetnames, SHEETS)
+        self.assertNotIn("ĐỐI CHIẾU KẾT QUẢ GỢI Ý", workbook.sheetnames)
+        self.assertEqual(len(workbook.sheetnames), 5)
         self.assertEqual(self.evidence["workbook_schema"], WORKBOOK_SCHEMA)
         self.assertEqual(self.evidence["workbook_evidence"]["ingredient_lines"], 348)
         summary = self.evidence["summary"]
@@ -197,9 +213,9 @@ class OfficialBomArtifactTests(unittest.TestCase):
         self.assertTrue(self.source["research_only"])
         self.assertTrue(any("research_only=true" in str(row[0]) for row in workbook.worksheets[0].values))
         self.assertNotIn("path", json.dumps(self.source))
-        comparison = list(table_rows(workbook.worksheets[3]))
-        self.assertEqual(sum(r[2] for r in comparison), 2000)
-        self.assertEqual(sum(r[4] for r in comparison), 62)
+        statistics = list(table_rows(workbook.worksheets[2]))
+        self.assertEqual(sum(r[3] for r in statistics), 2000)
+        self.assertEqual(sum(r[5] for r in statistics), 62)
         # Existing File-Service contract accepts generic generated XLSX, not Product sheet names.
         with ZipFile(BytesIO(self.content)) as archive:
             self.assertIsNone(archive.testzip())
@@ -221,11 +237,11 @@ class OfficialBomArtifactTests(unittest.TestCase):
             build_bom(self.cfg, other)
         self.assertEqual(failure.exception.status_code, 409)
 
-    def test_official_adapter_rejects_newly_generated_legacy_four_sheet_content(self):
+    def test_official_adapter_rejects_content_missing_recipe_catalog(self):
         workbook = load_workbook(BytesIO(self.content))
-        del workbook[SHEETS[4]]
+        del workbook[SHEETS[3]]
         stream = BytesIO(); workbook.save(stream)
-        with patch("app.ingredient_demo.service.IngredientDemoService.excel", return_value=stream.getvalue()):
+        with patch("app.service.bom_report_source.build_workbook", return_value=stream.getvalue()):
             with self.assertRaises(HTTPException) as failure:
                 build_bom(self.cfg, self.source)
         self.assertEqual(failure.exception.status_code, 503)
@@ -247,11 +263,36 @@ class OfficialBomArtifactTests(unittest.TestCase):
         finally:
             engine_fixture.doCleanups()
 
+    def test_two_periods_export_different_purchases_with_the_same_prediction_baseline(self):
+        fixture = OfficialBomLifecycleTests(); fixture.setUp()
+        try:
+            workbooks = []
+            with patch("app.service.business_report_service.get_settings", return_value=self.cfg), \
+                 patch("app.service.business_report_service.select_bom_source", side_effect=select_bom_source), \
+                 patch("app.service.business_report_service.build_bom", side_effect=build_bom):
+                for start, end in (("2026-04-01", "2026-04-15"), ("2026-04-16", "2026-04-30")):
+                    response = fixture.export(dict(fixture.payload, requestId=str(uuid4()), fromDate=start, toDate=end))
+                    self.assertEqual(response.status_code, 200)
+                    receipt = response.json()
+                    download = fixture.client.get(f"{fixture.base}/{receipt['id']}/download", headers=signed())
+                    self.assertEqual(hashlib.sha256(download.content).hexdigest(), receipt["sha256"])
+                    wb = load_workbook(BytesIO(download.content)); self.addCleanup(wb.close)
+                    self.assertIn(date.fromisoformat(start).strftime("%d/%m/%Y"), wb[SHEETS[0]]["A2"].value)
+                    self.assertIn(date.fromisoformat(end).strftime("%d/%m/%Y"), wb[SHEETS[0]]["A2"].value)
+                    workbooks.append(wb)
+            first, last = workbooks
+            first_rows, last_rows = [list(table_rows(wb[SHEETS[2]])) for wb in workbooks]
+            self.assertNotEqual([row[4:] for row in first_rows], [row[4:] for row in last_rows])
+            self.assertEqual([row[:4] for row in first_rows], [row[:4] for row in last_rows])
+            self.assertEqual(list(table_rows(first[SHEETS[4]])), list(table_rows(last[SHEETS[4]])))
+        finally:
+            fixture.doCleanups()
+
     def test_legacy_prepared_and_complete_bytes_survive_layout_change_new_request_gets_new_layout(self):
         legacy = Workbook()
         legacy.active.title = SHEETS[0]
         legacy.active["A1"] = "Legacy BOM V2 four-sheet fixture"
-        for title in SHEETS[1:4]:
+        for title in (SHEETS[1], SHEETS[2], "ĐỐI CHIẾU KẾT QUẢ GỢI Ý"):
             legacy.create_sheet(title)
         stream = BytesIO(); legacy.save(stream)
         old_bytes = stream.getvalue()

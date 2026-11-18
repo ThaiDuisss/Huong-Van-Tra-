@@ -2,12 +2,10 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi, beforeEach } from "vitest";
 
-// Mock role-utils
-vi.mock("@/auth/role-utils", () => ({
-    CUSTOMER_RETURN_QC_ROLES: ["ROLE_SUPER_ADMIN", "ROLE_MANAGER", "ROLE_QC"],
+vi.mock("@/auth/useAuthorization", () => ({
     useAuthorization: () => ({
-        hasAnyRole: () => true,
-        hasRole: () => true
+        roles: ["ROLE_QC"],
+        permissions: ["inventory:view", "inventory:receive", "inventory:qc", "inventory:adjust"]
     })
 }));
 

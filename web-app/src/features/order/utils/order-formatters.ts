@@ -26,6 +26,8 @@ const PAYMENT_STATUS_LABELS: Record<string, string> = {
     WAITING_PAYMENT: "Chưa thanh toán",
     PENDING: "Chưa thanh toán",
     PARTIAL: "Thanh toán một phần",
+    PARTIALLY_PAID: "Đã đặt cọc",
+    NEED_REVIEW: "Chờ kiểm tra thanh toán",
     FAILED: "Thanh toán thất bại",
     REFUNDED: "Đã hoàn tiền",
     PARTIALLY_REFUNDED: "Hoàn tiền một phần",
@@ -175,6 +177,17 @@ export function getPaymentStatusText(order?: OrderSummaryResponse | null) {
         order?.paymentStatusLabel?.trim() ||
         getPaymentStatusLabel(order?.paymentStatus)
     );
+}
+
+/** Invoice payment presentation only; preserve raw settlement/refund state everywhere else. */
+export function getInvoicePaymentStatus(order?: OrderSummaryResponse | null) {
+    return order?.paymentStatus === "PARTIALLY_REFUNDED" || order?.paymentStatus === "REFUNDED"
+        ? "PAID" : order?.paymentStatus;
+}
+
+export function getInvoicePaymentStatusText(order?: OrderSummaryResponse | null) {
+    return order?.paymentStatus === "PARTIALLY_REFUNDED" || order?.paymentStatus === "REFUNDED"
+        ? getPaymentStatusLabel("PAID") : getPaymentStatusText(order);
 }
 
 export function getOrderTypeText(order?: OrderSummaryResponse | null) {

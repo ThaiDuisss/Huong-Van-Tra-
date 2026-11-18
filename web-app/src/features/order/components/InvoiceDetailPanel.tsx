@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { X } from "lucide-react";
 
 import { IconButton } from "../../../components/ui/Button";
@@ -14,11 +14,14 @@ import {
     getOrderCode,
     getOrderTypeText,
     getPaymentStatusText,
+    getInvoicePaymentStatus,
+    getInvoicePaymentStatusText,
     getRecipientName,
     getRecipientPhone,
     getStaffName
 } from "../utils/order-formatters";
 import { PaymentStatusBadge } from "./PaymentStatusBadge";
+import { getInvoiceRefundedAmount } from "../services/invoice-refund-summary";
 
 interface InvoiceDetailPanelProps {
     order: OrderDetailResponse | null;
@@ -163,8 +166,8 @@ export function InvoiceDetailPanel({
                                 label="Trạng thái"
                                 value={
                                     <PaymentStatusBadge
-                                        status={displayOrder.paymentStatus}
-                                        label={getPaymentStatusText(displayOrder)}
+                                        status={getInvoicePaymentStatus(displayOrder)}
+                                        label={getInvoicePaymentStatusText(displayOrder)}
                                     />
                                 }
                             />
@@ -186,6 +189,12 @@ export function InvoiceDetailPanel({
                                 label="Khách trả"
                                 value={formatCurrency(order?.paidAmount)}
                             />
+                            {displayOrder.paymentStatus === "PARTIALLY_REFUNDED" || displayOrder.paymentStatus === "REFUNDED" ? (
+                                <>
+                                    <InfoRow label="Hoàn tiền" value={getPaymentStatusText(displayOrder)} />
+                                    <InvoiceRefundDetails key={`${displayOrder.id}:${displayOrder.paymentStatus}`} order={order} />
+                                </>
+                            ) : null}
                             {hasValue(order?.debtAmount) ? (
                                 <InfoRow
                                     label="Công nợ"
@@ -238,6 +247,28 @@ export function InvoiceDetailPanel({
             ) : null}
         </aside>
     );
+}
+
+function InvoiceRefundDetails({ order }: { order: OrderDetailResponse | null }) {
+    const [refunded, setRefunded] = useState<number | null>(null);
+    const [failed, setFailed] = useState(false);
+    const orderId = order?.id;
+    useEffect(() => {
+        if (!orderId) return;
+        let active = true;
+        void getInvoiceRefundedAmount(orderId)
+            .then(amount => { if (active) setRefunded(amount); })
+            .catch(() => { if (active) setFailed(true); });
+        return () => { active = false; };
+    }, [orderId]);
+    const rawPaid = order?.paidAmount;
+    const paid = rawPaid == null || String(rawPaid).trim() === "" ? NaN : Number(rawPaid);
+    const net = refunded !== null && Number.isFinite(paid) && paid >= refunded ? paid - refunded : null;
+    return <>
+        <InfoRow label="Đã hoàn" value={formatCurrency(refunded)} />
+        <InfoRow label="Thực nhận sau hoàn" value={formatCurrency(net)} />
+        {failed ? <p role="alert" className="text-sm text-red-700">Chưa xác minh được số tiền hoàn.</p> : null}
+    </>;
 }
 
 function InfoRow({ label, value }: { label: string; value: ReactNode }) {

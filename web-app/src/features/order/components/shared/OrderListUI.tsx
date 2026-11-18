@@ -19,22 +19,22 @@ export function OrderPageHeader({ title, description, actions }: OrderPageHeader
 
 export function OrderPageLayout({
   sidebar,
-  sidebarCollapsed,
+  sidebarCollapsed = false,
   children,
   style,
   ...header
 }: OrderPageHeaderProps & {
-  sidebar: ReactNode;
-  sidebarCollapsed: boolean;
+  sidebar?: ReactNode;
+  sidebarCollapsed?: boolean;
   children: ReactNode;
   style?: CSSProperties;
 }) {
   return (
     <section
-      className={`${styles.page} ${sidebarCollapsed ? styles.pageTimeCollapsed : ""}`}
+      className={`${styles.page} ${sidebar ? (sidebarCollapsed ? styles.pageTimeCollapsed : "") : styles.pageNoSidebar}`}
       style={style}
     >
-      <div className={styles.sidebar}>{sidebar}</div>
+      {sidebar ? <div className={styles.sidebar}>{sidebar}</div> : null}
       <div className={styles.content}>
         <OrderPageHeader {...header} />
         {children}

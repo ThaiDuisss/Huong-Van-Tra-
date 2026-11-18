@@ -34,10 +34,10 @@ const utilityItems = [
 export function PosSidebar() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { avatarUrl, displayName, logout, roleLabel, roles, username } = useAuth();
+  const { avatarUrl, displayName, logout, roleLabel, roles, permissions, username } = useAuth();
   const visibleNavItems = useMemo(
-    () => filterPosNavigationByRoles(posNavigationItems, roles),
-    [roles]
+    () => filterPosNavigationByRoles(posNavigationItems, roles, permissions),
+    [roles, permissions]
   );
   const [openGroup, setOpenGroup] = useState<string | null>("orders");
   const [collapsed, setCollapsed] = useSidebarCollapsed("hvt.pos.sidebarCollapsed");
@@ -49,12 +49,12 @@ export function PosSidebar() {
 
   const currentPath = `${location.pathname}${location.search}`;
 
-  function isItemActive(item: PosNavigationItem) {
-    if (item.to && currentPath === item.to) {
+  function isItemActive(item: PosNavigationItem): boolean {
+    if (item.to && (currentPath === item.to || location.pathname.startsWith(`${item.to}/`) || location.pathname === item.to)) {
       return true;
     }
 
-    return item.children?.some((child) => child.to === currentPath) ?? false;
+    return item.children?.some((child) => isItemActive(child)) ?? false;
   }
 
   return (
@@ -149,7 +149,7 @@ export function PosSidebar() {
                 <div className="mt-1 grid gap-1 rounded-lg border border-[#a8e3b7] bg-white p-2">
                   {item.children?.map((child) => {
                     const ChildIcon = child.icon;
-                    const childActive = child.to === currentPath;
+                    const childActive = isItemActive(child);
 
                     return (
                       <button

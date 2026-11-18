@@ -67,6 +67,20 @@ describe("shared Order list presentation", () => {
     expect(markup).toContain("pageTimeCollapsed");
   });
 
+  it("renders single-column layout without sidebar when sidebar prop is omitted", () => {
+    const markup = html(
+      createElement(OrderPageLayout, {
+        title: "Bán hàng hôm nay",
+        description: "Theo dõi doanh thu",
+        children: "Nội dung bảng",
+      }),
+    );
+    expect(markup).toContain("Bán hàng hôm nay</h1>");
+    expect(markup).toContain("pageNoSidebar");
+    expect(markup).not.toContain("pageTimeCollapsed");
+    expect(markup).toContain("Nội dung bảng");
+  });
+
   it("keeps each screen's search and Escape callbacks controlled by that screen", () => {
     const onChange = vi.fn();
     const onKeyDown = vi.fn();

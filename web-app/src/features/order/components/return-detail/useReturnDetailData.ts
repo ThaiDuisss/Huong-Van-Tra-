@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { useOrderReturnAccess } from "../../../../auth/order-return-access";
 
 import { customerReturnApi } from "../../../inventory/services/customerReturn.api";
 import type { CustomerReturnInspection } from "../../../inventory/types/customer-return-inspection.types";
@@ -12,6 +13,7 @@ import type {
     CustomerReturnQcSummaryResponse,
     OrderRefundDetailResponse,
     OrderReturnListRow,
+    OrderReturnResponse,
     OrderReturnTimelineResponse
 } from "../../types/order-return.types";
 import { getReturnErrorMessage } from "../../utils/order-return.utils";
@@ -26,11 +28,12 @@ export interface ReturnDetailData {
     inspections: CustomerReturnInspection[];
     loading: boolean;
     error: string | null;
-    reload: () => void;
+    reload: (updated?: OrderReturnResponse) => void;
 }
 
 /** Tải toàn bộ dữ liệu cho hộp thoại chi tiết phiếu hoàn (dùng chung cho Đơn hàng và Kho). */
 export function useReturnDetailData(baseRow: OrderReturnListRow): ReturnDetailData {
+    const { canReadQc } = useOrderReturnAccess();
     const [detail, setDetail] = useState<OrderReturnListRow | null>(null);
     const [qcSummary, setQcSummary] = useState<CustomerReturnQcSummaryResponse | null>(null);
     const [qcSummaryError, setQcSummaryError] = useState<string | null>(null);
@@ -52,15 +55,15 @@ export function useReturnDetailData(baseRow: OrderReturnListRow): ReturnDetailDa
             setError(null);
 
             const detailRequest = getOrderReturnDetail(returnId);
-            const qcRequest = getCustomerReturnQcSummary(returnId)
+            const qcRequest = canReadQc ? getCustomerReturnQcSummary(returnId)
                 .then((summary) => ({ summary, error: null as string | null }))
                 .catch((qcError: unknown) => ({
                     summary: null,
                     error: getReturnErrorMessage(qcError, "Không thể tải thông tin kiểm hàng")
-                }));
+                })) : Promise.resolve({ summary: null, error: null });
             const refundRequest = getOrderRefundDetail(returnId).catch(() => null);
             const timelineRequest = getOrderReturnTimeline(returnId).catch(() => []);
-            const inspectionRequest = returnCode
+            const inspectionRequest = canReadQc && returnCode
                 ? customerReturnApi.listInspections({
                     orderCode: "",
                     page: 0,
@@ -93,9 +96,19 @@ export function useReturnDetailData(baseRow: OrderReturnListRow): ReturnDetailDa
         return () => {
             active = false;
         };
-    }, [reloadKey, returnCode, returnId]);
+    }, [canReadQc, reloadKey, returnCode, returnId]);
 
-    const reload = useCallback(() => setReloadKey((key) => key + 1), []);
+    const reload = useCallback((updated?: OrderReturnResponse) => {
+        if (updated?.id === returnId && updated.status) {
+            setDetail((current) => ({
+                id: returnId,
+                ...current,
+                status: updated.status,
+                displayStatus: updated.displayStatus ?? updated.status
+            }));
+        }
+        setReloadKey((key) => key + 1);
+    }, [returnId]);
 
     return {
         returnItem: {

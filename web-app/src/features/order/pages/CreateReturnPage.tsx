@@ -21,7 +21,9 @@ import {
     TableHeaderCell,
     TableRow
 } from "../../../components/ui/Table";
+import { toast as appToast } from "../../../components/ui/Toast";
 import { routePaths } from "../../../routes/path";
+import { useOrderReturnAccess } from "../../../auth/order-return-access";
 
 import { getOrderById, getOrders } from "../services/order.api";
 import { checkOrderReturnEligibility, createOrderReturn, getOrderReturns } from "../services/order-return.api";
@@ -32,7 +34,6 @@ import { ReturnEligibilityStatus } from "../components/ReturnEligibilityStatus";
 import { ReturnPolicyModal } from "../components/ReturnPolicyModal";
 import type {
     OrderDetailResponse,
-    OrderItemResponse,
     OrderPageResponse,
     OrderQueryParams,
     OrderSummaryResponse
@@ -234,6 +235,7 @@ function getDraftValidationError(
 }
 
 export function CreateReturnPage() {
+    const { canCreate } = useOrderReturnAccess();
     const { orderId } = useParams();
     const navigate = useNavigate();
     const [wizardStep, setWizardStep] = useState<WizardStep>(orderId ? 2 : 1);
@@ -449,7 +451,7 @@ export function CreateReturnPage() {
         };
     }, [eligibilityKey, eligibilityOrderId, eligibilityRequest, shouldCheckEligibility]);
 
-    const isCreateDisabled = isSubmitting || Boolean(draftValidationError) || isCheckingEligibility || !eligibility?.eligible;
+    const isCreateDisabled = !canCreate || isSubmitting || Boolean(draftValidationError) || isCheckingEligibility || !eligibility?.eligible;
     const isNextDisabled =
         isSubmitting ||
         (wizardStep === 1 &&
@@ -462,7 +464,7 @@ export function CreateReturnPage() {
         (wizardStep === 3 && isCheckingEligibility);
 
     const handleBackToList = () => {
-        navigate(orderId ? "/system/orders" : "/system/orders/returns");
+        navigate(routePaths.returns);
     };
 
     const handleOrderSearchChange = (value: string) => {
@@ -601,7 +603,7 @@ export function CreateReturnPage() {
     };
 
     const submitReturn = async () => {
-        if (isSubmitting || wizardStep !== 4) {
+        if (!canCreate || isSubmitting || wizardStep !== 4) {
             return;
         }
 
@@ -643,9 +645,9 @@ export function CreateReturnPage() {
                 throw new Error("Điều kiện hoàn hàng đã thay đổi. Vui lòng kiểm tra lại trước khi tạo phiếu.");
             }
             payload.items = buildReturnPayloadItems(freshOrder.items ?? [], draftItems, freshReturns, latestEligibility.items);
-            const createdReturn = await createOrderReturn(freshOrder.id, payload);
-            setToast("Tạo phiếu hoàn hàng thành công");
-            window.setTimeout(() => navigate(`${routePaths.returns}?detail=${encodeURIComponent(createdReturn.id)}`), 350);
+            await createOrderReturn(freshOrder.id, payload);
+            appToast.success("Tạo phiếu hoàn hàng thành công");
+            navigate(routePaths.returns);
         } catch (error: unknown) {
             setToast(getReturnErrorMessage(error));
             setEligibilityRevision(current => current + 1);
@@ -838,15 +840,6 @@ export function CreateReturnPage() {
             </section>
 
             <footer className={styles.footer}>
-                <WizardSummary
-                    customer={selectedOrderSummary ? getCustomerDisplay(selectedOrderSummary) : null}
-                    entries={selectedEntries.map(({ item, itemKey }) => ({
-                        item,
-                        quantity: Number(draftItems[itemKey]?.quantity) || 0
-                    }))}
-                    orderCode={selectedOrder?.orderCode ?? selectedOrderSummary?.orderCode ?? null}
-                    refundRequired={refundRequired}
-                />
                 <Button
                     disabled={wizardStep === 1 || isSubmitting}
                     onClick={() =>
@@ -1128,51 +1121,6 @@ function OrderReturnStatusTag({ order }: { order: OrderSummaryResponse }) {
         <StatusBadge shape="tag" tone={tag.tone}>
             {order.returnStatusLabel?.trim() || tag.label}
         </StatusBadge>
-    );
-}
-
-/** Tóm tắt cố định cạnh nút Tiếp tục: đơn đã chọn, số sản phẩm, giá trị hàng trả tạm tính. */
-function WizardSummary({
-    customer,
-    entries,
-    orderCode,
-    refundRequired
-}: {
-    customer: string | null;
-    entries: Array<{ item: OrderItemResponse; quantity: number }>;
-    orderCode: string | null;
-    refundRequired: boolean;
-}) {
-    if (!orderCode) {
-        return <p className={styles.wizardSummaryEmpty}>Chọn đơn hàng để bắt đầu.</p>;
-    }
-    const totalQuantity = entries.reduce((sum, entry) => sum + entry.quantity, 0);
-    // Tạm tính theo đơn giá thực bán của từng dòng; số tiền hoàn chính xác do hệ thống tính khi hoàn tiền.
-    const estimatedValue = entries.reduce((sum, { item, quantity }) => {
-        const lineQuantity = Number(item.quantity) || 0;
-        const unitPrice = lineQuantity > 0 && item.lineTotal != null
-            ? Number(item.lineTotal) / lineQuantity
-            : Number(item.actualUnitPrice ?? item.originalUnitPrice ?? 0);
-        return sum + unitPrice * quantity;
-    }, 0);
-
-    return (
-        <dl className={styles.wizardSummary}>
-            <div>
-                <dt>Đơn hàng</dt>
-                <dd>{orderCode}{customer ? ` · ${customer}` : ""}</dd>
-            </div>
-            <div>
-                <dt>Sản phẩm hoàn</dt>
-                <dd>{entries.length} dòng · SL {totalQuantity.toLocaleString("vi-VN")}</dd>
-            </div>
-            {refundRequired && entries.length > 0 ? (
-                <div>
-                    <dt>Giá trị hàng trả (tạm tính)</dt>
-                    <dd>{formatCurrency(estimatedValue)}</dd>
-                </div>
-            ) : null}
-        </dl>
     );
 }
 

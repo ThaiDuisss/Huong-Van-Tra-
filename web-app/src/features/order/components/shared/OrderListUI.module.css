@@ -19,6 +19,9 @@
 .pageTimeCollapsed {
   grid-template-columns: 48px minmax(0, 1fr);
 }
+.pageNoSidebar {
+  grid-template-columns: minmax(0, 1fr);
+}
 .sidebar {
   min-height: 0;
   overflow: hidden;

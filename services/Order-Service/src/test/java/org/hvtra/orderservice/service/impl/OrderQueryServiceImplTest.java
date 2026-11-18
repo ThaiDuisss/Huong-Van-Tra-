@@ -39,6 +39,8 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
@@ -152,25 +154,29 @@ class OrderQueryServiceImplTest {
 
     @Test
     @SuppressWarnings("unchecked")
-    void getOrdersPreservesFiltersBusinessSortPagingClampAndMapping() {
+    void getPaidInvoicesPreservesLifecycleFiltersPagingAndIncludesRefundedPayments() {
         LocalDate fromDate = LocalDate.of(2026, 7, 1);
         LocalDate toDate = LocalDate.of(2026, 7, 24);
         UUID orderId = UUID.randomUUID();
         Order order = order(orderId);
         OrderSummaryResponse summary = OrderSummaryResponse.builder().id(orderId).build();
         Specification<Order> filters = mock(Specification.class);
+        Specification<Order> paidPayments = mock(Specification.class);
+        Specification<Order> invoiceFilters = mock(Specification.class);
         Specification<Order> sorted = mock(Specification.class);
         PageRequest expectedPageRequest = PageRequest.of(0, 200);
         when(orderQueryCriteriaBuilder.build(
                 "sen",
                 OrderStatus.COMPLETED,
-                PaymentStatus.PAID,
+                null,
                 "POS",
                 fromDate,
                 toDate
         )).thenReturn(filters);
+        when(orderQueryCriteriaBuilder.paidInvoicePayments()).thenReturn(paidPayments);
+        when(filters.and(paidPayments)).thenReturn(invoiceFilters);
         when(orderQueryCriteriaBuilder.normalizeSort("invoicePayment")).thenReturn("invoicePayment");
-        when(orderQueryCriteriaBuilder.withBusinessOrder(filters, "invoicePayment")).thenReturn(sorted);
+        when(orderQueryCriteriaBuilder.withBusinessOrder(invoiceFilters, "invoicePayment")).thenReturn(sorted);
         when(orderRepository.findAll(sorted, expectedPageRequest))
                 .thenReturn(new PageImpl<>(List.of(order), expectedPageRequest, 1));
         when(orderMapper.toSummaryResponse(order)).thenReturn(summary);
@@ -194,16 +200,31 @@ class OrderQueryServiceImplTest {
         inOrder.verify(orderQueryCriteriaBuilder).build(
                 "sen",
                 OrderStatus.COMPLETED,
-                PaymentStatus.PAID,
+                null,
                 "POS",
                 fromDate,
                 toDate
         );
+        inOrder.verify(orderQueryCriteriaBuilder).paidInvoicePayments();
+        verify(filters).and(paidPayments);
         inOrder.verify(orderQueryCriteriaBuilder).normalizeSort("invoicePayment");
-        inOrder.verify(orderQueryCriteriaBuilder).withBusinessOrder(filters, "invoicePayment");
+        inOrder.verify(orderQueryCriteriaBuilder).withBusinessOrder(invoiceFilters, "invoicePayment");
         inOrder.verify(orderRepository).findAll(sorted, expectedPageRequest);
         inOrder.verify(orderMapper).toSummaryResponse(order);
         verifyNoInteractions(orderResponseAssembler);
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void rawPaidQueryOutsideInvoicesDoesNotExpandRefundStatuses() {
+        Specification<Order> filters = mock(Specification.class);
+        when(orderQueryCriteriaBuilder.build(null, null, PaymentStatus.PAID, null, null, null)).thenReturn(filters);
+        when(orderQueryCriteriaBuilder.normalizeSort("businessStatus")).thenReturn("businessStatus");
+        when(orderQueryCriteriaBuilder.withBusinessOrder(filters, "businessStatus")).thenReturn(filters);
+        when(orderRepository.findAll(filters, PageRequest.of(0, 10))).thenReturn(Page.empty());
+        service.getOrders(null, null, PaymentStatus.PAID, null, null, null, "businessStatus", 0, 10);
+        verify(orderQueryCriteriaBuilder).build(null, null, PaymentStatus.PAID, null, null, null);
+        verify(orderQueryCriteriaBuilder, never()).paidInvoicePayments();
     }
 
     @Test
@@ -253,7 +274,7 @@ class OrderQueryServiceImplTest {
         when(orderQueryCriteriaBuilder.byStatuses(
                 fromDate,
                 toDate,
-                List.of(OrderStatus.DRAFT, OrderStatus.PENDING_PAYMENT)
+                List.of(OrderStatus.PENDING_PAYMENT)
         )).thenReturn(pending);
         when(orderQueryCriteriaBuilder.byStatuses(
                 fromDate,
@@ -304,7 +325,7 @@ class OrderQueryServiceImplTest {
         inOrder.verify(orderQueryCriteriaBuilder).byStatuses(
                 fromDate,
                 toDate,
-                List.of(OrderStatus.DRAFT, OrderStatus.PENDING_PAYMENT)
+                List.of(OrderStatus.PENDING_PAYMENT)
         );
         inOrder.verify(orderRepository).count(pending);
         inOrder.verify(orderQueryCriteriaBuilder).byStatuses(

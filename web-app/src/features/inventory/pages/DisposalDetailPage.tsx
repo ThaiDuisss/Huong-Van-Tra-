@@ -103,7 +103,7 @@ export function DisposalDetailPage() {
             <header className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
                 <div className="min-w-0">
                     <Link className="inline-flex items-center gap-1.5 text-sm font-black text-[#159734] hover:underline" to="/management/inventory/disposals">
-                        <ArrowLeft size={16} aria-hidden="true" /> Yêu cầu tiêu hủy
+                        <ArrowLeft size={16} aria-hidden="true" /> Tiêu hủy
                     </Link>
                     <div className="mt-1 flex flex-wrap items-center gap-2">
                         <h1 className="text-2xl font-black outline-none" ref={titleRef} tabIndex={-1}>{disposal?.code ?? "Chi tiết tiêu hủy"}</h1>

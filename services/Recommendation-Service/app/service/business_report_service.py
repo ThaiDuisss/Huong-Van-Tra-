@@ -88,7 +88,7 @@ class BusinessReportService:
                 # Legacy pending intents predate source selection and belong to OPERATIONAL.
                 pinned = (record.evidence or {}).get("report_source", dict(OPERATIONAL))
                 if payload.reportType == "CUSTOM_BOM":
-                    workbook, evidence = build_bom(cfg, pinned)
+                    workbook, evidence = build_bom(cfg, pinned, record.from_date, record.to_date)
                 elif pinned["kind"] == "OPERATIONAL":
                     workbook, evidence = build_workbook(db, record.from_date, record.to_date, record.generated_at,
                                                         cfg.ai_report_max_evidence_rows)

@@ -1,4 +1,4 @@
-"""Integer business counts, deterministic next-order matching, four Vietnamese sheets."""
+"""Integer business counts, deterministic next-order matching, three Vietnamese sheets."""
 from collections import defaultdict
 from bisect import bisect_right
 from datetime import datetime, timedelta, timezone
@@ -17,7 +17,7 @@ from app.service.business_report_excel import (WIDTHS, add_kpis, add_methodology
                                               prepare_sheet, write_table)
 
 LOCAL = timezone(timedelta(hours=7))
-SHEETS = ["TỔNG QUAN BÁO CÁO", "CHI TIẾT THEO KHÁCH HÀNG", "THỐNG KÊ SẢN PHẨM", "ĐỐI CHIẾU KẾT QUẢ GỢI Ý"]
+SHEETS = ["TỔNG QUAN BÁO CÁO", "CHI TIẾT THEO KHÁCH HÀNG", "THỐNG KÊ SẢN PHẨM"]
 STATUSES = {"MATCHED": "Trùng {count} món", "NO_OVERLAP": "Không trùng", "NO_PURCHASE": "Chưa có đơn",
             "NOT_YET_EVALUATED": "Chưa đủ thời gian đánh giá",
             "SUPERSEDED": "Đơn được đối chiếu với lần gợi ý mới hơn"}
@@ -160,7 +160,7 @@ def build_workbook(db, from_date, to_date, as_of, max_rows=20000):
                 "Overview", WIDTHS[0], header=9, totals=[None, "Tổng", sum(v["appearances"] for v in stats.values()),
                                                         sum(v["units"] for v in stats.values()), sum(v["matches"] for v in stats.values())])
     add_methodology(overview, notes)
-    details, comparisons, audit = [], [], []
+    details, audit = [], []
     for snapshot in selected:
         result = results[snapshot.id]
         order = result["order"]
@@ -173,9 +173,6 @@ def build_workbook(db, from_date, to_date, as_of, max_rows=20000):
         mode_label = "Khám phá" if snapshot.mode == "DISCOVERY" else "Mua lại"
         details.append([customer_code(snapshot.customer_id), snapshot.generated_at.replace(tzinfo=timezone.utc).astimezone(LOCAL).replace(tzinfo=None),
                         f"{mode_label}\n{suggested}", purchased, matched_names])
-        comparisons.append([snapshot.id, customer_code(snapshot.customer_id), len(snapshot.response["items"]),
-                            len(quantities) if order else (0 if result["status"] == "NO_PURCHASE" else None),
-                            len(matched) if matched is not None else None, status])
         audit.append(dict(snapshot_id=snapshot.id, customer_id=snapshot.customer_id, mode=snapshot.mode,
                           generated_at=snapshot.generated_at.isoformat(), observed_at=snapshot.observed_at.isoformat(),
                           source=snapshot.source, fallback_reason=snapshot.fallback_reason,
@@ -194,8 +191,6 @@ def build_workbook(db, from_date, to_date, as_of, max_rows=20000):
     write_table(wb.worksheets[2], ["STT", "Sản phẩm", "Số khách được gợi ý", "Lượt gợi ý", "Số đơn có mua", "Số ly bán"],
            [[n, name(p), len(stats[p]["customers"]), stats[p]["appearances"], len(stats[p]["orders"]), stats[p]["units"]]
             for n, p in enumerate(products, 1)], "Products", WIDTHS[2])
-    write_table(wb.worksheets[3], ["Mã lần gợi ý", "Mã KH", "Số món gợi ý", "Số món khách mua", "Số món trùng", "Kết quả"], comparisons,
-                "Matches", WIDTHS[3], repeat_columns=(0, 1))
     for ws in wb:
         finish_print_area(ws)
     output = BytesIO(); wb.save(output)

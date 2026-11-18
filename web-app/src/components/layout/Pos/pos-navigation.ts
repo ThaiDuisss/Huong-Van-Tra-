@@ -2,11 +2,14 @@ import {
   BarChart3,
   BriefcaseBusiness,
   FileText,
+  History,
+  Leaf,
   PackageOpen,
   PackageSearch,
   ShoppingBag,
   Sparkles,
-  User
+  User,
+  WalletCards
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -17,6 +20,7 @@ import {
   hasAnyRole
 } from "../../../auth/role-utils";
 import { routePaths } from "../../../routes/path";
+import { getOrderReturnAccess } from "../../../auth/order-return-access";
 
 export interface PosNavigationItem {
   key: string;
@@ -24,6 +28,7 @@ export interface PosNavigationItem {
   icon: LucideIcon;
   to?: string;
   roles?: AppRole[];
+  returnAccess?: "canReadSales";
   children?: PosNavigationItem[];
 }
 
@@ -54,6 +59,22 @@ export const posNavigationItems: PosNavigationItem[] = [
         icon: BarChart3,
         to: routePaths.salesHistory,
         roles: POS_WORKSPACE_ROLES
+      },
+      {
+        key: "orders-returns",
+        label: "Hoàn hàng",
+        icon: History,
+        to: routePaths.returns,
+        roles: POS_WORKSPACE_ROLES,
+        returnAccess: "canReadSales"
+      },
+      {
+        key: "orders-refunds",
+        label: "Hoàn tiền",
+        icon: WalletCards,
+        to: routePaths.refunds,
+        roles: POS_WORKSPACE_ROLES,
+        returnAccess: "canReadSales"
       },
       {
         key: "backorders",
@@ -90,14 +111,16 @@ export const posNavigationItems: PosNavigationItem[] = [
 
 export function filterPosNavigationByRoles(
   items: readonly PosNavigationItem[],
-  userRoles: readonly string[] | undefined
+  userRoles: readonly string[] | undefined,
+  permissions?: readonly string[]
 ): PosNavigationItem[] {
   return items
     .filter((item) => hasAnyRole(userRoles, item.roles))
+    .filter((item) => !item.returnAccess || getOrderReturnAccess(userRoles, permissions)[item.returnAccess])
     .map((item) => ({
       ...item,
       children: item.children
-        ? filterPosNavigationByRoles(item.children, userRoles)
+        ? filterPosNavigationByRoles(item.children, userRoles, permissions)
         : undefined
     }))
     .filter((item) => !item.children || item.children.length > 0);
