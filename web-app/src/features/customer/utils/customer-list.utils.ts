@@ -203,7 +203,9 @@ export function toCustomerQuery(
 export function formatCustomerRelativeDate(value: string) {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    const date = new Date(`${value}T00:00:00`);
+    // Backend trả LocalDateTime ("yyyy-MM-ddTHH:mm:ss"); chỉ lấy phần ngày để so theo ngày lịch.
+    const date = new Date(`${value.slice(0, 10)}T00:00:00`);
+    if (Number.isNaN(date.getTime())) return "—";
     const days = Math.round((today.getTime() - date.getTime()) / 86_400_000);
     if (days === 0) return "Hôm nay";
     if (days === 1) return "Hôm qua";
@@ -279,7 +281,9 @@ function copyNumberParam(
     params: URLSearchParams,
     key: "minTotalSpent" | "maxTotalSpent"
 ) {
-    const value = Number(params.get(key));
+    const raw = params.get(key)?.trim();
+    if (!raw) return;
+    const value = Number(raw);
     if (Number.isFinite(value) && value >= 0) query[key] = value;
 }
 
