@@ -14,7 +14,7 @@ from app.schemas.business_report import BusinessExportResponse
 from app.service.business_report_workbook import build_workbook
 from app.service.recommendation_snapshot_service import utc_now
 from app.service.report_data_source import OPERATIONAL, build_offline, select_source
-from app.service.bom_report_source import build_bom, select_bom_source
+from app.service.bom_report_source import build_bom, require_bom_coverage, select_bom_source
 
 logger = logging.getLogger(__name__)
 
@@ -47,6 +47,8 @@ class BusinessReportService:
         today = datetime.now(timezone(timedelta(hours=7))).date()
         if payload.reportType == "PRODUCT" and payload.toDate > today:
             raise HTTPException(422, "Future reporting dates are not supported")
+        if payload.reportType == "CUSTOM_BOM":
+            require_bom_coverage(payload.fromDate, payload.toDate)
         def intent():
             return db.scalar(select(BusinessReportExport).where(BusinessReportExport.created_by == user_id,
                 BusinessReportExport.request_key == str(payload.requestId)))

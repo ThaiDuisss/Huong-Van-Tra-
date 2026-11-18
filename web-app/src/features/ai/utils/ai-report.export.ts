@@ -46,12 +46,11 @@ export function vietnamToday(now = new Date()): string {
   return new Intl.DateTimeFormat("en-CA", {timeZone: "Asia/Bangkok", year: "numeric", month: "2-digit", day: "2-digit"}).format(now);
 }
 
-export function validateBomPeriod(fromDate: string, toDate: string, limits?: BomExportPeriod): string | null {
+export function validateBomPeriod(fromDate: string, toDate: string): string | null {
   const validDate = (value: string) => /^\d{4}-\d{2}-\d{2}$/.test(value)
     && !Number.isNaN(Date.parse(value)) && new Date(value).toISOString().slice(0, 10) === value;
   if (!validDate(fromDate) || !validDate(toDate)) return "Vui lòng chọn đầy đủ ngày bắt đầu và ngày kết thúc.";
   if (fromDate > toDate) return "Ngày bắt đầu phải trước hoặc bằng ngày kết thúc.";
-  if (limits && (fromDate < limits.fromDate || toDate > limits.toDate)) return "Kỳ xuất nằm ngoài phạm vi dữ liệu BOM.";
   return null;
 }
 

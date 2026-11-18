@@ -136,7 +136,7 @@ describe("shared Product and BOM export dialog", () => {
     expect(dateInputs(view).map(n => n.props.value)).toEqual(["2026-10-01", "2026-10-31"]);
     setDates(view, "2026-04-04", "2026-04-17");
     view.select("CUSTOM_BOM"); await flush(); view.render();
-    expect(dateInputs(view).map(n => n.props.max)).toEqual(["2026-04-30", "2026-04-30"]);
+    expect(dateInputs(view).map(n => n.props.max)).toEqual([undefined, undefined]);
     expect(dateInputs(view).map(n => n.props.value)).toEqual(["2026-04-04", "2026-04-17"]);
     setDates(view, "2026-04-05", "2026-04-12");
     view.select("PRODUCT");
@@ -144,7 +144,7 @@ describe("shared Product and BOM export dialog", () => {
     expect(dateInputs(view).map(n => n.props.max)).toEqual(["2026-10-31", "2026-10-31"]);
     view.select("CUSTOM_BOM");
     expect(dateInputs(view).map(n => n.props.value)).toEqual(["2026-04-05", "2026-04-12"]);
-    expect(view.props.api.getBomExportPeriod).toHaveBeenCalledOnce();
+    expect(view.props.api.getBomExportPeriod).not.toHaveBeenCalled();
     expect(text(view.find(n => n.type === DialogFooter))).toBe("ĐóngXuất báo cáo");
   });
 
@@ -189,8 +189,6 @@ describe("shared Product and BOM export dialog", () => {
     ["2026-04-01", "", "Vui lòng chọn đầy đủ"],
     ["2026-02-30", "2026-04-30", "Vui lòng chọn đầy đủ"],
     ["2026-04-20", "2026-04-10", "Ngày bắt đầu phải trước hoặc bằng ngày kết thúc"],
-    ["2026-03-31", "2026-04-30", "ngoài phạm vi dữ liệu BOM"],
-    ["2026-04-01", "2026-05-01", "ngoài phạm vi dữ liệu BOM"],
   ])("rejects BOM dates %s / %s before exporting", async (from, to, message) => {
     const view = await ready();
     change(dateInputs(view)[0], from); change(dateInputs(view)[1], to);
@@ -248,25 +246,34 @@ describe("shared Product and BOM export dialog", () => {
     expect(adapter.downloadBusinessReport).not.toHaveBeenCalled();
   });
 
-  it("lets the user retry loading the valid period and prevents export while unavailable", async () => {
+  it.each([["2026-05-01", "2026-05-31"], ["2026-11-01", "2026-11-18"], ["2026-04-30", "2026-11-18"]])(
+    "submits %s to %s as selected and explains when the dataset cannot cover the full period", async (fromDate, toDate) => {
     const adapter = api();
-    vi.mocked(adapter.getBomExportPeriod).mockRejectedValueOnce(new Error("unavailable"));
+    vi.mocked(adapter.exportBusinessReport).mockRejectedValue(new ApiError({status: 422, code: "BOM_PERIOD_UNSUPPORTED",
+      message: "unsupported period", details: {fromDate: "2026-04-01", toDate: "2026-04-30", timezone: "UTC"}}));
     const view = await ready(dialog(adapter));
-    view.submit();
-    expect(adapter.exportBusinessReport).not.toHaveBeenCalled();
-    click(view.find(n => n.type === "button" && text(n) === "Tải lại phạm vi ngày"));
-    view.render(); await ready(view);
-    expect(dateInputs(view).map(n => n.props.max)).toEqual(["2026-04-30", "2026-04-30"]);
+    setDates(view, fromDate, toDate); view.submit(); await flush(); view.render();
+    expect(adapter.exportBusinessReport).toHaveBeenCalledExactlyOnceWith({requestId: expect.any(String),
+      reportType: "CUSTOM_BOM", fromDate, toDate}, expect.any(AbortSignal));
+    expect(text(view.find(n => n.props.role === "alert"))).toContain("chưa hỗ trợ toàn bộ kỳ đã chọn");
+    expect(text(view.find(n => n.props.role === "alert"))).toContain("01/04/2026 – 30/04/2026 (UTC)");
+    expect(dateInputs(view).every(n => !n.props.disabled)).toBe(true);
+    expect(adapter.downloadBusinessReport).not.toHaveBeenCalled();
+    expect(view.props.onExported).not.toHaveBeenCalled();
   });
 
-  it("does not block Product when BOM's limit lookup fails", async () => {
+  it("shows the empty period separately and keeps Product available for the same dates", async () => {
     const adapter = api();
-    vi.mocked(adapter.getBomExportPeriod).mockRejectedValue(new Error("unavailable"));
+    vi.mocked(adapter.exportBusinessReport).mockRejectedValueOnce(new ApiError({status: 422, code: "BOM_NO_DATA", message: "empty"}));
     const view = await ready(dialog(adapter));
-    view.submit(); expect(adapter.exportBusinessReport).not.toHaveBeenCalled();
+    setDates(view, "2026-04-30", "2026-04-30"); view.submit(); await flush(); view.render();
+    expect(text(view.find(n => n.props.role === "alert"))).toBe("Không có lượt mua BOM trong kỳ đã chọn.");
+    expect(adapter.downloadBusinessReport).not.toHaveBeenCalled();
+    expect(fixture.bomRecover).toHaveBeenLastCalledWith("staff-a", null);
     view.select("PRODUCT"); view.submit(); await flush();
-    expect(adapter.exportBusinessReport).toHaveBeenCalledExactlyOnceWith({requestId: expect.any(String),
-      fromDate: "2026-04-01", toDate: "2026-04-30"}, expect.any(AbortSignal));
+    expect(adapter.exportBusinessReport).toHaveBeenNthCalledWith(2, {requestId: expect.any(String),
+      fromDate: "2026-04-30", toDate: "2026-04-30"}, expect.any(AbortSignal));
+    expect(view.props.onExported).toHaveBeenCalledExactlyOnceWith("PRODUCT");
   });
 
   it.each([401, 404, 503, 0])("sanitizes export error %s without calling another export flow", async (status) => {
