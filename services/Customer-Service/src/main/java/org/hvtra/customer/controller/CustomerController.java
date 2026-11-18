@@ -15,6 +15,7 @@ import org.hvtra.customer.dto.request.CustomerFilterRequest;
 import org.hvtra.customer.dto.request.CustomerImportRequest;
 import org.hvtra.customer.dto.request.CustomerRequest;
 import org.hvtra.customer.dto.response.CustomerImportResponse;
+import org.hvtra.customer.dto.response.CustomerLookupResponse;
 import org.hvtra.customer.dto.response.CustomerResponse;
 import org.hvtra.customer.dto.response.PageResponse;
 import org.hvtra.customer.service.CustomerImportService;
@@ -27,6 +28,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
 import java.util.UUID;
 
 @RestController
@@ -55,8 +57,22 @@ public class CustomerController {
         return customerService.findAll(filter, toPageable(page, size, sort));
     }
 
+    @GetMapping(ApiPath.CUSTOMER_LOOKUP)
+    @Operation(
+            summary = "Tra cứu nhanh khách hàng đang hoạt động",
+            description = "Tìm theo tên, số điện thoại hoặc mã khách; chỉ trả id, name, code, phone. Dùng cho dropdown / chọn khách."
+    )
+    public List<CustomerLookupResponse> lookup(
+            @Parameter(description = "Từ khóa: tên, số điện thoại hoặc mã khách")
+            @RequestParam(name = ApiParam.KEYWORD, required = false) String q,
+            @Parameter(description = "Số kết quả tối đa")
+            @RequestParam(name = ApiParam.SIZE, required = false, defaultValue = "20") @Min(1) @Max(100) Integer size
+    ) {
+        return customerService.lookup(q, size);
+    }
+
     @GetMapping(ApiPath.ID)
-    @Operation(summary = "Lấy chi tiết khách hàng")
+    @Operation(summary = "Lấy chi tiết khách hàng kèm hạng kế tiếp")
     public CustomerResponse getById(
             @PathVariable(ApiParam.ID) @Parameter(description = "ID khách hàng") UUID id
     ) {
@@ -100,14 +116,6 @@ public class CustomerController {
     )
     public CustomerImportResponse importCustomers(@Valid @RequestBody CustomerImportRequest request) {
         return customerImportService.importCustomers(request);
-    }
-
-    @PutMapping(ApiPath.PURCHASE_UPDATE)
-    @Operation(summary = "Cập nhật thông tin mua hàng của khách hàng từ đơn hàng")
-    public CustomerResponse updatePurchase(
-            @PathVariable("orderId") @Parameter(description = "ID đơn hàng") UUID orderId
-    ) {
-        return customerService.updatePurchase(orderId);
     }
 
     @UserAction(value = "CUSTOMER_DELETE", entityType = "Customer", entityId = "#id")

@@ -3,7 +3,9 @@ package org.hvtra.customer.it;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.hvtra.commonservice.common_core.domain.constants.HeaderConstants;
-import org.hvtra.customer.infrastructure.client.OrderClient;
+import org.hvtra.customer.integration.event.OrderCompletedEvent;
+import org.hvtra.customer.integration.event.OrderRefundedEvent;
+import org.hvtra.customer.service.CustomerPurchaseService;
 import org.junit.jupiter.api.BeforeEach;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -12,7 +14,6 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
-import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.ResultActions;
@@ -20,7 +21,9 @@ import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilde
 
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
+import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
 import java.util.HashMap;
 import java.util.HexFormat;
 import java.util.List;
@@ -36,8 +39,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 /**
  * Nền cho integration test Customer-Service: khởi động toàn bộ Spring context
- * (controller → service → repository → H2), gọi API qua MockMvc. Chỉ Order-Service
- * (OpenFeign {@link OrderClient}) được mock vì nằm ngoài service.
+ * (controller → service → repository → H2), gọi API qua MockMvc. Kafka tắt trong profile "it".
  * Mỗi test bắt đầu với DB sạch và 3 hạng MEMBER (0đ/0 đơn), SILVER (1.000.000đ/3 đơn), GOLD (5.000.000đ/10 đơn).
  */
 @SpringBootTest
@@ -47,14 +49,10 @@ public abstract class CustomerIntegrationTestSupport {
 
     protected static final String BASE = "/api/customer";
     protected static final String TIERS = BASE + "/tiers";
-    protected static final String ADDRESSES = BASE + "/addresses";
-    protected static final String RULES = BASE + "/loyalty-point-rules";
     protected static final String NOT_FOUND_ID = "00000000-0000-0000-0000-000000000000";
 
     private static final List<String> TABLES = List.of(
-            "loyalty_transactions", "loyalty_accounts", "loyalty_point_rules",
-            "customer_purchase_transactions", "customer_tier_yearly_metrics", "customer_tier_assignments",
-            "customer_addresses", "customers", "customer_tiers", "business_sequences");
+            "loyalty_transactions", "inbox_events", "customers", "customer_tiers", "business_sequences");
 
     @Autowired
     protected MockMvc mockMvc;
@@ -65,8 +63,9 @@ public abstract class CustomerIntegrationTestSupport {
     @Autowired
     private JdbcTemplate jdbcTemplate;
 
-    @MockitoBean
-    protected OrderClient orderClient;
+    /** Luồng thật mà consumer Kafka gọi; test gọi trực tiếp vì Kafka tắt trong profile "it". */
+    @Autowired
+    protected CustomerPurchaseService customerPurchaseService;
 
     @Value("${security.internal.header-secret}")
     protected String headerSecret;
@@ -184,5 +183,38 @@ public abstract class CustomerIntegrationTestSupport {
 
     protected UUID createCustomerId(String fullName, String phone) throws Exception {
         return UUID.fromString(createCustomer(fullName, phone, null).get("id").asText());
+    }
+
+    // ------------------------------------------------------------------ Order events
+
+    /** Giả lập Order-Service phát ORDER_COMPLETED cho khách; trả về orderId. */
+    protected UUID completeOrder(UUID customerId, long finalAmount) {
+        UUID orderId = UUID.randomUUID();
+        OrderCompletedEvent event = new OrderCompletedEvent();
+        event.setEventId(UUID.randomUUID().toString());
+        event.setEventType("ORDER_COMPLETED");
+        event.setOrderId(orderId);
+        event.setOrderCode("DH-" + orderId.toString().substring(0, 8).toUpperCase());
+        event.setCustomerId(customerId);
+        event.setFinalAmount(BigDecimal.valueOf(finalAmount));
+        event.setCompletedAt(Instant.now());
+        customerPurchaseService.onOrderCompleted(event);
+        return orderId;
+    }
+
+    /** Giả lập Order-Service phát ORDER_REFUNDED cho một phiếu hoàn của đơn. */
+    protected void refundOrder(UUID customerId, UUID orderId, long refundAmount, long orderAmount, boolean fullRefund) {
+        OrderRefundedEvent event = new OrderRefundedEvent();
+        event.setEventId(UUID.randomUUID().toString());
+        event.setEventType("ORDER_REFUNDED");
+        event.setOrderId(orderId);
+        event.setCustomerId(customerId);
+        event.setRefundId(UUID.randomUUID());
+        event.setRefundCode("TH-" + orderId.toString().substring(0, 8).toUpperCase());
+        event.setRefundAmount(BigDecimal.valueOf(refundAmount));
+        event.setOrderFinalAmount(BigDecimal.valueOf(orderAmount));
+        event.setFullRefund(fullRefund);
+        event.setRefundedAt(Instant.now());
+        customerPurchaseService.onOrderRefunded(event);
     }
 }

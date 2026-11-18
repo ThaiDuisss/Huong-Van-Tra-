@@ -3,8 +3,6 @@ import { useRef, useState } from "react";
 
 import { Dialog } from "../../../../components/ui/dialog";
 import { CustomerCreateDialog } from "../../../customer/components/CustomerCreateDialog";
-import { customerApi } from "../../../customer/services/customer.api";
-import type { CustomerTierResponse } from "../../../customer/types/customer.types";
 import { CustomerSearchDialog } from "../dialogs/CustomerSearchDialog";
 import { toSaleCustomer } from "../../services/posCustomer.api";
 import type { SaleCustomer } from "../../types/sale.types";
@@ -40,20 +38,11 @@ export function CustomerSelector({
 }: CustomerSelectorProps) {
   const [open, setOpen] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
-  const [tiers, setTiers] = useState<CustomerTierResponse[] | null>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
 
   function openCreateDialog() {
     setOpen(false);
     setCreateOpen(true);
-
-    if (tiers === null) {
-      void customerApi
-        .tiers()
-        .then(setTiers)
-        // Không tải được hạng thì vẫn cho tạo khách, chỉ thiếu lựa chọn hạng.
-        .catch(() => setTiers([]));
-    }
   }
 
   function closeDialog() {
@@ -138,7 +127,6 @@ export function CustomerSelector({
       <Dialog onOpenChange={setCreateOpen} open={createOpen}>
         {createOpen && (
           <CustomerCreateDialog
-            tiers={tiers ?? []}
             onCancel={() => setCreateOpen(false)}
             onSaved={(customer) => {
               setCreateOpen(false);

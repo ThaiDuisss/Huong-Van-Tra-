@@ -39,6 +39,7 @@ interface SaleWorkspaceProps {
     onInvoiceClose(id: string): void;
     onNoteChange(value: string): void;
     onOrderTypeChange(value: SaleOrderType): void;
+    onCustomBundleOpen(): void;
 }
 
 export function SaleWorkspace({
@@ -67,7 +68,8 @@ export function SaleWorkspace({
     onInvoiceNew,
     onInvoiceClose,
     onNoteChange,
-    onOrderTypeChange
+    onOrderTypeChange,
+    onCustomBundleOpen
 }: SaleWorkspaceProps) {
     return (
         <section className={styles.saleWorkspace}>
@@ -111,6 +113,7 @@ export function SaleWorkspace({
             <OrderTypeSelector
                 value={orderType}
                 onChange={onOrderTypeChange}
+                onCustomBundleOpen={onCustomBundleOpen}
             />
         </section>
     );

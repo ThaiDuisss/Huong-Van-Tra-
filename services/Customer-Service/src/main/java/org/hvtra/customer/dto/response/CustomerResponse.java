@@ -1,7 +1,6 @@
 package org.hvtra.customer.dto.response;
 
 import org.hvtra.customer.model.enums.CustomerStatus;
-import org.hvtra.customer.model.enums.CustomerType;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -9,6 +8,10 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
+/**
+ * nextTier, remainingSpending và remainingOrderCount chỉ có ở API chi tiết (GET /api/customer/{id});
+ * API danh sách trả null để không phải tính cho từng dòng.
+ */
 public record CustomerResponse(
         UUID id,
         String customerCode,
@@ -16,7 +19,6 @@ public record CustomerResponse(
         String phone,
         String email,
         LocalDate dateOfBirth,
-        CustomerType customerType,
         UUID tierId,
         String tierCode,
         String tierName,
@@ -24,7 +26,11 @@ public record CustomerResponse(
         LocalDateTime lastPurchaseDate,
         BigDecimal totalSpent,
         Integer totalOrderCount,
+        Integer pointBalance,
         CustomerStatus status,
-        Instant createdAt
+        Instant createdAt,
+        CustomerTierResponse nextTier,
+        BigDecimal remainingSpending,
+        Integer remainingOrderCount
 ) {
 }

@@ -10,6 +10,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /** Sheet CustomerImport_Management – ITC_IMP_xxx. */
@@ -40,18 +41,15 @@ class CustomerImportIntegrationTest extends CustomerIntegrationTestSupport {
         Map<String, Object> badEmail = row(3, "B", "0911111112", "not-an-email");
         Map<String, Object> badDob = row(4, "C", "0911111113", null);
         badDob.put("dateOfBirth", "31/02/2000");
-        Map<String, Object> badType = row(5, "D", "0911111114", null);
-        badType.put("customerType", "VIP");
 
-        JsonNode result = json(doPost(IMPORT, request(true, badPhone, badEmail, badDob, badType)).andExpect(status().isOk()));
+        JsonNode result = json(doPost(IMPORT, request(true, badPhone, badEmail, badDob)).andExpect(status().isOk()));
 
-        assertThat(result.get("failedCount").asInt()).isEqualTo(4);
+        assertThat(result.get("failedCount").asInt()).isEqualTo(3);
         assertThat(statuses(result)).containsOnly("INVALID");
         assertThat(messages(result)).containsExactly(
                 "Số điện thoại không đúng định dạng (8-15 chữ số, có thể bắt đầu bằng +)",
                 "Email không đúng định dạng",
-                "Ngày sinh không đúng định dạng (yyyy-MM-dd hoặc dd/MM/yyyy)",
-                "Loại khách hàng không hợp lệ (Cá nhân hoặc Doanh nghiệp)");
+                "Ngày sinh không đúng định dạng (yyyy-MM-dd hoặc dd/MM/yyyy)");
     }
 
     @Test
@@ -71,7 +69,7 @@ class CustomerImportIntegrationTest extends CustomerIntegrationTestSupport {
     }
 
     @Test
-    @DisplayName("ITC_IMP_004 Nhập thật: dòng hợp lệ được tạo (kèm hạng MEMBER & tài khoản điểm), dòng lỗi bỏ qua")
+    @DisplayName("ITC_IMP_004 Nhập thật: dòng hợp lệ được tạo (kèm hạng MEMBER, 0 điểm), dòng lỗi bỏ qua")
     void import_partialSuccess() throws Exception {
         JsonNode result = json(doPost(IMPORT, request(false,
                 row(2, "Nguyễn Văn A", "0911111111", null),
@@ -84,8 +82,10 @@ class CustomerImportIntegrationTest extends CustomerIntegrationTestSupport {
         assertThat(messages(result).get(2)).isEqualTo("Tên khách hàng là bắt buộc");
 
         String importedId = result.get("results").get(0).get("customerId").asText();
-        doGet(BASE + "/" + importedId).andExpect(status().isOk());
-        doGet(BASE + "/loyalty-accounts/customer/" + importedId).andExpect(status().isOk());
+        doGet(BASE + "/" + importedId)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.tierCode").value("MEMBER"))
+                .andExpect(jsonPath("$.pointBalance").value(0));
         assertThat(totalCustomers()).isEqualTo(2);
         assertThat(CustomerManagementIntegrationTest.countOf(json(doGet(TIERS + "/counts")), "MEMBER")).isEqualTo(2);
     }

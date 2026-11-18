@@ -15,8 +15,6 @@ public record CustomerImportRowRequest(
         String phone,
         String email,
         @Schema(description = "yyyy-MM-dd hoặc dd/MM/yyyy")
-        String dateOfBirth,
-        @Schema(description = "INDIVIDUAL / BUSINESS hoặc Cá nhân / Doanh nghiệp; bỏ trống = INDIVIDUAL")
-        String customerType
+        String dateOfBirth
 ) {
 }

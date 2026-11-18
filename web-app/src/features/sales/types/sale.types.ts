@@ -138,6 +138,8 @@ export interface SaleCustomer {
   phone: string;
   email?: string | null;
   tier: string;
+  /** Màu hạng cấu hình ở Customer-Service; không có thì dùng màu mặc định. */
+  tierColor?: string | null;
   points: number;
   orderCount: number;
   totalSpent: number;

@@ -18,7 +18,7 @@ class OrderOutboxTopicResolverTest {
             "RETURN_REFUND_COMPLETED,notification.return.refund-completed", "RETURN_COMPLETED,notification.return.completed",
             "RETURN_INVENTORY_DISPOSITION_REQUESTED,order.event.RETURN_INVENTORY_DISPOSITION_REQUESTED",
             "INVENTORY_RESERVATION_CONFIRM_REQUESTED,inventory.reservation-confirm.requested",
-            "CUSTOMER_PURCHASE_UPDATE_REQUESTED,customer.purchase-update.requested",
+            "ORDER_REFUNDED,customer.order-refunded",
             "PROMOTION_USAGE_COMMIT_REQUESTED,promotion.usage-commit.requested"})
     void routesEachBusinessEventToItsOwnedTopic(String eventType, String topic) {
         assertEquals(topic, resolver.resolveTopic(eventType));

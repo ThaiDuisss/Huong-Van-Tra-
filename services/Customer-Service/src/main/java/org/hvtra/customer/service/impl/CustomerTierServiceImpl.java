@@ -10,7 +10,6 @@ import org.hvtra.customer.mapper.CustomerMapper;
 import org.hvtra.customer.model.entity.CustomerTier;
 import org.hvtra.customer.model.enums.CustomerTierStatus;
 import org.hvtra.customer.repository.CustomerRepository;
-import org.hvtra.customer.repository.CustomerTierAssignmentRepository;
 import org.hvtra.customer.repository.CustomerTierRepository;
 import org.hvtra.customer.service.CustomerTierService;
 import org.springframework.stereotype.Service;
@@ -22,14 +21,12 @@ import java.util.UUID;
 
 import static org.hvtra.customer.exception.CustomerServiceException.notFound;
 import static org.hvtra.customer.exception.CustomerServiceException.conflict;
-import static org.hvtra.customer.exception.CustomerServiceException.invalidRequest;
 
 @Service
 @RequiredArgsConstructor
 public class CustomerTierServiceImpl implements CustomerTierService {
     private final CustomerTierRepository customerTierRepository;
     private final CustomerRepository customerRepository;
-    private final CustomerTierAssignmentRepository assignmentRepository;
     private final CustomerMapper customerMapper;
 
     @Override
@@ -94,12 +91,7 @@ public class CustomerTierServiceImpl implements CustomerTierService {
     public CustomerTierResponse update(UUID id, CustomerTierRequest request) {
         CustomerTier tier = findTier(id);
         ensureCodeAvailable(request.code(), id);
-        int requestedMinOrderCount = request.minOrderCount() == null ? 0 : request.minOrderCount();
-        if (assignmentRepository.existsByTierIdAndIsDeletedFalse(id)
-                && (tier.getMinSpending().compareTo(request.minSpending()) != 0
-                || !tier.getMinOrderCount().equals(requestedMinOrderCount))) {
-            throw invalidRequest("Không thể thay đổi ngưỡng tier đã có lịch sử assignment; hãy tạo tier mới hoặc đổi status INACTIVE");
-        }
+        // Đổi ngưỡng không hạ hạng của khách đang ở hạng này; chỉ ảnh hưởng các lần xét nâng hạng sau.
         customerMapper.update(tier, request);
         return customerMapper.toResponse(customerTierRepository.save(tier));
     }

@@ -37,25 +37,16 @@ public class OrderCustomBundleSupport {
 
     private final CustomBundleCatalogClient catalogClient;
     private final CustomBundleInventoryClient inventoryClient;
-    private final BigDecimal minTotalQuantity;
-    private final BigDecimal maxTotalQuantity;
-    private final BigDecimal minLineQuantity;
     private final int maxIngredients;
     private final BigDecimal packagingFee;
 
     public OrderCustomBundleSupport(
             CustomBundleCatalogClient catalogClient,
             CustomBundleInventoryClient inventoryClient,
-            @Value("${order.custom-bundle.min-total-quantity:50}") BigDecimal minTotalQuantity,
-            @Value("${order.custom-bundle.max-total-quantity:1000}") BigDecimal maxTotalQuantity,
-            @Value("${order.custom-bundle.min-line-quantity:5}") BigDecimal minLineQuantity,
             @Value("${order.custom-bundle.max-ingredients:10}") int maxIngredients,
             @Value("${order.custom-bundle.packaging-fee:0}") BigDecimal packagingFee) {
         this.catalogClient = catalogClient;
         this.inventoryClient = inventoryClient;
-        this.minTotalQuantity = minTotalQuantity;
-        this.maxTotalQuantity = maxTotalQuantity;
-        this.minLineQuantity = minLineQuantity;
         this.maxIngredients = maxIngredients;
         this.packagingFee = packagingFee;
     }
@@ -79,8 +70,8 @@ public class OrderCustomBundleSupport {
     }
 
     /**
-     * Kiểm tra giới hạn bundle và chốt giá từng nguyên liệu theo Catalog. Số lượng tính theo đơn vị tồn kho của
-     * nguyên liệu (giới hạn mặc định giả định đơn vị là gram).
+     * Kiểm tra bundle hợp lệ và chốt giá từng nguyên liệu theo Catalog. Số lượng tính theo đơn vị tồn kho của
+     * nguyên liệu; khối lượng không giới hạn, chỉ cần lớn hơn 0.
      */
     public PricedBundle price(List<CustomBundleLineRequest> lines) {
         if (lines == null || lines.isEmpty()) {
@@ -96,11 +87,6 @@ public class OrderCustomBundleSupport {
         }
         if (quantityByIngredient.size() > maxIngredients) {
             throw new InvalidOrderStatusException("Bundle tối đa " + maxIngredients + " nguyên liệu");
-        }
-        BigDecimal total = quantityByIngredient.values().stream().reduce(BigDecimal.ZERO, BigDecimal::add);
-        if (total.compareTo(minTotalQuantity) < 0 || total.compareTo(maxTotalQuantity) > 0) {
-            throw new InvalidOrderStatusException("Tổng khối lượng bundle phải từ " + plain(minTotalQuantity)
-                    + " đến " + plain(maxTotalQuantity));
         }
 
         Map<UUID, CustomBundleCatalogClient.IngredientResponse> ingredients = catalogClient
@@ -118,10 +104,6 @@ public class OrderCustomBundleSupport {
             if (!ACTIVE.equals(ingredient.status()) || ingredient.type() == null
                     || ingredient.type() != RECIPE_INGREDIENT || ingredient.retailPricePerUnit() == null) {
                 throw new InvalidOrderStatusException("Nguyên liệu " + ingredient.name() + " hiện không bán lẻ");
-            }
-            if (entry.getValue().compareTo(minLineQuantity) < 0) {
-                throw new InvalidOrderStatusException("Nguyên liệu " + ingredient.name() + " tối thiểu "
-                        + plain(minLineQuantity));
             }
             OrderItemComponent component = new OrderItemComponent();
             component.setIngredientId(ingredient.id());
@@ -284,10 +266,6 @@ public class OrderCustomBundleSupport {
             return current;
         }
         return current == null || candidate.isAfter(current) ? candidate : current;
-    }
-
-    private static String plain(BigDecimal value) {
-        return value.stripTrailingZeros().toPlainString();
     }
 
     public record CatalogVariant(UUID id, String sku, String productName, String variantName) {

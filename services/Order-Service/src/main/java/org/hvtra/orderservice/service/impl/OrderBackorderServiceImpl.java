@@ -189,7 +189,6 @@ public class OrderBackorderServiceImpl implements OrderBackorderService {
             orderPaymentSagaService.completePaymentSaga(savedOrder, paidEvent, savedOrder.getPaymentCode());
         }
         orderPaymentSagaService.markResourceConfirmationRequested(savedOrder, sagaId);
-        orderCustomerService.updateCustomerPurchase(savedOrder.getId());
         orderOutboxPublisher.publishPaymentCompletedOrchestration(
                 savedOrder, savedOrder.getPaymentCode(), sagaId.toString());
         return orderResponseAssembler.toResponse(savedOrder, payment);

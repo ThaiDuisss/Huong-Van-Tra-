@@ -12,7 +12,6 @@ import lombok.Getter;
 import lombok.Setter;
 import org.hvtra.commonservice.common_core.domain.entity.BaseEntity;
 import org.hvtra.customer.model.enums.CustomerStatus;
-import org.hvtra.customer.model.enums.CustomerType;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -42,10 +41,6 @@ public class Customer extends BaseEntity {
     @Column(name = "date_of_birth")
     private LocalDate dateOfBirth;
 
-    @Column(name = "customer_type", nullable = false, length = 30)
-    @Enumerated(EnumType.STRING)
-    private CustomerType customerType = CustomerType.INDIVIDUAL;
-
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "tier_id")
     private CustomerTier tier;
@@ -59,22 +54,37 @@ public class Customer extends BaseEntity {
     @Column(name = "total_order_count", nullable = false)
     private Integer totalOrderCount = 0;
 
+    @Column(name = "point_balance", nullable = false)
+    private Integer pointBalance = 0;
+
     @Column(name = "status", nullable = false, length = 30)
     @Enumerated(EnumType.STRING)
     private CustomerStatus status = CustomerStatus.ACTIVE;
 
-    public void changeTier(CustomerTier tier) {
-        this.tier = tier;
+    /** Ghi nhận một đơn hoàn tất: cộng chi tiêu, cộng một đơn, cập nhật lần mua gần nhất. */
+    public void addPurchase(BigDecimal amount, LocalDateTime purchasedAt) {
+        this.totalSpent = nonNegative(zeroIfNull(this.totalSpent).add(zeroIfNull(amount)));
+        this.totalOrderCount = zeroIfNull(this.totalOrderCount) + 1;
+        if (purchasedAt != null && (lastPurchaseDate == null || purchasedAt.isAfter(lastPurchaseDate))) {
+            this.lastPurchaseDate = purchasedAt;
+        }
     }
 
-    public void addPurchase(BigDecimal amount, LocalDateTime occurredAt) {
-        this.totalSpent = nonNegative(zeroIfNull(this.totalSpent).add(zeroIfNull(amount)));
-        this.totalOrderCount = Math.max(zeroIfNull(this.totalOrderCount) + 1, 0);
-        this.lastPurchaseDate = occurredAt;
+    /** Ghi nhận hoàn tiền: trừ chi tiêu; hoàn toàn bộ thì trừ thêm một đơn. Không bao giờ âm. */
+    public void applyRefund(BigDecimal refundAmount, boolean fullRefund) {
+        this.totalSpent = nonNegative(zeroIfNull(this.totalSpent).subtract(zeroIfNull(refundAmount)));
+        if (fullRefund) {
+            this.totalOrderCount = Math.max(zeroIfNull(this.totalOrderCount) - 1, 0);
+        }
     }
 
-    public void applyPurchaseDelta(BigDecimal amount, int orderCountDelta) {
-        this.totalSpent = nonNegative(zeroIfNull(this.totalSpent).add(zeroIfNull(amount)));
-        this.totalOrderCount = Math.max(zeroIfNull(this.totalOrderCount) + orderCountDelta, 0);
+    /** Cộng (dương) hoặc trừ (âm) điểm và trả về số dư mới. Gọi sau khi đã kiểm tra số dư đủ. */
+    public int changePoints(int delta) {
+        int next = zeroIfNull(this.pointBalance) + delta;
+        if (next < 0) {
+            throw new IllegalStateException("Point balance cannot be negative");
+        }
+        this.pointBalance = next;
+        return next;
     }
 }

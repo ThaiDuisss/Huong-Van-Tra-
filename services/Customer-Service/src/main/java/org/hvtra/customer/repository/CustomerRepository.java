@@ -3,7 +3,6 @@ package org.hvtra.customer.repository;
 import org.hvtra.customer.model.entity.Customer;
 import org.hvtra.customer.model.enums.CustomerStatus;
 import jakarta.persistence.LockModeType;
-import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
@@ -25,7 +24,22 @@ public interface CustomerRepository extends JpaRepository<Customer, UUID>, JpaSp
     @Query("select c from Customer c where c.id = :id and c.isDeleted = false")
     Optional<Customer> findByIdForUpdate(@Param("id") UUID id);
 
-    Page<Customer> findByStatusAndIsDeletedFalse(CustomerStatus status, Pageable pageable);
+    /** Tra cứu nhanh khách đang hoạt động theo tên, SĐT hoặc mã (dropdown / chọn khách). */
+    @Query("""
+            select c from Customer c
+            where c.isDeleted = false
+              and c.status = :status
+              and (:keyword is null
+                   or lower(c.fullName) like lower(concat('%', :keyword, '%'))
+                   or c.phone like concat('%', :keyword, '%')
+                   or lower(c.customerCode) like lower(concat('%', :keyword, '%')))
+            order by c.fullName asc
+            """)
+    List<Customer> lookup(
+            @Param("keyword") String keyword,
+            @Param("status") CustomerStatus status,
+            Pageable pageable
+    );
 
     long countByIsDeletedFalse();
 

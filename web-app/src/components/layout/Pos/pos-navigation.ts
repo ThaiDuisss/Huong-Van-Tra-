@@ -41,13 +41,6 @@ export const posNavigationItems: PosNavigationItem[] = [
     roles: POS_WORKSPACE_ROLES
   },
   {
-    key: "custom-bundle",
-    label: "Đóng trà theo yêu cầu",
-    icon: Leaf,
-    to: routePaths.posCustomBundleCreate,
-    roles: POS_WORKSPACE_ROLES
-  },
-  {
     key: "shelf-replenishment",
     label: "Phiếu nhập kệ",
     icon: PackageOpen,
