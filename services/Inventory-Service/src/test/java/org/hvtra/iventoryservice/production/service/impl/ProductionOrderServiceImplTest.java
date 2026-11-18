@@ -326,8 +326,8 @@ class ProductionOrderServiceImplTest {
     }
 
     @Test
-    @DisplayName("cancel - Throws BadRequestException when caller is neither creator nor manager")
-    void cancel_ThrowsBadRequest_WhenNeitherCreatorNorManager() {
+    @DisplayName("cancel - Throws BadRequestException when caller is not the creator")
+    void cancel_ThrowsBadRequest_WhenNotCreator() {
         UUID creatorId = UUID.randomUUID();
         UUID otherUserId = UUID.randomUUID();
         order.setCreatedBy(creatorId);
@@ -338,15 +338,14 @@ class ProductionOrderServiceImplTest {
 
         assertThatThrownBy(() -> service.cancel(orderId, new CancelProductionOrderRequest("Lý do khác")))
                 .isInstanceOf(BadRequestException.class)
-                .hasMessageContaining("Chỉ người tạo hoặc Quản lý / Admin mới có quyền hủy");
+                .hasMessageContaining("Chỉ người tạo mới có quyền hủy lệnh sản xuất");
     }
 
     @Test
-    @DisplayName("cancel - Success cancelling PENDING_APPROVAL order by Manager")
-    void cancel_Success_WhenPendingApproval_ByManager() {
-        UUID creatorId = UUID.randomUUID();
+    @DisplayName("cancel - Success cancelling PENDING_APPROVAL order by creator who is Manager")
+    void cancel_Success_WhenPendingApproval_ByCreatorManager() {
         UUID managerId = UUID.randomUUID();
-        order.setCreatedBy(creatorId);
+        order.setCreatedBy(managerId);
         order.setStatus(ProductionOrderStatus.PENDING_APPROVAL);
         authenticateWith(Role.MANAGER, managerId);
 

@@ -44,6 +44,9 @@ export interface ProductionOrder {
     note: string | null;
     lines: ProductionOrderLineResponse[];
     createdBy?: string | null;
+    createBy?: string | null;
+    createByName?: string | null;
+    createdByName?: string | null;
     submittedBy: string | null;
     submittedAt: string | null;
     approvedBy: string | null;

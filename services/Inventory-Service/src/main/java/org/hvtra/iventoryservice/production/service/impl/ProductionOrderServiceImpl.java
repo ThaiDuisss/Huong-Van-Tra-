@@ -1,6 +1,7 @@
 package org.hvtra.iventoryservice.production.service.impl;
 
 import jakarta.persistence.criteria.Predicate;
+import lombok.extern.slf4j.Slf4j;
 import org.hvtra.commonservice.common_core.domain.constants.Role;
 import org.hvtra.commonservice.common_core.domain.entity.InternalUserPrincipal;
 import org.hvtra.commonservice.common_core.utils.SecurityUtils;
@@ -23,6 +24,7 @@ import org.hvtra.iventoryservice.domain.enums.InventoryTransactionType;
 import org.hvtra.iventoryservice.domain.enums.ProductionOrderStatus;
 import org.hvtra.iventoryservice.domain.enums.ReservationStatus;
 import org.hvtra.iventoryservice.integration.catalog.client.CatalogClient;
+import org.hvtra.iventoryservice.integration.identity.client.IdentityClient;
 import org.hvtra.iventoryservice.item.repository.InventoryItemRepository;
 import org.hvtra.iventoryservice.location.repository.InventoryLocationRepository;
 import org.hvtra.iventoryservice.movement.repository.InventoryTransactionRepository;
@@ -39,6 +41,8 @@ import org.hvtra.iventoryservice.shared.exception.ResourceNotFoundException;
 import org.hvtra.commonservice.common_core.service.BusinessSequenceService;
 import org.hvtra.iventoryservice.shared.pagination.PageResponse;
 import org.hvtra.iventoryservice.stock.repository.InventoryBalanceRepository;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.security.access.AccessDeniedException;
@@ -52,13 +56,18 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+@Slf4j
 @Service
 @Transactional(readOnly = true)
 public class ProductionOrderServiceImpl implements ProductionOrderService {
@@ -76,6 +85,7 @@ public class ProductionOrderServiceImpl implements ProductionOrderService {
     private final ProductionOrderMapper mapper;
     private final InventoryReservationService reservationService;
     private final SupplyLeadTimeService supplyLeadTimeService;
+    private final IdentityClient identityClient;
 
     public ProductionOrderServiceImpl(
             ProductionOrderRepository productionOrderRepository,
@@ -88,7 +98,8 @@ public class ProductionOrderServiceImpl implements ProductionOrderService {
             CatalogClient catalogClient,
             ProductionOrderMapper mapper,
             InventoryReservationService reservationService,
-            SupplyLeadTimeService supplyLeadTimeService
+            SupplyLeadTimeService supplyLeadTimeService,
+            @Autowired(required = false) IdentityClient identityClient
     ) {
         this.productionOrderRepository = productionOrderRepository;
         this.sequenceService = sequenceService;
@@ -101,6 +112,52 @@ public class ProductionOrderServiceImpl implements ProductionOrderService {
         this.reservationService = reservationService;
         this.supplyLeadTimeService = supplyLeadTimeService;
         this.mapper = mapper;
+        this.identityClient = identityClient;
+    }
+
+    private String fetchUserName(UUID userId) {
+        if (userId == null || identityClient == null) {
+            return null;
+        }
+        try {
+            List<IdentityClient.UserBriefResponse> users = identityClient.getUsersBatch(List.of(userId.toString()));
+            if (users != null && !users.isEmpty() && users.getFirst() != null) {
+                IdentityClient.UserBriefResponse u = users.getFirst();
+                return (u.fullName() != null && !u.fullName().isBlank()) ? u.fullName() : u.username();
+            }
+        } catch (Exception ex) {
+            log.warn("Không thể lấy tên user từ Identity-Service: {}", ex.getMessage());
+        }
+        return null;
+    }
+
+    private Map<UUID, String> fetchUserNames(Collection<UUID> userIds) {
+        Map<UUID, String> map = new HashMap<>();
+        if (userIds == null || userIds.isEmpty() || identityClient == null) {
+            return map;
+        }
+        List<String> validIds = userIds.stream().filter(Objects::nonNull).map(UUID::toString).distinct().toList();
+        if (validIds.isEmpty()) {
+            return map;
+        }
+        try {
+            List<IdentityClient.UserBriefResponse> users = identityClient.getUsersBatch(validIds);
+            if (users != null) {
+                for (IdentityClient.UserBriefResponse u : users) {
+                    if (u != null && u.keycloakSubject() != null) {
+                        try {
+                            UUID uid = UUID.fromString(u.keycloakSubject());
+                            String name = (u.fullName() != null && !u.fullName().isBlank()) ? u.fullName() : u.username();
+                            map.put(uid, name);
+                        } catch (IllegalArgumentException ignored) {
+                        }
+                    }
+                }
+            }
+        } catch (Exception ex) {
+            log.warn("Không thể lấy tên user từ Identity-Service: {}", ex.getMessage());
+        }
+        return map;
     }
 
     @Override
@@ -120,12 +177,20 @@ public class ProductionOrderServiceImpl implements ProductionOrderService {
             }
             return cb.and(predicates.toArray(Predicate[]::new));
         };
-        return PageResponse.from(productionOrderRepository.findAll(spec, pageable).map(mapper::toSummaryResponse));
+        Page<ProductionOrder> page = productionOrderRepository.findAll(spec, pageable);
+        Set<UUID> userIds = page.getContent().stream()
+                .map(ProductionOrder::getCreatedBy)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+        Map<UUID, String> userNames = fetchUserNames(userIds);
+        return PageResponse.from(page.map(o -> mapper.toSummaryResponse(o, userNames.get(o.getCreatedBy()))));
     }
 
     @Override
     public ProductionOrderResponse findById(UUID id) {
-        return mapper.toResponse(getOrderWithDetails(id));
+        ProductionOrder order = getOrderWithDetails(id);
+        String createByName = fetchUserName(order.getCreatedBy());
+        return mapper.toResponse(order, createByName);
     }
 
     @Override
@@ -213,6 +278,10 @@ public class ProductionOrderServiceImpl implements ProductionOrderService {
         order.setNote(request.note());
         order.setStatus(ProductionOrderStatus.DRAFT);
         order.setExpectedCompletionDate(Instant.now().plus(1, ChronoUnit.DAYS));
+        UUID currentUserId = getCurrentUserId();
+        if (currentUserId != null) {
+            order.setCreatedBy(currentUserId);
+        }
 
         for (CatalogClient.BomItemResponse bomItem : bomItems) {
             if (bomItem.ingredient() == null) {
@@ -238,7 +307,9 @@ public class ProductionOrderServiceImpl implements ProductionOrderService {
             order.addLine(line);
         }
 
-        return mapper.toResponse(productionOrderRepository.save(order));
+        ProductionOrder saved = productionOrderRepository.save(order);
+        String createByName = fetchUserName(saved.getCreatedBy());
+        return mapper.toResponse(saved, createByName);
     }
 
     @Override
@@ -260,7 +331,9 @@ public class ProductionOrderServiceImpl implements ProductionOrderService {
         // Nhân viên kho: giữ chỗ nguyên liệu (FEFO) và chuyển sang trạng thái PENDING_APPROVAL chờ Quản lý/Admin duyệt
         reserveMaterials(order);
         order.setStatus(ProductionOrderStatus.PENDING_APPROVAL);
-        return mapper.toResponse(productionOrderRepository.save(order));
+        ProductionOrder saved = productionOrderRepository.save(order);
+        String createByName = fetchUserName(saved.getCreatedBy());
+        return mapper.toResponse(saved, createByName);
     }
 
     @Override
@@ -569,7 +642,8 @@ public class ProductionOrderServiceImpl implements ProductionOrderService {
         }
         ProductionOrder approved = productionOrderRepository.save(order);
         supplyLeadTimeService.onProductionCompleted(approved);
-        return mapper.toResponse(approved);
+        String createByName = fetchUserName(approved.getCreatedBy());
+        return mapper.toResponse(approved, createByName);
     }
 
     @Override
@@ -585,7 +659,9 @@ public class ProductionOrderServiceImpl implements ProductionOrderService {
         order.setStatus(ProductionOrderStatus.REJECTED);
         order.setRejectedBy(getCurrentUserId());
         order.setRejectedAt(Instant.now());
-        return mapper.toResponse(productionOrderRepository.save(order));
+        ProductionOrder saved = productionOrderRepository.save(order);
+        String createByName = fetchUserName(saved.getCreatedBy());
+        return mapper.toResponse(saved, createByName);
     }
 
     @Override
@@ -597,11 +673,11 @@ public class ProductionOrderServiceImpl implements ProductionOrderService {
                     "Lệnh sản xuất phải ở trạng thái DRAFT hoặc PENDING_APPROVAL (hiện tại: " + order.getStatus() + ")");
         }
 
-        // Check creator/submitter == currentUser or manager/admin
+        // Check creator/submitter == currentUser (chỉ người tạo mới được quyền hủy)
         UUID currentUserId = getCurrentUserId();
         boolean isCreator = currentUserId != null && (currentUserId.equals(order.getCreatedBy()) || currentUserId.equals(order.getSubmittedBy()));
-        if (!isCreator && !isManagerOrAdmin()) {
-            throw new BadRequestException("Chỉ người tạo hoặc Quản lý / Admin mới có quyền hủy lệnh sản xuất");
+        if (!isCreator) {
+            throw new BadRequestException("Chỉ người tạo mới có quyền hủy lệnh sản xuất");
         }
 
         releaseReservedMaterials(order);
@@ -609,7 +685,9 @@ public class ProductionOrderServiceImpl implements ProductionOrderService {
         order.setCancelledBy(currentUserId);
         order.setCancelledAt(Instant.now());
         order.setCancelReason(request.reason());
-        return mapper.toResponse(productionOrderRepository.save(order));
+        ProductionOrder saved = productionOrderRepository.save(order);
+        String createByName = fetchUserName(saved.getCreatedBy());
+        return mapper.toResponse(saved, createByName);
     }
 
     private boolean isManagerOrAdmin() {

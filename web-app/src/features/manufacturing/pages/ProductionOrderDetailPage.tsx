@@ -46,13 +46,15 @@ export function ProductionOrderDetailPage() {
     const { hasAnyRole, keycloakSubject, userId, user } = useAuthorization();
     const canApprove = hasAnyRole([ROLES.SUPER_ADMIN, ROLES.MANAGER]);
 
-    const currentActorIds = [keycloakSubject, userId, user?.id].filter(Boolean);
+    const creatorId = order?.createBy || order?.createdBy;
+    const submitterId = order?.submittedBy;
+    const currentActorIds = [keycloakSubject, userId, user?.id].filter(Boolean) as string[];
     const isOwner = Boolean(
         order &&
         currentActorIds.some(
             (actorId) =>
-                (order.createdBy && order.createdBy.toLowerCase() === actorId?.toLowerCase()) ||
-                (order.submittedBy && order.submittedBy.toLowerCase() === actorId?.toLowerCase())
+                (creatorId && creatorId.toLowerCase() === actorId.toLowerCase()) ||
+                (submitterId && submitterId.toLowerCase() === actorId.toLowerCase())
         )
     );
 
@@ -169,6 +171,9 @@ export function ProductionOrderDetailPage() {
                             <span className="font-bold text-[#172317]">Sản phẩm sản xuất:</span> {order.productVariantName ?? "—"}
                         </p>
                         <p className="text-sm font-semibold text-[#536078]">
+                            <span className="font-bold text-[#172317]">Người tạo:</span> {order.createByName || order.createdByName || "—"}
+                        </p>
+                        <p className="text-sm font-semibold text-[#536078]">
                             <span className="font-bold text-[#172317]">Số lượng kế hoạch:</span> {order.plannedQuantity}
                         </p>
                         {order.note ? (
@@ -185,9 +190,11 @@ export function ProductionOrderDetailPage() {
                                 <Button disabled={mutationLoading} onClick={() => void handleSubmit()} variant="primary">
                                     {canApprove ? "Duyệt ngay" : "Gửi duyệt"}
                                 </Button>
-                                <Button disabled={mutationLoading} onClick={() => setCancelOpen(true)} variant="dangerOutline">
-                                    Hủy
-                                </Button>
+                                {isOwner ? (
+                                    <Button disabled={mutationLoading} onClick={() => setCancelOpen(true)} variant="dangerOutline">
+                                        Hủy
+                                    </Button>
+                                ) : null}
                             </>
                         ) : null}
 
@@ -203,7 +210,7 @@ export function ProductionOrderDetailPage() {
                                         </Button>
                                     </>
                                 ) : null}
-                                {isOwner || canApprove ? (
+                                {isOwner ? (
                                     <Button disabled={mutationLoading} onClick={() => setCancelOpen(true)} variant="dangerOutline">
                                         Hủy
                                     </Button>

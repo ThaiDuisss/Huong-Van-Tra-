@@ -184,7 +184,7 @@ export function GoodsReceiptLifecycleStepper({
     return (
         <div className="rounded-xl border border-[#e8eef0] bg-white p-4 shadow-pos-card">
             <div className="mb-3 text-xs font-black uppercase tracking-wider text-[#697684]">
-                Tiến trình vòng đời phiếu nhập (Workflow Lifecycle)
+                Tiến trình vòng đời phiếu nhập
             </div>
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-7">
                 {steps.map((step, idx) => {
@@ -510,7 +510,6 @@ export function GoodsReceiptLineTable({
                                 </>
                             ) : null}
                             <Th>Ngày sản xuất</Th>
-                            <Th>Hạn sử dụng</Th>
                         </TableRow>
                     </TableHead>
                     <tbody>
@@ -557,9 +556,6 @@ export function GoodsReceiptLineTable({
                                 ) : null}
                                 <Td>
                                     {formatVietnamDateTime(line.manufacturedAt)}
-                                </Td>
-                                <Td>
-                                    {formatVietnamDateTime(line.expiryDate)}
                                 </Td>
                             </TableRow>
                         ))}

@@ -412,32 +412,34 @@ export function GoodsReceiptDetailPage() {
                             <GoodsReceiptStatusBadge status={receipt.status} />
                             <QcBadge result={receipt.qcResult} />
                         </div>
-                        <div className="text-sm font-semibold text-[#536078] space-y-1">
-                            <div>
-                                <span className="font-bold text-[#172317]">Nhà cung cấp:</span>{" "}
-                                {receipt.supplier.name}
-                            </div>
+<div className="flex flex-col gap-2 text-sm font-semibold text-[#536078] sm:flex-row sm:items-start sm:justify-between sm:gap-6">
+    {/* Cột 1: Nhà cung cấp & Kho nhận */}
+    <div className="space-y-1">
+        <div>
+            <span className="font-bold text-[#172317]">Nhà cung cấp:</span>{" "}
+            {receipt.supplier.name}
+        </div>
 
-                            <div>
-                                <span className="font-bold text-[#172317]">Kho nhận:</span>{" "}
-                                {receipt.receivingLocation.name}
-                            </div>
+        <div>
+            <span className="font-bold text-[#172317]">Kho nhận:</span>{" "}
+            {receipt.receivingLocation.name}
+        </div>
+    </div>
 
-                            {/* <div>
-        <span className="font-bold text-[#172317]">Đơn đặt PO:</span>{" "}
-        {receipt.purchaseOrderCode || "Ngoài PO"}
-    </div> */}
+    {/* Cột 2: Ngày dự kiến & Ghi chú */}
+    <div className="space-y-1 sm:text-right">
+        <div>
+            <span className="font-bold text-[#172317]">Ngày dự kiến:</span>{" "}
+            {formatVietnamDateTime(receipt.receivedAt)}
+        </div>
 
-                            <div>
-                                <span className="font-bold text-[#172317]">Ngày dự kiến:</span>{" "}
-                                {formatVietnamDateTime(receipt.receivedAt)}
-                            </div>
-                        </div>
-                        {receipt.note ? (
-                            <p className="text-xs font-semibold italic text-[#697684]">
-                                Ghi chú: {receipt.note}
-                            </p>
-                        ) : null}
+        {receipt.note ? (
+            <p className="text-xs font-semibold italic text-[#697684]">
+                Ghi chú: {receipt.note}
+            </p>
+        ) : null}
+    </div>
+</div>
                         {receipt.exceptionApprovedAt ? (
                             <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800">
                                 <div>
