@@ -134,14 +134,14 @@ export const systemNavigationItems: SystemNavigationItem[] = [
         label: "Danh mục sản phẩm",
         to: routePaths.categories,
         icon: FolderTree,
-        roles: [ROLES.SUPER_ADMIN, ROLES.MANAGER],
+        roles: [ROLES.SUPER_ADMIN, ROLES.MANAGER, ROLES.INVENTORY_STAFF],
       },
       {
         key: "catalog-units",
         label: "Đơn vị tính",
         to: routePaths.units,
         icon: Ruler,
-        roles: [ROLES.SUPER_ADMIN, ROLES.MANAGER],
+        roles: [ROLES.SUPER_ADMIN, ROLES.MANAGER, ROLES.INVENTORY_STAFF],
       },
       // {
       //   key: "catalog-price-lists",
