@@ -14,6 +14,8 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -133,13 +135,13 @@ class OrderReturnReceiveAuthorizationTest {
         verify(orderReturnService, never()).receiveReturn(returnId);
     }
 
-    @Test
-    void qcStaffWithInventoryReceivePermissionSucceedsWithHttp200() throws Exception {
+    @ParameterizedTest
+    @ValueSource(strings = {"ROLE_QC", "QC_STAFF", "QC", "ROLE_MANAGER", "ROLE_INVENTORY_STAFF", "ROLE_SUPER_ADMIN"})
+    void allowedRealmRoleCanReceiveWithoutInventoryReceivePermission(String role) throws Exception {
         UUID returnId = UUID.randomUUID();
-        authenticate(Set.of("QC_STAFF"), Set.of("inventory:view", "inventory:receive", "inventory:qc"));
+        authenticate(Set.of(role), Set.of("inventory:view", "inventory:adjust"));
         OrderReturnResponse expected = OrderReturnResponse.builder()
                 .id(returnId)
-                .returnCode("RET-QC-001")
                 .status(ReturnStatus.RECEIVED)
                 .build();
         when(orderReturnService.receiveReturn(returnId)).thenReturn(expected);
@@ -152,9 +154,9 @@ class OrderReturnReceiveAuthorizationTest {
     }
 
     @Test
-    void qcStaffWithoutInventoryReceivePermissionIsRejectedWithHttp403() throws Exception {
+    void unrelatedRealmRoleWithReceivePermissionIsRejectedWithHttp403() throws Exception {
         UUID returnId = UUID.randomUUID();
-        authenticate(Set.of("QC"), Set.of("inventory:view", "inventory:qc"));
+        authenticate(Set.of("AUDITOR"), Set.of("inventory:receive"));
 
         mockMvc.perform(put("/api/orders/returns/{returnId}/receive", returnId))
                 .andExpect(status().isForbidden());
@@ -163,20 +165,13 @@ class OrderReturnReceiveAuthorizationTest {
     }
 
     @Test
-    void superAdminSucceedsWithHttp200() throws Exception {
+    void clientRoleNamedLikeRealmRoleDoesNotGrantReceive() throws Exception {
         UUID returnId = UUID.randomUUID();
-        authenticate(Set.of("SUPER_ADMIN"), Set.of());
-        OrderReturnResponse expected = OrderReturnResponse.builder()
-                .id(returnId)
-                .returnCode("RET-ADMIN-001")
-                .status(ReturnStatus.RECEIVED)
-                .build();
-        when(orderReturnService.receiveReturn(returnId)).thenReturn(expected);
+        authenticate(Set.of("SALE_STAFF"), Set.of("ROLE_QC"));
 
         mockMvc.perform(put("/api/orders/returns/{returnId}/receive", returnId))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.status").value("RECEIVED"));
+                .andExpect(status().isForbidden());
 
-        verify(orderReturnService).receiveReturn(returnId);
+        verify(orderReturnService, never()).receiveReturn(returnId);
     }
 }

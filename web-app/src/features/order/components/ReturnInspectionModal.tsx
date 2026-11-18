@@ -519,7 +519,7 @@ export function ReturnInspectionModal({
                 {/* Header */}
                 <div className={styles.modalHeader}>
                     <div className={styles.headerInfo}>
-                        <h2 id="return-inspection-modal-title">Kiểm tra hàng trả</h2>
+                        <h2 id="return-inspection-modal-title">Tạo yêu cầu kiểm định</h2>
                         <div className={styles.headerMeta}>
                             <span className={styles.returnCodeTag}>
                                 {getReturnCode(returnItem)}
@@ -534,7 +534,7 @@ export function ReturnInspectionModal({
                             </span>
                         </div>
                     </div>
-                    <IconButton aria-label="Đóng kiểm tra hàng trả" onClick={onClose}>
+                    <IconButton aria-label="Đóng tạo yêu cầu kiểm định" onClick={onClose}>
                         <X size={18} aria-hidden="true" />
                     </IconButton>
                 </div>

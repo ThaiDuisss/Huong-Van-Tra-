@@ -12,14 +12,12 @@ const RETURN_DETAIL_FULL_TAB_ROLES = [
 ] as const;
 
 const SALE_POS_ROLES = [ROLES.SALE_STAFF, "SALE_POS"] as const;
-const LEGACY_RECEIVE_ROLES = INVENTORY_OPERATION_ROLES.filter((role) => role !== ROLES.QC);
 
 /** SALE_POS (ROLE_SALE_STAFF / alias POS_STAFF / SALE_POS) chỉ xem tab Tổng quan trong popup Chi tiết phiếu hoàn. */
 export function isSalePosReturnDetailOverviewOnly(roles: readonly string[] | undefined): boolean {
     return hasAnyRole(roles, SALE_POS_ROLES) && !hasAnyRole(roles, RETURN_DETAIL_FULL_TAB_ROLES);
 }
 
-/** Apply role and permission checks; QC receipt requires a known permission grant. */
 export function getOrderReturnAccess(roles: readonly string[] | undefined, permissions: readonly string[] | undefined) {
     const action = (allowedRoles: readonly string[], permission: string) =>
         hasAnyRole(roles, [ROLES.SUPER_ADMIN]) ||
@@ -34,10 +32,7 @@ export function getOrderReturnAccess(roles: readonly string[] | undefined, permi
         canRead: canReadSales || canReadWarehouse,
         canReadQc,
         canCreate: action(POS_WORKSPACE_ROLES, PERMISSIONS.ORDER_RETURN),
-        canReceive: action(
-            permissions === undefined ? LEGACY_RECEIVE_ROLES : INVENTORY_OPERATION_ROLES,
-            PERMISSIONS.INVENTORY_RECEIVE
-        ),
+        canReceive: hasAnyRole(roles, INVENTORY_OPERATION_ROLES),
         canQc,
         canDisposition: canQc && action(CUSTOMER_RETURN_QC_ROLES, PERMISSIONS.INVENTORY_ADJUST),
         canRefund: action(POS_WORKSPACE_ROLES, PERMISSIONS.ORDER_REFUND),
