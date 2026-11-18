@@ -122,6 +122,18 @@ describe("generated business AI export", () => {
       await expect(api.exportBusinessReport(payload)).rejects.toThrow();
     }
   });
+  it("passes a multi-month BOM request to the API and preserves its coverage error", async () => {
+    const payload = {requestId: input.requestId, fromDate: "2026-04-30", toDate: "2026-11-18", reportType: "CUSTOM_BOM" as const};
+    const details = {fromDate: "2026-04-01", toDate: "2026-04-30", timezone: "UTC"};
+    const fetch = vi.fn(async (_url: string, init: RequestInit) => {
+      expect(JSON.parse(init.body as string)).toEqual(payload);
+      return new Response(JSON.stringify({code: "BOM_PERIOD_UNSUPPORTED", message: "Unsupported coverage", details}),
+        {status: 422, headers: {"Content-Type": "application/json"}});
+    });
+    vi.stubGlobal("fetch", fetch);
+    await expect(adapter().exportBusinessReport(payload)).rejects.toMatchObject({status: 422, code: "BOM_PERIOD_UNSUPPORTED", details});
+    expect(fetch).toHaveBeenCalledOnce();
+  });
   it("BOM recovery is typed and actor-scoped without changing Product storage", () => {
     const values = new Map<string, string>();
     vi.stubGlobal("sessionStorage", {getItem: (key: string) => values.get(key) ?? null,

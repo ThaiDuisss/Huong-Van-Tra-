@@ -106,9 +106,28 @@ class OfficialBomLifecycleTests(DbFixture, unittest.TestCase):
 
     def test_schema_rejects_unknown_type_period_and_client_artifact_or_identity_fields(self):
         self.assertEqual(BusinessExportRequest(requestId=uuid4(), fromDate="2026-04-01", toDate="2026-04-30").reportType, "PRODUCT")
-        for extra in ({"reportType": "UNIFIED"}, {"fromDate": "2026-03-01"}, {"toDate": "2026-05-01"},
+        for extra in ({"reportType": "UNIFIED"}, {"fromDate": "2026-04-01"},
+                      {"fromDate": "2026-11-19", "toDate": "2026-11-18"},
                       {"dataset_path": "C:/untrusted.json"}, {"model_sha256": "0" * 64}, {"ownerId": B}, {"roles": "ADMIN"}):
             self.assertEqual(self.export(dict(self.payload, **extra)).status_code, 422)
+
+    def test_valid_dates_outside_coverage_are_a_data_error_and_never_prepare_a_file(self):
+        periods = (("2026-03-01", "2026-03-31"), ("2026-05-01", "2026-05-31"),
+                   ("2026-11-01", "2026-11-18"), ("2026-04-30", "2026-11-18"))
+        with patch("app.service.business_report_service.select_bom_source") as select_source, \
+             patch("app.service.business_report_service.build_bom") as build:
+            for start, end in periods:
+                with self.subTest(start=start, end=end):
+                    payload = dict(self.payload, fromDate=start, toDate=end)
+                    self.assertEqual(BusinessExportRequest(**payload).fromDate, date.fromisoformat(start))
+                    response = self.export(payload)
+                    self.assertEqual(response.status_code, 422)
+                    self.assertEqual(response.json()["code"], "BOM_PERIOD_UNSUPPORTED")
+                    self.assertEqual(response.json()["details"], {"fromDate": "2026-04-01", "toDate": "2026-04-30", "timezone": "UTC"})
+            select_source.assert_not_called()
+            build.assert_not_called()
+        self.assertEqual(len(self.files.records), 0)
+        self.assertEqual(self.db.scalar(select(func.count()).select_from(BusinessReportExport)), 0)
 
     def test_same_request_id_cannot_change_product_bom_type_even_when_period_matches(self):
         receipt = self.export().json()
@@ -285,6 +304,21 @@ class OfficialBomArtifactTests(unittest.TestCase):
             self.assertNotEqual([row[4:] for row in first_rows], [row[4:] for row in last_rows])
             self.assertEqual([row[:4] for row in first_rows], [row[:4] for row in last_rows])
             self.assertEqual(list(table_rows(first[SHEETS[4]])), list(table_rows(last[SHEETS[4]])))
+        finally:
+            fixture.doCleanups()
+
+    def test_covered_day_without_purchases_does_not_emit_april_predictions_as_a_workbook(self):
+        fixture = OfficialBomLifecycleTests(); fixture.setUp()
+        try:
+            with patch("app.service.business_report_service.get_settings", return_value=self.cfg), \
+                 patch("app.service.business_report_service.select_bom_source", side_effect=select_bom_source), \
+                 patch("app.service.business_report_service.build_bom", side_effect=build_bom), \
+                 patch("app.service.bom_report_source.build_workbook") as workbook:
+                response = fixture.export(dict(fixture.payload, fromDate="2026-04-30", toDate="2026-04-30"))
+                self.assertEqual(response.status_code, 422)
+                self.assertEqual(response.json()["code"], "BOM_NO_DATA")
+                workbook.assert_not_called()
+            self.assertEqual(len(fixture.files.records), 0)
         finally:
             fixture.doCleanups()
 

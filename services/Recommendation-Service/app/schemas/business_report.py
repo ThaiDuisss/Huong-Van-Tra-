@@ -29,8 +29,6 @@ class BusinessExportRequest(BaseModel):
                 self.fromDate, self.toDate = BOM_FROM, BOM_TO
             elif self.fromDate is None or self.toDate is None:
                 raise ValueError("Both BOM reporting dates are required")
-            if not BOM_FROM <= self.fromDate <= BOM_TO or not BOM_FROM <= self.toDate <= BOM_TO:
-                raise ValueError(f"BOM dates must be within {BOM_FROM} to {BOM_TO} (UTC)")
         elif self.fromDate is None or self.toDate is None:
             raise ValueError("Product reporting dates are required")
         if self.fromDate > self.toDate:
