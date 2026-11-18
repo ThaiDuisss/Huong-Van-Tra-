@@ -52,6 +52,7 @@ import {
   getReturnStatusLabel,
 } from "../utils/order-return.utils";
 import styles from "./OrderRefundPage.module.css";
+import { useOrderReturnAccess } from "../../../auth/order-return-access";
 
 type RefundFilterKey = "ALL" | Exclude<RefundProgressStatus, "OTHER">;
 type ToastState = { message: string; type: "success" | "error" };
@@ -319,6 +320,7 @@ function canRefund(row: OrderRefundSummaryResponse | OrderRefundDetailResponse) 
 }
 
 export function OrderRefundPage() {
+  const { canRefund: canExecuteRefund } = useOrderReturnAccess();
   // Hỗ trợ mở thẳng phiếu từ màn Hoàn hàng: ?returnId=<id>&keyword=<mã phiếu hoàn>
   const [searchParams] = useSearchParams();
   const linkedReturnId = searchParams.get("returnId");
@@ -511,6 +513,7 @@ export function OrderRefundPage() {
   };
 
   const openConfirm = (row: OrderRefundSummaryResponse) => {
+    if (!canExecuteRefund || !canRefund(row)) return;
     setConfirmRow(row);
     setPreview(null);
     setPreviewError(null);
@@ -546,7 +549,7 @@ export function OrderRefundPage() {
   };
 
   const submitRefund = () => {
-    if (refundInFlightRef.current || !confirmRow || !preview?.eligible) {
+    if (!canExecuteRefund || refundInFlightRef.current || !confirmRow || !preview?.eligible) {
       return;
     }
 
@@ -760,7 +763,7 @@ export function OrderRefundPage() {
           }}
         />
       ) : null}
-      {confirmRow ? (
+      {confirmRow && canExecuteRefund ? (
         <RefundConfirmModal
           error={previewError}
           loading={isPreviewLoading}
@@ -801,6 +804,7 @@ function RefundDetailModal({
   onClose: () => void;
   onRefund: (row: OrderRefundDetailResponse) => void;
 }) {
+  const { canRefund: canExecuteRefund } = useOrderReturnAccess();
   return (
     <ModalShell className={styles.detailModal} onClose={onClose}>
         <div className={styles.modalHeader}>
@@ -897,7 +901,7 @@ function RefundDetailModal({
 
             <div className={styles.detailActions}>
               <Button onClick={onClose}>Đóng</Button>
-              {canRefund(detail) ? (
+              {canExecuteRefund && canRefund(detail) ? (
                 <Button onClick={() => onRefund(detail)} variant="primary">
                   <WalletCards size={16} aria-hidden="true" />
                   Thực hiện hoàn tiền

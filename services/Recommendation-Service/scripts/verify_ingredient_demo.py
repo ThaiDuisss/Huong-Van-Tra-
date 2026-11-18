@@ -98,11 +98,10 @@ def main():
             workbook = load_workbook(BytesIO(response.content))
             assert workbook.sheetnames == SHEETS
             workbook_evidence = verify_workbook(workbook, service.data, snapshot)
-            assert [len(list(table_rows(s))) for s in workbook.worksheets[1:]] == [400, 80, 400, 348]
-            comparison = list(table_rows(workbook.worksheets[3]))
+            assert [len(list(table_rows(s))) for s in workbook.worksheets[1:]] == [400, 80, 348]
             stats = list(table_rows(workbook.worksheets[2]))
-            assert sum(r[2] for r in comparison) == sum(r[3] for r in stats) == snapshot["summary"]["recommendations"]
-            assert sum(r[4] for r in comparison) == sum(r[5] for r in stats) == snapshot["summary"]["matches"]
+            assert sum(r[3] for r in stats) == snapshot["summary"]["recommendations"]
+            assert sum(r[5] for r in stats) == snapshot["summary"]["matches"]
             for sheet in workbook:
                 assert sheet.freeze_panes is None and sheet.sheet_view.showGridLines
                 for row in sheet:

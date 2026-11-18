@@ -21,7 +21,7 @@ DATETIME_FORMAT = DATE_FORMAT
 INTEGER_FORMAT = "#,##0"
 TIMEZONE_LABEL = "Asia/Ho_Chi_Minh (UTC+07:00)"
 WIDTHS = ([32, 44, 18, 18, 20], [25, 24, 46, 46, 40],
-          [8, 44, 22, 18, 20, 18], [39, 25, 18, 21, 18, 44])
+          [8, 44, 22, 18, 20, 18])
 FONT = Font(name="Calibri", size=11, color=TEXT)
 SMALL_FONT = Font(name="Calibri", size=10, color=MUTED)
 HEADER_FONT = Font(name="Calibri", size=11, bold=True, color=WHITE)

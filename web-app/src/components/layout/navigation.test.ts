@@ -82,6 +82,20 @@ describe("system navigation paths", () => {
     expect(invoice?.page?.key).toBe("orders-invoices");
     expect(findNavigationTrail(systemNavigationItems, "/unknown")).toBeUndefined();
   });
+
+  it("renames disposal navigation without changing its route or role visibility", () => {
+    const path = "/management/inventory/disposals";
+    for (const role of ["ROLE_SUPER_ADMIN", "ROLE_MANAGER", "ROLE_INVENTORY_STAFF"]) {
+      const items = filterSystemNavigationByRoles([role]);
+      for (const route of [path, `${path}/disposal-001`]) {
+        const trail = findNavigationTrail(items, route);
+        expect(trail?.section.label).toBe("Kho");
+        expect(trail?.page?.label).toBe("Xử lý hàng");
+        expect(trail?.subPage).toMatchObject({ key: "inventory-disposals", label: "Tiêu hủy", to: path });
+      }
+    }
+    expect(findNavigationTrail(filterSystemNavigationByRoles(["ROLE_SALE_STAFF"]), path)).toBeUndefined();
+  });
 });
 
 describe("POS navigation", () => {

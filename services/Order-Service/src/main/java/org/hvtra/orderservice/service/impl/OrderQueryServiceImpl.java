@@ -87,14 +87,18 @@ public class OrderQueryServiceImpl implements OrderQueryService {
                 Math.min(Math.max(size, 1), 200)
         );
 
+        boolean paidInvoice = PaymentStatus.PAID == paymentStatus && "invoicePayment".equalsIgnoreCase(sort);
         Specification<Order> filters = orderQueryCriteriaBuilder.build(
                 keyword,
                 status,
-                paymentStatus,
+                paidInvoice ? null : paymentStatus,
                 orderType,
                 fromDate,
                 toDate
         );
+        if (paidInvoice) {
+            filters = filters.and(orderQueryCriteriaBuilder.paidInvoicePayments());
+        }
 
         return orderRepository.findAll(
                 orderQueryCriteriaBuilder.withBusinessOrder(
@@ -124,7 +128,7 @@ public class OrderQueryServiceImpl implements OrderQueryService {
                 .pending(orderRepository.count(orderQueryCriteriaBuilder.byStatuses(
                         fromDate,
                         toDate,
-                        List.of(OrderStatus.DRAFT, OrderStatus.PENDING_PAYMENT)
+                        List.of(OrderStatus.PENDING_PAYMENT)
                 )))
                 .processing(orderRepository.count(orderQueryCriteriaBuilder.byStatuses(
                         fromDate,

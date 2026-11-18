@@ -17,7 +17,6 @@ HEADERS = [
     ["STT", "Sản phẩm", "Lượt AI gợi ý", "Số ly bán", "Lượt trùng mua"],
     ["Mã KH", "Ngày gợi ý", "AI gợi ý", "Khách mua sau đó", "Món trùng"],
     ["STT", "Sản phẩm", "Số khách được gợi ý", "Lượt gợi ý", "Số đơn có mua", "Số ly bán"],
-    ["Mã lần gợi ý", "Mã KH", "Số món gợi ý", "Số món khách mua", "Số món trùng", "Kết quả"],
 ]
 
 
@@ -172,13 +171,13 @@ class ExcelPresentationTests(DbFixture, unittest.TestCase):
                 snapshot("pending", customer="other"), snapshot("expired", NOW - timedelta(days=9), customer="expired"),
                 snapshot("no-overlap", customer="no-overlap"), order(), order("other-order", customer="no-overlap", products=(("x", 1),))]
         wb, evidence = self.build(rows, from_date=date(2026, 10, 1))
-        ws = wb.worksheets[3]
-        data = {r[0]: r for r in table_values(ws, "Matches")}
-        self.assertEqual(data["pending"][3:5], (None, None))
-        self.assertEqual(data["old"][3:5], (None, None))
-        self.assertEqual(data["expired"][3:5], (0, 0))
-        self.assertEqual(data["winner"][5], "Trùng 1 món")
-        self.assertEqual(data["no-overlap"][5], "Không trùng")
+        ws = wb.worksheets[1]
+        data = {r["snapshot_id"]: r for r in evidence["snapshots"]}
+        self.assertIsNone(data["pending"]["matches"])
+        self.assertIsNone(data["old"]["matches"])
+        self.assertEqual(data["expired"]["matches"], [])
+        self.assertEqual(data["winner"]["status"], "MATCHED")
+        self.assertEqual(data["no-overlap"]["status"], "NO_OVERLAP")
         self.assertEqual({e["status"] for e in evidence["snapshots"]},
                          {"SUPERSEDED", "MATCHED", "NOT_YET_EVALUATED", "NO_PURCHASE", "NO_OVERLAP"})
         self.assertEqual(len(ws.conditional_formatting), 0)
@@ -187,7 +186,7 @@ class ExcelPresentationTests(DbFixture, unittest.TestCase):
                 self.assertIsNone(cell.fill.patternType)
                 self.assertEqual(cell.font.color.rgb[-6:], "000000")
         self.assertEqual(ws["A4"].number_format, "@")
-        self.assertEqual(ws["B4"].number_format, "@")
+        self.assertEqual(ws["B4"].number_format, DATE_FORMAT)
 
     def test_long_vietnamese_names_have_height_for_every_line(self):
         s = snapshot(products=("a", "b", "c", "d", "e"))
@@ -236,9 +235,9 @@ class ExcelPresentationTests(DbFixture, unittest.TestCase):
         for item, name in zip(s.response["items"], names):
             item["name"] = name
         wb, _ = self.build([s])
-        self.assertEqual(wb.worksheets[3]["A4"].value, s.id)
-        self.assertEqual(wb.worksheets[3]["A4"].data_type, "s")
-        self.assertEqual(wb.worksheets[3]["A4"].number_format, "@")
+        self.assertIn(s.id, wb.worksheets[1]["A4"].comment.text)
+        self.assertEqual(wb.worksheets[1]["A4"].data_type, "s")
+        self.assertEqual(wb.worksheets[1]["A4"].number_format, "@")
         product_names = {r[1] for r in table_values(wb.worksheets[2], "Products")}
         self.assertEqual(product_names, set(names))
         self.assertFalse(any(c.data_type == "f" for ws in wb for row in ws for c in row))
@@ -267,14 +266,13 @@ class ExcelPresentationTests(DbFixture, unittest.TestCase):
                 self.assertEqual(wb.worksheets[0]["B5"].value, count * 2)
                 self.assertEqual(wb.worksheets[0]["B6"].value, 0)
                 if count:
-                    for index, table in ((1, "Customers"), (3, "Matches")):
+                    for index, table in ((1, "Customers"),):
                         ws = wb.worksheets[index]
                         self.assertEqual(len(table_values(ws, table)), count)
                         self.assertEqual(ws.tables[table].autoFilter.ref, ws.tables[table].ref)
                         self.assertIsNone(ws.auto_filter.ref)
                         self.assertEqual(ws.max_row, count + 3)
                     self.assertEqual(wb.worksheets[1].max_column, 5)
-                    self.assertEqual(wb.worksheets[3].max_column, 6)
 
 
 if __name__ == "__main__":

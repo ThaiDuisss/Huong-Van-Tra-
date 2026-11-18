@@ -36,14 +36,14 @@ def table_rows(ws,name):
 
 
 class OfflineWorkbookTests(unittest.TestCase):
-    def test_real_data_four_sheets_kpis_and_product_statistics_reconcile(self):
+    def test_real_data_three_sheets_kpis_and_product_statistics_reconcile(self):
         content,result=built(); verification=verify_workbook(content,result)
         self.assertEqual(verification['opportunities'],2)
         wb=load_workbook(BytesIO(content))
         self.assertEqual(wb.sheetnames,SHEETS)
         self.assertEqual(wb.worksheets[0]['B6'].value,result.metrics['total_matched_opportunity_product_pairs'])
         self.assertEqual(len(table_rows(wb.worksheets[1],'Customers')),2)
-        self.assertEqual(len(table_rows(wb.worksheets[3],'Matches')),2)
+        self.assertNotIn('??I CHI?U K?T QU? G?I ?', wb.sheetnames)
         for row in table_rows(wb.worksheets[2],'Products'):
             self.assertEqual(row[7],UNKNOWN)
         with ZipFile(BytesIO(content)) as archive:
@@ -99,9 +99,9 @@ class OfflineWorkbookTests(unittest.TestCase):
         wb=load_workbook(BytesIO(content))
         self.assertFalse(any(c.data_type=='f' for ws in wb for row in ws for c in row))
         self.assertTrue(all(d.height<=409.5 for ws in wb for d in ws.row_dimensions.values()))
-        self.assertEqual(sum(r[2] or 0 for r in table_rows(wb.worksheets[3],'Matches')),result.metrics['total_recommendation_items'])
+        self.assertEqual(sum(r[3] or 0 for r in table_rows(wb.worksheets[2],'Products')),result.metrics['total_recommendation_items'])
 
-    def test_empty_report_keeps_four_sheets_headers_zero_kpis_and_na_quantity(self):
+    def test_empty_report_keeps_three_sheets_headers_zero_kpis_and_na_quantity(self):
         from offline_benchmark.evaluation.contract import FrozenPredictions
         _,products,_=fixture()
         result=evaluate(FrozenPredictions.freeze(()),(),products)
@@ -157,10 +157,10 @@ class BusinessPercentageTests(unittest.TestCase):
     def test_overall_is_weighted_by_recommendation_count_not_mean_of_opportunity_rates(self):
         wb=self.workbook()
         self.assertAlmostEqual(wb.worksheets[0]['B7'].value,2/6)
-        comparison=table_rows(wb.worksheets[3],'Matches')
+        comparison=table_rows(wb.worksheets[1],'Customers')
         self.assertEqual([r[5] for r in comparison],[.2,1])
         self.assertNotAlmostEqual(wb.worksheets[0]['B7'].value,sum(r[5] for r in comparison)/2)
-        for row in (4,5): self.assertEqual(wb.worksheets[3].cell(row,6).number_format,PERCENT_FORMAT)
+        for row in (4,5): self.assertEqual(wb.worksheets[1].cell(row,6).number_format,PERCENT_FORMAT)
 
     def test_product_rates_use_matching_pairs_not_order_count_and_zero_boundaries(self):
         wb=self.workbook(); rows={r[1]:r for r in table_rows(wb.worksheets[2],'Products')}
@@ -186,7 +186,7 @@ class BusinessPercentageTests(unittest.TestCase):
         empty=evaluate(FrozenPredictions.freeze(predictions),self.splits,self.products)
         wb=self.workbook(empty)
         self.assertEqual(wb.worksheets[0]['B7'].value,UNKNOWN)
-        self.assertTrue(all(r[5]=='Không có gợi ý' for r in table_rows(wb.worksheets[3],'Matches')))
+        self.assertTrue(all(r[5]=='Không có gợi ý' for r in table_rows(wb.worksheets[1],'Customers')))
         self.assertIsNone(match_rate(0,0)); self.assertEqual(match_rate(0,5),0)
         for hit,count in ((1,0),(6,5),(-1,5),(0,-1)):
             with self.assertRaises(ValueError): match_rate(hit,count)
@@ -195,7 +195,7 @@ class BusinessPercentageTests(unittest.TestCase):
         before=self.result.frozen.sha256; wb=self.workbook()
         a=display_identifiers(self.result); self.assertEqual(a,display_identifiers(self.result))
         self.assertEqual([r[0] for r in table_rows(wb.worksheets[1],'Customers')],['KH-001','KH-002'])
-        self.assertEqual([r[:2] for r in table_rows(wb.worksheets[3],'Matches')],[('GY-001','KH-001'),('GY-002','KH-002')])
+        self.assertEqual([r['opportunity_display'] for r in a],['GY-001','GY-002'])
         self.assertEqual(a[0]['customer_reference'],self.result.rows[0].prediction.customer)
         self.assertEqual(self.result.frozen.sha256,before)
 
@@ -204,7 +204,7 @@ class BusinessPercentageTests(unittest.TestCase):
         splits=tuple(replace(s,test=()) for s in self.splits)
         missing=evaluate(FrozenPredictions.freeze(self.result.frozen.predictions),splits,self.products)
         wb=self.workbook(missing)
-        self.assertTrue(all(r[5]=='Chưa có dữ liệu đối chiếu' for r in table_rows(wb.worksheets[3],'Matches')))
+        self.assertTrue(all(r[5]=='Chưa có dữ liệu đối chiếu' for r in table_rows(wb.worksheets[1],'Customers')))
 
     def test_visible_package_contains_no_long_internal_references(self):
         content=export_workbook(self.result,self.products,build_manifest(self.data,self.splits),datetime.now(timezone.utc),(date(2026,1,1),date(2026,1,11)))
@@ -214,7 +214,7 @@ class BusinessPercentageTests(unittest.TestCase):
             for internal in (p.customer,p.opportunity_ref,p.state_sha256,p.cutoff): self.assertNotIn(internal,text)
 
     def test_serialized_percentage_tampering_is_detected(self):
-        for sheet,coordinate in ((0,'B7'),(1,'F4'),(2,'G4'),(3,'F4')):
+        for sheet,coordinate in ((0,'B7'),(1,'F4'),(2,'G4')):
             wb=self.workbook(); wb.worksheets[sheet][coordinate]=1.2
             output=BytesIO(); wb.save(output)
             with self.assertRaises(ValueError): verify_workbook(output.getvalue(),self.result)
@@ -247,7 +247,6 @@ class CustomerMatchRateTests(unittest.TestCase):
                 self.assertEqual(ws['F4'].value,expected)
                 self.assertEqual(ws['F4'].data_type,'n')
                 self.assertEqual(ws['F4'].number_format,'0.00%')
-                self.assertEqual(ws['F4'].value,wb.worksheets[3]['F4'].value)
                 self.assertIn('F',str(ws.print_area))
                 self.assertEqual(ws.tables['Customers'].autoFilter.ref,ws.tables['Customers'].ref)
 
@@ -257,7 +256,6 @@ class CustomerMatchRateTests(unittest.TestCase):
             content=self.content(result); verify_workbook(content,result)
             wb=load_workbook(BytesIO(content))
             self.assertEqual(wb.worksheets[1]['F4'].value,expected)
-            self.assertEqual(wb.worksheets[1]['F4'].value,wb.worksheets[3]['F4'].value)
 
     def test_customer_continuation_percentage_only_occurs_on_main_row(self):
         result=self.result()
@@ -269,22 +267,22 @@ class CustomerMatchRateTests(unittest.TestCase):
         self.assertEqual(rows[0][5],.4)
         self.assertTrue(all(r[5] is None for r in rows[1:]))
         self.assertTrue(all(r[0]=='KH-001' and r[1]==UNKNOWN for r in rows))
-        self.assertEqual(len(table_rows(wb.worksheets[3],'Matches')),1)
-        self.assertEqual(sum(r[2] for r in table_rows(wb.worksheets[3],'Matches')),5)
+        self.assertEqual(sum(r[3] or 0 for r in table_rows(wb.worksheets[2],'Products')),5)
         self.assertTrue(ws.tables['Customers'].ref.startswith('A3:F'))
         self.assertTrue(all(d.height<=409.5 for d in ws.row_dimensions.values()))
 
     def test_reconciliation_joins_stable_opportunity_not_physical_row(self):
         result=evaluate(self.frozen,self.splits,self.products)
-        content=self.content(result); wb=load_workbook(BytesIO(content)); ws=wb.worksheets[3]
+        content=self.content(result); wb=load_workbook(BytesIO(content)); ws=wb.worksheets[1]
         first=[c.value for c in ws[4]]; second=[c.value for c in ws[5]]
         for n,(a,b) in enumerate(zip(first,second),1):
             ws.cell(4,n).value=b; ws.cell(5,n).value=a
         output=BytesIO(); wb.save(output)
         verify_workbook(output.getvalue(),result)
-        comparison={r[1]:r[5] for r in table_rows(ws,'Matches')}
+        expected={alias['customer_display']: len(row.hits)/len(row.prediction.items)
+                  for alias,row in zip(display_identifiers(result),result.rows)}
         for row in table_rows(wb.worksheets[1],'Customers'):
-            self.assertEqual(row[5],comparison[row[0]])
+            self.assertEqual(row[5],expected[row[0]])
 
     def test_duplicate_or_wrong_customer_percentage_is_rejected(self):
         result=self.result()

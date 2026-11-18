@@ -75,7 +75,7 @@ const subRouteLabels: Record<string, { parentTo: string; label: string }> = {
     },
     "/management/inventory/disposals/": {
         parentTo: "/management/inventory/disposals",
-        label: "Chi tiết hỏng / tiêu hủy"
+        label: "Chi tiết tiêu hủy"
     }
 };
 

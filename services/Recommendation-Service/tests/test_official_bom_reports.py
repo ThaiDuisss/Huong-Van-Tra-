@@ -184,9 +184,11 @@ class OfficialBomArtifactTests(unittest.TestCase):
     def tearDownClass(cls):
         cls.guard.stop()
 
-    def test_five_sheet_v3_workbook_protocol_and_reference_results(self):
+    def test_four_sheet_v4_workbook_protocol_and_reference_results(self):
         workbook = load_workbook(BytesIO(self.content))
         self.assertEqual(workbook.sheetnames, SHEETS)
+        self.assertNotIn("ĐỐI CHIẾU KẾT QUẢ GỢI Ý", workbook.sheetnames)
+        self.assertEqual(len(workbook.sheetnames), 4)
         self.assertEqual(self.evidence["workbook_schema"], WORKBOOK_SCHEMA)
         self.assertEqual(self.evidence["workbook_evidence"]["ingredient_lines"], 348)
         summary = self.evidence["summary"]
@@ -197,9 +199,9 @@ class OfficialBomArtifactTests(unittest.TestCase):
         self.assertTrue(self.source["research_only"])
         self.assertTrue(any("research_only=true" in str(row[0]) for row in workbook.worksheets[0].values))
         self.assertNotIn("path", json.dumps(self.source))
-        comparison = list(table_rows(workbook.worksheets[3]))
-        self.assertEqual(sum(r[2] for r in comparison), 2000)
-        self.assertEqual(sum(r[4] for r in comparison), 62)
+        statistics = list(table_rows(workbook.worksheets[2]))
+        self.assertEqual(sum(r[3] for r in statistics), 2000)
+        self.assertEqual(sum(r[5] for r in statistics), 62)
         # Existing File-Service contract accepts generic generated XLSX, not Product sheet names.
         with ZipFile(BytesIO(self.content)) as archive:
             self.assertIsNone(archive.testzip())
@@ -221,9 +223,9 @@ class OfficialBomArtifactTests(unittest.TestCase):
             build_bom(self.cfg, other)
         self.assertEqual(failure.exception.status_code, 409)
 
-    def test_official_adapter_rejects_newly_generated_legacy_four_sheet_content(self):
+    def test_official_adapter_rejects_content_missing_recipe_catalog(self):
         workbook = load_workbook(BytesIO(self.content))
-        del workbook[SHEETS[4]]
+        del workbook[SHEETS[3]]
         stream = BytesIO(); workbook.save(stream)
         with patch("app.ingredient_demo.service.IngredientDemoService.excel", return_value=stream.getvalue()):
             with self.assertRaises(HTTPException) as failure:
@@ -251,7 +253,7 @@ class OfficialBomArtifactTests(unittest.TestCase):
         legacy = Workbook()
         legacy.active.title = SHEETS[0]
         legacy.active["A1"] = "Legacy BOM V2 four-sheet fixture"
-        for title in SHEETS[1:4]:
+        for title in (SHEETS[1], SHEETS[2], "ĐỐI CHIẾU KẾT QUẢ GỢI Ý"):
             legacy.create_sheet(title)
         stream = BytesIO(); legacy.save(stream)
         old_bytes = stream.getvalue()

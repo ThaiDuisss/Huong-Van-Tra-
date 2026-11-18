@@ -3,6 +3,7 @@ package org.hvtra.iventoryservice.customerreturn.controller;
 import io.swagger.v3.oas.annotations.Operation;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.hvtra.commonservice.common_core.utils.OrderReturnAuthorization;
 import org.hvtra.iventoryservice.customerreturn.dto.request.CreateCustomerReturnInspectionRequest;
 import org.hvtra.iventoryservice.customerreturn.dto.request.CustomerReturnQcDispositionReportRequest;
 import org.hvtra.iventoryservice.customerreturn.dto.request.CustomerReturnQcSummaryBatchRequest;
@@ -50,6 +51,7 @@ public class CustomerReturnInspectionController {
             @PathVariable UUID returnId,
             @Valid @RequestBody CreateCustomerReturnInspectionRequest request
     ) {
+        OrderReturnAuthorization.requireDisposition();
         return ResponseEntity.status(HttpStatus.CREATED).body(service.createInspection(returnId, request));
     }
 
@@ -58,11 +60,13 @@ public class CustomerReturnInspectionController {
             @PathVariable UUID inspectionId,
             @Valid @RequestBody(required = false) PostCustomerReturnInspectionRequest request
     ) {
+        OrderReturnAuthorization.requireDisposition();
         return ResponseEntity.ok(service.postInspection(inspectionId, request));
     }
 
     @GetMapping("/customer-return-inspections/{inspectionId}")
     public ResponseEntity<CustomerReturnInspectionResponse> getInspection(@PathVariable UUID inspectionId) {
+        OrderReturnAuthorization.requireWarehouseRead();
         return ResponseEntity.ok(service.getInspection(inspectionId));
     }
 
@@ -76,11 +80,13 @@ public class CustomerReturnInspectionController {
             @PageableDefault(size = 10, sort = "createdAt", direction = Sort.Direction.DESC)
             Pageable pageable
     ) {
+        OrderReturnAuthorization.requireWarehouseRead();
         return ResponseEntity.ok(service.listInspections(returnCode, orderCode, status, fromDate, toDate, pageable));
     }
 
     @GetMapping("/customer-returns/{returnId}/qc-summary")
     public ResponseEntity<CustomerReturnQcSummaryResponse> getQcSummary(@PathVariable UUID returnId) {
+        OrderReturnAuthorization.requireWarehouseRead();
         return ResponseEntity.ok(service.getQcSummary(returnId));
     }
 
@@ -88,6 +94,7 @@ public class CustomerReturnInspectionController {
     public ResponseEntity<List<CustomerReturnQcSummaryResponse>> getQcSummaries(
             @Valid @RequestBody CustomerReturnQcSummaryBatchRequest request
     ) {
+        OrderReturnAuthorization.requireEvidenceRead();
         return ResponseEntity.ok(service.getQcSummaries(request));
     }
 
@@ -95,6 +102,7 @@ public class CustomerReturnInspectionController {
     public ResponseEntity<List<CustomerReturnQcDispositionReportResponse>> getQcDispositionReport(
             @Valid @RequestBody CustomerReturnQcDispositionReportRequest request
     ) {
+        OrderReturnAuthorization.requireEvidenceRead();
         return ResponseEntity.ok(service.getQcDispositionReport(request));
     }
 
@@ -102,6 +110,7 @@ public class CustomerReturnInspectionController {
     public ResponseEntity<ReturnDispositionStatusResponse> getDispositionStatus(
             @PathVariable UUID commandId
     ) {
+        OrderReturnAuthorization.requireEvidenceRead();
         return ResponseEntity.ok(service.getDispositionStatus(commandId));
     }
 }

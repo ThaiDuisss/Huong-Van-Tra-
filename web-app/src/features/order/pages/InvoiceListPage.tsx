@@ -35,7 +35,8 @@ import {
   formatCurrency,
   formatDateOnly,
   getCustomerName,
-  getPaymentStatusText,
+  getInvoicePaymentStatus,
+  getInvoicePaymentStatusText,
 } from "../utils/order-formatters";
 import { buildActiveOrderExportParams } from "../utils/order-export-filters";
 import styles from "./InvoiceListPage.module.css";
@@ -242,6 +243,7 @@ export function InvoiceListPage() {
       fromDate: timeRange?.fromDate,
       keyword: debouncedKeyword,
       paymentStatus: activePaymentTab?.paymentStatus,
+      sort: "invoicePayment",
       toDate: timeRange?.toDate,
     });
 
@@ -339,7 +341,10 @@ export function InvoiceListPage() {
             label="Thanh toán:"
             options={INVOICE_PAYMENT_TABS.map((filter) => ({
               ...filter,
-              count: stats[filter.countKey] ?? 0,
+              count: filter.key === "PAID"
+                ? stats.paidInvoices != null && stats.returnedOrRefunded != null
+                  ? stats.paidInvoices + stats.returnedOrRefunded : undefined
+                : stats[filter.countKey] ?? 0,
             }))}
             value={filterPaymentStatus}
             onChange={selectPaymentFilter}
@@ -385,8 +390,8 @@ export function InvoiceListPage() {
               render: (order) => (
                 <>
                   <PaymentStatusBadge
-                    status={order.paymentStatus}
-                    label={getPaymentStatusText(order)}
+                    status={getInvoicePaymentStatus(order)}
+                    label={getInvoicePaymentStatusText(order)}
                   />
                 </>
               ),

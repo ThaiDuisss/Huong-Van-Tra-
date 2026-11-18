@@ -69,9 +69,8 @@ def verify_sales_only_workbook(evidences):
                     raise ValueError("unexpected_product_suggestions")
                 if sorted(row[4] for row in product_rows) != sorted(len(v) for v in orders_by_product.values()):
                     raise ValueError("product_table_order_mismatch")
-                for index in (1, 3):
-                    if workbook.worksheets[index].tables:
-                        raise ValueError("unexpected_recommendation_detail_rows")
+                if workbook.worksheets[1].tables:
+                    raise ValueError("unexpected_recommendation_detail_rows")
                 checks.append(dict(from_date=str(first), to_date=str(end), orders=len(selected),
                     lines=sum(len(e.lines) for e in selected), variant_units=units,
                     kpis=kpis, product_rows=len(product_rows), sheets=workbook.sheetnames,
