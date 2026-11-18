@@ -98,7 +98,7 @@ def main():
             workbook = load_workbook(BytesIO(response.content))
             assert workbook.sheetnames == SHEETS
             workbook_evidence = verify_workbook(workbook, service.data, snapshot)
-            assert [len(list(table_rows(s))) for s in workbook.worksheets[1:]] == [400, 80, 348]
+            assert [len(list(table_rows(s))) for s in workbook.worksheets[1:]] == [400, 80, 348, 400]
             stats = list(table_rows(workbook.worksheets[2]))
             assert sum(r[3] for r in stats) == snapshot["summary"]["recommendations"]
             assert sum(r[5] for r in stats) == snapshot["summary"]["matches"]

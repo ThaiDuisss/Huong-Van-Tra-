@@ -8,7 +8,7 @@ from app.database.session import get_db
 from app.schemas.ai_report import AiReportCreate, AiReportMetadata, AiReportPage, AiReportResponse
 from app.service.ai_report_service import AiReportService
 from app.service.business_report_service import BusinessReportService
-from app.schemas.business_report import BusinessExportRequest, BusinessExportResponse
+from app.schemas.business_report import BomExportPeriod, BusinessExportRequest, BusinessExportResponse
 
 router = APIRouter(prefix="/api/recommendation/ai-reports", tags=["AI Reports"])
 
@@ -26,6 +26,11 @@ def export_business_report(payload: BusinessExportRequest,
     user: ReportUser = Depends(require_report_user), db: Session = Depends(get_db),
     service: BusinessReportService = Depends(get_business_report_service)):
     return service.export(db, payload, user.id)
+
+
+@router.get("/exports/bom-period", response_model=BomExportPeriod)
+def bom_export_period(user: ReportUser = Depends(require_report_user)):
+    return BomExportPeriod()
 
 
 @router.get("/exports/{export_id}", response_model=BusinessExportResponse, response_model_exclude_none=True)

@@ -131,7 +131,7 @@ class BomWorkbookTransparencyTests(unittest.TestCase):
     def test_main_tables_consistently_use_codes_and_keep_all_customer_recipe_mappings(self):
         codes = recipe_codes(self.service.data)
         self.assertEqual(self.wb.sheetnames, SHEETS)
-        self.assertEqual([len(list(table_rows(s))) for s in self.wb.worksheets[1:]], [400, 80, 348])
+        self.assertEqual([len(list(table_rows(s))) for s in self.wb.worksheets[1:]], [400, 80, 348, 400])
         details = {r[7]: r for r in table_rows(self.wb[SHEETS[1]])}
         customers = customer_codes(self.service.data)
         for record in self.snapshot["evaluation"]:
@@ -167,7 +167,7 @@ class BomWorkbookTransparencyTests(unittest.TestCase):
         # inspect the real location, exact lookup key, worksheet and cell value.
         if location in workbook.defined_names:
             formula = workbook.defined_names[location].attr_text
-            match = re.fullmatch(r'INDEX\((\'.+\'!\$[AB]\$\d+:\$[AB]\$\d+),MATCH\("(CT\d+)",\1,0\)\)', formula)
+            match = re.fullmatch(r'INDEX\((\'.+\'!\$[AB]\$\d+:\$[AB]\$\d+),MATCH\("((?:CT|KH)\d+)",\1,0\)\)', formula)
             if not match:
                 raise AssertionError(f"Invalid recipe destination: {formula}")
             span, code = match.groups()
@@ -189,6 +189,13 @@ class BomWorkbookTransparencyTests(unittest.TestCase):
                             self.assertEqual((target.parent.title, target.value), (SHEETS[3], cell.value))
                         elif ws.title == SHEETS[3] and cell.column == 9 and cell.row >= 5:
                             self.assertEqual((target.parent.title, target.value), (SHEETS[2], ws.cell(cell.row, 1).value))
+                        elif ws.title == SHEETS[1] and cell.column == 7 and cell.row >= 5:
+                            self.assertEqual((target.parent.title, target.value), (SHEETS[4], ws.cell(cell.row, 1).value))
+                            self.assertEqual(target.parent.cell(target.row, 7).value, ws.cell(cell.row, 8).value)
+                            self.assertEqual([c.value for c in target.parent[target.row][1:6]], ws.cell(cell.row, 3).value.splitlines())
+                        elif ws.title == SHEETS[4]:
+                            self.assertEqual((target.parent.title, target.value), (SHEETS[3], cell.value))
+                            self.assertTrue(target.parent.cell(target.row, 3).value)
         for row in workbook[SHEETS[1]].iter_rows(min_row=5, min_col=3, max_col=5):
             self.assertTrue(all(c.hyperlink is None for c in row))  # No fake multi-link cells.
 
@@ -213,6 +220,22 @@ class BomWorkbookTransparencyTests(unittest.TestCase):
         self.assert_navigation(workbook)
         stream = BytesIO(); workbook.save(stream)
         self.assert_navigation(load_workbook(BytesIO(stream.getvalue())))
+
+    def test_kh001_and_kh004_lookup_contains_their_own_recommendations(self):
+        detail = self.wb[SHEETS[1]]
+        for row, expected in ((5, ["CT001", "CT018", "CT052", "CT069", "CT014"]), (8, None)):
+            target = self.resolve(self.wb, detail.cell(row, 7).hyperlink.location)
+            suggestions = target.parent[target.row][1:6]
+            codes = [cell.value for cell in suggestions]
+            if expected:
+                self.assertEqual(codes, expected)
+            else:
+                self.assertIn("CT018", codes)
+            for cell in suggestions:
+                recipe = self.resolve(self.wb, cell.hyperlink.location)
+                self.assertEqual(recipe.value, cell.value)
+                self.assertEqual(recipe.parent.cell(recipe.row, 6).value,
+                                 next(rid for rid, code in recipe_codes(self.service.data).items() if code == cell.value))
 
     def test_no_external_relationships_macros_charts_or_formula_cells(self):
         with ZipFile(BytesIO(self.content)) as archive:

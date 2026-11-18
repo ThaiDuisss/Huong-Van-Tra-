@@ -1,11 +1,18 @@
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from uuid import UUID
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, field_validator, model_validator
 
-BOM_FROM = date(2026, 4, 1)
-BOM_TO = date(2026, 4, 30)  # Inclusive calendar date; TEST labels end 01/05 UTC exclusive.
+from app.ingredient_poc.synthetic import END, T2
+
+BOM_FROM = T2.date()
+BOM_TO = (END - timedelta(days=1)).date()
+
+
+class BomExportPeriod(BaseModel):
+    fromDate: date = BOM_FROM
+    toDate: date = BOM_TO
 
 
 class BusinessExportRequest(BaseModel):
@@ -18,9 +25,12 @@ class BusinessExportRequest(BaseModel):
     @model_validator(mode="after")
     def dates(self):
         if self.reportType == "CUSTOM_BOM":
-            if self.fromDate not in (None, BOM_FROM) or self.toDate not in (None, BOM_TO):
-                raise ValueError("BOM reports require the fixed TEST period")
-            self.fromDate, self.toDate = BOM_FROM, BOM_TO
+            if self.fromDate is None and self.toDate is None:
+                self.fromDate, self.toDate = BOM_FROM, BOM_TO
+            elif self.fromDate is None or self.toDate is None:
+                raise ValueError("Both BOM reporting dates are required")
+            if not BOM_FROM <= self.fromDate <= BOM_TO or not BOM_FROM <= self.toDate <= BOM_TO:
+                raise ValueError(f"BOM dates must be within {BOM_FROM} to {BOM_TO} (UTC)")
         elif self.fromDate is None or self.toDate is None:
             raise ValueError("Product reporting dates are required")
         if self.fromDate > self.toDate:
