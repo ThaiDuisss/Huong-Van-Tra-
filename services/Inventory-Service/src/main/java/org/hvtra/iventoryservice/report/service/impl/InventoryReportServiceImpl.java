@@ -242,7 +242,7 @@ public class InventoryReportServiceImpl implements InventoryReportService {
                 .collect(Collectors.toSet());
         Map<UUID, BigDecimal> availableByItemId = new HashMap<>();
         if (!openIngredientIds.isEmpty()) {
-            for (InventoryBalance balance : balanceRepository.findActiveWarehouseBalancesByInventoryItemIds(openIngredientIds)) {
+            for (InventoryBalance balance : balanceRepository.findActiveWarehouseBalancesByInventoryItemIds(openIngredientIds, LocalDate.now())) {
                 availableByItemId.merge(balance.getInventoryItem().getId(), balance.getAvailableQuantity(), BigDecimal::add);
             }
         }

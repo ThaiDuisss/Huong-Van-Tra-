@@ -88,7 +88,12 @@ export function GoodsReceiptCreatePage() {
     const [selectedSupplier, setSelectedSupplier] = useState<LookupItem | null>(null);
     const [selectedLocation, setSelectedLocation] = useState<LookupItem | null>(null);
     const supplierDropdown = useLookupDropdown(supplierApi.lookup, { pinned: [selectedSupplier] });
-    const locationDropdown = useLookupDropdown(inventoryLocationApi.lookupLocations, { pinned: [selectedLocation] });
+    const lookupWarehouseLocations = useCallback(
+        (search: string, page: number, size: number) =>
+            inventoryLocationApi.lookupLocations(search, page, size, { type: "WAREHOUSE" }),
+        []
+    );
+    const locationDropdown = useLookupDropdown(lookupWarehouseLocations, { pinned: [selectedLocation] });
     const { findOption: findSupplierOption } = supplierDropdown;
 
     // Trả về danh sách nguyên liệu khả dụng cho 1 dòng cụ thể (loại bỏ các nguyên liệu đã được chọn ở các dòng khác)

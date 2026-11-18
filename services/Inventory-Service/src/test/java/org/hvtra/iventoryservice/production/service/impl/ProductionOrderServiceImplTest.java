@@ -3,22 +3,30 @@ package org.hvtra.iventoryservice.production.service.impl;
 import org.hvtra.commonservice.common_core.service.BusinessSequenceService;
 import org.hvtra.iventoryservice.availability.service.SupplyLeadTimeService;
 import org.hvtra.iventoryservice.batch.repository.InventoryBatchRepository;
+import org.hvtra.iventoryservice.domain.entity.InventoryBalance;
 import org.hvtra.iventoryservice.domain.entity.InventoryItem;
+import org.hvtra.iventoryservice.domain.entity.InventoryLocation;
+import org.hvtra.iventoryservice.domain.entity.batch.InventoryBatch;
 import org.hvtra.iventoryservice.domain.entity.production.ProductionOrder;
 import org.hvtra.iventoryservice.domain.entity.production.ProductionOrderLine;
+import org.hvtra.iventoryservice.domain.enums.InventoryBatchStatus;
 import org.hvtra.iventoryservice.domain.enums.ProductionOrderStatus;
 import org.hvtra.iventoryservice.integration.catalog.client.CatalogClient;
 import org.hvtra.iventoryservice.item.repository.InventoryItemRepository;
 import org.hvtra.iventoryservice.location.repository.InventoryLocationRepository;
 import org.hvtra.iventoryservice.movement.repository.InventoryTransactionRepository;
+import org.hvtra.iventoryservice.production.dto.request.CancelProductionOrderRequest;
 import org.hvtra.iventoryservice.production.dto.response.ProductionOrderResponse;
 import org.hvtra.iventoryservice.production.mapper.ProductionOrderMapper;
 import org.hvtra.iventoryservice.production.repository.ProductionOrderRepository;
 import org.hvtra.iventoryservice.reservation.service.InventoryReservationService;
 import org.hvtra.iventoryservice.shared.exception.BadRequestException;
 import org.hvtra.iventoryservice.shared.exception.ResourceNotFoundException;
+import org.hvtra.commonservice.common_core.domain.constants.Role;
+import org.hvtra.commonservice.common_core.domain.entity.InternalUserPrincipal;
 import org.hvtra.iventoryservice.shared.pagination.PageResponse;
 import org.hvtra.iventoryservice.stock.repository.InventoryBalanceRepository;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -34,12 +42,17 @@ import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.context.SecurityContextHolder;
 
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -100,11 +113,13 @@ class ProductionOrderServiceImplTest {
 
         productVariant = new InventoryItem();
         productVariant.setId(UUID.randomUUID());
+        productVariant.setReferenceId(UUID.randomUUID());
         productVariant.setReferenceCode("TRA-HOP-001");
         productVariant.setName("Trà Hộp 100g");
 
         ingredient = new InventoryItem();
         ingredient.setId(UUID.randomUUID());
+        ingredient.setReferenceId(UUID.randomUUID());
         ingredient.setReferenceCode("NL-0001");
         ingredient.setName("Búp Trà Xanh");
 
@@ -114,6 +129,7 @@ class ProductionOrderServiceImplTest {
         order.setStatus(ProductionOrderStatus.DRAFT);
         order.setProductVariant(productVariant);
         order.setPlannedQuantity(new BigDecimal("50.00"));
+        order.setLocationId(UUID.randomUUID());
         order.setCreatedAt(Instant.now());
 
         ProductionOrderLine line = new ProductionOrderLine();
@@ -149,6 +165,9 @@ class ProductionOrderServiceImplTest {
         assertThat(response.id()).isEqualTo(orderId);
         assertThat(response.orderCode()).isEqualTo("LSX-202611-0001");
         assertThat(response.status()).isEqualTo(ProductionOrderStatus.DRAFT);
+        assertThat(response.productVariantName()).isEqualTo("Trà Hộp 100g");
+        assertThat(response.lines()).hasSize(1);
+        assertThat(response.lines().get(0).ingredientName()).isEqualTo("Búp Trà Xanh");
     }
 
     @Test
@@ -163,8 +182,25 @@ class ProductionOrderServiceImplTest {
     }
 
     @Test
-    @DisplayName("submit - Success transitioning DRAFT to PENDING_APPROVAL")
+    @DisplayName("submit - Success transitioning DRAFT to PENDING_APPROVAL and reserving materials")
     void submit_Success() {
+        InventoryBatch batch = new InventoryBatch();
+        batch.setId(UUID.randomUUID());
+        batch.setInventoryItem(ingredient);
+
+        InventoryLocation loc = new InventoryLocation();
+        loc.setId(UUID.randomUUID());
+
+        InventoryBalance balance = new InventoryBalance();
+        balance.setInventoryBatch(batch);
+        balance.setLocation(loc);
+        balance.setQuantityOnHand(new BigDecimal("20.00"));
+        balance.setQuantityReserved(BigDecimal.ZERO);
+        balance.setQuantityBlocked(BigDecimal.ZERO);
+
+        when(batchRepository.findFefoCandidates(eq(ingredient.getId()), eq(InventoryBatchStatus.AVAILABLE)))
+                .thenReturn(List.of(batch));
+        when(balanceRepository.findForUpdateByBatchId(batch.getId())).thenReturn(List.of(balance));
         when(productionOrderRepository.findByIdWithLines(orderId)).thenReturn(Optional.of(order));
         when(productionOrderRepository.save(any(ProductionOrder.class))).thenReturn(order);
 
@@ -172,6 +208,8 @@ class ProductionOrderServiceImplTest {
 
         assertThat(response).isNotNull();
         assertThat(order.getStatus()).isEqualTo(ProductionOrderStatus.PENDING_APPROVAL);
+        assertThat(order.getLines().getFirst().getReservedQuantity()).isEqualByComparingTo("10.00");
+        assertThat(balance.getQuantityReserved()).isEqualByComparingTo("10.00");
         verify(productionOrderRepository).save(order);
     }
 
@@ -197,9 +235,31 @@ class ProductionOrderServiceImplTest {
                 .hasMessageContaining("Lệnh sản xuất chưa có dòng nguyên liệu nào");
     }
 
+    @AfterEach
+    void tearDown() {
+        SecurityContextHolder.clearContext();
+    }
+
+    private void authenticateWith(Role role) {
+        authenticateWith(role, UUID.randomUUID());
+    }
+
+    private void authenticateWith(Role role, UUID userId) {
+        InternalUserPrincipal principal = new InternalUserPrincipal(
+                userId.toString(),
+                "test-user",
+                "test-issuer",
+                Set.of(role.name()),
+                "corr-123"
+        );
+        SecurityContextHolder.getContext().setAuthentication(new UsernamePasswordAuthenticationToken(
+                principal, null, List.of(new SimpleGrantedAuthority(role.authority()))));
+    }
+
     @Test
-    @DisplayName("reject - Success rejecting order in PENDING_APPROVAL status")
+    @DisplayName("reject - Success rejecting order in PENDING_APPROVAL status by Manager")
     void reject_Success() {
+        authenticateWith(Role.MANAGER);
         order.setStatus(ProductionOrderStatus.PENDING_APPROVAL);
         when(productionOrderRepository.findByIdWithLines(orderId)).thenReturn(Optional.of(order));
         when(productionOrderRepository.save(any(ProductionOrder.class))).thenReturn(order);
@@ -212,13 +272,92 @@ class ProductionOrderServiceImplTest {
     }
 
     @Test
-    @DisplayName("reject - Throws BadRequestException when not PENDING_APPROVAL")
+    @DisplayName("reject - Throws BadRequestException when not PENDING_APPROVAL by Manager")
     void reject_NotPendingApproval_ThrowsException() {
+        authenticateWith(Role.MANAGER);
         order.setStatus(ProductionOrderStatus.DRAFT);
         when(productionOrderRepository.findByIdWithLines(orderId)).thenReturn(Optional.of(order));
 
         assertThatThrownBy(() -> service.reject(orderId))
                 .isInstanceOf(BadRequestException.class)
                 .hasMessageContaining("Lệnh sản xuất phải ở trạng thái");
+    }
+
+    @Test
+    @DisplayName("reject - Throws AccessDeniedException when caller is Inventory Staff")
+    void reject_ThrowsAccessDenied_WhenInventoryStaff() {
+        authenticateWith(Role.INVENTORY_STAFF);
+        order.setStatus(ProductionOrderStatus.PENDING_APPROVAL);
+
+        assertThatThrownBy(() -> service.reject(orderId))
+                .isInstanceOf(AccessDeniedException.class)
+                .hasMessageContaining("Chỉ Quản lý hoặc Admin mới có quyền");
+    }
+
+    @Test
+    @DisplayName("approve - Throws AccessDeniedException when caller is Inventory Staff")
+    void approve_ThrowsAccessDenied_WhenInventoryStaff() {
+        authenticateWith(Role.INVENTORY_STAFF);
+        order.setStatus(ProductionOrderStatus.PENDING_APPROVAL);
+
+        assertThatThrownBy(() -> service.approve(orderId))
+                .isInstanceOf(AccessDeniedException.class)
+                .hasMessageContaining("Chỉ Quản lý hoặc Admin mới có quyền");
+    }
+
+    @Test
+    @DisplayName("cancel - Success cancelling PENDING_APPROVAL order by creator")
+    void cancel_Success_WhenPendingApproval_ByCreator() {
+        UUID creatorId = UUID.randomUUID();
+        order.setCreatedBy(creatorId);
+        order.setStatus(ProductionOrderStatus.PENDING_APPROVAL);
+        authenticateWith(Role.INVENTORY_STAFF, creatorId);
+
+        when(productionOrderRepository.findByIdWithLines(orderId)).thenReturn(Optional.of(order));
+        when(productionOrderRepository.save(any(ProductionOrder.class))).thenReturn(order);
+
+        ProductionOrderResponse response = service.cancel(orderId, new CancelProductionOrderRequest("Thay đổi kế hoạch sản xuất"));
+
+        assertThat(response).isNotNull();
+        assertThat(order.getStatus()).isEqualTo(ProductionOrderStatus.CANCELLED);
+        assertThat(order.getCancelledBy()).isEqualTo(creatorId);
+        assertThat(order.getCancelReason()).isEqualTo("Thay đổi kế hoạch sản xuất");
+        verify(productionOrderRepository).save(order);
+    }
+
+    @Test
+    @DisplayName("cancel - Throws BadRequestException when caller is neither creator nor manager")
+    void cancel_ThrowsBadRequest_WhenNeitherCreatorNorManager() {
+        UUID creatorId = UUID.randomUUID();
+        UUID otherUserId = UUID.randomUUID();
+        order.setCreatedBy(creatorId);
+        order.setStatus(ProductionOrderStatus.PENDING_APPROVAL);
+        authenticateWith(Role.INVENTORY_STAFF, otherUserId);
+
+        when(productionOrderRepository.findByIdWithLines(orderId)).thenReturn(Optional.of(order));
+
+        assertThatThrownBy(() -> service.cancel(orderId, new CancelProductionOrderRequest("Lý do khác")))
+                .isInstanceOf(BadRequestException.class)
+                .hasMessageContaining("Chỉ người tạo hoặc Quản lý / Admin mới có quyền hủy");
+    }
+
+    @Test
+    @DisplayName("cancel - Success cancelling PENDING_APPROVAL order by Manager")
+    void cancel_Success_WhenPendingApproval_ByManager() {
+        UUID creatorId = UUID.randomUUID();
+        UUID managerId = UUID.randomUUID();
+        order.setCreatedBy(creatorId);
+        order.setStatus(ProductionOrderStatus.PENDING_APPROVAL);
+        authenticateWith(Role.MANAGER, managerId);
+
+        when(productionOrderRepository.findByIdWithLines(orderId)).thenReturn(Optional.of(order));
+        when(productionOrderRepository.save(any(ProductionOrder.class))).thenReturn(order);
+
+        ProductionOrderResponse response = service.cancel(orderId, new CancelProductionOrderRequest("Hủy bởi Quản lý"));
+
+        assertThat(response).isNotNull();
+        assertThat(order.getStatus()).isEqualTo(ProductionOrderStatus.CANCELLED);
+        assertThat(order.getCancelledBy()).isEqualTo(managerId);
+        verify(productionOrderRepository).save(order);
     }
 }

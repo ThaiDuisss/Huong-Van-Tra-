@@ -127,6 +127,8 @@ public class InventoryReservationServiceImpl implements InventoryReservationServ
                     request.orderId(),
                     request.productVariantId(),
                     null,
+                    null,
+                    null,
                     request.locationId(),
                     BigDecimal.ZERO,
                     ReservationStatus.RELEASED,
@@ -401,7 +403,7 @@ public class InventoryReservationServiceImpl implements InventoryReservationServ
         InventoryReservation reservation = new InventoryReservation();
         reservation.setOrderId(orderId);
         reservation.setProductVariantId(productVariantId);
-        reservation.setInventoryItem(item);
+        reservation.setInventoryItemProduct(item);
         reservation.setLocation(location);
         reservation.setReservationType(ReservationType.PRODUCT_VARIANT);
         reservation.setQuantity(BigDecimal.ZERO);
@@ -542,7 +544,9 @@ public class InventoryReservationServiceImpl implements InventoryReservationServ
                 reservation.getId(),
                 reservation.getOrderId(),
                 reservation.getProductVariantId(),
-                reservation.getInventoryItem().getId(),
+                reservation.getIngredientId(),
+                reservation.getInventoryItemProduct() != null ? reservation.getInventoryItemProduct().getId() : null,
+                reservation.getInventoryItemIngredient() != null ? reservation.getInventoryItemIngredient().getId() : null,
                 reservation.getLocation().getId(),
                 reservation.getQuantity(),
                 reservation.getStatus(),
@@ -563,7 +567,11 @@ public class InventoryReservationServiceImpl implements InventoryReservationServ
         reservation.setOrderItemId(line.orderItemId());
         reservation.setProductVariantId(line.productVariantId());
         reservation.setIngredientId(line.ingredientId());
-        reservation.setInventoryItem(item);
+        reservation.setInventoryItemIngredient(item);
+        if (line.productVariantId() != null) {
+            itemRepository.findByReferenceIdAndItemType(line.productVariantId(), InventoryItemType.PRODUCT_VARIANT)
+                    .ifPresent(reservation::setInventoryItemProduct);
+        }
         reservation.setLocation(location);
         reservation.setQuantity(requiredQuantity);
         reservation.setStatus(ReservationStatus.RESERVED);

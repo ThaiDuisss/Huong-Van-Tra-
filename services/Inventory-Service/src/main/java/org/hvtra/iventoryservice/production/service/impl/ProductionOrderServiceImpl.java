@@ -1,7 +1,9 @@
 package org.hvtra.iventoryservice.production.service.impl;
 
 import jakarta.persistence.criteria.Predicate;
+import org.hvtra.commonservice.common_core.domain.constants.Role;
 import org.hvtra.commonservice.common_core.domain.entity.InternalUserPrincipal;
+import org.hvtra.commonservice.common_core.utils.SecurityUtils;
 import org.hvtra.iventoryservice.availability.service.SupplyLeadTimeService;
 import org.hvtra.iventoryservice.batch.repository.InventoryBatchRepository;
 import org.hvtra.iventoryservice.domain.entity.InventoryBalance;
@@ -39,6 +41,7 @@ import org.hvtra.iventoryservice.shared.pagination.PageResponse;
 import org.hvtra.iventoryservice.stock.repository.InventoryBalanceRepository;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -46,9 +49,12 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -186,8 +192,9 @@ public class ProductionOrderServiceImpl implements ProductionOrderService {
                     .multiply(request.plannedQuantity())
                     .multiply(wasteMultiplier);
 
-            // Check if stock is sufficient
-            List<InventoryBalance> balances = balanceRepository.findActiveWarehouseBalancesByInventoryItemIds(List.of(ingredientItem.getId()));
+            // Check if stock is sufficient (chỉ tính batch AVAILABLE, chưa hết hạn, tại kho WAREHOUSE)
+            List<InventoryBalance> balances = balanceRepository.findActiveWarehouseBalancesByInventoryItemIds(
+                    List.of(ingredientItem.getId()), LocalDate.now());
             BigDecimal availableStock = balances.stream()
                     .map(b -> b.getQuantityOnHand().subtract(b.getQuantityReserved()).subtract(b.getQuantityBlocked()))
                     .reduce(BigDecimal.ZERO, BigDecimal::add);
@@ -205,6 +212,7 @@ public class ProductionOrderServiceImpl implements ProductionOrderService {
         order.setLocationId(location.getId());
         order.setNote(request.note());
         order.setStatus(ProductionOrderStatus.DRAFT);
+        order.setExpectedCompletionDate(Instant.now().plus(1, ChronoUnit.DAYS));
 
         for (CatalogClient.BomItemResponse bomItem : bomItems) {
             if (bomItem.ingredient() == null) {
@@ -241,18 +249,128 @@ public class ProductionOrderServiceImpl implements ProductionOrderService {
         if (order.getLines().isEmpty()) {
             throw new BadRequestException("Lệnh sản xuất chưa có dòng nguyên liệu nào");
         }
-        order.setStatus(ProductionOrderStatus.PENDING_APPROVAL);
         order.setSubmittedBy(getCurrentUserId());
         order.setSubmittedAt(Instant.now());
+
+        // Quản lý hoặc Admin: không cần duyệt, tự động phê duyệt và xuất kho/nhập kho ngay
+        if (isManagerOrAdmin()) {
+            return executeApprove(order);
+        }
+
+        // Nhân viên kho: giữ chỗ nguyên liệu (FEFO) và chuyển sang trạng thái PENDING_APPROVAL chờ Quản lý/Admin duyệt
+        reserveMaterials(order);
+        order.setStatus(ProductionOrderStatus.PENDING_APPROVAL);
         return mapper.toResponse(productionOrderRepository.save(order));
     }
 
     @Override
     @Transactional
     public ProductionOrderResponse approve(UUID id) {
+        if (!isManagerOrAdmin()) {
+            throw new AccessDeniedException("Chỉ Quản lý hoặc Admin mới có quyền duyệt lệnh sản xuất");
+        }
         ProductionOrder order = getOrderWithDetails(id);
-        requireStatus(order, ProductionOrderStatus.PENDING_APPROVAL);
+        if (order.getStatus() != ProductionOrderStatus.PENDING_APPROVAL && order.getStatus() != ProductionOrderStatus.DRAFT) {
+            throw new BadRequestException(
+                    "Lệnh sản xuất phải ở trạng thái DRAFT hoặc PENDING_APPROVAL (hiện tại: " + order.getStatus() + ")");
+        }
+        return executeApprove(order);
+    }
 
+    private void reserveMaterials(ProductionOrder order) {
+        for (ProductionOrderLine line : order.getLines()) {
+            BigDecimal remaining = line.getRequiredQuantity();
+            if (remaining == null || remaining.compareTo(BigDecimal.ZERO) <= 0) {
+                continue;
+            }
+
+            reservationService.releasePlannedMaterials(
+                    order.getProductVariant().getReferenceId(), line.getIngredient().getId(), remaining);
+
+            List<InventoryBatch> candidates = batchRepository.findFefoCandidates(
+                    line.getIngredient().getId(), InventoryBatchStatus.AVAILABLE);
+
+            BigDecimal totalAvailable = BigDecimal.ZERO;
+            for (InventoryBatch batch : candidates) {
+                List<InventoryBalance> balances = balanceRepository.findForUpdateByBatchId(batch.getId());
+                for (InventoryBalance balance : balances) {
+                    BigDecimal available = balance.getAvailableQuantity();
+                    if (available != null && available.compareTo(BigDecimal.ZERO) > 0) {
+                        totalAvailable = totalAvailable.add(available);
+                    }
+                }
+            }
+
+            if (totalAvailable.compareTo(remaining) < 0) {
+                throw new OutOfStockException(
+                        "Không đủ tồn kho nguyên liệu \"" + line.getIngredient().getReferenceId() + "\": cần " + remaining + " nhưng chỉ có " + totalAvailable);
+            }
+
+            BigDecimal lineReserved = BigDecimal.ZERO;
+            for (InventoryBatch batch : candidates) {
+                if (remaining.compareTo(BigDecimal.ZERO) <= 0) {
+                    break;
+                }
+                List<InventoryBalance> balances = balanceRepository.findForUpdateByBatchId(batch.getId());
+                for (InventoryBalance balance : balances) {
+                    if (remaining.compareTo(BigDecimal.ZERO) <= 0) {
+                        break;
+                    }
+                    BigDecimal available = balance.getAvailableQuantity();
+                    if (available == null || available.compareTo(BigDecimal.ZERO) <= 0) {
+                        continue;
+                    }
+                    BigDecimal take = available.min(remaining);
+
+                    balance.setQuantityReserved(balance.getQuantityReserved().add(take));
+                    balanceRepository.save(balance);
+
+                    ProductionOrderBatchAllocation allocation = new ProductionOrderBatchAllocation();
+                    allocation.setInventoryBatch(batch);
+                    allocation.setLocationId(balance.getLocation().getId());
+                    allocation.setReservedQuantity(take);
+                    allocation.setConsumedQuantity(BigDecimal.ZERO);
+                    allocation.setStatus(ReservationStatus.RESERVED);
+                    line.addAllocation(allocation);
+
+                    lineReserved = lineReserved.add(take);
+                    remaining = remaining.subtract(take);
+                }
+            }
+            line.setReservedQuantity(lineReserved);
+        }
+    }
+
+    private void releaseReservedMaterials(ProductionOrder order) {
+        for (ProductionOrderLine line : order.getLines()) {
+            if (line.getAllocations() == null || line.getAllocations().isEmpty()) {
+                continue;
+            }
+            for (ProductionOrderBatchAllocation allocation : line.getAllocations()) {
+                if (allocation.getStatus() != ReservationStatus.RESERVED) {
+                    continue;
+                }
+                BigDecimal reserved = allocation.getReservedQuantity();
+                if (reserved == null || reserved.compareTo(BigDecimal.ZERO) <= 0) {
+                    continue;
+                }
+                UUID locId = allocation.getLocationId();
+                Optional<InventoryBalance> balanceOpt = locId != null
+                        ? balanceRepository.findForUpdateByBatchId(allocation.getInventoryBatch().getId(), locId)
+                        : balanceRepository.findForUpdateByBatchId(allocation.getInventoryBatch().getId()).stream().findFirst();
+
+                balanceOpt.ifPresent(balance -> {
+                    BigDecimal newReserved = balance.getQuantityReserved().subtract(reserved);
+                    balance.setQuantityReserved(newReserved.compareTo(BigDecimal.ZERO) < 0 ? BigDecimal.ZERO : newReserved);
+                    balanceRepository.save(balance);
+                });
+                allocation.setStatus(ReservationStatus.RELEASED);
+            }
+            line.setReservedQuantity(BigDecimal.ZERO);
+        }
+    }
+
+    private ProductionOrderResponse executeApprove(ProductionOrder order) {
         InventoryLocation location = locationRepository.findById(order.getLocationId())
                 .orElseThrow(() -> new ResourceNotFoundException("InventoryLocation", order.getLocationId()));
         UUID branchId = location.getBranchId();
@@ -273,38 +391,33 @@ public class ProductionOrderServiceImpl implements ProductionOrderService {
             reservationService.releasePlannedMaterials(
                     order.getProductVariant().getReferenceId(), line.getIngredient().getId(), remaining);
 
-            List<InventoryBatch> candidates = batchRepository.findFefoCandidates(
-                    line.getIngredient().getId(), InventoryBatchStatus.AVAILABLE);
+            List<ProductionOrderBatchAllocation> existingAllocations = line.getAllocations() != null
+                    ? line.getAllocations().stream()
+                            .filter(a -> a.getStatus() == ReservationStatus.RESERVED)
+                            .toList()
+                    : List.of();
 
-            for (InventoryBatch batch : candidates) {
-                if (remaining.compareTo(BigDecimal.ZERO) <= 0) {
-                    break;
-                }
-                List<InventoryBalance> balances = balanceRepository.findForUpdateByBatchId(batch.getId());
-                for (InventoryBalance balance : balances) {
-                    if (remaining.compareTo(BigDecimal.ZERO) <= 0) {
-                        break;
-                    }
-                    BigDecimal available = balance.getAvailableQuantity();
-                    if (available.compareTo(BigDecimal.ZERO) <= 0) {
-                        continue;
-                    }
-                    BigDecimal take = available.min(remaining);
+            if (!existingAllocations.isEmpty()) {
+                // Trường hợp đã giữ chỗ lúc gửi duyệt: tiêu thụ các lô đã giữ chỗ
+                for (ProductionOrderBatchAllocation allocation : existingAllocations) {
+                    BigDecimal take = allocation.getReservedQuantity();
+                    UUID locId = allocation.getLocationId();
+                    InventoryBalance balance = (locId != null
+                            ? balanceRepository.findForUpdateByBatchId(allocation.getInventoryBatch().getId(), locId)
+                            : balanceRepository.findForUpdateByBatchId(allocation.getInventoryBatch().getId()).stream().findFirst())
+                            .orElseThrow(() -> new ResourceNotFoundException("InventoryBalance for batch", allocation.getInventoryBatch().getId()));
 
                     BigDecimal beforeQuantity = balance.getQuantityOnHand();
                     BigDecimal afterQuantity = beforeQuantity.subtract(take);
                     balance.setQuantityOnHand(afterQuantity);
+                    BigDecimal newReserved = balance.getQuantityReserved().subtract(take);
+                    balance.setQuantityReserved(newReserved.compareTo(BigDecimal.ZERO) < 0 ? BigDecimal.ZERO : newReserved);
                     balanceRepository.save(balance);
 
-                    ProductionOrderBatchAllocation allocation = new ProductionOrderBatchAllocation();
-                    allocation.setInventoryBatch(batch);
-                    allocation.setLocationId(balance.getLocation().getId());
                     allocation.setConsumedQuantity(take);
                     allocation.setStatus(ReservationStatus.CONFIRMED);
-                    line.addAllocation(allocation);
                     line.setConsumedQuantity(line.getConsumedQuantity().add(take));
 
-                    // Create transaction line for ingredient deduction
                     InventoryTransactionLine transLine = new InventoryTransactionLine();
                     transLine.setInventoryItem(line.getIngredient());
                     transLine.setLocation(balance.getLocation());
@@ -313,20 +426,73 @@ public class ProductionOrderServiceImpl implements ProductionOrderService {
                     transLine.setAfterQuantity(afterQuantity);
 
                     InventoryTransactionBatchAllocation transAlloc = new InventoryTransactionBatchAllocation();
-                    transAlloc.setInventoryBatch(batch);
+                    transAlloc.setInventoryBatch(allocation.getInventoryBatch());
                     transAlloc.setQuantity(take);
                     transAlloc.setBeforeBatchQuantity(beforeQuantity);
                     transAlloc.setAfterBatchQuantity(afterQuantity);
                     transLine.addBatchAllocation(transAlloc);
 
                     ingredientTransaction.addLine(transLine);
-                    remaining = remaining.subtract(take);
                 }
-            }
+            } else {
+                // Trường hợp chưa giữ chỗ trước (ví dụ Quản lý duyệt ngay): tìm lô FEFO và trừ trực tiếp
+                List<InventoryBatch> candidates = batchRepository.findFefoCandidates(
+                        line.getIngredient().getId(), InventoryBatchStatus.AVAILABLE);
 
-            if (remaining.compareTo(BigDecimal.ZERO) > 0) {
-                throw new OutOfStockException(
-                        "Không đủ tồn kho nguyên liệu \"" + line.getIngredient().getReferenceId() + "\": còn thiếu " + remaining);
+                for (InventoryBatch batch : candidates) {
+                    if (remaining.compareTo(BigDecimal.ZERO) <= 0) {
+                        break;
+                    }
+                    List<InventoryBalance> balances = balanceRepository.findForUpdateByBatchId(batch.getId());
+                    for (InventoryBalance balance : balances) {
+                        if (remaining.compareTo(BigDecimal.ZERO) <= 0) {
+                            break;
+                        }
+                        BigDecimal available = balance.getAvailableQuantity();
+                        if (available == null || available.compareTo(BigDecimal.ZERO) <= 0) {
+                            continue;
+                        }
+                        BigDecimal take = available.min(remaining);
+
+                        BigDecimal beforeQuantity = balance.getQuantityOnHand();
+                        BigDecimal afterQuantity = beforeQuantity.subtract(take);
+                        balance.setQuantityOnHand(afterQuantity);
+                        balanceRepository.save(balance);
+
+                        ProductionOrderBatchAllocation allocation = new ProductionOrderBatchAllocation();
+                        allocation.setInventoryBatch(batch);
+                        allocation.setLocationId(balance.getLocation().getId());
+                        allocation.setReservedQuantity(take);
+                        allocation.setConsumedQuantity(take);
+                        allocation.setStatus(ReservationStatus.CONFIRMED);
+                        line.addAllocation(allocation);
+                        line.setReservedQuantity(line.getReservedQuantity().add(take));
+                        line.setConsumedQuantity(line.getConsumedQuantity().add(take));
+
+                        // Create transaction line for ingredient deduction
+                        InventoryTransactionLine transLine = new InventoryTransactionLine();
+                        transLine.setInventoryItem(line.getIngredient());
+                        transLine.setLocation(balance.getLocation());
+                        transLine.setQuantity(take);
+                        transLine.setBeforeQuantity(beforeQuantity);
+                        transLine.setAfterQuantity(afterQuantity);
+
+                        InventoryTransactionBatchAllocation transAlloc = new InventoryTransactionBatchAllocation();
+                        transAlloc.setInventoryBatch(batch);
+                        transAlloc.setQuantity(take);
+                        transAlloc.setBeforeBatchQuantity(beforeQuantity);
+                        transAlloc.setAfterBatchQuantity(afterQuantity);
+                        transLine.addBatchAllocation(transAlloc);
+
+                        ingredientTransaction.addLine(transLine);
+                        remaining = remaining.subtract(take);
+                    }
+                }
+
+                if (remaining.compareTo(BigDecimal.ZERO) > 0) {
+                    throw new OutOfStockException(
+                            "Không đủ tồn kho nguyên liệu \"" + line.getIngredient().getReferenceId() + "\": còn thiếu " + remaining);
+                }
             }
         }
 
@@ -394,22 +560,28 @@ public class ProductionOrderServiceImpl implements ProductionOrderService {
         transactionRepository.save(productTransaction);
 
         order.setStatus(ProductionOrderStatus.APPROVED);
-        order.setApprovedBy(getCurrentUserId());
-        order.setApprovedAt(Instant.now());
+        UUID userId = getCurrentUserId();
+        if (order.getApprovedBy() == null) {
+            order.setApprovedBy(userId);
+        }
+        if (order.getApprovedAt() == null) {
+            order.setApprovedAt(Instant.now());
+        }
         ProductionOrder approved = productionOrderRepository.save(order);
         supplyLeadTimeService.onProductionCompleted(approved);
         return mapper.toResponse(approved);
     }
 
-
-
-
     @Override
     @Transactional
     public ProductionOrderResponse reject(UUID id) {
+        if (!isManagerOrAdmin()) {
+            throw new AccessDeniedException("Chỉ Quản lý hoặc Admin mới có quyền từ chối lệnh sản xuất");
+        }
         ProductionOrder order = getOrderWithDetails(id);
         requireStatus(order, ProductionOrderStatus.PENDING_APPROVAL);
 
+        releaseReservedMaterials(order);
         order.setStatus(ProductionOrderStatus.REJECTED);
         order.setRejectedBy(getCurrentUserId());
         order.setRejectedAt(Instant.now());
@@ -420,19 +592,32 @@ public class ProductionOrderServiceImpl implements ProductionOrderService {
     @Transactional
     public ProductionOrderResponse cancel(UUID id, CancelProductionOrderRequest request) {
         ProductionOrder order = getOrderWithDetails(id);
-        requireStatus(order, ProductionOrderStatus.DRAFT);
-
-        // Check creator == currentUser
-        UUID currentUserId = getCurrentUserId();
-        if (!order.getCreatedBy().equals(currentUserId)) {
-            throw new BadRequestException("Chỉ có thể hủy lệnh sản xuất do chính mình tạo");
+        if (order.getStatus() != ProductionOrderStatus.DRAFT && order.getStatus() != ProductionOrderStatus.PENDING_APPROVAL) {
+            throw new BadRequestException(
+                    "Lệnh sản xuất phải ở trạng thái DRAFT hoặc PENDING_APPROVAL (hiện tại: " + order.getStatus() + ")");
         }
 
+        // Check creator/submitter == currentUser or manager/admin
+        UUID currentUserId = getCurrentUserId();
+        boolean isCreator = currentUserId != null && (currentUserId.equals(order.getCreatedBy()) || currentUserId.equals(order.getSubmittedBy()));
+        if (!isCreator && !isManagerOrAdmin()) {
+            throw new BadRequestException("Chỉ người tạo hoặc Quản lý / Admin mới có quyền hủy lệnh sản xuất");
+        }
+
+        releaseReservedMaterials(order);
         order.setStatus(ProductionOrderStatus.CANCELLED);
-        order.setCancelledBy(getCurrentUserId());
+        order.setCancelledBy(currentUserId);
         order.setCancelledAt(Instant.now());
         order.setCancelReason(request.reason());
         return mapper.toResponse(productionOrderRepository.save(order));
+    }
+
+    private boolean isManagerOrAdmin() {
+        try {
+            return SecurityUtils.hasAnyRole(Role.SUPER_ADMIN, Role.MANAGER);
+        } catch (Exception ignored) {
+            return false;
+        }
     }
 
     private boolean isBomApproved(UUID productVariantId) {

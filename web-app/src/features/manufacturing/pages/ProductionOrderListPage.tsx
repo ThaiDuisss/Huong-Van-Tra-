@@ -15,9 +15,9 @@ import type { ProductionOrder, ProductionOrderApiStatus } from "../types/product
 
 const columns: Column[] = [
     { key: "orderCode", label: "Mã lệnh sản xuất" },
+    { key: "productVariantName", label: "Sản phẩm" },
     { align: "right", key: "plannedQuantity", label: "Số lượng kế hoạch" },
     { key: "status", label: "Trạng thái" },
-    { key: "expectedCompletionDate", label: "Ngày dự kiến xong" },
     { key: "createdAt", label: "Ngày tạo" }
 ];
 
@@ -156,11 +156,11 @@ export function ProductionOrderListPage() {
             renderCells={(item) => (
                 <>
                     <TableCell strong>{item.orderCode}</TableCell>
+                    <TableCell>{item.productVariantName ?? "—"}</TableCell>
                     <TableCell className="text-right pr-[18px]">{item.plannedQuantity}</TableCell>
                     <TableCell>
                         <StatusPill status={item.status} />
                     </TableCell>
-                    <TableCell>{item.expectedCompletionDate ? formatDateTime(item.expectedCompletionDate) : "—"}</TableCell>
                     <TableCell>{formatDateTime(item.createdAt)}</TableCell>
                 </>
             )}
