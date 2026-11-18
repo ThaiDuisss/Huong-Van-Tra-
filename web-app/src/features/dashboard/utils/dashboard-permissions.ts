@@ -40,7 +40,17 @@ export function getDashboardCapabilities(
   };
 }
 
+/**
+ * Tạm ẩn các tab dashboard: chỉ hiển thị tab Kho hàng. Đặt `false` để mở lại đầy đủ.
+ * Người dùng không có quyền kho vẫn rơi về tab Tổng quan để trang không bị trống.
+ */
+const DASHBOARD_INVENTORY_ONLY = true;
+
 export function getVisibleDashboardTabs(capabilities: DashboardCapabilities): DashboardTab[] {
+  if (DASHBOARD_INVENTORY_ONLY) {
+    return capabilities.inventory ? ["INVENTORY"] : ["OVERVIEW"];
+  }
+
   const tabs: DashboardTab[] = ["OVERVIEW"];
 
   if (capabilities.sales) tabs.push("POS");
