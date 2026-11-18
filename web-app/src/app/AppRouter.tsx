@@ -29,7 +29,6 @@ import { OrderReturnPage } from "../features/order/pages/OrderReturnPage";
 import { ReturnRefundReportPage } from "../features/order/pages/ReturnRefundReportPage";
 import { BackorderOrdersPage } from "../features/order/pages/BackorderOrdersPage";
 import { CustomBundleHandoverPage } from "../features/order/pages/CustomBundleHandoverPage";
-import { PosCustomBundlePage } from "../features/sales/pages/PosCustomBundlePage";
 import { PosShelfReplenishmentPage } from "../features/sales/pages/PosShelfReplenishmentPage";
 import { SalesHistoryPage } from "../features/order/pages/SalesHistoryPage";
 import { GoodsReceiptCreatePage } from "../features/inventory/pages/GoodsReceiptCreatePage";
@@ -166,16 +165,6 @@ export function AppRouter() {
           <ProtectedRoute roles={POS_WORKSPACE_ROLES}>
             <PosShell>
               <CustomBundleHandoverPage />
-            </PosShell>
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path={routePaths.posCustomBundleCreate}
-        element={
-          <ProtectedRoute roles={POS_WORKSPACE_ROLES}>
-            <PosShell>
-              <PosCustomBundlePage />
             </PosShell>
           </ProtectedRoute>
         }
@@ -365,7 +354,6 @@ export function AppRouter() {
         </Route>
         <Route element={<RoleGate roles={CUSTOMER_ROLES} />}>
           <Route path="customers" element={<CustomerListPage />} />
-          <Route path="customers/groups" element={<CustomerListPage />} />
           <Route path="customers/tiers" element={<CustomerTierManagementPage />} />
         </Route>
         <Route element={<RoleGate roles={MARKETING_ROLES} />}>

@@ -14,11 +14,6 @@ spring:
   cloud:
     discovery:
       enabled: false
-    openfeign:
-      client:
-        config:
-          order-service:
-            url: http://localhost:0
 
 eureka:
   client:
@@ -33,11 +28,6 @@ hvtra:
   logging:
     action-log:
       bootstrap-servers: ""
-
-loyalty:
-  tier:
-    yearly-review:
-      cron: "-"
 
 security:
   internal:

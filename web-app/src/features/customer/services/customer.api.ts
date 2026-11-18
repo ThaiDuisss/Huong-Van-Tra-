@@ -6,16 +6,13 @@ import type {
     CustomerImportRequest,
     CustomerImportResponse,
     CustomerQuery,
-    CustomerPurchaseTransactionResponse,
     CustomerResponse,
-    CustomerTierAssignmentResponse,
     CustomerTierCountResponse,
     CustomerTierRequest,
     CustomerTierResponse,
-    CustomerTierYearlyMetricResponse,
-    ManualTierAdjustmentRequest,
-    PageResponse,
-    TierProgressResponse
+    LoyaltyAdjustmentRequest,
+    LoyaltyTransactionResponse,
+    PageResponse
 } from "../types/customer.types";
 
 export const customerApi = {
@@ -25,7 +22,7 @@ export const customerApi = {
         });
     },
     detail(id: string) {
-        return apiClient.get<CustomerResponse>(`/customer/${id}`);
+        return apiClient.get<CustomerResponse>(`/customer/${encodeURIComponent(id)}`);
     },
     create(input: CreateCustomerRequest) {
         return apiClient.post<CustomerResponse, CreateCustomerRequest>(
@@ -80,38 +77,17 @@ export const customerApi = {
             input
         );
     },
-    tierProgress(customerId: string) {
-        return apiClient.get<TierProgressResponse>(
-            `/customer/${encodeURIComponent(customerId)}/tier-progress`
-        );
-    },
-    tierHistory(customerId: string) {
-        return apiClient.get<CustomerTierAssignmentResponse[]>(
-            `/customer/${encodeURIComponent(customerId)}/tier-history`
-        );
-    },
-    tierMetric(customerId: string, year?: number) {
-        return apiClient.get<CustomerTierYearlyMetricResponse>(
-            `/customer/${encodeURIComponent(customerId)}/tier-metrics`,
-            {
-                query: year ? { year } : undefined
-            }
-        );
-    },
-    purchaseTransactions(customerId: string, page = 0, size = 10) {
-        return apiClient.get<PageResponse<CustomerPurchaseTransactionResponse>>(
-            `/customer/${encodeURIComponent(customerId)}/purchase-transactions`,
+    loyaltyTransactions(customerId: string, page = 0, size = 10) {
+        return apiClient.get<PageResponse<LoyaltyTransactionResponse>>(
+            `/customer/${encodeURIComponent(customerId)}/loyalty-transactions`,
             {
                 query: { page, size }
             }
         );
     },
-    adjustTier(customerId: string, input: ManualTierAdjustmentRequest) {
-        return apiClient.post<
-            CustomerTierAssignmentResponse,
-            ManualTierAdjustmentRequest
-        >(
-            `/customer/${encodeURIComponent(customerId)}/tier-adjustments`,
+    adjustPoints(customerId: string, input: LoyaltyAdjustmentRequest) {
+        return apiClient.post<LoyaltyTransactionResponse, LoyaltyAdjustmentRequest>(
+            `/customer/${encodeURIComponent(customerId)}/loyalty-adjustments`,
             input
         );
     }

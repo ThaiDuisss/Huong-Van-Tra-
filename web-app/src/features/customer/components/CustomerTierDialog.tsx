@@ -33,6 +33,7 @@ interface FormState {
     status: CustomerTierStatus;
     minSpending: string;
     minOrderCount: string;
+    pointMultiplier: string;
 }
 
 type FormErrors = Partial<Record<keyof FormState, string>>;
@@ -43,7 +44,8 @@ const DEFAULT_FORM_STATE: FormState = {
     colorCode: "#159734",
     status: "ACTIVE",
     minSpending: "0",
-    minOrderCount: "0"
+    minOrderCount: "0",
+    pointMultiplier: "1"
 };
 
 export function CustomerTierDialog({
@@ -85,7 +87,8 @@ export function CustomerTierDialog({
             colorCode: form.colorCode,
             status: form.status,
             minSpending: Number(form.minSpending),
-            minOrderCount: Number(form.minOrderCount)
+            minOrderCount: Number(form.minOrderCount),
+            pointMultiplier: Number(form.pointMultiplier)
         });
     }
 
@@ -150,6 +153,17 @@ export function CustomerTierDialog({
                                 type="number"
                                 value={form.minOrderCount}
                             />
+                            <TextField
+                                error={errors.pointMultiplier}
+                                hint="Điểm tích của khách thuộc hạng này được nhân với hệ số. 1 = không đổi."
+                                inputMode="decimal"
+                                label="Hệ số tích điểm"
+                                onChange={(value) => updateField("pointMultiplier", value)}
+                                placeholder="1"
+                                step="0.1"
+                                type="number"
+                                value={form.pointMultiplier}
+                            />
                         </div>
                     </div>
 
@@ -169,29 +183,34 @@ export function CustomerTierDialog({
 
 function TextField({
     error,
+    hint,
     inputMode,
     label,
     onChange,
     placeholder,
+    step,
     type = "text",
     value
 }: {
     error?: string;
-    inputMode?: "numeric";
+    hint?: string;
+    inputMode?: "numeric" | "decimal";
     label: string;
     onChange: (value: string) => void;
     placeholder: string;
+    step?: string;
     type?: "number" | "text";
     value: string;
 }) {
     return (
-        <Field error={error} label={label}>
+        <Field error={error} hint={hint} label={label}>
             <TextInput
                 aria-invalid={error ? true : undefined}
                 inputMode={inputMode}
                 min={type === "number" ? 0 : undefined}
                 onChange={(event) => onChange(event.currentTarget.value)}
                 placeholder={placeholder}
+                step={step}
                 type={type}
                 value={value}
             />
@@ -284,7 +303,7 @@ function PreviewTierCard({ tier }: { tier: CustomerTierDialogValue }) {
                         </h4>
                     </div>
                     <span className="text-sm font-bold text-slate-600">
-                        Từ {formatCurrency(tier.minSpending)} · Ít nhất {tier.minOrderCount.toLocaleString("vi-VN")} đơn
+                        Từ {formatCurrency(tier.minSpending)} · Ít nhất {tier.minOrderCount.toLocaleString("vi-VN")} đơn · Điểm ×{formatMultiplier(tier.pointMultiplier)}
                     </span>
                 </div>
             </article>
@@ -309,7 +328,8 @@ function toFormState(tier?: CustomerTierDialogValue | null): FormState {
         colorCode: tier.colorCode,
         status: tier.status,
         minSpending: String(tier.minSpending),
-        minOrderCount: String(tier.minOrderCount)
+        minOrderCount: String(tier.minOrderCount),
+        pointMultiplier: String(tier.pointMultiplier ?? 1)
     };
 }
 
@@ -325,6 +345,7 @@ function toPreviewTier(
         status: form.status,
         minSpending: Number(form.minSpending) || 0,
         minOrderCount: Number(form.minOrderCount) || 0,
+        pointMultiplier: Number(form.pointMultiplier) || 0,
         customerCount
     };
 }
@@ -333,6 +354,7 @@ function validateForm(form: FormState): FormErrors {
     const errors: FormErrors = {};
     const minSpending = Number(form.minSpending);
     const minOrderCount = Number(form.minOrderCount);
+    const pointMultiplier = Number(form.pointMultiplier);
 
     if (!form.name.trim()) {
         errors.name = "Tên hạng là bắt buộc.";
@@ -349,10 +371,17 @@ function validateForm(form: FormState): FormErrors {
     ) {
         errors.minOrderCount = "Số đơn tối thiểu phải là số nguyên lớn hơn hoặc bằng 0.";
     }
+    if (!form.pointMultiplier.trim() || !Number.isFinite(pointMultiplier) || pointMultiplier <= 0) {
+        errors.pointMultiplier = "Hệ số tích điểm phải lớn hơn 0.";
+    }
 
     return errors;
 }
 
 function formatCurrency(value: number) {
     return `${value.toLocaleString("vi-VN")}đ`;
+}
+
+function formatMultiplier(value: number) {
+    return value.toLocaleString("vi-VN", { maximumFractionDigits: 2 });
 }

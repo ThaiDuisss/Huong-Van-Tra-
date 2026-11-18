@@ -71,6 +71,7 @@ public class OrderReturnRefundTransactionServiceImpl implements OrderReturnRefun
 
         // Transition returnStatus to COMPLETED upon successful refund
         ReturnStatus previousStatus = orderReturn.getStatus();
+        PaymentStatus orderPaymentStatusBefore = lockedOrder.getPaymentStatus();
         orderReturn.setStatus(ReturnStatus.COMPLETED);
         // Different returns on one order can finish their network calls out of order.
         if (lockedOrder.getPaymentStatus() != PaymentStatus.REFUNDED) {
@@ -99,6 +100,11 @@ public class OrderReturnRefundTransactionServiceImpl implements OrderReturnRefun
                     actorUserId,
                     paymentRefund
             );
+
+            // Chỉ lần hoàn làm đơn chuyển sang REFUNDED mới tính là hoàn toàn bộ (trừ 1 đơn của khách).
+            boolean fullRefund = orderPaymentStatusBefore != PaymentStatus.REFUNDED
+                    && lockedOrder.getPaymentStatus() == PaymentStatus.REFUNDED;
+            orderOutboxPublisher.publishOrderRefunded(orderReturn, paymentRefund, fullRefund);
 
             orderOutboxPublisher.publishReturnCompletedNotification(
                     orderReturn,

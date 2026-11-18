@@ -3,37 +3,25 @@ package org.hvtra.customer.service;
 import org.hvtra.customer.constant.Message;
 import org.hvtra.customer.dto.request.CustomerFilterRequest;
 import org.hvtra.customer.dto.request.CustomerRequest;
-import org.hvtra.customer.dto.request.LoyaltyAccountRequest;
-import org.hvtra.customer.dto.request.LoyaltyTransactionRequest;
+import org.hvtra.customer.dto.response.CustomerLookupResponse;
 import org.hvtra.customer.dto.response.CustomerResponse;
-import org.hvtra.customer.dto.response.LoyaltyAccountResponse;
 import org.hvtra.customer.dto.response.PageResponse;
 import org.hvtra.customer.exception.CustomerServiceException;
-import org.hvtra.customer.infrastructure.client.OrderClient;
-import org.hvtra.customer.infrastructure.gateway.OrderGateway;
-import org.hvtra.customer.integration.event.OrderCompletedEvent;
 import org.hvtra.customer.mapper.CustomerMapper;
 import org.hvtra.customer.model.entity.Customer;
 import org.hvtra.customer.model.entity.CustomerTier;
-import org.hvtra.customer.model.entity.LoyaltyPointRule;
 import org.hvtra.customer.model.enums.CustomerStatus;
-import org.hvtra.customer.model.enums.CustomerType;
-import org.hvtra.customer.model.enums.LoyaltyReferenceType;
-import org.hvtra.customer.model.enums.LoyaltyTransactionType;
 import org.hvtra.customer.repository.CustomerRepository;
-import org.hvtra.customer.repository.CustomerTierRepository;
-import org.hvtra.customer.repository.LoyaltyTransactionRepository;
 import org.hvtra.customer.service.impl.CustomerServiceImpl;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.mockito.ArgumentCaptor;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.http.HttpStatus;
 
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -42,25 +30,16 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 class CustomerServiceTest {
 
-    private static final LocalDateTime SOLD_AT = LocalDateTime.of(2026, 8, 15, 10, 0);
-
     private CustomerRepository customerRepository;
-    private CustomerTierRepository tierRepository;
-    private LoyaltyAccountService loyaltyAccountService;
-    private LoyaltyPointRuleService loyaltyPointRuleService;
-    private LoyaltyTransactionRepository loyaltyTransactionRepository;
-    private OrderGateway orderGateway;
     private TierQualificationService tierQualificationService;
-    private TierAssignmentService tierAssignmentService;
-    private LoyaltyTierService loyaltyTierService;
     private CustomerServiceImpl customerService;
 
     private CustomerTier member;
@@ -68,32 +47,15 @@ class CustomerServiceTest {
     @BeforeEach
     void setUp() {
         customerRepository = mock(CustomerRepository.class);
-        tierRepository = mock(CustomerTierRepository.class);
-        loyaltyAccountService = mock(LoyaltyAccountService.class);
-        loyaltyPointRuleService = mock(LoyaltyPointRuleService.class);
-        loyaltyTransactionRepository = mock(LoyaltyTransactionRepository.class);
-        orderGateway = mock(OrderGateway.class);
         tierQualificationService = mock(TierQualificationService.class);
-        tierAssignmentService = mock(TierAssignmentService.class);
-        loyaltyTierService = mock(LoyaltyTierService.class);
-        customerService = new CustomerServiceImpl(
-                customerRepository,
-                tierRepository,
-                new CustomerMapper(),
-                loyaltyAccountService,
-                loyaltyPointRuleService,
-                loyaltyTransactionRepository,
-                orderGateway,
-                tierQualificationService,
-                tierAssignmentService,
-                loyaltyTierService
-        );
+        customerService = new CustomerServiceImpl(customerRepository, new CustomerMapper(), tierQualificationService);
 
-        member = new CustomerTier();
-        member.setId(UUID.randomUUID());
-        member.setCode("MEMBER");
-        member.setName("Thành viên");
-        when(tierQualificationService.resolveQualifiedTier(BigDecimal.ZERO, 0)).thenReturn(member);
+        member = tier("MEMBER", 0, 0);
+        when(tierQualificationService.upgradeIfQualified(any(Customer.class))).thenAnswer(invocation -> {
+            Customer customer = invocation.getArgument(0);
+            customer.setTier(member);
+            return true;
+        });
         when(customerRepository.save(any(Customer.class))).thenAnswer(invocation -> {
             Customer customer = invocation.getArgument(0);
             if (customer.getId() == null) {
@@ -104,27 +66,25 @@ class CustomerServiceTest {
     }
 
     @Test
-    void createGeneratesCodeAssignsInitialTierAndOpensLoyaltyAccount() {
-        CustomerResponse response = customerService.create(new CustomerRequest(
-                null, "Nguyễn Văn A", "0901234567", null, null, null, null, null, null, null, null, null));
+    void createGeneratesCodeStartsFromZeroAndAssignsLowestQualifiedTier() {
+        CustomerResponse response = customerService.create(
+                new CustomerRequest(null, "Nguyễn Văn A", "0901234567", null, null, null));
 
         assertThat(response.customerCode()).matches("[A-Z]+-\\d{4}");
-        assertThat(response.customerType()).isEqualTo(CustomerType.INDIVIDUAL);
         assertThat(response.status()).isEqualTo(CustomerStatus.ACTIVE);
         assertThat(response.tierCode()).isEqualTo("MEMBER");
-
-        ArgumentCaptor<Customer> saved = ArgumentCaptor.forClass(Customer.class);
-        verify(customerRepository).save(saved.capture());
-        verify(tierAssignmentService).assignInitialTier(eq(saved.getValue()), eq(member), any(LocalDateTime.class));
-        verify(loyaltyAccountService).create(new LoyaltyAccountRequest(saved.getValue().getId(), 0));
+        assertThat(response.totalSpent()).isEqualByComparingTo("0");
+        assertThat(response.totalOrderCount()).isZero();
+        assertThat(response.pointBalance()).isZero();
+        verify(tierQualificationService).upgradeIfQualified(any(Customer.class));
     }
 
     @Test
-    void createKeepsProvidedCodeAndRejectsDuplicateEmail() {
+    void createRejectsDuplicateEmail() {
         when(customerRepository.existsByEmail("a@example.com")).thenReturn(true);
 
-        assertThatThrownBy(() -> customerService.create(new CustomerRequest(
-                "KH-1", "Nguyễn Văn A", "0901234567", "a@example.com", null, null, null, null, null, null, null, null)))
+        assertThatThrownBy(() -> customerService.create(
+                new CustomerRequest("KH-1", "Nguyễn Văn A", "0901234567", "a@example.com", null, null)))
                 .isInstanceOf(CustomerServiceException.class)
                 .hasMessage(Message.CUSTOMER_EMAIL_EXISTS);
         verify(customerRepository, never()).save(any());
@@ -134,8 +94,8 @@ class CustomerServiceTest {
     void createRejectsDuplicateCustomerCode() {
         when(customerRepository.existsByCustomerCode("KH-1")).thenReturn(true);
 
-        assertThatThrownBy(() -> customerService.create(new CustomerRequest(
-                "KH-1", "Nguyễn Văn A", "0901234567", null, null, null, null, null, null, null, null, null)))
+        assertThatThrownBy(() -> customerService.create(
+                new CustomerRequest("KH-1", "Nguyễn Văn A", "0901234567", null, null, null)))
                 .isInstanceOf(CustomerServiceException.class)
                 .hasMessage(Message.CUSTOMER_CODE_EXISTS);
     }
@@ -146,8 +106,8 @@ class CustomerServiceTest {
         when(customerRepository.findByIdAndIsDeletedFalse(customer.getId())).thenReturn(Optional.of(customer));
         when(customerRepository.existsByPhoneAndIdNot("0909999999", customer.getId())).thenReturn(true);
 
-        assertThatThrownBy(() -> customerService.update(customer.getId(), new CustomerRequest(
-                null, "Nguyễn Văn A", "0909999999", null, null, null, null, null, null, null, null, null)))
+        assertThatThrownBy(() -> customerService.update(customer.getId(),
+                new CustomerRequest(null, "Nguyễn Văn A", "0909999999", null, null, null)))
                 .isInstanceOf(CustomerServiceException.class)
                 .hasMessage(Message.CUSTOMER_PHONE_EXISTS)
                 .extracting(exception -> ((CustomerServiceException) exception).getStatus())
@@ -155,16 +115,18 @@ class CustomerServiceTest {
     }
 
     @Test
-    void updateRejectsUnknownTier() {
+    void updateNeverTouchesTier() {
         Customer customer = customer();
-        UUID unknownTierId = UUID.randomUUID();
+        CustomerTier gold = tier("GOLD", 5_000_000, 10);
+        customer.setTier(gold);
         when(customerRepository.findByIdAndIsDeletedFalse(customer.getId())).thenReturn(Optional.of(customer));
-        when(tierRepository.findByIdAndIsDeletedFalse(unknownTierId)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> customerService.update(customer.getId(), new CustomerRequest(
-                null, "Nguyễn Văn A", "0901234567", null, null, null, unknownTierId, null, null, null, null, null)))
-                .isInstanceOf(CustomerServiceException.class)
-                .hasMessage(Message.CUSTOMER_TIER_NOT_FOUND);
+        CustomerResponse response = customerService.update(customer.getId(),
+                new CustomerRequest(null, "Nguyễn Văn B", "0901234567", null, null, null));
+
+        assertThat(response.fullName()).isEqualTo("Nguyễn Văn B");
+        assertThat(response.tierCode()).isEqualTo("GOLD");
+        verify(tierQualificationService, never()).upgradeIfQualified(any());
     }
 
     @Test
@@ -179,81 +141,7 @@ class CustomerServiceTest {
     }
 
     @Test
-    void updatePurchaseRecordsPurchaseAndEarnsPointsFromApplicableRule() {
-        Customer customer = customer();
-        customer.setTier(member);
-        UUID orderId = UUID.randomUUID();
-        UUID accountId = UUID.randomUUID();
-        when(orderGateway.getOrderById(orderId)).thenReturn(order(orderId, customer.getId(), 500_000));
-        when(customerRepository.findByIdAndIsDeletedFalse(customer.getId())).thenReturn(Optional.of(customer));
-        when(loyaltyPointRuleService.findApplicableRule(eq(member.getId()), eq(BigDecimal.valueOf(500_000)), any()))
-                .thenReturn(Optional.of(pointRule(10_000, 1, "1.5")));
-        when(loyaltyAccountService.getByCustomerId(customer.getId()))
-                .thenReturn(new LoyaltyAccountResponse(accountId, customer.getId(), "NVA-1024", "Nguyễn Văn A", 0));
-
-        CustomerResponse response = customerService.updatePurchase(orderId);
-
-        assertThat(response.id()).isEqualTo(customer.getId());
-        verify(loyaltyTierService).recordPurchase(new OrderCompletedEvent(
-                orderId, "DH-1", customer.getId(), BigDecimal.valueOf(500_000), SOLD_AT));
-        verify(loyaltyAccountService).updateBalance(new LoyaltyTransactionRequest(
-                accountId, LoyaltyTransactionType.EARN, 75, LoyaltyReferenceType.ORDER, orderId));
-    }
-
-    @Test
-    void updatePurchaseDoesNotEarnPointsTwiceForSameOrder() {
-        Customer customer = customer();
-        UUID orderId = UUID.randomUUID();
-        when(orderGateway.getOrderById(orderId)).thenReturn(order(orderId, customer.getId(), 500_000));
-        when(customerRepository.findByIdAndIsDeletedFalse(customer.getId())).thenReturn(Optional.of(customer));
-        when(loyaltyPointRuleService.findApplicableRule(any(), any(), any()))
-                .thenReturn(Optional.of(pointRule(10_000, 1, "1")));
-        when(loyaltyTransactionRepository.existsByTypeAndReferenceTypeAndReferenceIdAndIsDeletedFalse(
-                LoyaltyTransactionType.EARN, LoyaltyReferenceType.ORDER, orderId)).thenReturn(true);
-
-        customerService.updatePurchase(orderId);
-
-        verify(loyaltyAccountService, never()).updateBalance(any());
-    }
-
-    @Test
-    void updatePurchaseEarnsNoPointsWithoutApplicableRule() {
-        Customer customer = customer();
-        UUID orderId = UUID.randomUUID();
-        when(orderGateway.getOrderById(orderId)).thenReturn(order(orderId, customer.getId(), 500_000));
-        when(customerRepository.findByIdAndIsDeletedFalse(customer.getId())).thenReturn(Optional.of(customer));
-        when(loyaltyPointRuleService.findApplicableRule(any(), any(), any())).thenReturn(Optional.empty());
-
-        customerService.updatePurchase(orderId);
-
-        verify(loyaltyTierService).recordPurchase(any());
-        verify(loyaltyAccountService, never()).updateBalance(any());
-    }
-
-    @Test
-    void updatePurchaseRejectsOrderWithoutCustomer() {
-        UUID orderId = UUID.randomUUID();
-        when(orderGateway.getOrderById(orderId)).thenReturn(order(orderId, null, 500_000));
-
-        assertThatThrownBy(() -> customerService.updatePurchase(orderId))
-                .isInstanceOf(CustomerServiceException.class)
-                .extracting(exception -> ((CustomerServiceException) exception).getStatus())
-                .isEqualTo(HttpStatus.BAD_REQUEST);
-        verifyNoInteractions(loyaltyTierService, loyaltyAccountService);
-    }
-
-    @Test
-    void updatePurchaseRejectsNegativeAmount() {
-        UUID orderId = UUID.randomUUID();
-        when(orderGateway.getOrderById(orderId)).thenReturn(order(orderId, UUID.randomUUID(), -1));
-
-        assertThatThrownBy(() -> customerService.updatePurchase(orderId))
-                .isInstanceOf(CustomerServiceException.class);
-        verifyNoInteractions(loyaltyTierService);
-    }
-
-    @Test
-    void findAllMapsPagedCustomersToResponse() {
+    void findAllMapsPagedCustomersWithoutNextTier() {
         Customer customer = customer();
         PageRequest pageable = PageRequest.of(0, 20);
         when(customerRepository.findAll(any(Specification.class), eq(pageable)))
@@ -263,35 +151,40 @@ class CustomerServiceTest {
                 "Nguyễn", CustomerStatus.ACTIVE, null, null, null, null, null, null, null, null, null, null, null, null), pageable);
 
         assertThat(page.content()).singleElement()
-                .extracting(CustomerResponse::customerCode)
-                .isEqualTo("NVA-1024");
+                .satisfies(response -> {
+                    assertThat(response.customerCode()).isEqualTo("NVA-1024");
+                    assertThat(response.nextTier()).isNull();
+                });
         assertThat(page.totalElements()).isEqualTo(1);
-        assertThat(page.first()).isTrue();
-        assertThat(page.last()).isTrue();
     }
 
     @Test
-    void findAllReturnsEmptyPageWhenNothingMatches() {
-        PageRequest pageable = PageRequest.of(0, 20);
-        when(customerRepository.findAll(any(Specification.class), eq(pageable)))
-                .thenReturn(new PageImpl<>(List.of(), pageable, 0));
-
-        PageResponse<CustomerResponse> page = customerService.findAll(new CustomerFilterRequest(
-                "Không tồn tại", null, null, null, null, null, null, null, null, null, null, null, null, null), pageable);
-
-        assertThat(page.content()).isEmpty();
-        assertThat(page.totalElements()).isZero();
-    }
-
-    @Test
-    void getByIdReturnsCustomer() {
+    void getByIdIncludesNextTierAndRemainingAmounts() {
         Customer customer = customer();
+        customer.setTier(member);
+        customer.setTotalSpent(BigDecimal.valueOf(400_000));
+        customer.setTotalOrderCount(1);
+        CustomerTier silver = tier("SILVER", 1_000_000, 3);
         when(customerRepository.findByIdAndIsDeletedFalse(customer.getId())).thenReturn(Optional.of(customer));
+        when(tierQualificationService.findNextTier(customer)).thenReturn(Optional.of(silver));
 
         CustomerResponse response = customerService.getById(customer.getId());
 
-        assertThat(response.id()).isEqualTo(customer.getId());
-        assertThat(response.fullName()).isEqualTo("Nguyễn Văn A");
+        assertThat(response.nextTier().code()).isEqualTo("SILVER");
+        assertThat(response.remainingSpending()).isEqualByComparingTo("600000");
+        assertThat(response.remainingOrderCount()).isEqualTo(2);
+    }
+
+    @Test
+    void getByIdAtHighestTierHasNoNextTier() {
+        Customer customer = customer();
+        when(customerRepository.findByIdAndIsDeletedFalse(customer.getId())).thenReturn(Optional.of(customer));
+        when(tierQualificationService.findNextTier(customer)).thenReturn(Optional.empty());
+
+        CustomerResponse response = customerService.getById(customer.getId());
+
+        assertThat(response.nextTier()).isNull();
+        assertThat(response.remainingSpending()).isNull();
     }
 
     @Test
@@ -306,18 +199,23 @@ class CustomerServiceTest {
                 .isEqualTo(HttpStatus.NOT_FOUND);
     }
 
-    private OrderClient.OrderResponse order(UUID orderId, UUID customerId, int finalAmount) {
-        return new OrderClient.OrderResponse(orderId, "DH-1", customerId,
-                BigDecimal.valueOf(finalAmount), BigDecimal.valueOf(finalAmount), SOLD_AT);
+    @Test
+    void lookupReturnsOnlyIdNameCodeAndPhone() {
+        Customer customer = customer();
+        when(customerRepository.lookup(eq("0901"), eq(CustomerStatus.ACTIVE), any(Pageable.class)))
+                .thenReturn(List.of(customer));
+
+        List<CustomerLookupResponse> result = customerService.lookup(" 0901 ", 20);
+
+        assertThat(result).containsExactly(new CustomerLookupResponse(
+                customer.getId(), "Nguyễn Văn A", "NVA-1024", "0901234567"));
     }
 
-    private LoyaltyPointRule pointRule(int spendAmountPerBlock, int pointsPerBlock, String multiplier) {
-        LoyaltyPointRule rule = new LoyaltyPointRule();
-        rule.setId(UUID.randomUUID());
-        rule.setSpendAmountPerBlock(BigDecimal.valueOf(spendAmountPerBlock));
-        rule.setPointsPerBlock(pointsPerBlock);
-        rule.setPointMultiplier(new BigDecimal(multiplier));
-        return rule;
+    @Test
+    void lookupWithBlankKeywordSearchesAll() {
+        when(customerRepository.lookup(isNull(), eq(CustomerStatus.ACTIVE), any(Pageable.class))).thenReturn(List.of());
+
+        assertThat(customerService.lookup("  ", 20)).isEmpty();
     }
 
     private Customer customer() {
@@ -328,5 +226,16 @@ class CustomerServiceTest {
         customer.setPhone("0901234567");
         customer.setStatus(CustomerStatus.ACTIVE);
         return customer;
+    }
+
+    private CustomerTier tier(String code, int minSpending, int minOrderCount) {
+        CustomerTier tier = new CustomerTier();
+        tier.setId(UUID.randomUUID());
+        tier.setCode(code);
+        tier.setName(code);
+        tier.setMinSpending(BigDecimal.valueOf(minSpending));
+        tier.setMinOrderCount(minOrderCount);
+        tier.setColorCode("#000000");
+        return tier;
     }
 }

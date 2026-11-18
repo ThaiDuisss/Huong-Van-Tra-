@@ -21,15 +21,12 @@ import { customerApi } from "../services/customer.api";
 import type {
     CreateCustomerRequest,
     CustomerResponse,
-    CustomerStatus,
-    CustomerTierResponse,
-    CustomerType
+    CustomerStatus
 } from "../types/customer.types";
 import { customerErrorMessage } from "../utils/customer-list.utils";
 
 interface Props {
     customer?: CustomerResponse;
-    tiers: CustomerTierResponse[];
     onCancel: () => void;
     onSaved: (customer: CustomerResponse) => void | Promise<void>;
 }
@@ -39,8 +36,6 @@ interface CustomerFormDraft {
     phone: string;
     email: string;
     dateOfBirth: string;
-    customerType: CustomerType;
-    tierId: string;
     status: CustomerStatus;
 }
 
@@ -49,14 +44,11 @@ const EMPTY_DRAFT: CustomerFormDraft = {
     phone: "",
     email: "",
     dateOfBirth: "",
-    customerType: "INDIVIDUAL",
-    tierId: "",
     status: "ACTIVE"
 };
 
 export function CustomerCreateDialog({
     customer,
-    tiers,
     onCancel,
     onSaved
 }: Props) {
@@ -67,8 +59,6 @@ export function CustomerCreateDialog({
                   phone: customer.phone,
                   email: customer.email ?? "",
                   dateOfBirth: customer.dateOfBirth ?? "",
-                  customerType: customer.customerType ?? "INDIVIDUAL",
-                  tierId: customer.tierId ?? "",
                   status: customer.status
               }
             : EMPTY_DRAFT
@@ -94,10 +84,6 @@ export function CustomerCreateDialog({
             phone: draft.phone.trim(),
             email: draft.email.trim() || null,
             dateOfBirth: draft.dateOfBirth || null,
-            customerType: draft.customerType,
-            tierId: draft.tierId || null,
-            lastPurchaseDate: customer?.lastPurchaseDate ?? null,
-            totalSpent: customer?.totalSpent ?? 0,
             status: draft.status
         };
 
@@ -175,46 +161,6 @@ export function CustomerCreateDialog({
                             type="date"
                             value={draft.dateOfBirth}
                         />
-                    </Field>
-
-                    <Field label="Loại khách hàng">
-                        <Select
-                            className="w-full"
-                            onValueChange={(value) =>
-                                update("customerType", value as CustomerType)
-                            }
-                            value={draft.customerType}
-                        >
-                            <SelectTrigger className="w-full rounded-lg font-normal shadow-none">
-                                <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="INDIVIDUAL">Cá nhân</SelectItem>
-                                <SelectItem value="BUSINESS">Doanh nghiệp</SelectItem>
-                            </SelectContent>
-                        </Select>
-                    </Field>
-
-                    <Field label="Hạng thành viên">
-                        <Select
-                            className="w-full"
-                            onValueChange={(value) => update("tierId", value)}
-                            value={draft.tierId}
-                        >
-                            <SelectTrigger className="w-full rounded-lg font-normal shadow-none">
-                                <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="">Chưa xếp hạng</SelectItem>
-                                {tiers
-                                    .filter((tier) => tier.status === "ACTIVE")
-                                    .map((tier) => (
-                                        <SelectItem key={tier.id} value={tier.id}>
-                                            {tier.name}
-                                        </SelectItem>
-                                    ))}
-                            </SelectContent>
-                        </Select>
                     </Field>
 
                     <Field label="Trạng thái">

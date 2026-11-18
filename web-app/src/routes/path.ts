@@ -3,7 +3,6 @@ export const routePaths = {
   posSales: "/pos/sales",
   posBackorders: "/pos/backorders",
   posCustomBundles: "/pos/custom-bundles",
-  posCustomBundleCreate: "/pos/custom-bundle",
   posShelfReplenishments: "/pos/shelf-replenishments",
   posCustomers: "/pos/customers",
   posCustomerReturnCreate: "/pos/customer-returns/new",
@@ -97,7 +96,6 @@ export const routePaths = {
   reportDisposalSummary: "/management/inventory/reports/disposal-summary",
 
   customers: "/system/customers",
-  customerGroups: "/system/customers/groups",
   marketingEvents: "/system/marketing/events",
   discountPrograms: "/system/marketing/discount-programs",
   discountProgramDetail: "/system/marketing/discount-programs/:programId",

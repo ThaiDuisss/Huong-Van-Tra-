@@ -2,7 +2,6 @@ import {
   BarChart3,
   BriefcaseBusiness,
   FileText,
-  Leaf,
   PackageOpen,
   PackageSearch,
   ShoppingBag,
@@ -34,13 +33,6 @@ export const posNavigationItems: PosNavigationItem[] = [
     label: "POS",
     icon: BriefcaseBusiness,
     to: routePaths.posSales,
-    roles: POS_WORKSPACE_ROLES
-  },
-  {
-    key: "custom-bundle",
-    label: "Đóng trà theo yêu cầu",
-    icon: Leaf,
-    to: routePaths.posCustomBundleCreate,
     roles: POS_WORKSPACE_ROLES
   },
   {

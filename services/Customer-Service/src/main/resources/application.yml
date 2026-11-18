@@ -9,20 +9,6 @@ spring:
     username: ${SPRING_DATASOURCE_USERNAME}
     password: ${SPRING_DATASOURCE_PASSWORD}
 
-  cloud:
-    openfeign:
-      circuitbreaker:
-        enabled: false
-
-      client:
-        config:
-          order-service:
-            # Reading an order loads its items, discounts and history and measures 2-3 s on the
-            # development database; the previous 700 ms made every loyalty update fail.
-            connectTimeout: 2000
-            readTimeout: 6000
-            loggerLevel: basic
-
 springdoc:
   api-docs:
     enabled: true
@@ -46,82 +32,16 @@ eureka:
     register-with-eureka: true
     fetch-registry: true
 
-resilience4j:
-
-  retry:
-    instances:
-      orderService:
-        maxAttempts: 2
-        waitDuration: 150ms
-
-        enableExponentialBackoff: true
-        exponentialBackoffMultiplier: 2
-        exponentialMaxWaitDuration: 300ms
-
-        retryExceptionPredicate: >
-          org.hvtra.customer.infrastructure.resilience.TransientFeignFailurePredicate
-
-        eventConsumerBufferSize: 50
-
-
-  circuitbreaker:
-    instances:
-      orderService:
-
-        slidingWindowType: COUNT_BASED
-
-        slidingWindowSize: 20
-
-        minimumNumberOfCalls: 10
-
-        failureRateThreshold: 50
-
-        slowCallDurationThreshold: 600ms
-
-        slowCallRateThreshold: 70
-
-        waitDurationInOpenState: 15s
-
-        permittedNumberOfCallsInHalfOpenState: 3
-
-        automaticTransitionFromOpenToHalfOpenEnabled: true
-
-        recordFailurePredicate: >
-          org.hvtra.customer.infrastructure.resilience.OrderFailurePredicate
-
-        ignoreExceptions:
-          - io.github.resilience4j.bulkhead.BulkheadFullException
-          - io.github.resilience4j.circuitbreaker.CallNotPermittedException
-
-        eventConsumerBufferSize: 100
-
-
-  bulkhead:
-    instances:
-      orderService:
-        maxConcurrentCalls: 20
-        maxWaitDuration: 0ms
-        eventConsumerBufferSize: 50
-
-
 management:
   endpoints:
     web:
       exposure:
-        include: >
-          health,
-          info,
-          metrics,
-          circuitbreakers,
-          circuitbreakerevents,
-          retries,
-          retryevents,
-          bulkheads,
-          bulkheadevents
- 
+        include: health, info, metrics
 
+# Customer-Service nhận chi tiêu / số đơn / điểm của khách qua Kafka (outbox của Order-Service),
+# nên consumer phải bật.
 kafka-config:
-  enabled: false
+  enabled: ${KAFKA_ENABLED:true}
   bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:100.99.2.30:19092}
   num-of-partitions: 3
   replication-factor: 3
@@ -139,10 +59,13 @@ kafka-producer-config:
   retry-count: 5
 
 kafka-consumer-config:
+  enabled: true
+  group-id: customer-service-order-events
   key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
-  value-deserializer: org.apache.kafka.common.serialization.JsonDeserializer
+  # Payload outbox được parse bằng DebeziumOutboxEventPayloadParser, nên nhận dạng chuỗi thô.
+  value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
   auto-offset-reset: earliest
-  batch-listener: true
+  batch-listener: false
   auto-startup: true
   concurrency-level: 3
   session-timeout-ms: 10000
@@ -153,17 +76,16 @@ kafka-consumer-config:
   max-partition-fetch-bytes-boost-factor: 1
   poll-timeout-ms: 150
 
+customer:
+  order-events:
+    topics:
+      order-completed: order.completed
+      order-refunded: customer.order-refunded
+
 loyalty:
-  tier:
-    grace-period-months: 1
-    yearly-review:
-      month: 2
-      day: 1
-      cron: "0 0 1 1 2 *"
-    events:
-      order-completed-topic: order.completed
-      order-partially-refunded-topic: order.partially-refunded
-      order-fully-refunded-topic: order.fully-refunded
+  points:
+    # Số tiền (VND) thanh toán để được 1 điểm, trước khi nhân hệ số của hạng.
+    spend-per-point: 10000
 
 security:
   internal:

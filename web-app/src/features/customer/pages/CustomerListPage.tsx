@@ -55,7 +55,6 @@ export function CustomerListPage({ variant = "management" }: CustomerListPagePro
 
     const queryString = searchParams.toString();
     const {
-        tiers,
         tierCounts,
         result,
         customers,
@@ -192,7 +191,6 @@ export function CustomerListPage({ variant = "management" }: CustomerListPagePro
             <Dialog onOpenChange={setShowCreateDialog} open={showCreateDialog}>
                 {showCreateDialog && (
                     <CustomerCreateDialog
-                        tiers={tiers}
                         onCancel={() => setShowCreateDialog(false)}
                         onSaved={async () => {
                             setShowCreateDialog(false);
@@ -211,7 +209,6 @@ export function CustomerListPage({ variant = "management" }: CustomerListPagePro
                 {editingCustomer && (
                     <CustomerCreateDialog
                         customer={editingCustomer}
-                        tiers={tiers}
                         onCancel={() => setEditingCustomer(null)}
                         onSaved={async () => {
                             setEditingCustomer(null);

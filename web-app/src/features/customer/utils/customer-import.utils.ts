@@ -14,7 +14,6 @@ const TEMPLATE_COLUMNS: Array<{ field: ImportField; header: string; width: numbe
     { field: "phone", header: "Số điện thoại (*)", width: 18 },
     { field: "email", header: "Email", width: 28 },
     { field: "dateOfBirth", header: "Ngày sinh (dd/MM/yyyy)", width: 22 },
-    { field: "customerType", header: "Loại khách hàng (Cá nhân / Doanh nghiệp)", width: 38 },
     { field: "customerCode", header: "Mã khách hàng (bỏ trống để tự sinh)", width: 34 }
 ];
 
@@ -23,7 +22,6 @@ const HEADER_ALIASES: Record<ImportField, string[]> = {
     phone: ["sodienthoai", "dienthoai", "sdt", "phone"],
     email: ["email"],
     dateOfBirth: ["ngaysinh", "dateofbirth", "dob"],
-    customerType: ["loaikhachhang", "loai", "customertype"],
     customerCode: ["makhachhang", "makh", "ma", "customercode"]
 };
 
@@ -32,8 +30,8 @@ export class CustomerImportFileError extends Error {}
 export function downloadCustomerImportTemplate() {
     const worksheet = XLSX.utils.aoa_to_sheet([
         TEMPLATE_COLUMNS.map((column) => column.header),
-        ["Nguyễn Văn A", "0901234567", "nguyenvana@example.com", "15/08/1990", "Cá nhân", ""],
-        ["Công ty TNHH Trà Việt", "0287654321", "", "", "Doanh nghiệp", ""]
+        ["Nguyễn Văn A", "0901234567", "nguyenvana@example.com", "15/08/1990", ""],
+        ["Trần Thị B", "0987654321", "", "", ""]
     ]);
     worksheet["!cols"] = TEMPLATE_COLUMNS.map((column) => ({ wch: column.width }));
     const workbook = XLSX.utils.book_new();
@@ -91,7 +89,6 @@ export async function parseCustomerImportFile(file: File): Promise<CustomerImpor
             email: read("email"),
             dateOfBirth:
                 dateColumn === undefined ? "" : cellDate(worksheet, rowIndex, dateColumn),
-            customerType: read("customerType"),
             customerCode: read("customerCode")
         };
         const blank = (Object.keys(HEADER_ALIASES) as ImportField[]).every(

@@ -741,7 +741,6 @@ public class OrderServiceImpl implements OrderService {
 
         UUID sagaId = orderPaymentSagaService.completePaymentSaga(savedOrder, event, paymentCausationId(event));
         orderPaymentSagaService.markResourceConfirmationRequested(savedOrder, sagaId);
-        orderCustomerServiceImpl.updateCustomerPurchase(savedOrder.getId());
         orderOutboxPublisher.publishPaymentCompletedOrchestration(savedOrder, paymentCausationId(event), sagaId.toString());
         orderOutboxPublisher.publishOrderPaymentSucceededNotification(
                 savedOrder,
@@ -2122,7 +2121,6 @@ public class OrderServiceImpl implements OrderService {
             );
             orderPaymentSagaService.completePaymentSaga(order, eventFromPaymentResponse(order, payment, sagaId), order.getPaymentCode());
             orderPaymentSagaService.markResourceConfirmationRequested(order, sagaId);
-            orderCustomerServiceImpl.updateCustomerPurchase(order.getId());
             orderOutboxPublisher.publishPaymentCompletedOrchestration(order, order.getPaymentCode(), sagaId.toString());
             return;
         }

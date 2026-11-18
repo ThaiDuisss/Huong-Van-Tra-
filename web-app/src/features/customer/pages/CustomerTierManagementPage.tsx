@@ -337,6 +337,13 @@ function CustomerTierTable({
             render: (tier) => <>{tier.minOrderCount.toLocaleString("vi-VN")} đơn</>
         },
         {
+            key: "pointMultiplier",
+            header: "Hệ số tích điểm",
+            render: (tier) => (
+                <>×{tier.pointMultiplier.toLocaleString("vi-VN", { maximumFractionDigits: 2 })}</>
+            )
+        },
+        {
             key: "customerCount",
             header: "Số khách hàng",
             render: (tier) => (
@@ -493,6 +500,7 @@ function mergeCustomerTierCounts(
         ...tier,
         colorCode: tier.colorCode || "#159734",
         minOrderCount: normalizeNumber(tier.minOrderCount),
+        pointMultiplier: normalizeNumber(tier.pointMultiplier ?? 1),
         minSpending: normalizeNumber(tier.minSpending),
         status: tier.status ?? "ACTIVE",
         customerCount: normalizeNumber(countByTierId.get(tier.id))

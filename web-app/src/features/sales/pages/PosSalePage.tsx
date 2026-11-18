@@ -1,5 +1,4 @@
-import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ApiError } from "@/lib/api-client";
 
 import { useNetworkStatus } from "../../../app/network/useNetworkStatus";
@@ -17,7 +16,7 @@ import {
 import { ReceiptDialog } from "../components/dialogs/ReceiptDialog";
 import { UnitSwitchDialog } from "../components/dialogs/UnitSwitchDialog";
 import type { CustomBundleInput } from "../components/custom-bundle/CustomBundleBuilder";
-import type { PosSaleNavigationState } from "./PosCustomBundlePage";
+import { CustomBundleDialog } from "../components/dialogs/CustomBundleDialog";
 import {
     ShelfShortageDialog,
     type ShelfShortage
@@ -466,8 +465,8 @@ export function PosSalePage() {
     // (giữ lại sau khi mất mạng, reload hay tắt nhầm tab).
     const [persistedSale] = useState(() => loadPersistedSale(saleOwnerId));
     const [searchQuery, setSearchQuery] = useState("");
-    const location = useLocation();
-    const navigate = useNavigate();
+    const [customBundleOpen, setCustomBundleOpen] = useState(false);
+    const [customBundleError, setCustomBundleError] = useState("");
     const [customBundleSubmitting, setCustomBundleSubmitting] = useState(false);
     const [shelfShortage, setShelfShortage] = useState<ShelfShortage | null>(null);
     const [shelfShortageSubmitting, setShelfShortageSubmitting] = useState(false);
@@ -1572,13 +1571,14 @@ export function PosSalePage() {
         }
 
         if (!online) {
-            setCheckoutError("Đóng trà theo yêu cầu cần kết nối mạng để kiểm tra nguyên liệu.");
+            setCustomBundleError("Đóng trà theo yêu cầu cần kết nối mạng để kiểm tra nguyên liệu.");
             return;
         }
 
         const release = workspaceMutation.current.acquire();
         if (!release) return;
         setCustomBundleSubmitting(true);
+        setCustomBundleError("");
 
         try {
             const order = await posCustomBundleApi.addDraftBundleItem({
@@ -1592,10 +1592,11 @@ export function PosSalePage() {
             applyDraftOrder(order);
             setCheckoutError("");
             setCheckoutSuccess("");
+            setCustomBundleOpen(false);
             void refreshBackorderEstimate(order);
         } catch (error) {
             logApiError(error);
-            setCheckoutError(
+            setCustomBundleError(
                 `Không thể thêm trà đóng theo yêu cầu: ${getErrorMessage(error)}`
             );
         } finally {
@@ -1604,23 +1605,11 @@ export function PosSalePage() {
         }
     }
 
-    // Bundle soạn ở màn "Đóng trà theo yêu cầu" được gửi về qua navigation state: thêm vào đơn đúng một lần,
-    // rồi xoá state để reload hay quay lại không thêm lần nữa.
-    const pendingCustomBundle = (location.state as PosSaleNavigationState | null)?.pendingCustomBundle;
-    const handledCustomBundleRef = useRef<CustomBundleInput | null>(null);
-    const addPendingCustomBundle = useEffectEvent((input: CustomBundleInput) => {
-        void addCustomBundle(input);
-    });
-
-    useEffect(() => {
-        if (!pendingCustomBundle || handledCustomBundleRef.current === pendingCustomBundle) {
-            return;
-        }
-
-        handledCustomBundleRef.current = pendingCustomBundle;
-        navigate(location.pathname, { replace: true, state: null });
-        window.setTimeout(() => addPendingCustomBundle(pendingCustomBundle), 0);
-    }, [location.pathname, navigate, pendingCustomBundle]);
+    function openCustomBundle() {
+        if (workspaceMutation.current.isLocked()) return;
+        setCustomBundleError("");
+        setCustomBundleOpen(true);
+    }
 
     function clearBankTransferAndMessages() {
         setBankTransferPayment(null);
@@ -3122,7 +3111,19 @@ export function PosSalePage() {
                     setRecommendationGeneration(generation => generation + 1);
                     setOrderType(value);
                 }}
+                onCustomBundleOpen={openCustomBundle}
             />
+            {customBundleOpen ? (
+                <CustomBundleDialog
+                    branchId={currentBranchId}
+                    submitLoading={customBundleSubmitting}
+                    submitError={customBundleError}
+                    onClose={() => setCustomBundleOpen(false)}
+                    onSubmit={(input) => {
+                        void addCustomBundle(input);
+                    }}
+                />
+            ) : null}
             {shelfShortage ? (
                 <ShelfShortageDialog
                     shortage={shelfShortage}

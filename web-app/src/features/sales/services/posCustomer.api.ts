@@ -13,8 +13,9 @@ export function toSaleCustomer(customer: CustomerResponse): SaleCustomer {
         phone: customer.phone ?? "",
         email: customer.email,
         tier: customer.tierName ?? "Khách thường",
-        points: 0,
-        orderCount: 0,
+        tierColor: customer.tierColor,
+        points: Number(customer.pointBalance ?? 0),
+        orderCount: Number(customer.totalOrderCount ?? 0),
         totalSpent: Number(customer.totalSpent ?? 0),
         avatarUrl: ""
     };

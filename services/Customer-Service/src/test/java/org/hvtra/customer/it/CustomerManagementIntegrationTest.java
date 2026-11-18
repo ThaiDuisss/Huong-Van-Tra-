@@ -19,29 +19,22 @@ class CustomerManagementIntegrationTest extends CustomerIntegrationTestSupport {
     // ------------------------------------------------------------ Function 1: Create
 
     @Test
-    @DisplayName("ITC_CUS_001 Tạo khách hàng hợp lệ: tự sinh mã, gán hạng MEMBER, mở tài khoản tích điểm, tăng số khách theo hạng")
-    void createCustomer_assignsInitialTierAndLoyaltyAccount() throws Exception {
+    @DisplayName("ITC_CUS_001 Tạo khách hàng hợp lệ: tự sinh mã, gán hạng MEMBER, 0 điểm, tăng số khách theo hạng")
+    void createCustomer_assignsInitialTierAndZeroPoints() throws Exception {
         JsonNode customer = createCustomer("Nguyễn Văn A", "0901234567", "a@example.com");
 
         assertThat(customer.get("id").asText()).matches("^[0-9a-fA-F-]{36}$");
         assertThat(customer.get("customerCode").asText()).matches("^[A-Z]+-\\d{4}$");
         assertThat(customer.get("fullName").asText()).isEqualTo("Nguyễn Văn A");
-        assertThat(customer.get("customerType").asText()).isEqualTo("INDIVIDUAL");
         assertThat(customer.get("status").asText()).isEqualTo("ACTIVE");
         assertThat(customer.get("tierCode").asText()).isEqualTo("MEMBER");
         assertThat(customer.get("totalOrderCount").asInt()).isZero();
+        assertThat(customer.get("pointBalance").asInt()).isZero();
 
         String id = customer.get("id").asText();
-        doGet(BASE + "/loyalty-accounts/customer/" + id)
+        doGet(BASE + "/" + id + "/loyalty-transactions")
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.pointBalance").value(0))
-                .andExpect(jsonPath("$.customerCode").value(customer.get("customerCode").asText()));
-
-        doGet(BASE + "/" + id + "/tier-history")
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.length()").value(1))
-                .andExpect(jsonPath("$[0].assignmentReason").value("INITIAL_TIER"))
-                .andExpect(jsonPath("$[0].status").value("ACTIVE"));
+                .andExpect(jsonPath("$.totalElements").value(0));
 
         JsonNode counts = json(doGet(TIERS + "/counts").andExpect(status().isOk()));
         assertThat(countOf(counts, "MEMBER")).isEqualTo(1);
@@ -86,19 +79,15 @@ class CustomerManagementIntegrationTest extends CustomerIntegrationTestSupport {
     }
 
     @Test
-    @DisplayName("ITC_CUS_005 Tạo khách hàng khi không còn hạng ACTIVE → 409 và rollback toàn bộ")
-    void createCustomer_noActiveTier_conflictAndRollback() throws Exception {
+    @DisplayName("ITC_CUS_005 Tạo khách hàng khi không còn hạng ACTIVE → vẫn tạo, chưa xếp hạng")
+    void createCustomer_noActiveTier_createdWithoutTier() throws Exception {
         for (UUID tierId : new UUID[]{memberId, silverId, goldId}) {
             doPatch(TIERS + "/" + tierId + "/status", Map.of("status", "INACTIVE")).andExpect(status().isOk());
         }
 
-        JsonNode error = json(doPost(BASE, customerBody("Phạm Văn D", "0908888888", null)).andExpect(status().isConflict()));
+        JsonNode created = createCustomer("Phạm Văn D", "0908888888", null);
 
-        assertThat(error.get("message").asText()).isEqualTo(Message.NO_ACTIVE_CUSTOMER_TIER);
-        assertThat(totalCustomers()).isZero();
-
-        doPatch(TIERS + "/" + memberId + "/status", Map.of("status", "ACTIVE")).andExpect(status().isOk());
-        createCustomer("Phạm Văn D", "0908888888", null);
+        assertThat(created.get("tierId").isNull()).isTrue();
         assertThat(totalCustomers()).isEqualTo(1);
     }
 
@@ -110,9 +99,7 @@ class CustomerManagementIntegrationTest extends CustomerIntegrationTestSupport {
         JsonNode created = createCustomer("Nguyễn Văn A", "0901234567", "a@example.com");
         String id = created.get("id").asText();
 
-        // Form "Chỉnh sửa khách hàng" luôn gửi lại tierId hiện tại (PUT thay thế toàn bộ)
         Map<String, Object> body = customerBody("Nguyễn Văn An", "0901234567", "an@example.com");
-        body.put("tierId", created.get("tierId").asText());
         JsonNode updated = json(doPut(BASE + "/" + id, body).andExpect(status().isOk()));
 
         assertThat(updated.get("fullName").asText()).isEqualTo("Nguyễn Văn An");
@@ -138,16 +125,21 @@ class CustomerManagementIntegrationTest extends CustomerIntegrationTestSupport {
     }
 
     @Test
-    @DisplayName("ITC_CUS_008 Cập nhật khách hàng với hạng không tồn tại → 404")
-    void updateCustomer_unknownTier_notFound() throws Exception {
+    @DisplayName("ITC_CUS_008 Cập nhật khách hàng không đổi được hạng, chi tiêu, điểm (bị bỏ qua)")
+    void updateCustomer_ignoresSystemManagedFields() throws Exception {
         UUID id = createCustomerId("Nguyễn Văn A", "0901234567");
+        completeOrder(id, 300_000);
         Map<String, Object> body = customerBody("Nguyễn Văn A", "0901234567", null);
-        body.put("tierId", NOT_FOUND_ID);
+        body.put("tierId", goldId.toString());
+        body.put("totalSpent", 99_000_000);
+        body.put("pointBalance", 9_999);
 
-        JsonNode error = json(doPut(BASE + "/" + id, body).andExpect(status().isNotFound()));
+        doPut(BASE + "/" + id, body).andExpect(status().isOk());
 
-        assertThat(error.get("message").asText()).isEqualTo(Message.CUSTOMER_TIER_NOT_FOUND);
-        doGet(BASE + "/" + id).andExpect(jsonPath("$.tierCode").value("MEMBER"));
+        doGet(BASE + "/" + id)
+                .andExpect(jsonPath("$.tierCode").value("MEMBER"))
+                .andExpect(jsonPath("$.totalSpent").value(300_000))
+                .andExpect(jsonPath("$.pointBalance").value(30));
     }
 
     // ------------------------------------------------------------ Function 3: Status
@@ -205,8 +197,9 @@ class CustomerManagementIntegrationTest extends CustomerIntegrationTestSupport {
         UUID silverCustomer = createCustomerId("Nguyễn Văn A", "0901234567");
         createCustomerId("Nguyễn Văn B", "0901234568");
         createCustomerId("Trần Thị C", "0901234569");
-        doPost(BASE + "/" + silverCustomer + "/tier-adjustments",
-                Map.of("tierId", silverId, "reason", "Khách thân thiết")).andExpect(status().isOk());
+        for (int i = 0; i < 3; i++) {
+            completeOrder(silverCustomer, 400_000);
+        }
 
         JsonNode page = json(doGet(BASE + "?q=Nguyễn&tierIds=" + silverId + "&page=0&size=20").andExpect(status().isOk()));
 
@@ -254,19 +247,25 @@ class CustomerManagementIntegrationTest extends CustomerIntegrationTestSupport {
     // ------------------------------------------------------------ Function 5: Detail
 
     @Test
-    @DisplayName("ITC_CUS_017 Xem chi tiết: thông tin, tiến độ hạng, lịch sử hạng, giao dịch nhất quán")
+    @DisplayName("ITC_CUS_017 Xem chi tiết: hạng hiện tại, hạng kế tiếp, phần còn thiếu, điểm và lịch sử điểm nhất quán")
     void detail_allSectionsConsistent() throws Exception {
         UUID id = createCustomerId("Nguyễn Văn A", "0901234567");
+        completeOrder(id, 250_000);
 
-        doGet(BASE + "/" + id).andExpect(status().isOk()).andExpect(jsonPath("$.tierCode").value("MEMBER"));
-        doGet(BASE + "/" + id + "/tier-progress")
+        doGet(BASE + "/" + id)
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.currentTier.code").value("MEMBER"))
-                .andExpect(jsonPath("$.nextTier.code").value("SILVER"));
-        doGet(BASE + "/" + id + "/tier-history").andExpect(status().isOk()).andExpect(jsonPath("$.length()").value(1));
-        doGet(BASE + "/" + id + "/purchase-transactions?page=0&size=10")
+                .andExpect(jsonPath("$.tierCode").value("MEMBER"))
+                .andExpect(jsonPath("$.nextTier.code").value("SILVER"))
+                .andExpect(jsonPath("$.remainingSpending").value(750_000))
+                .andExpect(jsonPath("$.remainingOrderCount").value(2))
+                .andExpect(jsonPath("$.totalOrderCount").value(1))
+                .andExpect(jsonPath("$.pointBalance").value(25));
+        doGet(BASE + "/" + id + "/loyalty-transactions?page=0&size=10")
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.totalElements").value(0));
+                .andExpect(jsonPath("$.totalElements").value(1))
+                .andExpect(jsonPath("$.content[0].type").value("EARN"))
+                .andExpect(jsonPath("$.content[0].points").value(25))
+                .andExpect(jsonPath("$.content[0].balanceAfter").value(25));
     }
 
     @Test
@@ -294,15 +293,15 @@ class CustomerManagementIntegrationTest extends CustomerIntegrationTestSupport {
     }
 
     @Test
-    @DisplayName("ITC_CUS_020 Xóa khách hàng đã có giao dịch: xóa mềm, giữ tài khoản điểm & lịch sử hạng")
-    void delete_customerWithPurchases_keepsHistory() throws Exception {
+    @DisplayName("ITC_CUS_020 Xóa khách hàng đã có giao dịch: xóa mềm, không còn xem được lịch sử điểm")
+    void delete_customerWithPurchases_softDeleted() throws Exception {
         UUID id = createCustomerId("Nguyễn Văn A", "0901234567");
-        JsonNode account = json(doGet(BASE + "/loyalty-accounts/customer/" + id));
+        completeOrder(id, 100_000);
 
         doDelete(BASE + "/" + id).andExpect(status().isNoContent());
 
         doGet(BASE + "/" + id).andExpect(status().isNotFound());
-        doGet(BASE + "/loyalty-transactions?loyaltyAccountId=" + account.get("id").asText()).andExpect(status().isOk());
+        doGet(BASE + "/" + id + "/loyalty-transactions").andExpect(status().isNotFound());
     }
 
     // ------------------------------------------------------------ Function 7: Lookup for Order-Service / POS
@@ -324,6 +323,93 @@ class CustomerManagementIntegrationTest extends CustomerIntegrationTestSupport {
     @DisplayName("ITC_CUS_022 Snapshot khách hàng không tồn tại → 404 (Order-Service fallback snapshot null)")
     void posLookup_unknownCustomer_notFound() throws Exception {
         doGet(BASE + "/" + UUID.randomUUID()).andExpect(status().isNotFound());
+    }
+
+    @Test
+    @DisplayName("ITC_CUS_023 Lookup: chỉ khách ACTIVE, chỉ trả id/name/code/phone")
+    void lookup_activeCustomersOnly() throws Exception {
+        UUID active = createCustomerId("Nguyễn Văn An", "0901234567");
+        UUID inactive = createCustomerId("Nguyễn Văn Bình", "0901234568");
+        doPatch(BASE + "/" + inactive + "/status", Map.of("status", "INACTIVE")).andExpect(status().isOk());
+
+        JsonNode result = json(doGet(BASE + "/lookup?q=0901234").andExpect(status().isOk()));
+
+        assertThat(result).hasSize(1);
+        JsonNode item = result.get(0);
+        assertThat(item.get("id").asText()).isEqualTo(active.toString());
+        assertThat(item.get("name").asText()).isEqualTo("Nguyễn Văn An");
+        assertThat(item.get("phone").asText()).isEqualTo("0901234567");
+        assertThat(item.has("code")).isTrue();
+        assertThat(item.size()).isEqualTo(4);
+    }
+
+    // ------------------------------------------------------------ Function 8: Purchases, tier and points
+
+    @Test
+    @DisplayName("ITC_CUS_024 Đơn hoàn tất: cộng chi tiêu/số đơn, tích điểm, nâng hạng khi đạt cả 2 ngưỡng")
+    void orderCompleted_upgradesTierAndEarnsPoints() throws Exception {
+        UUID id = createCustomerId("Nguyễn Văn A", "0901234567");
+
+        completeOrder(id, 900_000);
+        completeOrder(id, 200_000);
+        doGet(BASE + "/" + id).andExpect(jsonPath("$.tierCode").value("MEMBER")); // đủ tiền, thiếu số đơn
+
+        completeOrder(id, 50_000);
+
+        doGet(BASE + "/" + id)
+                .andExpect(jsonPath("$.tierCode").value("SILVER"))
+                .andExpect(jsonPath("$.totalSpent").value(1_150_000))
+                .andExpect(jsonPath("$.totalOrderCount").value(3))
+                .andExpect(jsonPath("$.pointBalance").value(115))
+                .andExpect(jsonPath("$.lastPurchaseDate").isNotEmpty());
+    }
+
+    @Test
+    @DisplayName("ITC_CUS_025 Hoàn tiền: trừ chi tiêu và điểm theo tỷ lệ, hoàn toàn bộ trừ 1 đơn, hạng không bị hạ")
+    void orderRefunded_reversesPointsWithoutDowngrade() throws Exception {
+        UUID id = createCustomerId("Nguyễn Văn A", "0901234567");
+        completeOrder(id, 400_000);
+        completeOrder(id, 400_000);
+        UUID lastOrder = completeOrder(id, 400_000);
+        doGet(BASE + "/" + id).andExpect(jsonPath("$.tierCode").value("SILVER")).andExpect(jsonPath("$.pointBalance").value(120));
+
+        refundOrder(id, lastOrder, 100_000, 400_000, false);
+        doGet(BASE + "/" + id)
+                .andExpect(jsonPath("$.totalSpent").value(1_100_000))
+                .andExpect(jsonPath("$.totalOrderCount").value(3))
+                .andExpect(jsonPath("$.pointBalance").value(110));
+
+        refundOrder(id, lastOrder, 300_000, 400_000, true);
+        doGet(BASE + "/" + id)
+                .andExpect(jsonPath("$.tierCode").value("SILVER"))
+                .andExpect(jsonPath("$.totalSpent").value(800_000))
+                .andExpect(jsonPath("$.totalOrderCount").value(2))
+                .andExpect(jsonPath("$.pointBalance").value(80));
+    }
+
+    @Test
+    @DisplayName("ITC_CUS_026 Điều chỉnh điểm: cộng/trừ có lý do, không trừ quá số dư")
+    void adjustPoints_addSubtractAndRejectOverdraw() throws Exception {
+        UUID id = createCustomerId("Nguyễn Văn A", "0901234567");
+
+        doPost(BASE + "/" + id + "/loyalty-adjustments", Map.of("points", 50, "reason", "Chăm sóc khách hàng"))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.type").value("ADJUST"))
+                .andExpect(jsonPath("$.balanceAfter").value(50));
+        doPost(BASE + "/" + id + "/loyalty-adjustments", Map.of("points", -20, "reason", "Sửa sai dữ liệu"))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.balanceAfter").value(30));
+
+        JsonNode error = json(doPost(BASE + "/" + id + "/loyalty-adjustments", Map.of("points", -31, "reason", "Sửa sai"))
+                .andExpect(status().isBadRequest()));
+        assertThat(error.get("message").asText()).isEqualTo(Message.LOYALTY_POINTS_INSUFFICIENT.formatted(30));
+        doPost(BASE + "/" + id + "/loyalty-adjustments", Map.of("points", 10, "reason", " "))
+                .andExpect(status().isBadRequest());
+
+        doGet(BASE + "/" + id).andExpect(jsonPath("$.pointBalance").value(30));
+        doGet(BASE + "/" + id + "/loyalty-transactions")
+                .andExpect(jsonPath("$.totalElements").value(2))
+                .andExpect(jsonPath("$.content[0].points").value(-20));
     }
 
     // ------------------------------------------------------------ helpers

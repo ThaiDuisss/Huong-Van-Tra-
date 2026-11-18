@@ -2,13 +2,11 @@ package org.hvtra.customer.model;
 
 import org.hvtra.customer.model.entity.Customer;
 import org.hvtra.customer.model.entity.CustomerTier;
-import org.hvtra.customer.model.entity.CustomerTierYearlyMetric;
 import org.hvtra.customer.util.AmountUtils;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
-import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -45,24 +43,29 @@ class CustomerDomainTest {
     }
 
     @Test
-    void customerPurchaseDeltaNeverGoesNegative() {
+    void customerRefundNeverGoesNegative() {
         Customer customer = new Customer();
         customer.setTotalSpent(BigDecimal.valueOf(100_000));
         customer.setTotalOrderCount(1);
 
-        customer.applyPurchaseDelta(BigDecimal.valueOf(-500_000), -3);
+        customer.applyRefund(BigDecimal.valueOf(40_000), false);
+        assertThat(customer.getTotalSpent()).isEqualByComparingTo("60000");
+        assertThat(customer.getTotalOrderCount()).isEqualTo(1);
 
+        customer.applyRefund(BigDecimal.valueOf(500_000), true);
+        customer.applyRefund(BigDecimal.ONE, true);
         assertThat(customer.getTotalSpent()).isEqualByComparingTo("0");
         assertThat(customer.getTotalOrderCount()).isZero();
     }
 
     @Test
-    void yearlyMetricRejectsWrongSignedAmounts() {
-        CustomerTierYearlyMetric metric = CustomerTierYearlyMetric.create(UUID.randomUUID(), 2026);
+    void customerPointBalanceCannotGoNegative() {
+        Customer customer = new Customer();
 
-        assertThatThrownBy(() -> metric.addPurchase(BigDecimal.ZERO)).isInstanceOf(IllegalArgumentException.class);
-        assertThatThrownBy(() -> metric.addPurchase(null)).isInstanceOf(IllegalArgumentException.class);
-        assertThatThrownBy(() -> metric.applyRefund(BigDecimal.TEN, 0)).isInstanceOf(IllegalArgumentException.class);
+        assertThat(customer.changePoints(30)).isEqualTo(30);
+        assertThat(customer.changePoints(-10)).isEqualTo(20);
+        assertThatThrownBy(() -> customer.changePoints(-21)).isInstanceOf(IllegalStateException.class);
+        assertThat(customer.getPointBalance()).isEqualTo(20);
     }
 
     @Test
