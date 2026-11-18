@@ -67,14 +67,14 @@ export interface UserSnapshot {
 export interface InventoryAuditEvent {
     id: string;
     type:
-        | "CREATE_DRAFT"
-        | "SUBMIT"
-        | "APPROVE"
-        | "REJECT"
-        | "POST"
-        | "CANCEL"
-        | "REVERSE"
-        | "QC";
+        | "Tạo"
+        | "Nhận hàng"
+        | "Duyệt"
+        | "Từ chối"
+        | "Đã nhập kho"
+        | "Hủy"
+        | "Duyệt ngoại lệ"
+        | "Kiểm định";
     actor: UserSnapshot;
     roleSnapshot: StockDocumentRole;
     happenedAt: string;

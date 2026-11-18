@@ -43,8 +43,20 @@ export function ProductionOrderDetailPage() {
     const [cancelOpen, setCancelOpen] = useState(false);
     const [cancelReason, setCancelReason] = useState("");
 
-    const { hasAnyRole } = useAuthorization();
+    const { hasAnyRole, keycloakSubject, userId, user } = useAuthorization();
     const canApprove = hasAnyRole([ROLES.SUPER_ADMIN, ROLES.MANAGER]);
+
+    const creatorId = order?.createBy || order?.createdBy;
+    const submitterId = order?.submittedBy;
+    const currentActorIds = [keycloakSubject, userId, user?.id].filter(Boolean) as string[];
+    const isOwner = Boolean(
+        order &&
+        currentActorIds.some(
+            (actorId) =>
+                (creatorId && creatorId.toLowerCase() === actorId.toLowerCase()) ||
+                (submitterId && submitterId.toLowerCase() === actorId.toLowerCase())
+        )
+    );
 
     const loadOrder = useCallback(() => {
         if (!id) return;
@@ -89,7 +101,10 @@ export function ProductionOrderDetailPage() {
 
     async function handleSubmit() {
         if (!order) return;
-        await runAction(() => productionOrderApi.submit(order.id), "Đã gửi duyệt lệnh sản xuất.");
+        await runAction(
+            () => productionOrderApi.submit(order.id),
+            canApprove ? "Đã duyệt và thực hiện lệnh sản xuất." : "Đã gửi duyệt lệnh sản xuất."
+        );
     }
 
     async function handleApprove() {
@@ -129,8 +144,6 @@ export function ProductionOrderDetailPage() {
         );
     }
 
-    const canCancel = order.status === "DRAFT" || order.status === "PENDING_APPROVAL" || order.status === "APPROVED";
-
     return (
         <section className="grid gap-4">
             {toast ? (
@@ -155,6 +168,12 @@ export function ProductionOrderDetailPage() {
                             <StatusPill status={order.status} />
                         </div>
                         <p className="text-sm font-semibold text-[#536078]">
+                            <span className="font-bold text-[#172317]">Sản phẩm sản xuất:</span> {order.productVariantName ?? "—"}
+                        </p>
+                        <p className="text-sm font-semibold text-[#536078]">
+                            <span className="font-bold text-[#172317]">Người tạo:</span> {order.createByName || order.createdByName || "—"}
+                        </p>
+                        <p className="text-sm font-semibold text-[#536078]">
                             <span className="font-bold text-[#172317]">Số lượng kế hoạch:</span> {order.plannedQuantity}
                         </p>
                         {order.note ? (
@@ -167,18 +186,36 @@ export function ProductionOrderDetailPage() {
 
                     <div className="flex flex-wrap items-center gap-2">
                         {order.status === "DRAFT" ? (
-                            <Button disabled={mutationLoading} onClick={() => void handleSubmit()} variant="primary">Gửi duyệt</Button>
-                        ) : null}
-
-                        {order.status === "PENDING_APPROVAL" && canApprove ? (
                             <>
-                                <Button disabled={mutationLoading} onClick={() => void handleApprove()} variant="primary">Duyệt (giữ nguyên liệu)</Button>
-                                <Button disabled={mutationLoading} onClick={() => void handleReject()} variant="dangerOutline">Từ chối</Button>
+                                <Button disabled={mutationLoading} onClick={() => void handleSubmit()} variant="primary">
+                                    {canApprove ? "Duyệt ngay" : "Gửi duyệt"}
+                                </Button>
+                                {isOwner ? (
+                                    <Button disabled={mutationLoading} onClick={() => setCancelOpen(true)} variant="dangerOutline">
+                                        Hủy
+                                    </Button>
+                                ) : null}
                             </>
                         ) : null}
 
-                        {canCancel ? (
-                            <Button disabled={mutationLoading} onClick={() => setCancelOpen(true)} variant="dangerOutline">Hủy</Button>
+                        {order.status === "PENDING_APPROVAL" ? (
+                            <>
+                                {canApprove ? (
+                                    <>
+                                        <Button disabled={mutationLoading} onClick={() => void handleApprove()} variant="primary">
+                                            Duyệt
+                                        </Button>
+                                        <Button disabled={mutationLoading} onClick={() => void handleReject()} variant="dangerOutline">
+                                            Từ chối
+                                        </Button>
+                                    </>
+                                ) : null}
+                                {isOwner ? (
+                                    <Button disabled={mutationLoading} onClick={() => setCancelOpen(true)} variant="dangerOutline">
+                                        Hủy
+                                    </Button>
+                                ) : null}
+                            </>
                         ) : null}
                     </div>
                 </div>

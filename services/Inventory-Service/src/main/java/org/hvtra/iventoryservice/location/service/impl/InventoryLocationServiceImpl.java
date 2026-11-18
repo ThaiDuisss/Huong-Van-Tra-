@@ -2,6 +2,7 @@ package org.hvtra.iventoryservice.location.service.impl;
 
 import jakarta.persistence.criteria.Predicate;
 import org.hvtra.iventoryservice.location.dto.request.InventoryLocationRequest;
+import org.hvtra.iventoryservice.location.dto.response.InventoryLocationHierarchyResponse;
 import org.hvtra.iventoryservice.location.dto.response.InventoryLocationResponse;
 import org.hvtra.iventoryservice.location.dto.response.LookupResponse;
 import org.hvtra.iventoryservice.shared.pagination.PageResponse;
@@ -14,12 +15,18 @@ import org.hvtra.iventoryservice.location.mapper.InventoryLocationMapper;
 import org.hvtra.iventoryservice.location.repository.InventoryLocationRepository;
 import org.hvtra.iventoryservice.location.service.InventoryLocationService;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
 import org.hvtra.commonservice.common_core.util.CodeUtils;
@@ -58,6 +65,94 @@ public class InventoryLocationServiceImpl implements InventoryLocationService {
             return cb.and(predicates.toArray(Predicate[]::new));
         };
         return PageResponse.from(repository.findAll(specification, pageable).map(mapper::toResponse));
+    }
+
+    @Override
+    public List<InventoryLocationHierarchyResponse> getAll(
+            UUID branchId,
+            String query,
+            InventoryLocationType type,
+            InventoryStatus status) {
+        Specification<InventoryLocation> specification = (root, rootQuery, cb) -> {
+            var predicates = new ArrayList<Predicate>();
+            predicates.add(cb.isFalse(root.get("isDeleted")));
+            if (branchId != null) predicates.add(cb.equal(root.get("branchId"), branchId));
+            if (type != null) predicates.add(cb.equal(root.get("type"), type));
+            if (status != null) predicates.add(cb.equal(root.get("status"), status));
+            if (query != null && !query.isBlank()) {
+                String pattern = "%" + query.trim().toLowerCase() + "%";
+                predicates.add(cb.or(
+                    cb.like(cb.lower(root.get("name")), pattern),
+                    cb.like(cb.lower(root.get("code")), pattern)
+                ));
+            }
+            return cb.and(predicates.toArray(Predicate[]::new));
+        };
+
+        List<InventoryLocation> locations = repository.findAll(specification, Sort.by(Sort.Direction.ASC, "name"));
+        return buildHierarchy(locations);
+    }
+
+    private List<InventoryLocationHierarchyResponse> buildHierarchy(List<InventoryLocation> locations) {
+        Map<UUID, InventoryLocation> itemMap = new LinkedHashMap<>();
+        for (InventoryLocation loc : locations) {
+            itemMap.put(loc.getId(), loc);
+        }
+
+        Map<UUID, List<InventoryLocation>> childrenMap = new LinkedHashMap<>();
+        List<InventoryLocation> roots = new ArrayList<>();
+
+        for (InventoryLocation loc : locations) {
+            UUID parentId = loc.getParentLocation() != null ? loc.getParentLocation().getId() : null;
+            if (parentId != null && itemMap.containsKey(parentId)) {
+                childrenMap.computeIfAbsent(parentId, k -> new ArrayList<>()).add(loc);
+            } else {
+                roots.add(loc);
+            }
+        }
+
+        List<InventoryLocationHierarchyResponse> result = new ArrayList<>();
+        Set<UUID> visited = new HashSet<>();
+        for (InventoryLocation root : roots) {
+            traverseDfs(root, 0, childrenMap, result, visited);
+        }
+        return result;
+    }
+
+    private void traverseDfs(
+            InventoryLocation current,
+            int level,
+            Map<UUID, List<InventoryLocation>> childrenMap,
+            List<InventoryLocationHierarchyResponse> result,
+            Set<UUID> visited) {
+        if (!visited.add(current.getId())) {
+            return;
+        }
+
+        List<InventoryLocation> children = childrenMap.getOrDefault(current.getId(), Collections.emptyList());
+        UUID parentId = current.getParentLocation() != null ? current.getParentLocation().getId() : null;
+        String parentName = current.getParentLocation() != null ? current.getParentLocation().getName() : null;
+        String parentCode = current.getParentLocation() != null ? current.getParentLocation().getCode() : null;
+
+        result.add(new InventoryLocationHierarchyResponse(
+                current.getId(),
+                current.getBranchId(),
+                parentId,
+                parentName,
+                parentCode,
+                current.getCode(),
+                current.getName(),
+                current.getType(),
+                current.getStatus(),
+                level,
+                level + 1,
+                !children.isEmpty(),
+                children.size()
+        ));
+
+        for (InventoryLocation child : children) {
+            traverseDfs(child, level + 1, childrenMap, result, visited);
+        }
     }
 
     @Override

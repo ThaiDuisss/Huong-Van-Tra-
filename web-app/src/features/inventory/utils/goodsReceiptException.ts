@@ -15,12 +15,18 @@ export const SHORTAGE_RESOLUTION_LABELS: Record<ReceiptShortageResolution, strin
     REJECT_LINE: "Từ chối nhận cả dòng, trả lại NCC"
 };
 
+/** Nhãn khi dòng giao đủ nhưng có hàng hỏng. */
+export const DAMAGED_RESOLUTION_LABELS: Record<ReceiptShortageResolution, string> = {
+    ACCEPT_PARTIAL_CLOSE: "Nhận phần đạt QC & đóng dòng",
+    REJECT_LINE: "Từ chối nhận cả dòng, trả lại NCC"
+};
+
 export interface LineException {
     /** Số giao vượt số đặt. */
     excess: number;
     /** Số giao thiếu so với số đặt. */
     shortage: number;
-    /** Số không đạt QC (luôn hủy). */
+    /** Số không đạt QC (không bao giờ nhập kho). */
     damaged: number;
 }
 
@@ -41,20 +47,29 @@ export function hasLineException(line: GoodsReceiptLine) {
 /** Số dự kiến ghi sổ của dòng theo cách xử lý đang chọn — khớp logic backend khi duyệt ngoại lệ. */
 export function previewPostedQuantity(line: GoodsReceiptLine, resolution?: GoodsReceiptLineResolutionInput) {
     const accepted = line.qc.passedQuantity;
-    const { excess, shortage } = getLineException(line);
+    const { excess } = getLineException(line);
     if (excess > 0 && resolution?.excessResolution === "ACCEPT_ORDERED_ONLY") {
         return Math.min(accepted, line.orderedQuantity ?? 0);
     }
-    if (shortage > 0 && resolution?.shortageResolution === "REJECT_LINE") {
+    if (needsShortageResolution(line) && resolution?.shortageResolution === "REJECT_LINE") {
         return 0;
     }
     return accepted;
 }
 
-/** Dòng ngoại lệ thừa/thiếu đã chọn đủ cách xử lý chưa (hàng hỏng không cần chọn). */
+/**
+ * Dòng cần chọn cách xử lý kiểu "thiếu": giao thiếu, hoặc giao đủ nhưng có hàng hỏng (số đạt QC < số đặt).
+ * Khớp backend: dòng giao thừa chỉ chọn cách xử lý phần thừa.
+ */
+export function needsShortageResolution(line: GoodsReceiptLine) {
+    const { excess, shortage, damaged } = getLineException(line);
+    return excess === 0 && (shortage > 0 || damaged > 0);
+}
+
+/** Dòng ngoại lệ thừa / thiếu / hỏng đã chọn đủ cách xử lý chưa. */
 export function isLineResolved(line: GoodsReceiptLine, resolution?: GoodsReceiptLineResolutionInput) {
-    const { excess, shortage } = getLineException(line);
+    const { excess } = getLineException(line);
     if (excess > 0) return Boolean(resolution?.excessResolution);
-    if (shortage > 0) return Boolean(resolution?.shortageResolution);
+    if (needsShortageResolution(line)) return Boolean(resolution?.shortageResolution);
     return true;
 }

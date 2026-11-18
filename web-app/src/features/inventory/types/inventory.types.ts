@@ -59,6 +59,22 @@ export interface InventoryLocationResponse {
     status: InventoryStatus;
 }
 
+export interface InventoryLocationHierarchyResponse {
+    id: EntityId;
+    branchId: EntityId;
+    parentLocationId: EntityId | null;
+    parentLocationName: string | null;
+    parentLocationCode: string | null;
+    code: string;
+    name: string;
+    type: InventoryLocationType;
+    status: InventoryStatus;
+    level: number;
+    tier: number;
+    hasChildren: boolean;
+    childrenCount: number;
+}
+
 export interface InventoryLocationRequest {
     branchId: EntityId;
     parentLocationId: EntityId | null;

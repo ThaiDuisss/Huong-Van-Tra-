@@ -37,11 +37,16 @@ export interface ProductionOrder {
     orderCode: string;
     status: ProductionOrderApiStatus;
     productVariantId: string;
+    productVariantName?: string | null;
     plannedQuantity: number;
     unitId: string | null;
     locationId: string;
     note: string | null;
     lines: ProductionOrderLineResponse[];
+    createdBy?: string | null;
+    createBy?: string | null;
+    createByName?: string | null;
+    createdByName?: string | null;
     submittedBy: string | null;
     submittedAt: string | null;
     approvedBy: string | null;

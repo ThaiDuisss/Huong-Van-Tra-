@@ -18,7 +18,7 @@ import java.util.UUID;
         name = "inventory_reservations",
         uniqueConstraints = @UniqueConstraint(
                 name = "uq_inventory_reservation_scope",
-                columnNames = {"order_id", "product_variant_id", "inventory_item_id", "location_id", "reservation_type", "processing_attempt"}
+                columnNames = {"order_id", "product_variant_id", "inventory_item_product_id", "inventory_item_ingredient_id", "location_id", "reservation_type", "processing_attempt"}
         )
 )
 @Getter
@@ -44,9 +44,13 @@ public class InventoryReservation extends BaseEntity {
     @Column(name = "processing_attempt", nullable = false)
     private int processingAttempt = 0;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "inventory_item_id", nullable = false)
-    private InventoryItem inventoryItem;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "inventory_item_product_id")
+    private InventoryItem inventoryItemProduct;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "inventory_item_ingredient_id")
+    private InventoryItem inventoryItemIngredient;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "location_id", nullable = false)
@@ -68,5 +72,26 @@ public class InventoryReservation extends BaseEntity {
     public void addBatchAllocation(InventoryReservationBatchAllocation allocation) {
         batchAllocations.add(allocation);
         allocation.setReservation(this);
+    }
+
+    @Transient
+    public InventoryItem getEffectiveInventoryItem() {
+        if (reservationType == ReservationType.MATERIAL) {
+            return inventoryItemIngredient != null ? inventoryItemIngredient : inventoryItemProduct;
+        }
+        return inventoryItemProduct != null ? inventoryItemProduct : inventoryItemIngredient;
+    }
+
+    @Transient
+    public InventoryItem getInventoryItem() {
+        return getEffectiveInventoryItem();
+    }
+
+    public void setInventoryItem(InventoryItem item) {
+        if (reservationType == ReservationType.MATERIAL) {
+            this.inventoryItemIngredient = item;
+        } else {
+            this.inventoryItemProduct = item;
+        }
     }
 }

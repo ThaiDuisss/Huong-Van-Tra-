@@ -8,6 +8,7 @@ export function useAuthorization() {
         authenticated,
         initialized,
         user,
+        userId,
         keycloakSubject,
         permissions,
         permissionsLoaded,
@@ -21,6 +22,7 @@ export function useAuthorization() {
         authenticated,
         initialized,
         user,
+        userId,
         keycloakSubject,
         /** undefined = chưa tải được permission (backend cũ): dùng role như trước. */
         permissions,
