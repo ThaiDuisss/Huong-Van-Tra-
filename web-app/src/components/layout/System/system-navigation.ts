@@ -26,7 +26,6 @@ import {
   Upload,
   User,
   UserCog,
-  WalletCards,
   Warehouse,
   ShieldCheck,
 } from "lucide-react";
@@ -39,6 +38,7 @@ import {
   POS_WORKSPACE_ROLES,
   BACKOFFICE_ROLES,
   CUSTOMER_ROLES,
+  CUSTOMER_RETURN_QC_ROLES,
   INVENTORY_OPERATION_ROLES,
   INVENTORY_ROLES,
   MANUFACTURING_ROLES,
@@ -68,6 +68,7 @@ export interface SystemNavigationItem {
    * quyết định; chưa có (backend cũ) thì chỉ xét `roles`.
    */
   permissions?: string[];
+  requireRolesAndPermissions?: boolean;
   children?: SystemNavigationItem[];
 }
 
@@ -104,20 +105,6 @@ export const systemNavigationItems: SystemNavigationItem[] = [
         to: routePaths.invoices,
         icon: FileText,
         roles: ORDER_ROLES,
-      },
-      {
-        key: "orders-returns",
-        label: "Hoàn hàng",
-        to: routePaths.returns,
-        icon: History,
-        roles: [ROLES.SUPER_ADMIN, ROLES.MANAGER],
-      },
-      {
-        key: "orders-refunds",
-        label: "Hoàn tiền",
-        to: routePaths.refunds,
-        icon: WalletCards,
-        roles: [ROLES.SUPER_ADMIN, ROLES.MANAGER],
       },
     ],
   },
@@ -298,11 +285,13 @@ export const systemNavigationItems: SystemNavigationItem[] = [
             label: "Khách trả hàng",
             icon: RefreshCw,
             to: routePaths.inventoryCustomerReturnList,
-            roles: [ROLES.SUPER_ADMIN, ROLES.MANAGER, ROLES.INVENTORY_STAFF],
+            roles: [...CUSTOMER_RETURN_QC_ROLES, ROLES.INVENTORY_STAFF],
+            permissions: ["inventory:view"],
+            requireRolesAndPermissions: true,
           },
           {
             key: "inventory-disposals",
-            label: "Hỏng / tiêu hủy",
+            label: "Tiêu hủy",
             icon: Trash2,
             to: routePaths.inventoryDisposals,
             roles: INVENTORY_OPERATION_ROLES,
@@ -497,6 +486,10 @@ function isItemVisible(
   // SUPER_ADMIN luôn thấy; danh sách permission rỗng = chưa bootstrap → xét role như cũ.
   if (hasAnyRole(userRoles, [ROLES.SUPER_ADMIN])) {
     return true;
+  }
+  if (item.requireRolesAndPermissions) {
+    return hasAnyRole(userRoles, item.roles) && (userPermissions === undefined ||
+      !item.permissions?.length || item.permissions.some((permission) => userPermissions.includes(permission)));
   }
   if (item.permissions && item.permissions.length > 0 && Array.isArray(userPermissions) && userPermissions.length > 0) {
     return item.permissions.some((permission) => userPermissions.includes(permission));

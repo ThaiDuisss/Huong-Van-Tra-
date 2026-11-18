@@ -9,6 +9,7 @@ import org.hvtra.orderservice.domain.enums.OrderRefundStatus;
 import org.hvtra.orderservice.domain.enums.RefundProgressStatus;
 import org.hvtra.commonservice.common_core.logging.action.UserAction;
 import org.hvtra.commonservice.common_core.utils.SecurityUtils;
+import org.hvtra.commonservice.common_core.utils.OrderReturnAuthorization;
 import org.hvtra.orderservice.domain.enums.OrderStatus;
 import org.hvtra.orderservice.domain.enums.PaymentStatus;
 import org.hvtra.orderservice.domain.enums.ReturnStatus;
@@ -53,7 +54,6 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
@@ -235,6 +235,7 @@ public class OrderController {
             @PathVariable UUID orderId,
             @Valid @RequestBody CheckOrderReturnEligibilityRequest request
     ) {
+        OrderReturnAuthorization.requireCreate();
         return orderReturnService.checkReturnEligibility(orderId, request);
     }
 
@@ -245,12 +246,14 @@ public class OrderController {
             @PathVariable UUID orderId,
             @Valid @RequestBody CreateOrderReturnRequest request
     ) {
+        OrderReturnAuthorization.requireCreate();
         return orderReturnService.createReturn(orderId, request);
     }
 
     @Operation(summary = "lay danh sach hoan hang cua don hang")
     @GetMapping("/" + UUID_PATH + "/returns")
     public List<OrderReturnResponse> getReturnsByOrder(@PathVariable UUID orderId) {
+        OrderReturnAuthorization.requireRead();
         return orderReturnService.getReturnsByOrder(orderId);
     }
 
@@ -270,6 +273,7 @@ public class OrderController {
             @RequestParam(defaultValue = "false") boolean paged,
             @RequestParam(defaultValue = "false") boolean warehouseActiveOnly
     ) {
+        OrderReturnAuthorization.requireRead();
         String effectiveDisplayStatus = displayStatus != null && !displayStatus.isBlank() ? displayStatus : status;
         ReturnStatus rawStatus = null;
         if (effectiveDisplayStatus != null) {
@@ -308,6 +312,7 @@ public class OrderController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate toDate,
             @RequestParam(defaultValue = "false") boolean warehouseActiveOnly
     ) {
+        OrderReturnAuthorization.requireRead();
         return orderReturnService.getReturnStatusCounts(keyword, fromDate, toDate, warehouseActiveOnly);
     }
 
@@ -323,6 +328,7 @@ public class OrderController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size
     ) {
+        OrderReturnAuthorization.requireRead();
         return orderReturnService.getRefunds(keyword, status, progressStatus, fromDate, toDate, sort, page, size);
     }
 
@@ -333,24 +339,29 @@ public class OrderController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fromDate,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate toDate
     ) {
+        OrderReturnAuthorization.requireRead();
         return orderReturnService.getRefundStats(keyword, fromDate, toDate);
     }
 
     @Operation(summary = "lay chi tiet hoan tien")
     @GetMapping("/refunds/{returnId:[0-9a-fA-F\\-]{36}}")
     public OrderRefundDetailResponse getRefundDetail(@PathVariable UUID returnId) {
+        OrderReturnAuthorization.requireRead();
         return orderReturnService.getRefundDetail(returnId);
     }
 
     @Operation(summary = "lay chi tiet hoan hang")
     @GetMapping("/returns/{returnId:[0-9a-fA-F\\-]{36}}")
     public OrderReturnResponse getReturnById(@PathVariable UUID returnId) {
+        // Inventory's Kafka consumer reads the authoritative return before creating its inspection.
+        OrderReturnAuthorization.requireEvidenceRead();
         return orderReturnService.getReturnById(returnId);
     }
 
     @Operation(summary = "lay timeline xu ly hoan hang")
     @GetMapping("/returns/{returnId:[0-9a-fA-F\\-]{36}}/timeline")
     public List<OrderReturnTimelineResponse> getReturnTimeline(@PathVariable UUID returnId) {
+        OrderReturnAuthorization.requireRead();
         return orderReturnService.getReturnTimeline(returnId);
     }
 
@@ -393,24 +404,28 @@ public class OrderController {
     @Operation(summary = "xem truoc so tien hoan tien")
     @GetMapping("/returns/{returnId:[0-9a-fA-F\\-]{36}}/refund-preview")
     public OrderReturnRefundPreviewResponse getRefundPreview(@PathVariable UUID returnId) {
+        OrderReturnAuthorization.requireRead();
         return orderReturnService.getRefundPreview(returnId);
     }
 
     @Operation(summary = "xac nhan cua hang da nhan hang tra lai")
     @PutMapping("/returns/{returnId:[0-9a-fA-F\\-]{36}}/receive")
     public OrderReturnResponse receiveReturn(@PathVariable UUID returnId) {
+        OrderReturnAuthorization.requireReceive();
         return orderReturnService.receiveReturn(returnId);
     }
 
     @Operation(summary = "huy phieu hoan hang chua hoan tat")
     @PutMapping("/returns/{returnId:[0-9a-fA-F\\-]{36}}/cancel")
     public OrderReturnResponse cancelReturn(@PathVariable UUID returnId) {
+        OrderReturnAuthorization.requireCreate();
         return orderReturnService.cancelReturn(returnId);
     }
 
     @Operation(summary = "hoan tien cho phieu hoan hang")
     @PostMapping("/returns/{returnId:[0-9a-fA-F\\-]{36}}/refund")
     public OrderReturnRefundResponse refundReturn(@PathVariable UUID returnId) {
+        OrderReturnAuthorization.requireRefund();
         return orderReturnService.refundReturn(returnId);
     }
 
@@ -421,9 +436,7 @@ public class OrderController {
             @PathVariable UUID returnId,
             @Valid @RequestBody SubmitReturnInventoryDispositionRequest request
     ) {
-        if (!SecurityUtils.hasAnyRole(Role.QC, Role.MANAGER, Role.SUPER_ADMIN)) {
-            throw new AccessDeniedException("Customer return disposition requires QC or manager role");
-        }
+        OrderReturnAuthorization.requireDisposition();
         return orderReturnService.submitInventoryDisposition(returnId, request);
     }
 
@@ -433,6 +446,7 @@ public class OrderController {
             @PathVariable UUID returnId,
             @PathVariable UUID commandId
     ) {
+        OrderReturnAuthorization.requireEvidenceRead();
         return orderReturnService.getInventoryDisposition(returnId, commandId);
     }
 

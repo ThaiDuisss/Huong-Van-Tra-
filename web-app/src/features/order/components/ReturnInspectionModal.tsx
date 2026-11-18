@@ -34,6 +34,7 @@ import { Button, IconButton } from "../../../components/ui/Button";
 import { ModalShell } from "../../../components/ui/Overlay";
 import { StatusBadge } from "../../../components/ui/StatusBadge";
 import styles from "./ReturnInspectionModal.module.css";
+import { useOrderReturnAccess } from "../../../auth/order-return-access";
 
 interface ReturnInspectionModalProps {
     isOpen: boolean;
@@ -103,6 +104,7 @@ export function ReturnInspectionModal({
     qcSummary,
     returnItem
 }: ReturnInspectionModalProps) {
+    const { canDisposition } = useOrderReturnAccess();
     const [step, setStep] = useState<1 | 2>(1);
     const [qcDraftLines, setQcDraftLines] = useState<Record<string, QcDraftLine>>({});
     const [generalNote, setGeneralNote] = useState("");
@@ -428,6 +430,7 @@ export function ReturnInspectionModal({
 
     // Final Submission
     const handleConfirmSubmit = () => {
+        if (!canDisposition) return;
         if (submissionInFlightRef.current) return;
         if (!submissionRef.current && !validateBeforeReview()) {
             setStep(1);
@@ -501,7 +504,7 @@ export function ReturnInspectionModal({
             });
     };
 
-    if (!isOpen) {
+    if (!isOpen || !canDisposition) {
         return null;
     }
 

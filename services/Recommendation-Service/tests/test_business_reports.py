@@ -338,15 +338,14 @@ class WorkbookTests(DbFixture, unittest.TestCase):
         data, evidence = build_workbook(self.db, start, end, NOW)
         return load_workbook(BytesIO(data)), data, evidence
 
-    def test_exact_four_sheets_headers_empty_states_and_valid_zip(self):
+    def test_exact_three_sheets_headers_empty_states_and_valid_zip(self):
         wb, data, _ = self.build()
         self.assertEqual(wb.sheetnames, SHEETS)
         self.assertTrue(data.startswith(b"PK"))
         for index, ws in enumerate(wb):
             self.assertEqual(ws.freeze_panes, None if index == 0 else "A4")
             self.assertTrue(any(c.value == "Chưa có dữ liệu" for row in ws for c in row))
-        self.assertEqual([c.value for c in wb.worksheets[3][3]],
-                         ["Mã lần gợi ý", "Mã KH", "Số món gợi ý", "Số món khách mua", "Số món trùng", "Kết quả"])
+        self.assertNotIn("ĐỐI CHIẾU KẾT QUẢ GỢI Ý", wb.sheetnames)
 
     def test_summary_appearances_distinct_customers_orders_units_and_matches(self):
         wb, _, evidence = self.build([snapshot("s1", NOW-timedelta(days=1)), snapshot("s2", NOW-timedelta(hours=1)),
@@ -356,17 +355,16 @@ class WorkbookTests(DbFixture, unittest.TestCase):
         product_rows = list(wb.worksheets[2].values)[3:]
         tea_a = next(r for r in product_rows if r[1] == "Trà a")
         self.assertEqual(tea_a[2:], (1, 2, 3, 15))
-        match_rows = list(wb.worksheets[3].values)[3:]
-        self.assertEqual([r[3:5] for r in match_rows], [(2, 1), (2, 1)])
+        self.assertEqual([len(r["matches"]) for r in evidence["snapshots"]], [1, 1])
         self.assertEqual(len(evidence["sales"]), 3)
 
-    def test_pending_and_superseded_cells_are_blank_not_zero(self):
-        wb, _, _ = self.build([snapshot("old", NOW-timedelta(hours=3)), snapshot("winner", NOW-timedelta(hours=2)),
+    def test_pending_and_superseded_evidence_stays_unknown_not_zero(self):
+        wb, _, evidence = self.build([snapshot("old", NOW-timedelta(hours=3)), snapshot("winner", NOW-timedelta(hours=2)),
             snapshot("pending", NOW-timedelta(hours=1), customer="other"), order()])
-        rows = {r[0]: r for r in list(wb.worksheets[3].values)[3:]}
-        self.assertEqual(rows["pending"][3:5], (None, None))
-        self.assertEqual(rows["old"][3:5], (None, None))
-        self.assertEqual(rows["winner"][4], 1)
+        rows = {r["snapshot_id"]: r for r in evidence["snapshots"]}
+        self.assertIsNone(rows["pending"]["matches"])
+        self.assertIsNone(rows["old"]["matches"])
+        self.assertEqual(len(rows["winner"]["matches"]), 1)
 
     def test_local_calendar_boundaries_and_next_order_after_period(self):
         start, end = period_bounds(date(2026, 10, 11), date(2026, 10, 11))

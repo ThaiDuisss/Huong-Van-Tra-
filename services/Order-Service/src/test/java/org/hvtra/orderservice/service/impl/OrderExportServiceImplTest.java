@@ -28,6 +28,8 @@ import org.springframework.data.domain.PageRequest;
 
 import java.io.ByteArrayInputStream;
 import java.math.BigDecimal;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -50,6 +52,42 @@ class OrderExportServiceImplTest {
 
     @Mock
     private OrderQueryService orderQueryService;
+
+    @Test
+    void invoiceExportRetainsRefundEvidenceAndOriginalMoney() throws Exception {
+        OrderExportServiceImpl service = new OrderExportServiceImpl(orderQueryService);
+        for (PaymentStatus paymentStatus : List.of(PaymentStatus.PARTIALLY_REFUNDED, PaymentStatus.REFUNDED)) {
+            UUID orderId = UUID.randomUUID();
+            LocalDateTime createdAt = LocalDateTime.of(2026, 11, 17, 10, 0);
+            BigDecimal amount = new BigDecimal("100000");
+            String refundLabel = paymentStatus == PaymentStatus.REFUNDED ? "Đã hoàn tiền" : "Hoàn tiền một phần";
+            OrderSummaryResponse summary = summary(orderId, "ORD-REFUND-001", "Đã hoàn thành", amount, createdAt);
+            summary.setPaymentStatus(paymentStatus);
+            summary.setPaymentStatusLabel(refundLabel);
+            OrderResponse detail = detail(orderId, summary.getOrderCode(), "Khách hàng", "0123456789", createdAt,
+                    amount, List.of(item("TRA-01", "Trà sen", amount)));
+            detail.setPaymentStatus(paymentStatus);
+            detail.setPaymentStatusLabel(refundLabel);
+            when(orderQueryService.getOrders(null, null, PaymentStatus.PAID, null, null, null, "invoicePayment", 0, 200))
+                    .thenReturn(new PageImpl<>(List.of(summary), PageRequest.of(0, 200), 1));
+            when(orderQueryService.getOrdersByIdsForExport(List.of(orderId))).thenReturn(List.of(detail));
+            byte[] content = service.exportInvoices(null, PaymentStatus.PAID, null, null, null);
+            try (Workbook workbook = new XSSFWorkbook(new ByteArrayInputStream(content))) {
+                assertEquals(refundLabel, workbook.getSheetAt(0).getRow(1).getCell(1).getStringCellValue());
+                assertMoney(workbook.getSheetAt(0).getRow(1).getCell(2), 100000);
+                assertEquals(refundLabel, workbook.getSheetAt(1).getRow(1).getCell(1).getStringCellValue());
+                assertMoney(workbook.getSheetAt(1).getRow(1).getCell(12), 100000);
+            }
+            assertEquals(paymentStatus, summary.getPaymentStatus());
+            assertEquals(OrderStatus.COMPLETED, summary.getStatus());
+            String output = System.getProperty("hvt.test.export.dir");
+            if (output != null) {
+                Path directory = Path.of(output);
+                Files.createDirectories(directory);
+                Files.write(directory.resolve("invoice-" + paymentStatus.name() + ".xlsx"), content);
+            }
+        }
+    }
 
     @Test
     void exportsExactlyTwoSheetsWithTypedSummaryAndOneDetailRowPerItem() throws Exception {

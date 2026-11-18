@@ -8,6 +8,8 @@ const PAYMENT_TONE: Record<string, BadgeTone> = {
     WAITING_PAYMENT: "pending",
     PENDING: "pending",
     PARTIAL: "sky",
+    PARTIALLY_PAID: "sky",
+    NEED_REVIEW: "warning",
     FAILED: "danger",
     REFUNDED: "violet",
     PARTIALLY_REFUNDED: "violet"

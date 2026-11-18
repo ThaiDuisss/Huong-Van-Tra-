@@ -219,7 +219,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const [user, setUser] = useState<CurrentUser | undefined>(() =>
         keycloak.authenticated ? readUserCache() : undefined
     );
-    // Permission tải một lần cho mỗi phiên (không gọi lại mỗi lần render); undefined = chưa biết.
     const [permissions, setPermissions] = useState<string[] | undefined>(undefined);
     const [permissionsLoaded, setPermissionsLoaded] = useState(false);
     const [permissionsVersion, setPermissionsVersion] = useState(0);
@@ -304,7 +303,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }, [authenticated, token]);
 
     useEffect(() => {
-        if (!authenticated) {
+        if (!authenticated || !token) {
             return undefined;
         }
 
@@ -319,10 +318,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 }
             })
             .catch((error) => {
-                // Backend cũ hoặc Keycloak lỗi: giữ undefined để màn hình vẫn phân quyền theo role như trước.
-                console.warn("Không tải được danh sách quyền, dùng vai trò", error);
+                console.warn("Không tải được danh sách quyền", error);
                 if (active) {
-                    setPermissions(undefined);
                     setPermissionsLoaded(true);
                 }
             });
@@ -330,7 +327,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return () => {
             active = false;
         };
-    }, [authenticated, permissionsVersion]);
+    }, [authenticated, token, permissionsVersion]);
 
     const value = useMemo<AuthContextValue>(
         () => ({

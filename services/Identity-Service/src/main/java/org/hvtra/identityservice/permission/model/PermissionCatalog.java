@@ -29,12 +29,13 @@ public final class PermissionCatalog {
             new DefaultPermission("order:view", "Xem đơn hàng", "Xem danh sách, chi tiết và lịch sử đơn bán"),
             new DefaultPermission(ORDER_CREATE, "Tạo đơn bán", "Bán hàng tại quầy POS, tạo và thanh toán đơn"),
             new DefaultPermission("order:cancel", "Hủy đơn", "Hủy đơn hàng chưa hoàn tất"),
-            new DefaultPermission("order:return", "Xử lý trả hàng", "Tạo và duyệt phiếu khách trả hàng"),
+            new DefaultPermission("order:return", "Lập phiếu trả hàng", "Kiểm tra điều kiện, tạo và hủy phiếu trả chưa nhận hàng; không cấp quyền QC hoặc hoàn tiền"),
             new DefaultPermission("order:refund", "Hoàn tiền", "Thực hiện hoàn tiền cho phiếu trả hàng"),
             new DefaultPermission("inventory:view", "Xem tồn kho", "Xem tồn kho, lô hàng, lịch sử biến động"),
             new DefaultPermission("inventory:receive", "Nhập kho", "Lập phiếu nhập và xác nhận nhận hàng"),
             new DefaultPermission("inventory:approve", "Duyệt phiếu kho", "Phê duyệt phiếu nhập, phiếu điều chỉnh"),
             new DefaultPermission("inventory:adjust", "Kiểm kê và điều chỉnh", "Kiểm kê, điều chỉnh tồn, xử lý hàng hỏng"),
+            new DefaultPermission("inventory:qc", "Kiểm định hàng khách trả", "Tạo, tiếp tục và ghi nhận kiểm định hàng trả; không cấp quyền hoàn tiền"),
             new DefaultPermission("inventory:transfer", "Chuyển kho", "Chuyển hàng giữa kho tổng, kho cửa hàng và kệ"),
             new DefaultPermission("product:view", "Xem sản phẩm", "Xem danh mục sản phẩm, mặt hàng, giá"),
             new DefaultPermission("product:manage", "Quản lý sản phẩm", "Tạo, sửa sản phẩm, mặt hàng, đơn vị, bảng giá"),
@@ -51,7 +52,7 @@ public final class PermissionCatalog {
 
     private static final Set<String> MANAGER_PERMISSIONS = Set.of(
             "order:view", ORDER_CREATE, "order:cancel", "order:return", "order:refund",
-            "inventory:view", "inventory:approve", "inventory:transfer",
+            "inventory:view", "inventory:receive", "inventory:approve", "inventory:transfer", "inventory:qc", "inventory:adjust",
             "product:view", "product:manage",
             "production:view", "production:manage",
             "customer:view", "customer:manage",
@@ -68,8 +69,8 @@ public final class PermissionCatalog {
                 "inventory:view", "inventory:receive", "inventory:adjust", "inventory:transfer",
                 "product:view", "production:view"));
         map.put(Role.SALE_STAFF, Set.of(
-                "order:view", ORDER_CREATE, "order:return", "inventory:view", "product:view", "customer:view"));
-        map.put(Role.QC, Set.of("inventory:view", "inventory:adjust", "production:view", "order:return"));
+                "order:view", ORDER_CREATE, "order:return", "order:refund", "inventory:view", "product:view", "customer:view"));
+        map.put(Role.QC, Set.of("inventory:view", "inventory:receive", "inventory:qc", "inventory:adjust", "production:view"));
         return Map.copyOf(map);
     }
 

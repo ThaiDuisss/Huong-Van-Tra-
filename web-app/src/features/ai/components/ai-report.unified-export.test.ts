@@ -111,7 +111,7 @@ beforeEach(() => {vi.clearAllMocks(); fixture.recovery = null; fixture.bomRecove
 afterEach(() => {vi.unstubAllGlobals();});
 
 describe("unified export dialog events", () => {
-  it("shares the modal, date controls and two-button footer when switching Product/BOM/Product", () => {
+  it("shares the modal and footer while showing dates only for Product across repeated switches", () => {
     const view = dialog();
     const dates = () => ["Từ ngày", "Đến ngày"].map(label => view.find(n => n.props["aria-label"] === label));
     const footer = () => view.find(n => n.type === DialogFooter);
@@ -121,20 +121,22 @@ describe("unified export dialog events", () => {
     expect(text(view.render())).not.toContain("Synthetic");
     change(dates()[0], "2026-09-03"); change(dates()[1], "2026-09-21"); view.render();
     const footerBefore = footer();
-    view.bom();
-    expect(dates().map(n => n.props.disabled)).toEqual([true, true]);
-    expect(dates().map(n => n.props.value)).toEqual(["", ""]);
-    expect(dates().map(n => n.props["aria-describedby"])).toEqual(["ai-export-date-note", "ai-export-date-note"]);
-    expect(text(view.render())).toContain("chưa hỗ trợ lọc theo ngày");
-    expect(text(view.render())).toContain("Dữ liệu mô phỏng (Synthetic), không phản ánh kinh doanh thực tế.");
-    expect(text(view.render())).not.toMatch(/CUSTOM_BOM\/REPEAT|Top-5|TEST|01\/04\/2026|receipt|mã xuất|quyền đăng nhập/);
-    expect(view.find(n => n.type === DialogContent).props.className).toBe(modalClass);
-    expect(footer()).toEqual(footerBefore);
-    change(view.find(n => n.props.value === "PRODUCT"), "PRODUCT"); view.render();
-    expect(dates().map(n => n.props.value)).toEqual(["2026-09-03", "2026-09-21"]);
-    expect(dates().map(n => n.props.disabled)).toEqual([false, false]);
-    expect(text(view.render())).not.toContain("Synthetic");
-    expect(footer()).toEqual(footerBefore);
+    for (let count = 0; count < 3; count++) {
+      view.bom();
+      expect(nodes(view.render()).filter(n => n.props.type === "date")).toHaveLength(0);
+      expect(text(view.render())).not.toMatch(/Từ ngày|Đến ngày|dữ liệu cố định|chưa hỗ trợ lọc theo ngày|Synthetic|kinh doanh thực tế|CUSTOM_BOM\/REPEAT|Top-5|TEST|receipt|mã xuất|quyền đăng nhập/);
+      const body = view.find(n => n.props.className === "grid gap-4 px-6 py-5");
+      const sections = Children.toArray(body.props.children as ReactNode).filter(isValidElement);
+      expect(sections).toHaveLength(1);
+      expect(sections[0].type).toBe("fieldset");
+      expect(view.find(n => n.type === DialogContent).props.className).toBe(modalClass);
+      expect(footer()).toEqual(footerBefore);
+      change(view.find(n => n.props.value === "PRODUCT"), "PRODUCT"); view.render();
+      expect(dates().map(n => n.props.value)).toEqual(["2026-09-03", "2026-09-21"]);
+      expect(dates().map(n => n.props.disabled)).toEqual([false, false]);
+      expect(text(view.render())).not.toContain("Synthetic");
+      expect(footer()).toEqual(footerBefore);
+    }
   });
   it.each([
     ["", "2026-10-31", "Vui lòng chọn đầy đủ"],
@@ -193,7 +195,8 @@ describe("unified export dialog events", () => {
     const view = dialog(); change(view.find(n => n.props["aria-label"] === "Từ ngày"), ""); view.render();
     view.bom(); view.submit(); await flush();
     expect(nodes(view.render()).some(n => n.props.type === "password")).toBe(false);
-    expect(text(view.render())).toContain("Dữ liệu mô phỏng (Synthetic)"); expect(fixture.excel).not.toHaveBeenCalled();
+    expect(nodes(view.render()).some(n => n.props.type === "date")).toBe(false);
+    expect(text(view.render())).not.toContain("Synthetic"); expect(fixture.excel).not.toHaveBeenCalled();
     expect(view.props.api.exportBusinessReport).toHaveBeenCalledWith({requestId: expect.any(String), reportType: "CUSTOM_BOM",
       fromDate: "2026-04-01", toDate: "2026-04-30"}, expect.any(AbortSignal));
     expect(fixture.save).toHaveBeenCalledWith(blob, bomReceipt.fileName);
@@ -242,16 +245,24 @@ describe("unified export dialog events", () => {
     expect(calls[0][0].reportType).toBe("CUSTOM_BOM"); expect(calls[1][0].reportType).toBeUndefined();
     expect(calls[0][0].requestId).not.toBe(calls[1][0].requestId); expect(fixture.excel).not.toHaveBeenCalled();
   });
-  it.each(["PRODUCT", "CUSTOM_BOM"] as const)("keeps recovery actions outside the common footer for %s", async kind => {
+  it("keeps Product recovery actions outside the common footer", async () => {
     const product = api(); vi.mocked(product.exportBusinessReport).mockRejectedValueOnce(new Error("temporary"));
-    const view = dialog(product); if (kind === "CUSTOM_BOM") view.bom();
+    const view = dialog(product);
     view.submit(); await flush(); view.render();
     expect(text(view.find(n => n.type === DialogFooter))).toBe("ĐóngXuất báo cáo");
-    click(view.find(n => n.type === "button" && text(n) === (kind === "CUSTOM_BOM" ? "Tạo lượt xuất mới" : "Chọn kỳ khác")));
+    click(view.find(n => n.type === "button" && text(n) === "Chọn kỳ khác"));
     view.render(); view.submit(); await flush();
     const calls = vi.mocked(product.exportBusinessReport).mock.calls;
     expect(calls).toHaveLength(2);
     expect(calls[0][0].requestId).not.toBe(calls[1][0].requestId);
+  });
+  it("keeps a recovered BOM compact without retry helper text or empty date sections", () => {
+    fixture.bomRecovery = {requestId: "bom-intent", reportType: "CUSTOM_BOM", fromDate: "2026-04-01", toDate: "2026-04-30"};
+    const view = dialog(); view.bom();
+    const body = view.find(n => n.props.className === "grid gap-4 px-6 py-5");
+    expect(Children.toArray(body.props.children as ReactNode).filter(isValidElement)).toHaveLength(1);
+    expect(text(view.render())).not.toMatch(/Thử lại|Tạo lượt xuất mới|Synthetic|Từ ngày|Đến ngày/);
+    expect(text(view.find(n => n.type === DialogFooter))).toBe("ĐóngXuất báo cáo");
   });
 });
 

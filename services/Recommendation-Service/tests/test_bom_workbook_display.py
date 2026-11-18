@@ -94,8 +94,8 @@ class BomWorkbookTransparencyTests(unittest.TestCase):
     def test_all_348_component_lines_and_80_codes_match_original_source_exactly(self):
         data = self.service.data; codes = recipe_codes(data)
         self.assertEqual(set(codes.values()), {f"CT{n:03d}" for n in range(1, 81)})
-        ws = self.wb[SHEETS[4]]
-        header = HEADER_ROWS[4]
+        ws = self.wb[SHEETS[3]]
+        header = HEADER_ROWS[3]
         catalog = list(table_rows(ws))
         self.assertEqual(len(catalog), len(data.tables["recipe_items"]))
         self.assertEqual(len(catalog), 348)
@@ -124,20 +124,18 @@ class BomWorkbookTransparencyTests(unittest.TestCase):
             link = stats.cell(row, 2).hyperlink
             self.assertIsNone(link.target)
             target = self.resolve(self.wb, link.location)
-            self.assertEqual(target.parent.title, SHEETS[4])
+            self.assertEqual(target.parent.title, SHEETS[3])
             self.assertEqual(target.value, stats.cell(row, 2).value)
             self.assertEqual(target.row, min(i for i in range(5, 353) if ws.cell(i, 1).value == target.value))
 
     def test_main_tables_consistently_use_codes_and_keep_all_customer_recipe_mappings(self):
         codes = recipe_codes(self.service.data)
         self.assertEqual(self.wb.sheetnames, SHEETS)
-        self.assertEqual([len(list(table_rows(s))) for s in self.wb.worksheets[1:]], [400, 80, 400, 348])
+        self.assertEqual([len(list(table_rows(s))) for s in self.wb.worksheets[1:]], [400, 80, 348])
         details = {r[7]: r for r in table_rows(self.wb[SHEETS[1]])}
         customers = customer_codes(self.service.data)
-        comparisons = {r[0]: r for r in table_rows(self.wb[SHEETS[3]])}
         for record in self.snapshot["evaluation"]:
             self.assertEqual(details[record["customer_id"]][0], customers[record["customer_id"]])
-            self.assertEqual(comparisons[record["recommendation_id"]][1], customers[record["customer_id"]])
             for col, key in ((2, "recommended"), (3, "purchased"), (4, "matched")):
                 expected = "\n".join(codes[rid] for rid in record[key]) or "Không có"
                 self.assertEqual(details[record["customer_id"]][col], expected)
@@ -159,7 +157,7 @@ class BomWorkbookTransparencyTests(unittest.TestCase):
         ingredient["name_snapshot"] = '=HYPERLINK("https://untrusted.invalid","name")'
         content = build_workbook(data, self.service._model.metadata, self.snapshot)
         workbook = load_workbook(BytesIO(content))
-        cells = [c for row in workbook[SHEETS[4]] for c in row if c.value == ingredient["name_snapshot"]]
+        cells = [c for row in workbook[SHEETS[3]] for c in row if c.value == ingredient["name_snapshot"]]
         self.assertTrue(cells)
         self.assertTrue(all(c.data_type == "s" and c.hyperlink is None for c in cells))
 
@@ -188,8 +186,8 @@ class BomWorkbookTransparencyTests(unittest.TestCase):
                         self.assertTrue(cell.font.underline)
                         target = self.resolve(workbook, cell.hyperlink.location)
                         if ws.title == SHEETS[2]:
-                            self.assertEqual((target.parent.title, target.value), (SHEETS[4], cell.value))
-                        elif ws.title == SHEETS[4] and cell.column == 9 and cell.row >= 5:
+                            self.assertEqual((target.parent.title, target.value), (SHEETS[3], cell.value))
+                        elif ws.title == SHEETS[3] and cell.column == 9 and cell.row >= 5:
                             self.assertEqual((target.parent.title, target.value), (SHEETS[2], ws.cell(cell.row, 1).value))
         for row in workbook[SHEETS[1]].iter_rows(min_row=5, min_col=3, max_col=5):
             self.assertTrue(all(c.hyperlink is None for c in row))  # No fake multi-link cells.
@@ -198,7 +196,7 @@ class BomWorkbookTransparencyTests(unittest.TestCase):
         workbook = load_workbook(BytesIO(self.content))
         self.assert_navigation(workbook)
         from copy import copy
-        for ws, first, key in ((workbook[SHEETS[2]], 4, 3), (workbook[SHEETS[4]], 5, 2)):
+        for ws, first, key in ((workbook[SHEETS[2]], 4, 3), (workbook[SHEETS[3]], 5, 2)):
             rows = [[(c.value, copy(c._style), copy(c.hyperlink)) for c in row]
                     for row in ws.iter_rows(min_row=first)]
             rows.sort(key=lambda row: (str(row[key][0]), str(row[0][0])), reverse=True)
@@ -230,15 +228,15 @@ class BomWorkbookTransparencyTests(unittest.TestCase):
             with self.subTest(kind=kind):
                 workbook = load_workbook(BytesIO(self.content))
                 if kind == "sheet":
-                    del workbook[SHEETS[4]]
+                    del workbook[SHEETS[3]]
                 elif kind == "anchor":
                     workbook.defined_names["BOM_Catalog_CT025"].attr_text = "'Missing'!A1"
                 elif kind == "link":
                     workbook[SHEETS[2]]["B4"].hyperlink.location = "BOM_Catalog_CT080"
                 elif kind == "quantity":
-                    workbook[SHEETS[4]]["D5"] = 999
+                    workbook[SHEETS[3]]["D5"] = 999
                 else:
-                    workbook[SHEETS[3]]["B5"] = "KH999"
+                    workbook[SHEETS[1]]["A5"] = "KH999"
                 with self.assertRaises(ValueError):
                     verify_workbook(workbook, self.service.data, self.snapshot)
 

@@ -25,12 +25,10 @@ vi.mock("react-dom", async () => {
     };
 });
 
-// Mock role-utils so tests can run without full Keycloak / Auth context
-vi.mock("@/auth/role-utils", () => ({
-    CUSTOMER_RETURN_QC_ROLES: ["ROLE_SUPER_ADMIN", "ROLE_MANAGER", "ROLE_QC"],
+vi.mock("@/auth/useAuthorization", () => ({
     useAuthorization: () => ({
-        hasAnyRole: () => true,
-        hasRole: () => true
+        roles: ["ROLE_QC"],
+        permissions: ["inventory:view", "inventory:receive", "inventory:qc", "inventory:adjust"]
     })
 }));
 

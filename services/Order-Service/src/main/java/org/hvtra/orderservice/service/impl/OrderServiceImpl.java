@@ -1041,7 +1041,7 @@ public class OrderServiceImpl implements OrderService {
 
         return OrderStatsResponse.builder()
                 .total(orderRepository.count(dateRange))
-                .pending(countByStatuses(fromDate, toDate, List.of(OrderStatus.DRAFT, OrderStatus.PENDING_PAYMENT)))
+                .pending(countByStatuses(fromDate, toDate, List.of(OrderStatus.PENDING_PAYMENT)))
                 .processing(countByStatuses(fromDate, toDate, List.of(OrderStatus.PAYMENT_CONFIRMED)))
                 .shipping(0)
                 .completed(countByStatuses(fromDate, toDate, List.of(OrderStatus.COMPLETED)))
@@ -1385,6 +1385,12 @@ public class OrderServiceImpl implements OrderService {
             if (paymentStatus != null) {
                 if (PaymentStatus.UNPAID == paymentStatus) {
                     predicates.add(root.get("paymentStatus").in(PaymentStatus.UNPAID, PaymentStatus.WAITING_PAYMENT));
+                } else if (PaymentStatus.PAID == paymentStatus
+                        && SORT_INVOICE_PAYMENT.equalsIgnoreCase(sort)
+                        && returnEligibility == null) {
+                    predicates.add(root.get("paymentStatus").in(
+                            PaymentStatus.PAID, PaymentStatus.PARTIALLY_REFUNDED, PaymentStatus.REFUNDED
+                    ));
                 } else {
                     predicates.add(criteriaBuilder.equal(root.get("paymentStatus"), paymentStatus));
                 }

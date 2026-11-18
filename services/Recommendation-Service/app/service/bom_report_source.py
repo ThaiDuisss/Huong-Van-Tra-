@@ -68,7 +68,7 @@ def build_bom(cfg, pinned):
     if descriptor(service, artifacts) != pinned:
         raise HTTPException(409, "BOM export is pinned to different artifacts; restore them or use a new requestId")
     try:
-        content = service.excel()  # New exports use V3; the lifecycle retains frozen V2 bytes.
+        content = service.excel()  # New exports use the current layout; frozen exports retain their bytes.
         snapshot = service.report_snapshot()
         service.verify_integrity()
         workbook = load_workbook(BytesIO(content))

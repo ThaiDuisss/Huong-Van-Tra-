@@ -1,4 +1,4 @@
-import { CUSTOMER_RETURN_QC_ROLES, useAuthorization } from "@/auth/role-utils";
+import { useOrderReturnAccess } from "@/auth/order-return-access";
 import { RowActionMenu, type RowAction } from "@/components/shared/RowActionMenu";
 import type { OrderReturnListRow } from "../../order/types/order-return.types";
 import {
@@ -19,11 +19,12 @@ export interface CustomerReturnActionMenuProps {
 function getReturnAvailableActions(
   props: CustomerReturnActionMenuProps,
   canExecuteQc: boolean,
+  canReceive: boolean,
 ): RowAction[] {
   const { row, onViewDetail, onInspect, onReceive, isReceiving, onViewInspection } = props;
   const actions: RowAction[] = [{ label: "Xem chi tiết", onSelect: () => onViewDetail() }];
 
-  if (row.status === "CREATED") {
+  if (row.status === "CREATED" && canReceive) {
     actions.push({
       label: isReceiving ? "Đang nhận..." : "Nhận hàng",
       onSelect: onReceive,
@@ -117,10 +118,10 @@ function getReturnAvailableActions(
 
 export function CustomerReturnActionMenu(props: CustomerReturnActionMenuProps) {
   const { row, isOpen, onOpenChange } = props;
-  const { hasAnyRole } = useAuthorization();
+  const { canDisposition, canReceive } = useOrderReturnAccess();
   return (
     <RowActionMenu
-      actions={getReturnAvailableActions(props, hasAnyRole(CUSTOMER_RETURN_QC_ROLES))}
+      actions={getReturnAvailableActions(props, canDisposition, canReceive)}
       isOpen={isOpen}
       onOpenChange={onOpenChange}
       triggerLabel={`Mở thao tác cho phiếu ${row.returnCode ?? "hoàn hàng"}`}

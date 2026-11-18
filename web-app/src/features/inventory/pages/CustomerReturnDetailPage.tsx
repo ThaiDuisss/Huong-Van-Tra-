@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, Navigate, useParams } from "react-router-dom";
 import { ArrowLeft, CheckCircle2, ShieldAlert } from "lucide-react";
-import { CUSTOMER_RETURN_QC_ROLES, useAuthorization } from "../../../auth/role-utils";
+import { useOrderReturnAccess } from "../../../auth/order-return-access";
 import { Button } from "../../../components/ui/Button";
 import { buttonClassName } from "../../../components/ui/button-styles";
 import { StatusBadge } from "../../../components/ui/StatusBadge";
@@ -15,8 +15,7 @@ import { createCustomerReturnQcDraft, getCustomerReturnQcError } from "../utils/
 import { formatVietnamDateTime, formatVietnamNumber } from "../utils/inventory-format";
 
 export function CustomerReturnDetailPage() {
-    const { hasAnyRole } = useAuthorization();
-    const canPost = hasAnyRole(CUSTOMER_RETURN_QC_ROLES);
+    const { canDisposition: canPost } = useOrderReturnAccess();
     const { returnId: inspectionId } = useParams();
     const [detail, setDetail] = useState<CustomerReturnInspection | null>(null);
     const [drafts, setDrafts] = useState<Record<string, CustomerReturnQcDraft>>({});

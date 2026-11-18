@@ -16,7 +16,6 @@ export function AiReportExportDialog({api, actor, onClose, onExported}: {
   const today = vietnamToday();
   const [kind, setKind] = useState<ReportKind>("PRODUCT");
   const [bomRecovery] = useState(() => readBomExportRecovery(actor));
-  const [bomRetrying, setBomRetrying] = useState(Boolean(bomRecovery));
   const bomAttempt = useRef<BusinessExportRecovery | null>(bomRecovery);
   const [recovery] = useState(() => readBusinessExportRecovery(actor));
   const [fromDate, setFromDate] = useState(recovery?.fromDate || today.slice(0, 8) + "01");
@@ -30,7 +29,6 @@ export function AiReportExportDialog({api, actor, onClose, onExported}: {
   const bomController = useRef<AbortController | null>(null);
   useEffect(() => () => bomController.current?.abort(), []);
   const isBom = kind === "CUSTOM_BOM";
-  const hasRecovery = isBom ? bomRetrying : retrying;
 
   async function submitBom() {
     if (!bomAttempt.current) bomAttempt.current = {requestId: crypto.randomUUID(), reportType: "CUSTOM_BOM",
@@ -52,7 +50,6 @@ export function AiReportExportDialog({api, actor, onClose, onExported}: {
       onExported("CUSTOM_BOM");
     } catch (failure) {
       if (controller.signal.aborted) return;
-      setBomRetrying(true);
       setError(failure instanceof ApiError && failure.status === 503
         ? "Nguồn dữ liệu báo cáo BOM chưa sẵn sàng. Vui lòng liên hệ quản trị."
         : aiReportErrorMessage(failure, "Không thể xuất báo cáo BOM. Vui lòng thử lại cùng lượt xuất."));
@@ -105,36 +102,25 @@ export function AiReportExportDialog({api, actor, onClose, onExported}: {
                 }} />{label}
               </label>)}
           </fieldset>
-          <div className="grid gap-2">
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          {!isBom ? <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <label className="grid min-w-0 gap-2 text-sm font-semibold">Từ ngày
-                <input aria-label="Từ ngày" aria-describedby={isBom ? "ai-export-date-note" : undefined}
-                  type="date" value={isBom ? "" : fromDate} max={today} disabled={isBom || busy || retrying}
+                <input aria-label="Từ ngày" type="date" value={fromDate} max={today} disabled={busy || retrying}
                   className="h-10 min-w-0 w-full rounded-lg border border-pos-border px-3 disabled:cursor-not-allowed disabled:bg-[#f1f5f3] disabled:text-[#697684]"
                   onChange={(event) => setFromDate(event.target.value)} /></label>
               <label className="grid min-w-0 gap-2 text-sm font-semibold">Đến ngày
-                <input aria-label="Đến ngày" aria-describedby={isBom ? "ai-export-date-note" : undefined}
-                  type="date" value={isBom ? "" : toDate} min={isBom ? undefined : fromDate} max={today} disabled={isBom || busy || retrying}
+                <input aria-label="Đến ngày" type="date" value={toDate} min={fromDate} max={today} disabled={busy || retrying}
                   className="h-10 min-w-0 w-full rounded-lg border border-pos-border px-3 disabled:cursor-not-allowed disabled:bg-[#f1f5f3] disabled:text-[#697684]"
                   onChange={(event) => setToDate(event.target.value)} /></label>
-            </div>
-            {isBom ? <p id="ai-export-date-note" className="text-sm text-[#536078]">
-              Báo cáo BOM dùng dữ liệu cố định, chưa hỗ trợ lọc theo ngày.
-            </p> : null}
-          </div>
-          {isBom ? <p className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm font-semibold text-amber-950">
-            Dữ liệu mô phỏng (Synthetic), không phản ánh kinh doanh thực tế.
-          </p> : null}
+          </div> : null}
           {busy ? <p role="status" className="text-sm font-semibold">{stage}</p> : null}
           {error ? <p role="alert" className="text-sm font-semibold text-red-700">{error}</p> : null}
-          {hasRecovery ? <div className="grid justify-items-start gap-2 text-sm text-[#536078]">
+          {!isBom && retrying ? <div className="grid justify-items-start gap-2 text-sm text-[#536078]">
             <p>Thử lại sẽ dùng cùng lượt xuất để tránh tạo file trùng.</p>
             <button type="button" disabled={busy} className="font-semibold text-[#159734] underline disabled:opacity-50"
               onClick={() => {
-                if (isBom) {bomAttempt.current = null; saveBomExportRecovery(actor, null); setBomRetrying(false);}
-                else {attempt.current = null; saveBusinessExportRecovery(actor, null); setRetrying(false);}
+                attempt.current = null; saveBusinessExportRecovery(actor, null); setRetrying(false);
                 setError(null);
-              }}>{isBom ? "Tạo lượt xuất mới" : "Chọn kỳ khác"}</button>
+              }}>Chọn kỳ khác</button>
           </div> : null}
         </div>
         <DialogFooter>
