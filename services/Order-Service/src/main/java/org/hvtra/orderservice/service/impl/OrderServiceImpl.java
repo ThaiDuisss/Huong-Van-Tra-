@@ -741,7 +741,6 @@ public class OrderServiceImpl implements OrderService {
 
         UUID sagaId = orderPaymentSagaService.completePaymentSaga(savedOrder, event, paymentCausationId(event));
         orderPaymentSagaService.markResourceConfirmationRequested(savedOrder, sagaId);
-        orderCustomerServiceImpl.updateCustomerPurchase(savedOrder.getId());
         orderOutboxPublisher.publishPaymentCompletedOrchestration(savedOrder, paymentCausationId(event), sagaId.toString());
         orderOutboxPublisher.publishOrderPaymentSucceededNotification(
                 savedOrder,
@@ -1041,7 +1040,7 @@ public class OrderServiceImpl implements OrderService {
 
         return OrderStatsResponse.builder()
                 .total(orderRepository.count(dateRange))
-                .pending(countByStatuses(fromDate, toDate, List.of(OrderStatus.DRAFT, OrderStatus.PENDING_PAYMENT)))
+                .pending(countByStatuses(fromDate, toDate, List.of(OrderStatus.PENDING_PAYMENT)))
                 .processing(countByStatuses(fromDate, toDate, List.of(OrderStatus.PAYMENT_CONFIRMED)))
                 .shipping(0)
                 .completed(countByStatuses(fromDate, toDate, List.of(OrderStatus.COMPLETED)))
@@ -1385,6 +1384,12 @@ public class OrderServiceImpl implements OrderService {
             if (paymentStatus != null) {
                 if (PaymentStatus.UNPAID == paymentStatus) {
                     predicates.add(root.get("paymentStatus").in(PaymentStatus.UNPAID, PaymentStatus.WAITING_PAYMENT));
+                } else if (PaymentStatus.PAID == paymentStatus
+                        && SORT_INVOICE_PAYMENT.equalsIgnoreCase(sort)
+                        && returnEligibility == null) {
+                    predicates.add(root.get("paymentStatus").in(
+                            PaymentStatus.PAID, PaymentStatus.PARTIALLY_REFUNDED, PaymentStatus.REFUNDED
+                    ));
                 } else {
                     predicates.add(criteriaBuilder.equal(root.get("paymentStatus"), paymentStatus));
                 }
@@ -2123,7 +2128,6 @@ public class OrderServiceImpl implements OrderService {
             );
             orderPaymentSagaService.completePaymentSaga(order, eventFromPaymentResponse(order, payment, sagaId), order.getPaymentCode());
             orderPaymentSagaService.markResourceConfirmationRequested(order, sagaId);
-            orderCustomerServiceImpl.updateCustomerPurchase(order.getId());
             orderOutboxPublisher.publishPaymentCompletedOrchestration(order, order.getPaymentCode(), sagaId.toString());
             return;
         }

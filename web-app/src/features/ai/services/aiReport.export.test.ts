@@ -96,8 +96,8 @@ describe("generated business AI export", () => {
     expect(html).not.toContain("TF-IDF"); expect(html).not.toContain("60%");
   });
   it("BOM uses current JWT on the official API, validates research receipt then checksum", async () => {
-    const report: AiBusinessExport = {...await receipt(), fromDate: "2026-04-01", toDate: "2026-04-30",
-      fileName: "AI_Report_HuongVanTra_20260401_20260430.xlsx", reportType: "CUSTOM_BOM", sourceKind: "SYNTHETIC",
+    const report: AiBusinessExport = {...await receipt(), fromDate: "2026-04-05", toDate: "2026-04-12",
+      fileName: "AI_Report_HuongVanTra_20260405_20260412.xlsx", reportType: "CUSTOM_BOM", sourceKind: "SYNTHETIC",
       researchOnly: true, productionApproved: false, createdBy: "staff", status: "COMPLETE",
       provenance: {kind: "SYNTHETIC_BOM_RESEARCH", source_kind: "SYNTHETIC", research_only: true, production_approved: false,
         dataset_id: "research-fixture", dataset_sha256: "a".repeat(64), model_sha256: "b".repeat(64), model_fingerprint: "c".repeat(64),
@@ -110,7 +110,7 @@ describe("generated business AI export", () => {
         : new Response(bytes, {headers: {"Content-Type": mime}});
     }));
     const api = adapter(), controller = new AbortController();
-    const payload = {requestId: input.requestId, fromDate: "2026-04-01", toDate: "2026-04-30", reportType: "CUSTOM_BOM" as const};
+    const payload = {requestId: input.requestId, fromDate: "2026-04-05", toDate: "2026-04-12", reportType: "CUSTOM_BOM" as const};
     const result = await api.exportBusinessReport(payload, controller.signal);
     expect(new Uint8Array(await (await api.downloadBusinessReport(result, controller.signal)).arrayBuffer())).toEqual(bytes);
     expect(calls[0].url).toBe("http://gateway.test/api/recommendation/ai-reports/exports");
@@ -122,11 +122,23 @@ describe("generated business AI export", () => {
       await expect(api.exportBusinessReport(payload)).rejects.toThrow();
     }
   });
+  it("passes a multi-month BOM request to the API and preserves its coverage error", async () => {
+    const payload = {requestId: input.requestId, fromDate: "2026-04-30", toDate: "2026-11-18", reportType: "CUSTOM_BOM" as const};
+    const details = {fromDate: "2026-04-01", toDate: "2026-04-30", timezone: "UTC"};
+    const fetch = vi.fn(async (_url: string, init: RequestInit) => {
+      expect(JSON.parse(init.body as string)).toEqual(payload);
+      return new Response(JSON.stringify({code: "BOM_PERIOD_UNSUPPORTED", message: "Unsupported coverage", details}),
+        {status: 422, headers: {"Content-Type": "application/json"}});
+    });
+    vi.stubGlobal("fetch", fetch);
+    await expect(adapter().exportBusinessReport(payload)).rejects.toMatchObject({status: 422, code: "BOM_PERIOD_UNSUPPORTED", details});
+    expect(fetch).toHaveBeenCalledOnce();
+  });
   it("BOM recovery is typed and actor-scoped without changing Product storage", () => {
     const values = new Map<string, string>();
     vi.stubGlobal("sessionStorage", {getItem: (key: string) => values.get(key) ?? null,
       setItem: (key: string, value: string) => values.set(key, value), removeItem: (key: string) => values.delete(key)});
-    const bom = {requestId: input.requestId, fromDate: "2026-04-01", toDate: "2026-04-30", reportType: "CUSTOM_BOM" as const};
+    const bom = {requestId: input.requestId, fromDate: "2026-04-05", toDate: "2026-04-12", reportType: "CUSTOM_BOM" as const};
     saveBusinessExportRecovery("actor-a", input); saveBomExportRecovery("actor-a", bom);
     expect(readBusinessExportRecovery("actor-a")).toEqual(input);
     expect(readBomExportRecovery("actor-a")).toEqual(bom); expect(readBomExportRecovery("actor-b")).toBeNull();

@@ -4,7 +4,7 @@ No demo HTTP/token/auth mode, Product history, training, or filesystem persisten
 Persistence is the existing BusinessReportExport/File-Service lifecycle.
 """
 from dataclasses import dataclass
-from datetime import timedelta
+from datetime import date, datetime, time, timedelta, timezone
 from io import BytesIO
 from pathlib import Path
 import re
@@ -14,9 +14,25 @@ from openpyxl import load_workbook
 
 from app.ingredient_demo.bom_report import PROTOCOL
 from app.ingredient_demo.service import IngredientDemoService
-from app.ingredient_demo.workbook import WORKBOOK_SCHEMA, verify_workbook
+from app.ingredient_demo.workbook import WORKBOOK_SCHEMA, build_workbook, verify_workbook
 from app.ingredient_poc.synthetic import END, T2
 from app.schemas.business_report import BOM_FROM, BOM_TO
+
+
+class BomExportDataError(HTTPException):
+    def __init__(self, code: str, message: str, details: dict[str, str] | None = None):
+        super().__init__(status_code=422, detail=message)
+        self.code = code
+        self.details = details
+
+
+def require_bom_coverage(from_date: date, to_date: date):
+    if from_date < BOM_FROM or to_date > BOM_TO:
+        raise BomExportDataError(
+            "BOM_PERIOD_UNSUPPORTED",
+            "The research dataset cannot evaluate the full requested BOM period.",
+            {"fromDate": BOM_FROM.isoformat(), "toDate": BOM_TO.isoformat(), "timezone": "UTC"},
+        )
 
 
 @dataclass(frozen=True, repr=False)
@@ -38,8 +54,7 @@ def load_research(cfg):
             cfg.ai_report_bom_model_sha256 or "")
         if (not artifacts.dataset_id or not artifacts.dataset_path.is_absolute() or not artifacts.model_path.is_absolute()
                 or not re.fullmatch(r"[0-9a-f]{64}", artifacts.dataset_sha256)
-                or not re.fullmatch(r"[0-9a-f]{64}", artifacts.model_sha256)
-                or T2.date() != BOM_FROM or (END - timedelta(days=1)).date() != BOM_TO):
+                or not re.fullmatch(r"[0-9a-f]{64}", artifacts.model_sha256)):
             raise ValueError("Invalid research artifact configuration")
         service = IngredientDemoService(artifacts)
         service.verify_integrity()
@@ -63,13 +78,19 @@ def select_bom_source(cfg):
     return descriptor(*load_research(cfg))
 
 
-def build_bom(cfg, pinned):
+def build_bom(cfg, pinned, from_date=BOM_FROM, to_date=BOM_TO):
+    require_bom_coverage(from_date, to_date)
     service, artifacts = load_research(cfg)
     if descriptor(service, artifacts) != pinned:
         raise HTTPException(409, "BOM export is pinned to different artifacts; restore them or use a new requestId")
     try:
-        content = service.excel()  # New exports use V3; the lifecycle retains frozen V2 bytes.
-        snapshot = service.report_snapshot()
+        start = datetime.combine(from_date, time.min, timezone.utc)
+        end = datetime.combine(to_date + timedelta(days=1), time.min, timezone.utc)
+        snapshot = service.report_snapshot(start, end)
+        if not snapshot["summary"]["test_bom_sale_rows"]:
+            service.verify_integrity()
+            raise BomExportDataError("BOM_NO_DATA", "No BOM purchases in the requested period.")
+        content = build_workbook(service.data, service._model.metadata, snapshot)
         service.verify_integrity()
         workbook = load_workbook(BytesIO(content))
         try:
@@ -79,5 +100,7 @@ def build_bom(cfg, pinned):
         return content, {"report_type": "CUSTOM_BOM", "report_source": pinned,
                          "protocol": snapshot["protocol"], "summary": snapshot["summary"],
                          "workbook_schema": WORKBOOK_SCHEMA, "workbook_evidence": workbook_evidence}
+    except BomExportDataError:
+        raise
     except Exception:
         raise HTTPException(503, "BOM research workbook verification failed") from None

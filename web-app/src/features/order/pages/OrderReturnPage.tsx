@@ -14,6 +14,7 @@ import { Button } from "../../../components/ui/Button";
 import { TimeSidebar } from "../../../components/shared/TimeSidebar";
 import { useTimeFilter } from "../../../components/shared/useTimeFilter";
 import { routePaths } from "../../../routes/path";
+import { useOrderReturnAccess } from "../../../auth/order-return-access";
 import { ReturnDetailModal } from "../components/return-detail/ReturnDetailModal";
 import { ReturnStatusBadge } from "../components/ReturnStatusBadge";
 import {
@@ -47,7 +48,7 @@ const RETURN_STATUS_FILTERS: {
 ];
 
 const PAGE_SIZE = 10;
-/** Tham số URL mở sẵn hộp thoại chi tiết, vd. `/system/orders/returns?detail=<id>`. */
+/** Tham số URL mở sẵn hộp thoại chi tiết, vd. `/pos/orders/returns?detail=<id>`. */
 const DETAIL_PARAM = "detail";
 
 const emptyReturnPage: OrderPageResponse<OrderReturnListRow> = {
@@ -70,6 +71,7 @@ function useDebouncedValue<T>(value: T, delayMs: number) {
 }
 
 export function OrderReturnPage() {
+  const { canCreate } = useOrderReturnAccess();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
 
@@ -246,10 +248,10 @@ export function OrderReturnPage() {
             <RefreshCw size={17} aria-hidden="true" />
             Làm mới
           </Button>
-          <Button onClick={() => navigate(routePaths.returnCreate)} size="lg" variant="primary">
+          {canCreate ? <Button onClick={() => navigate(routePaths.returnCreate)} size="lg" variant="primary">
             <Plus size={17} aria-hidden="true" />
             Tạo phiếu hoàn hàng
-          </Button>
+          </Button> : null}
         </>
       }
     >

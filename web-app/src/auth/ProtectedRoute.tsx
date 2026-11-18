@@ -13,6 +13,8 @@ type ProtectedRouteProps = {
      * chưa tải được thì dùng `roles` như trước để không khóa màn hình trên môi trường cũ.
      */
     permissions?: string[];
+    /** Sensitive workflows require the business role as well as a known permission (including an empty list). */
+    requireRolesAndPermissions?: boolean;
 };
 
 type AuthStatePageProps = {
@@ -74,7 +76,7 @@ function AuthStatePage({
     );
 }
 
-export function ProtectedRoute({ children, roles = [], permissions = [] }: ProtectedRouteProps) {
+export function ProtectedRoute({ children, roles = [], permissions = [], requireRolesAndPermissions = false }: ProtectedRouteProps) {
     const auth = useAuth();
 
     if (!auth.initialized) {
@@ -101,16 +103,18 @@ export function ProtectedRoute({ children, roles = [], permissions = [] }: Prote
 
     if (roles.length > 0 || permissions.length > 0) {
         const superAdmin = hasAnyRole(auth.roles, [ROLES.SUPER_ADMIN]);
-        // Danh sách permission rỗng = chưa bootstrap: dùng role như cũ.
+        // Sensitive workflows treat a known empty list as denial; other routes retain their legacy behavior.
         const permissionDecision =
-            permissions.length > 0 && Array.isArray(auth.permissions) && auth.permissions.length > 0
+            permissions.length > 0 && Array.isArray(auth.permissions) && (requireRolesAndPermissions || auth.permissions.length > 0)
                 ? permissions.some((permission) => auth.permissions?.includes(permission))
                 : undefined;
         const hasRequiredRole =
             superAdmin ||
-            (permissionDecision ??
-                (hasAnyRole(auth.roles, roles) ||
-                    roles.some((role) => auth.hasRealmRole(role))));
+            (requireRolesAndPermissions
+                ? hasAnyRole(auth.roles, roles) && (permissionDecision ?? true)
+                : (permissionDecision ??
+                    (hasAnyRole(auth.roles, roles) ||
+                        roles.some((role) => auth.hasRealmRole(role)))));
 
         if (!hasRequiredRole) {
             return (

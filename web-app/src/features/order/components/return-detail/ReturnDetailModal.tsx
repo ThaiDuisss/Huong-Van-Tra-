@@ -11,7 +11,7 @@ import {
 import { type ReactNode, useEffect, useId, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
-import { CUSTOMER_RETURN_QC_ROLES, useAuthorization } from "../../../../auth/role-utils";
+import { useOrderReturnAccess } from "../../../../auth/order-return-access";
 import { Button, IconButton } from "../../../../components/ui/Button";
 import { ModalShell } from "../../../../components/ui/Overlay";
 import { StatusBadge, type BadgeTone } from "../../../../components/ui/StatusBadge";
@@ -57,9 +57,12 @@ import { OrderStatusBadge } from "../OrderStatusBadge";
 import { ReturnBusinessProgress } from "../ReturnBusinessProgress";
 import { ReturnInspectionModal } from "../ReturnInspectionModal";
 import { ReturnStatusBadge } from "../ReturnStatusBadge";
+import {
+    type DetailTab,
+    getVisibleReturnDetailTabs,
+    resolveReturnDetailTab
+} from "./return-detail-tabs";
 import { type ReturnDetailData, useReturnDetailData } from "./useReturnDetailData";
-
-type DetailTab = "overview" | "items" | "inspection" | "refund";
 
 interface ReturnDetailModalProps {
     /** Dòng phiếu hoàn từ danh sách (hiển thị ngay, chi tiết tải bổ sung). */
@@ -91,9 +94,17 @@ export function ReturnDetailModal({
     const data = useReturnDetailData(baseRow);
     const { returnItem, qcSummary, inspections, loading, error, reload } = data;
     const navigate = useNavigate();
-    const { hasAnyRole } = useAuthorization();
-    const canExecuteQc = hasAnyRole(CUSTOMER_RETURN_QC_ROLES);
-    const [tab, setTab] = useState<DetailTab>(initialTab);
+    const {
+        canDisposition: canExecuteQc,
+        canReceive,
+        canCreate,
+        canReadSales,
+        returnDetailOverviewOnly
+    } = useOrderReturnAccess();
+    const [tab, setTab] = useState<DetailTab>(() =>
+        resolveReturnDetailTab(initialTab, returnDetailOverviewOnly)
+    );
+    const activeTab = resolveReturnDetailTab(tab, returnDetailOverviewOnly);
     const [confirm, setConfirm] = useState<"receive" | "cancel" | null>(null);
     const [confirmError, setConfirmError] = useState("");
     const [transitioning, setTransitioning] = useState(false);
@@ -106,7 +117,13 @@ export function ReturnDetailModal({
     const [submittedInspection, setSubmittedInspection] = useState(false);
     const panelRef = useRef<HTMLDivElement>(null);
     const titleId = useId();
-    const childModalOpen = Boolean(confirm || inspectionSource || warehouseInspection);
+    const isAwaitingReceipt = returnItem.status === "CREATED";
+    const canReceiveReturn = canReceive && isAwaitingReceipt;
+    const canConfirmTransition = confirm === "receive"
+        ? canReceiveReturn
+        : allowCancel && canCreate && isAwaitingReceipt;
+    const childModalOpen = Boolean((confirm && canConfirmTransition) ||
+        (canExecuteQc && (inspectionSource || warehouseInspection)));
 
     // Trả focus về phần tử trước đó khi đóng. Escape do ModalShell xử lý (tắt khi có hộp thoại con).
     useEffect(() => {
@@ -143,17 +160,18 @@ export function ReturnDetailModal({
     const isPendingRefund = returnItem.displayStatus === "PENDING_REFUND";
 
     function notifyChanged(updated?: OrderReturnResponse) {
-        reload();
+        reload(updated);
         onChanged?.(updated);
     }
 
     function goToRefund() {
+        if (!canReadSales) return;
         const params = new URLSearchParams({ returnId: returnItem.id, keyword: getReturnCode(returnItem) });
         navigate(`${routePaths.refunds}?${params.toString()}`);
     }
 
     function runTransition() {
-        if (!confirm) return;
+        if (!confirm || !canConfirmTransition || transitioning) return;
         const action = confirm === "receive" ? receiveOrderReturn : cancelOrderReturn;
         setTransitioning(true);
         setConfirmError("");
@@ -168,6 +186,7 @@ export function ReturnDetailModal({
     }
 
     function startInspection() {
+        if (!canExecuteQc) return;
         if (openInspection) {
             setWarehouseInspection(openInspection);
             return;
@@ -190,8 +209,8 @@ export function ReturnDetailModal({
     }
 
     const headerActions: ReactNode[] = [];
-    if (returnItem.status === "CREATED") {
-        if (allowCancel) {
+    if (isAwaitingReceipt) {
+        if (allowCancel && canCreate) {
             headerActions.push(
                 <Button disabled={transitioning} key="cancel" onClick={() => setConfirm("cancel")}>
                     <XCircle size={17} aria-hidden="true" />
@@ -199,7 +218,7 @@ export function ReturnDetailModal({
                 </Button>
             );
         }
-        headerActions.push(
+        if (canReceiveReturn) headerActions.push(
             <Button disabled={transitioning} key="receive" onClick={() => setConfirm("receive")} variant="primary">
                 <PackageCheck size={17} aria-hidden="true" />
                 Xác nhận nhận hàng
@@ -212,7 +231,7 @@ export function ReturnDetailModal({
                 {openingInspection ? "Đang mở..." : openInspection ? "Tiếp tục kiểm hàng" : "Kiểm hàng"}
             </Button>
         );
-    } else if (isPendingRefund) {
+    } else if (isPendingRefund && canReadSales) {
         headerActions.push(
             <Button key="refund" onClick={goToRefund} variant="primary">
                 Đi tới hoàn tiền
@@ -221,12 +240,8 @@ export function ReturnDetailModal({
         );
     }
 
-    const tabs: { key: DetailTab; label: string }[] = [
-        { key: "overview", label: "Tổng quan" },
-        { key: "items", label: `Sản phẩm (${items.length})` },
-        { key: "inspection", label: "Kiểm hàng" },
-        { key: "refund", label: "Hoàn tiền" }
-    ];
+    const tabs = getVisibleReturnDetailTabs(items.length, returnDetailOverviewOnly);
+    const showTabs = tabs.length > 1;
 
     return (
         <ModalShell
@@ -240,7 +255,7 @@ export function ReturnDetailModal({
                 ref={panelRef}
                 tabIndex={-1}
             >
-                <header className="border-b border-[#e4ece8] bg-white px-6 pb-0 pt-5">
+                <header className={`border-b border-[#e4ece8] bg-white px-6 pt-5 ${showTabs ? "pb-0" : "pb-5"}`}>
                     <div className="flex items-start justify-between gap-4">
                         <div className="min-w-0">
                             <div className="flex flex-wrap items-center gap-2">
@@ -258,7 +273,7 @@ export function ReturnDetailModal({
                             <IconButton
                                 aria-label="Tải lại chi tiết"
                                 disabled={loading}
-                                onClick={reload}
+                                onClick={() => reload()}
                                 size="md"
                                 variant="secondary"
                             >
@@ -275,49 +290,51 @@ export function ReturnDetailModal({
                         </div>
                     </div>
                     {headerActions.length ? <div className="mt-4 flex flex-wrap justify-end gap-2">{headerActions}</div> : null}
-                    <nav aria-label="Nội dung chi tiết phiếu hoàn" className="mt-3 flex gap-1 overflow-x-auto overflow-y-hidden" role="tablist">
-                        {tabs.map((item) => (
-                            <button
-                                aria-selected={tab === item.key}
-                                className={`shrink-0 border-b-2 px-3 py-2.5 text-sm font-black transition-colors ${tab === item.key
-                                    ? "border-[#159734] text-[#116f28]"
-                                    : "border-transparent text-[#697684] hover:text-[#172317]"}`}
-                                key={item.key}
-                                onClick={() => setTab(item.key)}
-                                role="tab"
-                                type="button"
-                            >
-                                {item.label}
-                            </button>
-                        ))}
-                    </nav>
+                    {showTabs ? (
+                        <nav aria-label="Nội dung chi tiết phiếu hoàn" className="mt-3 flex gap-1 overflow-x-auto overflow-y-hidden" role="tablist">
+                            {tabs.map((item) => (
+                                <button
+                                    aria-selected={activeTab === item.key}
+                                    className={`shrink-0 border-b-2 px-3 py-2.5 text-sm font-black transition-colors ${activeTab === item.key
+                                        ? "border-[#159734] text-[#116f28]"
+                                        : "border-transparent text-[#697684] hover:text-[#172317]"}`}
+                                    key={item.key}
+                                    onClick={() => setTab(resolveReturnDetailTab(item.key, returnDetailOverviewOnly))}
+                                    role="tab"
+                                    type="button"
+                                >
+                                    {item.label}
+                                </button>
+                            ))}
+                        </nav>
+                    ) : null}
                 </header>
 
-                <div className="min-h-0 flex-1 overflow-y-auto p-5" role="tabpanel">
+                <div className="min-h-0 flex-1 overflow-y-auto p-5" role={showTabs ? "tabpanel" : undefined}>
                     {error ? (
                         <Notice tone="danger" title="Không tải được chi tiết phiếu hoàn">
                             {error}
                         </Notice>
                     ) : null}
-                    {tab === "overview" ? (
+                    {activeTab === "overview" ? (
                         <OverviewTab data={data} qcProgress={qcProgress} quantities={quantities} />
                     ) : null}
-                    {tab === "items" ? <ItemsTab returnItem={returnItem} /> : null}
-                    {tab === "inspection" ? (
+                    {!returnDetailOverviewOnly && activeTab === "items" ? <ItemsTab returnItem={returnItem} /> : null}
+                    {!returnDetailOverviewOnly && activeTab === "inspection" ? (
                         <InspectionTab
                             data={data}
-                            onOpenInspection={setWarehouseInspection}
+                            onOpenInspection={canExecuteQc ? setWarehouseInspection : undefined}
                             qcProgress={qcProgress}
                             quantities={quantities}
                         />
                     ) : null}
-                    {tab === "refund" ? (
-                        <RefundTab data={data} onGoToRefund={goToRefund} refundBlockReason={refundBlockReason} />
+                    {!returnDetailOverviewOnly && activeTab === "refund" ? (
+                        <RefundTab data={data} onGoToRefund={canReadSales ? goToRefund : undefined} refundBlockReason={refundBlockReason} />
                     ) : null}
                 </div>
             </div>
 
-            {confirm ? (
+            {confirm && canConfirmTransition ? (
                 <ConfirmDialog
                     confirmLabel={confirm === "receive" ? "Xác nhận nhận hàng" : "Hủy phiếu"}
                     confirmVariant={confirm === "receive" ? "primary" : "danger"}
@@ -336,7 +353,7 @@ export function ReturnDetailModal({
                 />
             ) : null}
 
-            {inspectionSource ? (
+            {inspectionSource && canExecuteQc ? (
                 <ReturnInspectionModal
                     isOpen
                     onClose={() => setInspectionSource(null)}
@@ -351,7 +368,7 @@ export function ReturnDetailModal({
                 />
             ) : null}
 
-            {warehouseInspection ? (
+            {warehouseInspection && canExecuteQc ? (
                 <CustomerReturnWarehouseInspectionModal
                     inspectionId={warehouseInspection.id}
                     isOpen
@@ -458,7 +475,7 @@ function InspectionTab({
     quantities
 }: {
     data: ReturnDetailData;
-    onOpenInspection: (inspection: CustomerReturnInspection) => void;
+    onOpenInspection?: (inspection: CustomerReturnInspection) => void;
     qcProgress: QcProgress;
     quantities: Quantities;
 }) {
@@ -502,7 +519,7 @@ function InspectionTab({
             {qcSummaryError ? (
                 <Notice tone="danger" title="Không tải được dữ liệu kiểm hàng từ Kho">
                     {qcSummaryError}{" "}
-                    <Button onClick={reload} size="xs" variant="link">Thử lại</Button>
+                    <Button onClick={() => reload()} size="xs" variant="link">Thử lại</Button>
                 </Notice>
             ) : null}
 
@@ -547,14 +564,14 @@ function InspectionTab({
                                     {" · "}Tạo {formatDateTime(inspection.createdAt)}
                                     {inspection.postedAt ? ` · Xử lý kho ${formatDateTime(inspection.postedAt)}` : ""}
                                 </span>
-                                <Button
+                                {onOpenInspection ? <Button
                                     className="ml-auto"
                                     onClick={() => onOpenInspection(inspection)}
                                     size="xs"
                                     variant="link"
                                 >
                                     {inspection.status === "POSTED" || inspection.status === "CANCELLED" ? "Xem kết quả" : "Tiếp tục kiểm hàng"}
-                                </Button>
+                                </Button> : null}
                             </li>
                         ))}
                     </ul>
@@ -609,7 +626,7 @@ function RefundTab({
     refundBlockReason
 }: {
     data: ReturnDetailData;
-    onGoToRefund: () => void;
+    onGoToRefund?: () => void;
     refundBlockReason: string | null;
 }) {
     const { returnItem, refundDetail } = data;
@@ -633,10 +650,10 @@ function RefundTab({
                                 : "Hàng trả đã kiểm và xử lý kho xong. Tiếp tục hoàn tiền cho khách hàng."}
                         </span>
                     </div>
-                    <Button onClick={onGoToRefund} variant="primary">
+                    {onGoToRefund ? <Button onClick={onGoToRefund} variant="primary">
                         Đi tới hoàn tiền
                         <ArrowRight size={17} aria-hidden="true" />
-                    </Button>
+                    </Button> : null}
                 </div>
             ) : null}
             <Card title="Thông tin hoàn tiền">

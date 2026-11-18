@@ -10,7 +10,6 @@ import org.hvtra.customer.mapper.CustomerMapper;
 import org.hvtra.customer.model.entity.CustomerTier;
 import org.hvtra.customer.model.enums.CustomerTierStatus;
 import org.hvtra.customer.repository.CustomerRepository;
-import org.hvtra.customer.repository.CustomerTierAssignmentRepository;
 import org.hvtra.customer.repository.CustomerTierRepository;
 import org.hvtra.customer.service.impl.CustomerTierServiceImpl;
 import org.junit.jupiter.api.BeforeEach;
@@ -35,15 +34,13 @@ class CustomerTierServiceTest {
 
     private CustomerTierRepository tierRepository;
     private CustomerRepository customerRepository;
-    private CustomerTierAssignmentRepository assignmentRepository;
     private CustomerTierServiceImpl tierService;
 
     @BeforeEach
     void setUp() {
         tierRepository = mock(CustomerTierRepository.class);
         customerRepository = mock(CustomerRepository.class);
-        assignmentRepository = mock(CustomerTierAssignmentRepository.class);
-        tierService = new CustomerTierServiceImpl(tierRepository, customerRepository, assignmentRepository, new CustomerMapper());
+        tierService = new CustomerTierServiceImpl(tierRepository, customerRepository, new CustomerMapper());
         when(tierRepository.save(any(CustomerTier.class))).thenAnswer(invocation -> invocation.getArgument(0));
     }
 
@@ -94,42 +91,29 @@ class CustomerTierServiceTest {
     }
 
     @Test
-    void updateRejectsThresholdChangeWhenTierHasAssignments() {
+    void updateChangesThresholdsAndPointMultiplier() {
         CustomerTier silver = tier("SILVER", 1_000_000, 3);
         when(tierRepository.findByIdAndIsDeletedFalse(silver.getId())).thenReturn(Optional.of(silver));
-        when(assignmentRepository.existsByTierIdAndIsDeletedFalse(silver.getId())).thenReturn(true);
-
-        assertThatThrownBy(() -> tierService.update(silver.getId(), request("SILVER", 2_000_000, 3)))
-                .isInstanceOf(CustomerServiceException.class)
-                .extracting(exception -> ((CustomerServiceException) exception).getStatus())
-                .isEqualTo(HttpStatus.BAD_REQUEST);
-        verify(tierRepository, never()).save(any());
-    }
-
-    @Test
-    void updateAllowsRenamingTierWithAssignmentsWhenThresholdsAreUnchanged() {
-        CustomerTier silver = tier("SILVER", 1_000_000, 3);
-        when(tierRepository.findByIdAndIsDeletedFalse(silver.getId())).thenReturn(Optional.of(silver));
-        when(assignmentRepository.existsByTierIdAndIsDeletedFalse(silver.getId())).thenReturn(true);
 
         CustomerTierRequest request = new CustomerTierRequest(
-                "SILVER", "Bạc", new BigDecimal("1000000.00"), 3, CustomerTierStatus.ACTIVE, "#C0C0C0");
+                "SILVER", "Bạc", new BigDecimal("2000000.00"), 5, new BigDecimal("1.50"),
+                CustomerTierStatus.ACTIVE, "#C0C0C0");
         CustomerTierResponse response = tierService.update(silver.getId(), request);
 
         assertThat(response.name()).isEqualTo("Bạc");
+        assertThat(response.minSpending()).isEqualByComparingTo("2000000");
+        assertThat(response.minOrderCount()).isEqualTo(5);
+        assertThat(response.pointMultiplier()).isEqualByComparingTo("1.5");
         assertThat(response.colorCode()).isEqualTo("#C0C0C0");
     }
 
     @Test
-    void updateAllowsThresholdChangeWhenTierHasNoAssignments() {
-        CustomerTier silver = tier("SILVER", 1_000_000, 3);
-        when(tierRepository.findByIdAndIsDeletedFalse(silver.getId())).thenReturn(Optional.of(silver));
-        when(assignmentRepository.existsByTierIdAndIsDeletedFalse(silver.getId())).thenReturn(false);
+    void createDefaultsPointMultiplierToOne() {
+        when(tierRepository.existsByCode("GOLD")).thenReturn(false);
 
-        CustomerTierResponse response = tierService.update(silver.getId(), request("SILVER", 2_000_000, 5));
+        CustomerTierResponse response = tierService.create(request("GOLD", 5_000_000, 10));
 
-        assertThat(response.minSpending()).isEqualByComparingTo("2000000");
-        assertThat(response.minOrderCount()).isEqualTo(5);
+        assertThat(response.pointMultiplier()).isEqualByComparingTo("1");
     }
 
     @Test
@@ -191,7 +175,7 @@ class CustomerTierServiceTest {
     }
 
     private CustomerTierRequest request(String code, int minSpending, Integer minOrderCount) {
-        return new CustomerTierRequest(code, code, BigDecimal.valueOf(minSpending), minOrderCount,
+        return new CustomerTierRequest(code, code, BigDecimal.valueOf(minSpending), minOrderCount, null,
                 CustomerTierStatus.ACTIVE, "#000000");
     }
 

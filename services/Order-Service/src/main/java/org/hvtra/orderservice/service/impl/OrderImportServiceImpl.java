@@ -11,7 +11,7 @@ import org.hvtra.orderservice.dto.request.CreateOrderRequest;
 import org.hvtra.orderservice.dto.request.OrderImportRequest;
 import org.hvtra.orderservice.dto.request.OrderImportRowRequest;
 import org.hvtra.orderservice.dto.response.CatalogVariantResponse;
-import org.hvtra.orderservice.dto.response.CustomerResponse;
+import org.hvtra.orderservice.dto.response.CustomerLookupResponse;
 import org.hvtra.orderservice.dto.response.OrderImportOrderResult;
 import org.hvtra.orderservice.dto.response.OrderImportResponse;
 import org.hvtra.orderservice.dto.response.OrderResponse;
@@ -214,10 +214,10 @@ public class OrderImportServiceImpl implements OrderImportService {
             phone = null;
         }
         if (phone != null) {
-            Optional<CustomerResponse> customer = cache.customerByPhone(phone);
+            Optional<CustomerLookupResponse> customer = cache.customerByPhone(phone);
             if (customer.isPresent()) {
-                request.setCustomerId(customer.get().getId());
-                customerName = firstNonBlank(customer.get().getFullName(), customerName);
+                request.setCustomerId(customer.get().id());
+                customerName = firstNonBlank(customer.get().name(), customerName);
             } else {
                 prepared.warnings.add("Không tìm thấy khách hàng có SĐT " + phone + ", đơn chỉ lưu tên và SĐT");
             }
@@ -431,7 +431,7 @@ public class OrderImportServiceImpl implements OrderImportService {
     /** Tra cứu SKU / khách hàng một lần cho cả file. */
     private final class LookupCache {
         private final Map<String, Optional<CatalogVariantResponse>> variants = new HashMap<>();
-        private final Map<String, Optional<CustomerResponse>> customers = new HashMap<>();
+        private final Map<String, Optional<CustomerLookupResponse>> customers = new HashMap<>();
 
         /** @return Optional rỗng nếu không có SKU; null nếu Catalog-Service lỗi. */
         private Optional<CatalogVariantResponse> variantBySku(String sku) {
@@ -454,17 +454,17 @@ public class OrderImportServiceImpl implements OrderImportService {
             });
         }
 
-        private Optional<CustomerResponse> customerByPhone(String phone) {
+        private Optional<CustomerLookupResponse> customerByPhone(String phone) {
             return customers.computeIfAbsent(phone, ignored -> {
                 try {
-                    List<CustomerResponse> found = customerClient.getCustomers(phone);
+                    List<CustomerLookupResponse> found = customerClient.lookupCustomers(phone, 20);
                     if (found == null) {
                         return Optional.empty();
                     }
                     return found.stream()
                             .filter(Objects::nonNull)
-                            .filter(customer -> customer.getPhone() != null
-                                    && phone.equals(PHONE_SEPARATORS.matcher(customer.getPhone()).replaceAll("")))
+                            .filter(customer -> customer.phone() != null
+                                    && phone.equals(PHONE_SEPARATORS.matcher(customer.phone()).replaceAll("")))
                             .findFirst();
                 } catch (RuntimeException exception) {
                     log.warn("Tra cứu khách hàng SĐT {} khi nhập đơn thất bại", phone, exception);

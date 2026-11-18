@@ -59,6 +59,7 @@ import { AiReportsPage } from "../pages/AiReportsPage";
 import { AiReportTable } from "./AiReportTable";
 import { AiReportImportDialog } from "./AiReportImportDialog";
 import { Pagination } from "../../manufacturing/components/shared/Pagination";
+import { Dialog, DialogFooter } from "../../../components/ui/dialog";
 
 type Node = ReactElement<Record<string, unknown>>;
 function nodes(tree: ReactNode): Node[] {
@@ -93,7 +94,9 @@ const receipt: AiBusinessExport = {id: "report", fileId: "report", fileName: "pr
 const bomReceipt: AiBusinessExport = {...receipt, reportType: "CUSTOM_BOM", fromDate: "2026-04-01", toDate: "2026-04-30",
   fileName: "AI_Report_HuongVanTra_20260401_20260430.xlsx"};
 function api() {
-  return {exportBusinessReport: vi.fn().mockImplementation(async input => input.reportType === "CUSTOM_BOM" ? bomReceipt : receipt), downloadBusinessReport: vi.fn().mockResolvedValue(blob),
+  return {getBomExportPeriod: vi.fn().mockResolvedValue({fromDate: "2026-04-01", toDate: "2026-04-30"}),
+    exportBusinessReport: vi.fn().mockImplementation(async input => input.reportType === "CUSTOM_BOM" ? bomReceipt : receipt),
+    downloadBusinessReport: vi.fn().mockResolvedValue(blob),
     listAiReports: vi.fn().mockResolvedValue({content: [], page: 0, size: 20, totalElements: 0, totalPages: 0, first: true, last: true}),
     downloadAiReport: vi.fn().mockResolvedValue(blob)} as unknown as AiReportApi;
 }
@@ -102,81 +105,198 @@ function dialog(productApi = api()) {
     onClose: vi.fn(), onExported: vi.fn()};
   const view = mount(() => AiReportExportDialog(props)); view.render();
   return {...view, props,
-    bom() {change(view.find(n => n.props.value === "CUSTOM_BOM"), "CUSTOM_BOM"); view.render();},
+    select(kind: "PRODUCT" | "CUSTOM_BOM") {
+      change(view.find(n => n.props.type === "radio" && n.props.value === kind), kind); view.render();
+    },
     submit() {(view.find(n => n.type === "form").props.onSubmit as (e: {preventDefault(): void}) => void)({preventDefault() {}});},
   };
 }
 beforeEach(() => {vi.clearAllMocks(); fixture.recovery = null; fixture.bomRecovery = null; fixture.actor = "staff-a";});
 afterEach(() => {vi.unstubAllGlobals();});
 
-describe("unified export dialog events", () => {
-  it("offers PRODUCT/BOM and exports Product without requesting a demo-token", async () => {
+describe("shared Product and BOM export dialog", () => {
+  const dateLabels = ["Từ ngày", "Đến ngày"];
+  const dateInputs = (view: ReturnType<typeof dialog>) =>
+    dateLabels.map(label => view.find(n => n.props["aria-label"] === label));
+  function setDates(view: ReturnType<typeof dialog>, from: string, to: string) {
+    change(dateInputs(view)[0], from); change(dateInputs(view)[1], to); view.render();
+  }
+  async function ready(view = dialog()) {
+    view.select("CUSTOM_BOM"); await flush(); view.render();
+    setDates(view, "2026-04-01", "2026-04-30");
+    return view;
+  }
+
+  it("defaults to Product and preserves the shared dates while switching modes", async () => {
     const view = dialog();
-    expect(text(view.render())).toContain("Theo sản phẩm"); expect(text(view.render())).toContain("Theo BOM");
-    expect(nodes(view.render()).some(n => n.props.type === "password")).toBe(false);
+    expect(text(view.render())).toContain("Theo sản phẩmTheo BOM");
+    expect(view.find(n => n.props.value === "PRODUCT").props.checked).toBe(true);
+    expect(view.find(n => n.props.value === "CUSTOM_BOM").props.checked).toBe(false);
+    expect(view.props.api.getBomExportPeriod).not.toHaveBeenCalled();
+    expect(dateInputs(view).map(n => n.props.value)).toEqual(["2026-10-01", "2026-10-31"]);
+    setDates(view, "2026-04-04", "2026-04-17");
+    view.select("CUSTOM_BOM"); await flush(); view.render();
+    expect(dateInputs(view).map(n => n.props.max)).toEqual([undefined, undefined]);
+    expect(dateInputs(view).map(n => n.props.value)).toEqual(["2026-04-04", "2026-04-17"]);
+    setDates(view, "2026-04-05", "2026-04-12");
+    view.select("PRODUCT");
+    expect(dateInputs(view).map(n => n.props.value)).toEqual(["2026-04-05", "2026-04-12"]);
+    expect(dateInputs(view).map(n => n.props.max)).toEqual(["2026-10-31", "2026-10-31"]);
+    view.select("CUSTOM_BOM");
+    expect(dateInputs(view).map(n => n.props.value)).toEqual(["2026-04-05", "2026-04-12"]);
+    expect(view.props.api.getBomExportPeriod).not.toHaveBeenCalled();
+    expect(text(view.find(n => n.type === DialogFooter))).toBe("ĐóngXuất báo cáo");
+  });
+
+  it("exports only Product with its legacy payload even without BOM limits", async () => {
+    const view = dialog();
+    setDates(view, "2026-10-04", "2026-10-09");
     view.submit(); await flush();
-    expect(view.props.api.exportBusinessReport).toHaveBeenCalledWith({requestId: expect.any(String), fromDate: "2026-10-01", toDate: "2026-10-31"});
-    expect(view.props.api.downloadBusinessReport).toHaveBeenCalledWith(receipt);
-    expect(fixture.save).toHaveBeenCalledWith(blob, "product.xlsx");
-    expect(view.props.onExported).toHaveBeenCalledWith("PRODUCT"); expect(fixture.excel).not.toHaveBeenCalled();
-  });
-  it("preserves same-intent Product retry, download receipt and recovery period", async () => {
-    fixture.recovery = {requestId: "existing-intent", fromDate: "2026-08-02", toDate: "2026-10-31"};
-    const intent = {...fixture.recovery};
-    const product = api(); vi.mocked(product.downloadBusinessReport).mockRejectedValueOnce(new Error("temporary"));
-    const view = dialog(product); view.submit(); await flush(); view.render(); view.submit(); await flush();
-    expect(product.exportBusinessReport).toHaveBeenCalledTimes(1);
-    expect(product.exportBusinessReport).toHaveBeenCalledWith(intent);
-    expect(product.downloadBusinessReport).toHaveBeenCalledTimes(2);
+    expect(view.props.api.getBomExportPeriod).not.toHaveBeenCalled();
+    expect(view.props.api.exportBusinessReport).toHaveBeenCalledExactlyOnceWith({requestId: expect.any(String),
+      fromDate: "2026-10-04", toDate: "2026-10-09"}, expect.any(AbortSignal));
+    expect(view.props.api.downloadBusinessReport).toHaveBeenCalledExactlyOnceWith(receipt, expect.any(AbortSignal));
+    expect(view.props.onExported).toHaveBeenCalledWith("PRODUCT");
     expect(fixture.recover).toHaveBeenLastCalledWith("staff-a", null);
+    expect(fixture.bomRecover).not.toHaveBeenCalled();
   });
-  it("BOM uses official export/current login without a second token or Product date selection", async () => {
-    const view = dialog(); change(view.find(n => n.props["aria-label"] === "Từ ngày"), ""); view.render();
-    view.bom(); view.submit(); await flush();
-    expect(nodes(view.render()).some(n => n.props.type === "password")).toBe(false);
-    expect(text(view.render())).toContain("Dùng quyền đăng nhập hiện tại"); expect(fixture.excel).not.toHaveBeenCalled();
-    expect(view.props.api.exportBusinessReport).toHaveBeenCalledWith({requestId: expect.any(String), reportType: "CUSTOM_BOM",
-      fromDate: "2026-04-01", toDate: "2026-04-30"}, expect.any(AbortSignal));
+
+  it("rejects reversed Product dates", async () => {
+    const view = dialog(); setDates(view, "2026-10-09", "2026-10-04");
+    view.submit(); await flush(); view.render();
+    expect(text(view.find(n => n.props.role === "alert"))).toContain("Ngày bắt đầu phải trước hoặc bằng ngày kết thúc");
+    expect(view.props.api.exportBusinessReport).not.toHaveBeenCalled();
+  });
+
+  it("keeps the saved Product request ID through a BOM switch and a download retry", async () => {
+    const intent = {requestId: "product-intent", fromDate: "2026-04-04", toDate: "2026-04-17"};
+    fixture.recovery = {...intent};
+    const adapter = api();
+    vi.mocked(adapter.downloadBusinessReport).mockRejectedValueOnce(new Error("temporary"));
+    const view = dialog(adapter);
+    expect(dateInputs(view).map(n => n.props.value)).toEqual([intent.fromDate, intent.toDate]);
+    view.submit(); await flush(); view.render();
+    view.select("CUSTOM_BOM"); await flush(); view.render();
+    expect(dateInputs(view).every(n => !n.props.disabled)).toBe(true);
+    view.select("PRODUCT"); view.submit(); await flush();
+    expect(adapter.exportBusinessReport).toHaveBeenCalledExactlyOnceWith(intent, expect.any(AbortSignal));
+    expect(adapter.downloadBusinessReport).toHaveBeenCalledTimes(2);
+    expect(fixture.bomRecover).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["", "2026-04-30", "Vui lòng chọn đầy đủ"],
+    ["2026-04-01", "", "Vui lòng chọn đầy đủ"],
+    ["2026-02-30", "2026-04-30", "Vui lòng chọn đầy đủ"],
+    ["2026-04-20", "2026-04-10", "Ngày bắt đầu phải trước hoặc bằng ngày kết thúc"],
+  ])("rejects BOM dates %s / %s before exporting", async (from, to, message) => {
+    const view = await ready();
+    change(dateInputs(view)[0], from); change(dateInputs(view)[1], to);
+    view.render(); view.submit(); await flush(); view.render();
+    expect(text(view.find(n => n.props.role === "alert"))).toContain(message);
+    expect(view.props.api.exportBusinessReport).not.toHaveBeenCalled();
+  });
+
+  it("sends the selected inclusive single-day period to the official BOM API", async () => {
+    const view = await ready();
+    change(dateInputs(view)[0], "2026-04-15"); change(dateInputs(view)[1], "2026-04-15");
+    view.render(); view.submit(); await flush();
+    expect(view.props.api.exportBusinessReport).toHaveBeenCalledWith({requestId: expect.any(String),
+      reportType: "CUSTOM_BOM", fromDate: "2026-04-15", toDate: "2026-04-15"}, expect.any(AbortSignal));
     expect(fixture.save).toHaveBeenCalledWith(blob, bomReceipt.fileName);
-    expect(view.props.onExported).toHaveBeenCalledWith("CUSTOM_BOM");
-    expect(view.props.api.exportBusinessReport).toHaveBeenCalledTimes(1); expect(fixture.recover).not.toHaveBeenCalled();
+    expect(view.props.onExported).toHaveBeenCalledExactlyOnceWith("CUSTOM_BOM");
+    expect(fixture.excel).not.toHaveBeenCalled();
     expect(fixture.bomRecover).toHaveBeenLastCalledWith("staff-a", null);
   });
-  it("BOM retries the same receipt/request ID and keeps Product recovery separate", async () => {
-    fixture.bomRecovery = {requestId: "bom-intent", reportType: "CUSTOM_BOM", fromDate: "2026-04-01", toDate: "2026-04-30"};
-    const product = api(); vi.mocked(product.downloadBusinessReport).mockRejectedValueOnce(new Error("temporary"));
-    const view = dialog(product); view.bom(); view.submit(); await flush(); view.render(); view.submit(); await flush();
-    expect(product.exportBusinessReport).toHaveBeenCalledTimes(1);
-    expect(product.exportBusinessReport).toHaveBeenCalledWith({requestId: "bom-intent", reportType: "CUSTOM_BOM", fromDate: "2026-04-01", toDate: "2026-04-30"}, expect.any(AbortSignal));
-    expect(product.downloadBusinessReport).toHaveBeenCalledTimes(2); expect(fixture.recover).not.toHaveBeenCalled();
+
+  it("closes from the footer or dialog dismissal", () => {
+    const view = dialog();
+    click(view.find(n => n.type === "button" && text(n) === "Đóng"));
+    (view.find(n => n.type === Dialog).props.onOpenChange as (open: boolean) => void)(false);
+    expect(view.props.onClose).toHaveBeenCalledTimes(2);
   });
-  it("BOM loading locks controls and double-submit; unmount aborts and suppresses late download", async () => {
+
+  it("retries the same receipt and preserves the selected period after a download error", async () => {
+    const intent = {requestId: "bom-intent", reportType: "CUSTOM_BOM", fromDate: "2026-04-02", toDate: "2026-04-18"} as const;
+    fixture.bomRecovery = {...intent};
+    const adapter = api();
+    vi.mocked(adapter.downloadBusinessReport).mockRejectedValueOnce(new Error("temporary"));
+    const view = await ready(dialog(adapter));
+    expect(dateInputs(view).map(n => n.props.value)).toEqual(["2026-04-01", "2026-04-30"]);
+    click(view.find(n => n.type === "button" && text(n) === "Dùng kỳ đã lưu")); view.render();
+    expect(dateInputs(view).map(n => n.props.value)).toEqual(["2026-04-02", "2026-04-18"]);
+    view.submit(); await flush(); view.render(); view.submit(); await flush();
+    expect(adapter.exportBusinessReport).toHaveBeenCalledExactlyOnceWith(intent, expect.any(AbortSignal));
+    expect(adapter.downloadBusinessReport).toHaveBeenCalledTimes(2);
+  });
+
+  it("locks controls on submit and aborts on unmount without downloading late results", async () => {
     let finish!: (value: AiBusinessExport) => void;
-    const product = api(); vi.mocked(product.exportBusinessReport).mockReturnValue(new Promise(resolve => {finish = resolve;}));
-    const view = dialog(product); view.bom(); view.submit(); view.submit();
-    expect(product.exportBusinessReport).toHaveBeenCalledTimes(1);
+    const adapter = api();
+    vi.mocked(adapter.exportBusinessReport).mockReturnValue(new Promise(resolve => {finish = resolve;}));
+    const view = await ready(dialog(adapter)); view.submit(); view.submit();
+    expect(adapter.exportBusinessReport).toHaveBeenCalledOnce();
     view.render(); expect(view.find(n => n.type === "form").props["aria-busy"]).toBe(true);
-    expect(view.find(n => n.type === "fieldset").props.disabled).toBe(true);
-    view.unmount(); expect(vi.mocked(product.exportBusinessReport).mock.calls[0][1]!.aborted).toBe(true);
+    expect(dateInputs(view).every(n => n.props.disabled)).toBe(true);
+    (view.find(n => n.type === Dialog).props.onOpenChange as (open: boolean) => void)(false);
+    expect(view.props.onClose).not.toHaveBeenCalled();
+    view.unmount(); expect(vi.mocked(adapter.exportBusinessReport).mock.calls[0][1]!.aborted).toBe(true);
     finish(bomReceipt); await flush();
-    expect(fixture.save).not.toHaveBeenCalled(); expect(view.props.onExported).not.toHaveBeenCalled();
-    expect(product.downloadBusinessReport).not.toHaveBeenCalled();
+    expect(fixture.save).not.toHaveBeenCalled();
+    expect(adapter.downloadBusinessReport).not.toHaveBeenCalled();
   });
-  it.each([401, 404, 503, 0])("BOM failure %s is sanitized and never falls back to Product", async (status) => {
-    const product = api(); vi.mocked(product.exportBusinessReport).mockRejectedValue(new ApiError({status, message: "fixture-secret-must-not-display"}));
-    const view = dialog(product); view.bom(); view.submit(); await flush();
-    const html = text(view.render()); expect(html).not.toContain("fixture-secret-must-not-display");
+
+  it.each([["2026-05-01", "2026-05-31"], ["2026-11-01", "2026-11-18"], ["2026-04-30", "2026-11-18"]])(
+    "submits %s to %s as selected and explains when the dataset cannot cover the full period", async (fromDate, toDate) => {
+    const adapter = api();
+    vi.mocked(adapter.exportBusinessReport).mockRejectedValue(new ApiError({status: 422, code: "BOM_PERIOD_UNSUPPORTED",
+      message: "unsupported period", details: {fromDate: "2026-04-01", toDate: "2026-04-30", timezone: "UTC"}}));
+    const view = await ready(dialog(adapter));
+    setDates(view, fromDate, toDate); view.submit(); await flush(); view.render();
+    expect(adapter.exportBusinessReport).toHaveBeenCalledExactlyOnceWith({requestId: expect.any(String),
+      reportType: "CUSTOM_BOM", fromDate, toDate}, expect.any(AbortSignal));
+    expect(text(view.find(n => n.props.role === "alert"))).toContain("chưa hỗ trợ toàn bộ kỳ đã chọn");
+    expect(text(view.find(n => n.props.role === "alert"))).toContain("01/04/2026 – 30/04/2026 (UTC)");
+    expect(dateInputs(view).every(n => !n.props.disabled)).toBe(true);
+    expect(adapter.downloadBusinessReport).not.toHaveBeenCalled();
+    expect(view.props.onExported).not.toHaveBeenCalled();
+  });
+
+  it("shows the empty period separately and keeps Product available for the same dates", async () => {
+    const adapter = api();
+    vi.mocked(adapter.exportBusinessReport).mockRejectedValueOnce(new ApiError({status: 422, code: "BOM_NO_DATA", message: "empty"}));
+    const view = await ready(dialog(adapter));
+    setDates(view, "2026-04-30", "2026-04-30"); view.submit(); await flush(); view.render();
+    expect(text(view.find(n => n.props.role === "alert"))).toBe("Không có lượt mua BOM trong kỳ đã chọn.");
+    expect(adapter.downloadBusinessReport).not.toHaveBeenCalled();
+    expect(fixture.bomRecover).toHaveBeenLastCalledWith("staff-a", null);
+    view.select("PRODUCT"); view.submit(); await flush();
+    expect(adapter.exportBusinessReport).toHaveBeenNthCalledWith(2, {requestId: expect.any(String),
+      fromDate: "2026-04-30", toDate: "2026-04-30"}, expect.any(AbortSignal));
+    expect(view.props.onExported).toHaveBeenCalledExactlyOnceWith("PRODUCT");
+  });
+
+  it.each([401, 404, 503, 0])("sanitizes export error %s without calling another export flow", async (status) => {
+    const adapter = api();
+    vi.mocked(adapter.exportBusinessReport).mockRejectedValue(new ApiError({status, message: "fixture-secret-must-not-display"}));
+    const view = await ready(dialog(adapter)); view.submit(); await flush();
+    const html = text(view.render());
+    expect(html).not.toContain("fixture-secret-must-not-display");
     expect(html).toMatch(/Phiên|Không tìm|Nguồn|Không thể/);
-    expect(product.exportBusinessReport).toHaveBeenCalledTimes(1); expect(fixture.save).not.toHaveBeenCalled();
-    expect(fixture.excel).not.toHaveBeenCalled(); expect(nodes(view.render()).some(n => n.props.type === "password")).toBe(false);
+    expect(adapter.exportBusinessReport).toHaveBeenCalledOnce();
+    expect(fixture.save).not.toHaveBeenCalled();
   });
-  it("Product and BOM attempts never share a request ID when switching modes", async () => {
-    const product = api(); vi.mocked(product.exportBusinessReport).mockRejectedValueOnce(new Error("temporary"));
-    const view = dialog(product); view.bom(); view.submit(); await flush(); view.render();
-    change(view.find(n => n.props.value === "PRODUCT"), "PRODUCT"); view.render(); view.submit(); await flush();
-    const calls = vi.mocked(product.exportBusinessReport).mock.calls;
-    expect(calls[0][0].reportType).toBe("CUSTOM_BOM"); expect(calls[1][0].reportType).toBeUndefined();
-    expect(calls[0][0].requestId).not.toBe(calls[1][0].requestId); expect(fixture.excel).not.toHaveBeenCalled();
+
+  it("creates a new request ID only when choosing another period after an error", async () => {
+    const adapter = api();
+    vi.mocked(adapter.exportBusinessReport).mockRejectedValueOnce(new Error("temporary"));
+    const view = await ready(dialog(adapter)); view.submit(); await flush(); view.render();
+    click(view.find(n => n.type === "button" && text(n) === "Chọn kỳ khác"));
+    view.render(); change(dateInputs(view)[0], "2026-04-02"); view.render(); view.submit(); await flush();
+    const calls = vi.mocked(adapter.exportBusinessReport).mock.calls;
+    expect(calls).toHaveLength(2);
+    expect(calls[1][0]).toMatchObject({reportType: "CUSTOM_BOM", fromDate: "2026-04-02"});
+    expect(calls[1][0].requestId).not.toBe(calls[0][0].requestId);
   });
 });
 

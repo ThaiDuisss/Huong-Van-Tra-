@@ -174,7 +174,6 @@ class OrderPaymentEventServiceImplTest {
         );
         inOrder.verify(orderPaymentSagaService).completePaymentSaga(order, event, event.getEventId());
         inOrder.verify(orderPaymentSagaService).markResourceConfirmationRequested(order, sagaId);
-        inOrder.verify(orderCustomerService).updateCustomerPurchase(orderId);
         inOrder.verify(orderOutboxPublisher).publishPaymentCompletedOrchestration(
                 order,
                 event.getEventId(),
@@ -632,7 +631,6 @@ class OrderPaymentEventServiceImplTest {
         assertEquals(OrderInventoryProcessingStatus.CONSUMED, order.getInventoryProcessingStatus());
         assertEquals(OrderStatus.COMPLETED, order.getStatus());
         verify(orderPaymentSagaService).completePaymentSaga(order, event, event.getEventId());
-        verify(orderCustomerService).updateCustomerPurchase(orderId);
         verify(orderOutboxPublisher).publishPaymentCompletedOrchestration(any(), any(), any());
     }
 
@@ -911,7 +909,6 @@ class OrderPaymentEventServiceImplTest {
         assertEquals(0, order.getDebtAmount().signum());
         verify(orderBackorderSupport).enterWaitingStock(order);
         verify(inventoryClient, org.mockito.Mockito.never()).fulfillSale(any());
-        verify(orderCustomerService, org.mockito.Mockito.never()).updateCustomerPurchase(any());
         verify(orderOutboxPublisher, org.mockito.Mockito.never()).publishPaymentCompletedOrchestration(any(), any(), any());
     }
 

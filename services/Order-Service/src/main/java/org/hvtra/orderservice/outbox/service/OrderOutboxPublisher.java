@@ -56,10 +56,6 @@ public class OrderOutboxPublisher {
         }
         publish(order, OrderEventType.INVENTORY_RESERVATION_CONFIRM_REQUESTED, paymentEventId, "inventory-confirm", sagaId);
 
-        if (order.getCustomerId() != null) {
-            publish(order, OrderEventType.CUSTOMER_PURCHASE_UPDATE_REQUESTED, paymentEventId, "customer-purchase-update", sagaId);
-        }
-
         publishCouponUsageCommit(order, paymentEventId, sagaId);
     }
 
@@ -239,6 +235,62 @@ public class OrderOutboxPublisher {
                 paymentRefund == null ? null : paymentRefund.refundTransactionId(),
                 paymentRefund == null ? null : paymentRefund.paymentId()
         );
+    }
+
+    /**
+     * Phiếu hoàn tiền xong: Customer-Service trừ chi tiêu (và một đơn nếu hoàn toàn bộ) cùng điểm đã tích.
+     * Chỉ phát khi đơn có khách. Idempotent theo phiếu hoàn.
+     *
+     * @param fullRefund true khi lần hoàn này làm đơn chuyển sang hoàn toàn bộ
+     */
+    public void publishOrderRefunded(
+            OrderReturn orderReturn,
+            PaymentClient.PaymentRefundResponse paymentRefund,
+            boolean fullRefund
+    ) {
+        Order order = orderReturn.getOrder();
+        if (order.getCustomerId() == null || paymentRefund == null || paymentRefund.refundAmount() == null) {
+            return;
+        }
+        String orderId = order.getId().toString();
+        String returnId = orderReturn.getId().toString();
+        String eventType = OrderEventType.ORDER_REFUNDED;
+        String businessKey = returnId + ":order-refunded";
+        String topic = orderOutboxTopicResolver.resolveTopic(eventType);
+        String eventId = UUID.randomUUID().toString();
+
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("eventId", eventId);
+        payload.put("eventType", eventType);
+        payload.put("eventKey", businessKey);
+        payload.put("eventVersion", 1);
+        payload.put("sourceService", SOURCE);
+        payload.put("orderId", orderId);
+        payload.put("orderCode", order.getOrderCode());
+        payload.put("customerId", customerId(order));
+        payload.put("refundId", returnId);
+        payload.put("refundCode", orderReturn.getReturnCode());
+        payload.put("refundAmount", paymentRefund.refundAmount());
+        payload.put("orderFinalAmount", order.getFinalAmount());
+        payload.put("fullRefund", fullRefund);
+        payload.put("refundedAt", Instant.now());
+        payload.put("occurredAt", Instant.now());
+
+        orderOutboxEventService.saveEventIfAbsent(new OutboxSaveCommand(
+                eventId,
+                RETURN_AGGREGATE_TYPE,
+                returnId,
+                orderId,
+                eventType,
+                businessKey,
+                topic,
+                SOURCE,
+                null,
+                orderId,
+                paymentRefund.refundTransactionId() == null ? null : paymentRefund.refundTransactionId().toString(),
+                payload,
+                buildHeaders(order, eventId, eventType, businessKey, topic, null, null, RETURN_AGGREGATE_TYPE, returnId)
+        ));
     }
 
     public void publishReturnCompletedNotification(

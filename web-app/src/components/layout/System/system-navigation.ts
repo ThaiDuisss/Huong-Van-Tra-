@@ -1,5 +1,5 @@
 import {
-  BarChart3,
+  // BarChart3,
   BadgePercent,
   Building2,
   Boxes,
@@ -11,6 +11,7 @@ import {
   History,
   Home,
   Layers3,
+  MapPin,
   MapPinned,
   Package,
   PackagePlus,
@@ -26,7 +27,6 @@ import {
   Upload,
   User,
   UserCog,
-  WalletCards,
   Warehouse,
   ShieldCheck,
 } from "lucide-react";
@@ -39,6 +39,7 @@ import {
   POS_WORKSPACE_ROLES,
   BACKOFFICE_ROLES,
   CUSTOMER_ROLES,
+  CUSTOMER_RETURN_QC_ROLES,
   INVENTORY_OPERATION_ROLES,
   INVENTORY_ROLES,
   MANUFACTURING_ROLES,
@@ -47,10 +48,10 @@ import {
   ORDER_ROLES,
   PRICE_LIST_ROLES,
   PRODUCT_ROLES,
-  REPORT_ROLES,
+  // REPORT_ROLES,
   SELLABLE_CONFIG_ROLES,
   SETTINGS_ROLES,
-  STATISTIC_REPORT_ROLES,
+  // STATISTIC_REPORT_ROLES,
   VOUCHER_ROLES,
   type AppRole,
   hasAnyRole,
@@ -68,6 +69,7 @@ export interface SystemNavigationItem {
    * quyết định; chưa có (backend cũ) thì chỉ xét `roles`.
    */
   permissions?: string[];
+  requireRolesAndPermissions?: boolean;
   children?: SystemNavigationItem[];
 }
 
@@ -104,20 +106,6 @@ export const systemNavigationItems: SystemNavigationItem[] = [
         to: routePaths.invoices,
         icon: FileText,
         roles: ORDER_ROLES,
-      },
-      {
-        key: "orders-returns",
-        label: "Hoàn hàng",
-        to: routePaths.returns,
-        icon: History,
-        roles: [ROLES.SUPER_ADMIN, ROLES.MANAGER],
-      },
-      {
-        key: "orders-refunds",
-        label: "Hoàn tiền",
-        to: routePaths.refunds,
-        icon: WalletCards,
-        roles: [ROLES.SUPER_ADMIN, ROLES.MANAGER],
       },
     ],
   },
@@ -298,16 +286,25 @@ export const systemNavigationItems: SystemNavigationItem[] = [
             label: "Khách trả hàng",
             icon: RefreshCw,
             to: routePaths.inventoryCustomerReturnList,
-            roles: [ROLES.SUPER_ADMIN, ROLES.MANAGER, ROLES.INVENTORY_STAFF],
+            roles: [...CUSTOMER_RETURN_QC_ROLES, ROLES.INVENTORY_STAFF],
+            permissions: ["inventory:view"],
+            requireRolesAndPermissions: true,
           },
           {
             key: "inventory-disposals",
-            label: "Hỏng / tiêu hủy",
+            label: "Tiêu hủy",
             icon: Trash2,
             to: routePaths.inventoryDisposals,
             roles: INVENTORY_OPERATION_ROLES,
           },
         ],
+      },
+      {
+        key: "inventory-locations",
+        label: "Vị trí lưu kho",
+        icon: MapPin,
+        to: routePaths.inventoryLocations,
+        roles: [ROLES.SUPER_ADMIN],
       },
       {
         key: "inventory-shelves",
@@ -398,56 +395,56 @@ export const systemNavigationItems: SystemNavigationItem[] = [
       },
     ],
   },
-  {
-    key: "reports",
-    label: "Báo cáo",
-    icon: BarChart3,
-    roles: [...REPORT_ROLES, ...STATISTIC_REPORT_ROLES],
-    children: [
-      {
-        key: "report-top-sales-staff",
-        label: "Nhân viên bán hàng tốt nhất",
-        to: routePaths.reportTopSalesStaff,
-        icon: User,
-        roles: STATISTIC_REPORT_ROLES,
-      },
-      {
-        key: "report-top-selling-products",
-        label: "Sản phẩm bán chạy",
-        to: routePaths.reportTopSellingProducts,
-        icon: Package,
-        roles: STATISTIC_REPORT_ROLES,
-      },
-      {
-        key: "report-inventory-value",
-        label: "Giá trị tồn kho",
-        to: routePaths.reportInventoryValue,
-        icon: BarChart3,
-        roles: REPORT_ROLES,
-      },
-      {
-        key: "report-turnover",
-        label: "Hiệu suất luân chuyển",
-        to: routePaths.reportTurnover,
-        icon: RefreshCw,
-        roles: REPORT_ROLES,
-      },
-      {
-        key: "report-wastage",
-        label: "Hao hụt sản xuất",
-        to: routePaths.reportProductionWastage,
-        icon: ClipboardList,
-        roles: REPORT_ROLES,
-      },
-      {
-        key: "report-disposal",
-        label: "Hàng hỏng & Tiêu hủy",
-        to: routePaths.reportDisposalSummary,
-        icon: Trash2,
-        roles: REPORT_ROLES,
-      },
-    ],
-  },
+  // {
+  //   key: "reports",
+  //   label: "Báo cáo",
+  //   icon: BarChart3,
+  //   roles: [...REPORT_ROLES, ...STATISTIC_REPORT_ROLES],
+  //   children: [
+  //     {
+  //       key: "report-top-sales-staff",
+  //       label: "Nhân viên bán hàng tốt nhất",
+  //       to: routePaths.reportTopSalesStaff,
+  //       icon: User,
+  //       roles: STATISTIC_REPORT_ROLES,
+  //     },
+  //     {
+  //       key: "report-top-selling-products",
+  //       label: "Sản phẩm bán chạy",
+  //       to: routePaths.reportTopSellingProducts,
+  //       icon: Package,
+  //       roles: STATISTIC_REPORT_ROLES,
+  //     },
+  //     {
+  //       key: "report-inventory-value",
+  //       label: "Giá trị tồn kho",
+  //       to: routePaths.reportInventoryValue,
+  //       icon: BarChart3,
+  //       roles: REPORT_ROLES,
+  //     },
+  //     {
+  //       key: "report-turnover",
+  //       label: "Hiệu suất luân chuyển",
+  //       to: routePaths.reportTurnover,
+  //       icon: RefreshCw,
+  //       roles: REPORT_ROLES,
+  //     },
+  //     {
+  //       key: "report-wastage",
+  //       label: "Hao hụt sản xuất",
+  //       to: routePaths.reportProductionWastage,
+  //       icon: ClipboardList,
+  //       roles: REPORT_ROLES,
+  //     },
+  //     {
+  //       key: "report-disposal",
+  //       label: "Hàng hỏng & Tiêu hủy",
+  //       to: routePaths.reportDisposalSummary,
+  //       icon: Trash2,
+  //       roles: REPORT_ROLES,
+  //     },
+  //   ],
+  // },
   {
     key: "accounts",
     label: "Tài khoản",
@@ -497,6 +494,10 @@ function isItemVisible(
   // SUPER_ADMIN luôn thấy; danh sách permission rỗng = chưa bootstrap → xét role như cũ.
   if (hasAnyRole(userRoles, [ROLES.SUPER_ADMIN])) {
     return true;
+  }
+  if (item.requireRolesAndPermissions) {
+    return hasAnyRole(userRoles, item.roles) && (userPermissions === undefined ||
+      !item.permissions?.length || item.permissions.some((permission) => userPermissions.includes(permission)));
   }
   if (item.permissions && item.permissions.length > 0 && Array.isArray(userPermissions) && userPermissions.length > 0) {
     return item.permissions.some((permission) => userPermissions.includes(permission));

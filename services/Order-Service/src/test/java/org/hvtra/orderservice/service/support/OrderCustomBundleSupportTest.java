@@ -39,8 +39,7 @@ class OrderCustomBundleSupportTest {
 
     @BeforeEach
     void setUp() {
-        support = new OrderCustomBundleSupport(catalog, inventory, new BigDecimal("50"), new BigDecimal("1000"),
-                new BigDecimal("5"), 10, new BigDecimal("2.50"));
+        support = new OrderCustomBundleSupport(catalog, inventory, 10, new BigDecimal("2.50"));
     }
 
     @Test
@@ -62,8 +61,8 @@ class OrderCustomBundleSupportTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"50", "1000"})
-    void acceptsInclusiveTotalQuantityBoundaries(String quantity) {
+    @ValueSource(strings = {"0.5", "1", "49.999", "1000.001", "5000"})
+    void acceptsAnyPositiveQuantityWithoutWeightLimit(String quantity) {
         when(catalog.getIngredientsByIds(List.of(ingredientId))).thenReturn(List.of(ingredient("ACTIVE", 1, BigDecimal.ONE)));
         assertEquals(new BigDecimal(quantity), support.price(List.of(line(ingredientId, quantity))).components().getFirst().getQuantity());
     }
@@ -77,8 +76,8 @@ class OrderCustomBundleSupportTest {
 
     @ParameterizedTest
     @NullAndEmptySource
-    @ValueSource(strings = {"0", "-1", "49.999", "1000.001"})
-    void rejectsInvalidOrOutOfRangeQuantityBeforeCatalogCall(String quantity) {
+    @ValueSource(strings = {"0", "-1"})
+    void rejectsMissingOrNonPositiveQuantityBeforeCatalogCall(String quantity) {
         CustomBundleLineRequest line = line(ingredientId, quantity == null || quantity.isEmpty() ? null : quantity);
         assertThrows(InvalidOrderStatusException.class, () -> support.price(List.of(line)));
         verifyNoInteractions(catalog, inventory);
@@ -100,7 +99,7 @@ class OrderCustomBundleSupportTest {
     }
 
     @Test
-    void rejectsMissingCatalogIngredientAndLineBelowMinimumEvenWhenTotalIsValid() {
+    void rejectsWhenAnySelectedIngredientIsMissingFromCatalog() {
         UUID other = UUID.randomUUID();
         var lines = List.of(line(ingredientId, "4.99"), line(other, "50"));
         when(catalog.getIngredientsByIds(List.of(ingredientId, other))).thenReturn(List.of());

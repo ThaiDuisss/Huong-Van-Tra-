@@ -96,7 +96,24 @@ class BomReportBoundaryTests(unittest.TestCase):
         self.assertEqual(result["summary"]["excluded_unavailable_label_rows"], 3)
         workbook = load_workbook(BytesIO(build_workbook(model.data, {"model_version": "test"}, result)))
         self.assertEqual(workbook[SHEETS[2]]["G4"].value, "Chưa được gợi ý")
-        self.assertEqual(workbook[SHEETS[3]]["F5"].value, "Không có gợi ý")
+        self.assertEqual(workbook[SHEETS[1]]["F5"].value, "Không có gợi ý")
+
+    def test_selected_utc_day_excludes_earlier_and_next_midnight_purchases(self):
+        from datetime import timedelta
+
+        model = self.model()
+        original = model.data.tables["sale_items"][0]
+        start = T2 + timedelta(days=1)
+        end = start + timedelta(days=1)
+        model.data.tables["sale_items"].extend([
+            dict(original, order_item_id="last-instant", purchased_at=end - timedelta(microseconds=1)),
+            dict(original, order_item_id="next-midnight", purchased_at=end),
+        ])
+        result = build_report_snapshot(model, start, end)
+        self.assertEqual(result["summary"]["test_bom_sale_rows"], 1)
+        self.assertEqual(result["summary"]["matches"], 1)
+        self.assertEqual(result["summary"]["recommendations"], 2)
+        self.assertEqual(sum(r["sold_quantity"] for r in result["recipes"]), Decimal(2))
 
     def test_duplicate_lines_and_incompatible_sale_units_fail(self):
         model = self.model()
@@ -196,14 +213,14 @@ class IngredientDemoIntegrationTests(unittest.TestCase):
         self.assertEqual({row["cohort"] for row in rows}, {"PRODUCT_ONLY", "BOM_ONLY", "MIXED"})
         self.assertFalse(any("email" in row or "name" in row for row in rows))
 
-    def test_excel_download_has_five_sheets_and_complete_customer_rows(self):
+    def test_excel_download_has_lookup_and_complete_customer_rows(self):
         response = self.excel_response
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.headers["content-type"], "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
         self.assertIn("Ingredient_Recommendation_Research_20260401.xlsx", response.headers["content-disposition"])
         self.assertEqual(response.headers["cache-control"], "private, no-store")
         self.assertEqual(self.workbook.sheetnames, SHEETS)
-        self.assertEqual([len(list(table_rows(ws))) for ws in self.workbook.worksheets[1:]], [400, 80, 400, 348])
+        self.assertEqual([len(list(table_rows(ws))) for ws in self.workbook.worksheets[1:]], [400, 80, 348, 400])
         for index, ws in enumerate(self.workbook.worksheets[1:], 1):
             self.assertEqual([c.value for c in ws[HEADER_ROWS[index]]], HEADERS[index])
         self.assertEqual(self.client.get(PREFIX + "/reports/excel").content, response.content)
@@ -214,13 +231,12 @@ class IngredientDemoIntegrationTests(unittest.TestCase):
         self.assertEqual(values["Số khách hàng được đánh giá"], 400)
         self.assertEqual(values["Tổng số công thức có trong bộ dữ liệu"], 80)
         self.assertEqual(ws["A14"].value, WARNING)
-        comparison = list(table_rows(self.workbook[SHEETS[3]]))
-        total, hits = sum(r[2] for r in comparison), sum(r[4] for r in comparison)
+        recipes = list(table_rows(self.workbook[SHEETS[2]]))
+        total, hits = sum(r[3] for r in recipes), sum(r[5] for r in recipes)
         self.assertEqual(total, 2000)
         self.assertEqual(values["Tổng số công thức AI đã gợi ý"], total)
         self.assertEqual(values["Số lượt gợi ý trùng với công thức khách mua"], hits)
         self.assertAlmostEqual(values["Tỷ lệ gợi ý trùng với lựa chọn mua (%)"], hits / total)
-        recipes = list(table_rows(self.workbook[SHEETS[2]]))
         self.assertEqual(sum(row[3] for row in recipes), total)
         self.assertEqual(sum(row[5] for row in recipes), hits)
         purchases = [s for s in self.data.tables["sale_items"] if s["purchase_type"] == "CUSTOM_BOM" and T2 <= s["purchased_at"] < END]
@@ -268,9 +284,7 @@ class IngredientDemoIntegrationTests(unittest.TestCase):
         candidates = {row["recipe_id"] for row in self.data.candidates(T2) if row["recommendation_type"] == "CUSTOM_BOM"}
         snapshot = self.service.report_snapshot()
         records = {row["customer_id"]: row for row in snapshot["evaluation"]}
-        comparisons = {row[1]: row for row in table_rows(self.workbook[SHEETS[3]])}
         details = {row[7]: row for row in table_rows(self.workbook[SHEETS[1]])}
-        customers = customer_codes(self.data)
         labels = recipe_labels(self.data)
         for prediction in snapshot["predictions"]:
             c = prediction["customer_id"]
@@ -282,9 +296,9 @@ class IngredientDemoIntegrationTests(unittest.TestCase):
             hits = [rid for rid in ranks if rid in relevant]
             self.assertEqual(records[c]["matched"], hits)
             self.assertEqual(set(records[c]["purchased"]), relevant)
-            self.assertEqual(comparisons[customers[c]][2:5], (len(ranks), len(relevant), len(hits)))
-            self.assertAlmostEqual(comparisons[customers[c]][5], len(hits) / len(ranks))
-            self.assertAlmostEqual(details[c][5], comparisons[customers[c]][5])
+            self.assertEqual((records[c]["returned_k"], records[c]["relevant_count"], records[c]["hits"]),
+                             (len(ranks), len(relevant), len(hits)))
+            self.assertAlmostEqual(details[c][5], len(hits) / len(ranks))
             self.assertEqual(details[c][2].splitlines(), [labels[rid] for rid in ranks])
             self.assertEqual(details[c][4], "\n".join(labels[rid] for rid in hits) or "Không có")
         recipes = {r["recipe_id"]: r for r in snapshot["recipes"]}

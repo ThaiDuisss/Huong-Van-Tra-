@@ -32,6 +32,10 @@ public class CustomerTier extends BaseEntity {
     @Column(name = "min_order_count", nullable = false)
     private Integer minOrderCount = 0;
 
+    /** Hệ số nhân điểm tích của khách thuộc hạng này. */
+    @Column(name = "point_multiplier", nullable = false, precision = 5, scale = 2)
+    private BigDecimal pointMultiplier = BigDecimal.ONE;
+
     @Column(name = "status", nullable = false, length = 30)
     @Enumerated(EnumType.STRING)
     private CustomerTierStatus status = CustomerTierStatus.ACTIVE;

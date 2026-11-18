@@ -53,6 +53,11 @@ public class GatewaySecurityConfig {
 
                 .authorizeExchange(exchanges -> exchanges
                         .pathMatchers("/internal/**", "/api/recommendation/internal/**").denyAll()
+                        // Refund execution accepts only the trusted Order -> Payment call after Order eligibility checks.
+                        .pathMatchers(HttpMethod.POST, "/api/payments/orders/*/refunds", "/api/payments/orders/*/refunds/**").denyAll()
+                        // Inspections originate from the Order disposition command, never a client-supplied inspection.
+                        .pathMatchers(HttpMethod.POST, "/api/inventory/customer-returns/*/inspections", "/api/inventory/customer-returns/*/inspections/**").denyAll()
+                        .pathMatchers("/api/inventory/internal/**").denyAll()
                         .pathMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .pathMatchers(PERMIT_ALL_PATHS).permitAll()
                         .anyExchange().authenticated()

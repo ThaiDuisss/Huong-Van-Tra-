@@ -11,6 +11,8 @@ import {
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useOrderReturnAccess } from "../../../auth/order-return-access";
+import { routePaths } from "../../../routes/path";
 
 import { ModalShell } from "../../../components/ui/Overlay";
 import { Button } from "../../../components/ui/Button";
@@ -44,9 +46,7 @@ type OrderStatusTabKey =
   | "ALL"
   | "PENDING_PAYMENT"
   | "PROCESSING"
-  | "SHIPPING"
-  | "COMPLETED"
-  | "RETURN_REFUND";
+  | "COMPLETED";
 
 const PAGE_SIZE = 10;
 
@@ -62,8 +62,6 @@ const ORDER_STATUS_TABS: {
   key: OrderStatusTabKey;
   label: string;
   status: string | null;
-  paymentStatus?: string | null;
-  emptyResult?: boolean;
   countKey: keyof OrderStatsResponse;
 }[] = [
   { key: "ALL", label: "Tất cả", status: null, countKey: "total" },
@@ -80,24 +78,10 @@ const ORDER_STATUS_TABS: {
     countKey: "processing",
   },
   {
-    key: "SHIPPING",
-    label: "Giao",
-    status: null,
-    emptyResult: true,
-    countKey: "shipping",
-  },
-  {
     key: "COMPLETED",
     label: "Hoàn thành",
     status: "COMPLETED",
     countKey: "completed",
-  },
-  {
-    key: "RETURN_REFUND",
-    label: "Hoàn tiền",
-    status: null,
-    paymentStatus: "REFUNDED",
-    countKey: "returnedOrRefunded",
   },
 ];
 
@@ -129,6 +113,7 @@ function useDebouncedValue<T>(value: T, delayMs: number) {
 }
 
 export function OrderListPage() {
+  const { canCreate } = useOrderReturnAccess();
   const navigate = useNavigate();
   const [isImportOpen, setIsImportOpen] = useState(false);
   /** Tăng sau khi nhập file để tải lại danh sách và thống kê. */
@@ -158,17 +143,10 @@ export function OrderListPage() {
       setIsOrdersLoading(true);
       setOrdersError(null);
 
-      if (activeStatusTab?.emptyResult) {
-        setOrdersPage(emptyPage);
-        setIsOrdersLoading(false);
-        return;
-      }
-
       getOrders({
         fromDate: timeRange?.fromDate,
         keyword: debouncedKeyword,
         status: activeStatusTab?.status ?? undefined,
-        paymentStatus: activeStatusTab?.paymentStatus ?? undefined,
         toDate: timeRange?.toDate,
         page: currentPage,
         size: PAGE_SIZE,
@@ -200,8 +178,6 @@ export function OrderListPage() {
       window.clearTimeout(timerId);
     };
   }, [
-    activeStatusTab?.paymentStatus,
-    activeStatusTab?.emptyResult,
     activeStatusTab?.status,
     currentPage,
     debouncedKeyword,
@@ -311,7 +287,6 @@ export function OrderListPage() {
       fromDate: timeRange?.fromDate,
       keyword: debouncedKeyword,
       status: activeStatusTab?.status,
-      paymentStatus: activeStatusTab?.paymentStatus,
       toDate: timeRange?.toDate,
     });
 
@@ -350,7 +325,6 @@ export function OrderListPage() {
             filteredDescription="Áp dụng thời gian, trạng thái và từ khóa đang chọn"
             filteredFilenamePrefix="don-hang-theo-bo-loc"
             hasNoFilteredData={
-              Boolean(activeStatusTab?.emptyResult) ||
               (!isOrdersLoading && !ordersError && totalElements === 0)
             }
             onExport={(mode) =>
@@ -460,9 +434,9 @@ export function OrderListPage() {
               summary={activeSummary}
               loading={isDetailLoading}
               error={detailError}
-              onCreateReturn={(targetOrderId) =>
-                navigate(`/system/orders/${targetOrderId}/returns/create`)
-              }
+              onCreateReturn={canCreate ? (targetOrderId) =>
+                navigate(routePaths.orderReturnCreate.replace(":orderId", encodeURIComponent(targetOrderId)))
+                : undefined}
               onClose={closeOrderDetail}
             />
         </ModalShell>

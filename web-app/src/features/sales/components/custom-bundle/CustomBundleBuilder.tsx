@@ -21,6 +21,7 @@ export interface CustomBundleInput {
 interface CustomBundleBuilderProps {
     branchId: string | null;
     submitLoading: boolean;
+    submitError?: string;
     onCancel(): void;
     onSubmit(input: CustomBundleInput): void;
 }
@@ -37,7 +38,13 @@ function getErrorMessage(error: unknown) {
 }
 
 /** Khách tự chọn nguyên liệu và khối lượng; kho đóng gói sau khi thu tiền. */
-export function CustomBundleBuilder({ branchId, submitLoading, onCancel, onSubmit }: CustomBundleBuilderProps) {
+export function CustomBundleBuilder({
+    branchId,
+    submitLoading,
+    submitError = "",
+    onCancel,
+    onSubmit
+}: CustomBundleBuilderProps) {
     const [search, setSearch] = useState("");
     const [options, setOptions] = useState<BundleIngredientOption[]>([]);
     const [optionsLoading, setOptionsLoading] = useState(false);
@@ -119,14 +126,9 @@ export function CustomBundleBuilder({ branchId, submitLoading, onCancel, onSubmi
 
     function validate() {
         if (parsedLines.length === 0) return "Bundle phải có ít nhất một nguyên liệu.";
-        const invalid = parsedLines.find(
-            (line) => !Number.isFinite(line.amount) || line.amount < bundleLimits.minLineQuantity
-        );
+        const invalid = parsedLines.find((line) => !Number.isFinite(line.amount) || line.amount <= 0);
         if (invalid) {
-            return `${invalid.ingredient.name} tối thiểu ${bundleLimits.minLineQuantity}${invalid.ingredient.unitSymbol ?? ""}.`;
-        }
-        if (totalQuantity < bundleLimits.minTotalQuantity || totalQuantity > bundleLimits.maxTotalQuantity) {
-            return `Tổng khối lượng phải từ ${bundleLimits.minTotalQuantity} đến ${bundleLimits.maxTotalQuantity}.`;
+            return `Khối lượng ${invalid.ingredient.name} phải lớn hơn 0.`;
         }
         return "";
     }
@@ -233,7 +235,8 @@ export function CustomBundleBuilder({ branchId, submitLoading, onCancel, onSubmi
                                         <input
                                             aria-label={`Khối lượng ${line.ingredient.name}`}
                                             className="h-9 w-28 rounded-lg border border-pos-border px-3 text-sm font-bold"
-                                            min={bundleLimits.minLineQuantity}
+                                            min={0}
+                                            step="any"
                                             onChange={(event) => changeQuantity(line.ingredient.id, event.currentTarget.value)}
                                             type="number"
                                             value={line.quantity}
@@ -284,9 +287,9 @@ export function CustomBundleBuilder({ branchId, submitLoading, onCancel, onSubmi
                                 )
                             ) : null}
                         </div>
-                        {validationError ? (
+                        {validationError || submitError ? (
                             <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700">
-                                {validationError}
+                                {validationError || submitError}
                             </p>
                         ) : null}
                     </div>

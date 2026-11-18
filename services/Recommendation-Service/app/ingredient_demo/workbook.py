@@ -1,4 +1,4 @@
-"""Five-sheet BOM business export; no Product runtime imports or model changes."""
+"""BOM business export; no Product runtime imports or model changes."""
 from datetime import datetime, timedelta
 from decimal import Decimal
 from io import BytesIO
@@ -15,11 +15,12 @@ from app.ingredient_demo.bom_display import customer_codes, recipe_codes, recipe
 from app.ingredient_poc.synthetic import END, T2
 
 
-SHEETS = ["TỔNG QUAN BÁO CÁO", "CHI TIẾT THEO KHÁCH HÀNG", "THỐNG KÊ BOM", "ĐỐI CHIẾU KẾT QUẢ GỢI Ý", "DANH MỤC CÔNG THỨC"]
-WORKBOOK_SCHEMA = "bom-five-sheets-business-v3"
+SHEETS = ["TỔNG QUAN BÁO CÁO", "CHI TIẾT THEO KHÁCH HÀNG", "THỐNG KÊ BOM", "DANH MỤC CÔNG THỨC",
+          "TRA CỨU THEO KHÁCH HÀNG"]
+WORKBOOK_SCHEMA = "bom-period-customer-lookup-v5"
 WARNING = "Dữ liệu mô phỏng phục vụ nghiên cứu, không phải doanh số bán hàng thực tế."
-LOOKUP_GUIDE = "Bấm Tra cứu công thức để mở DANH MỤC CÔNG THỨC; dùng bộ lọc hoặc Ctrl+F tìm mã CT / nguyên liệu."
-HEADER_ROWS = (3, 4, 3, 4, 4)
+LOOKUP_GUIDE = "Bấm Tra cứu công thức để xem các mã được gợi ý cho khách này; bấm mã CT để mở thành phần."
+HEADER_ROWS = (3, 4, 3, 4, 3)
 CATALOG_HEADERS = ["Mã công thức", "Tên công thức", "Nguyên liệu (tên nguồn hoặc mã)",
                    "Định lượng gốc", "Đơn vị", "Mã công thức gốc (recipe_id)",
                    "Phiên bản công thức nguồn", "Mã kiểm chứng công thức (hash)", "Về THỐNG KÊ BOM"]
@@ -32,8 +33,8 @@ HEADERS = [
      "Tra cứu công thức", "Mã khách hàng gốc (customer_id)"],
     ["STT", "Mã công thức", "Số khách được AI gợi ý", "Số lượt được AI gợi ý", "Số đơn hàng có mua công thức",
      "Số lượt gợi ý trùng mua", "Tỷ lệ gợi ý trùng mua (%)", "Số lượng công thức được mua"],
-    ["Mã lượt đánh giá", "Mã khách hàng", "Số công thức AI đề xuất", "Số công thức khách mua", "Số công thức trùng nhau", "Tỷ lệ trùng mua (%)"],
     CATALOG_HEADERS,
+    ["Mã khách hàng", "Gợi ý 1", "Gợi ý 2", "Gợi ý 3", "Gợi ý 4", "Gợi ý 5", "Mã khách hàng gốc (customer_id)"],
 ]
 
 
@@ -54,8 +55,20 @@ def anchor_formula(code, ws, column, first, last):
     return f'INDEX({span},MATCH("{code}",{span},0))'
 
 
+def label_window(protocol):
+    start = datetime.fromisoformat(protocol["label_start_inclusive"])
+    end = datetime.fromisoformat(protocol["label_end_exclusive"])
+    if not T2 <= start < end <= END:
+        raise ValueError("Incompatible BOM report period")
+    return start, end
+
+
+def period_label(start, end):
+    return f"Kỳ mua được đối chiếu: {start:%d/%m/%Y} – {end - timedelta(days=1):%d/%m/%Y} (UTC). Dữ liệu mô phỏng."
+
+
 def verify_workbook(workbook, data, snapshot):
-    """Verify the saved V3 business contract against its pinned source, offline."""
+    """Verify the saved business contract against its pinned source, offline."""
     def require(condition):
         if not condition:
             raise ValueError("BOM workbook contract mismatch")
@@ -70,32 +83,34 @@ def verify_workbook(workbook, data, snapshot):
                 require(cell.data_type not in ("f", "e"))
                 if cell.hyperlink:
                     require(cell.hyperlink.target is None and bool(cell.hyperlink.location))
-    overview, detail, stats, compare, catalog = workbook.worksheets
+    overview, detail, stats, catalog, lookup = workbook.worksheets
+    require(overview["A2"].value == period_label(*label_window(snapshot["protocol"])))
     summary = snapshot["summary"]
     require(overview["A14"].value == WARNING)
     require(any("source_kind=SYNTHETIC; research_only=true; production_approved=false" in str(row[0])
                 for row in overview.values))
     require(overview["B5"].value == summary["recommendations"] and overview["B6"].value == summary["matches"])
-    require(len(tables[1]) == len(tables[3]) == len(snapshot["evaluation"]))
+    require(len(tables[1]) == len(snapshot["evaluation"]))
     require(len(tables[2]) == len(data.recipes) == stats.max_row - HEADER_ROWS[2])
     codes, customers, names = recipe_codes(data), customer_codes(data), recipe_names(data)
     require({r[7]: r[0] for r in tables[1]} == customers)
-    comparisons = {r[0]: r for r in tables[3]}
     details = {r[7]: r for r in tables[1]}
     for record in snapshot["evaluation"]:
-        require(comparisons[record["recommendation_id"]][1] == customers[record["customer_id"]])
         require(details[record["customer_id"]][0] == customers[record["customer_id"]])
-    require(sum(r[3] for r in tables[2]) == sum(r[2] for r in tables[3]) == summary["recommendations"])
-    require(sum(r[5] for r in tables[2]) == sum(r[4] for r in tables[3]) == summary["matches"])
+        for column, key in ((2, "recommended"), (3, "purchased"), (4, "matched")):
+            require(details[record["customer_id"]][column] == ("\n".join(codes[rid] for rid in record[key]) or "Không có"))
+        require(details[record["customer_id"]][5] == (record["match_rate"] if record["match_rate"] is not None else "Không có gợi ý"))
+    require(sum(r[3] for r in tables[2]) == summary["recommendations"])
+    require(sum(r[5] for r in tables[2]) == summary["matches"])
     expected = []
     for rid in sorted(data.recipes):
         recipe = data.recipes[rid]
         for item in recipe_components(data, rid):
             expected.append((codes[rid], names[rid], item["name"], item["quantity"], item["unit"],
                              rid, recipe.get("recipe_version"), recipe.get("recipe_hash"), "Về THỐNG KÊ BOM"))
-    actual = [(*r[:3], Decimal(str(r[3])) if r[3] is not None else None, *r[4:]) for r in tables[4]]
+    actual = [(*r[:3], Decimal(str(r[3])) if r[3] is not None else None, *r[4:]) for r in tables[3]]
     require(actual == expected)
-    require(catalog.max_row == len(expected) + HEADER_ROWS[4])
+    require(catalog.max_row == len(expected) + HEADER_ROWS[3])
     for kind, ws, column, first in (("Catalog", catalog, "A", 5), ("Stats", stats, "B", 4)):
         require(set(ws.cell(row, column=1 if kind == "Catalog" else 2).value
                     for row in range(first, ws.max_row + 1)) == set(codes.values()))
@@ -108,15 +123,37 @@ def verify_workbook(workbook, data, snapshot):
     for row in range(5, catalog.max_row + 1):
         cell = catalog.cell(row, 9)
         require(cell.hyperlink is not None and cell.hyperlink.location == f"BOM_Stats_{catalog.cell(row, 1).value}")
+    lookup_rows = {lookup.cell(row, 7).value: row for row in range(4, lookup.max_row + 1)}
+    require(len(tables[4]) == len(snapshot["evaluation"]) and set(lookup_rows) == set(details))
+    for row in range(5, detail.max_row + 1):
+        code = detail.cell(row, 1).value
+        name = f"BOM_Customer_{code}"
+        link = detail.cell(row, 7).hyperlink
+        anchor = workbook.defined_names.get(name)
+        require(link is not None and link.location == name and anchor is not None
+                and anchor.attr_text == anchor_formula(code, lookup, "A", 4, lookup.max_row))
+    for record in snapshot["evaluation"]:
+        customer = record["customer_id"]
+        row = lookup_rows[customer]
+        require(lookup.cell(row, 1).value == customers[customer])
+        suggestions = [codes[rid] for rid in record["recommended"]]
+        for index in range(5):
+            cell = lookup.cell(row, index + 2)
+            if index < len(suggestions):
+                code = suggestions[index]
+                require(cell.value == code and cell.hyperlink is not None and cell.hyperlink.location == f"BOM_Catalog_{code}")
+            else:
+                require(cell.value == ("Không có gợi ý" if index == 0 else None) and cell.hyperlink is None)
     return {"sheet_data_rows": {ws.title: len(rows) for ws, rows in zip(workbook, tables)},
             "recipe_count": len(codes), "ingredient_lines": sum(r[3] is not None for r in actual),
-            "recipe_hyperlinks": len(tables[2]), "return_hyperlinks": len(actual)}
+            "recipe_hyperlinks": len(tables[2]), "return_hyperlinks": len(actual),
+            "customer_lookup_hyperlinks": len(tables[1]), "suggestion_hyperlinks": summary["recommendations"]}
 
 
 def build_workbook(data, metadata, snapshot):
     protocol, summary, records = snapshot["protocol"], snapshot["summary"], snapshot["evaluation"]
+    start, end = label_window(protocol)
     if (protocol["name"] != PROTOCOL or protocol["as_of"] != T2.isoformat()
-            or protocol["label_end_exclusive"] != END.isoformat()
             or {r["customer_id"] for r in records} != set(data.customers)
             or len(records) != len(data.customers)):
         raise ValueError("Incomplete BOM report or incompatible protocol")
@@ -128,7 +165,7 @@ def build_workbook(data, metadata, snapshot):
     workbook.views[0].showSheetTabs = True
     workbook.properties.title = "BÁO CÁO KẾT QUẢ GỢI Ý CÔNG THỨC TRÀ"
     workbook.properties.description = WARNING
-    period = f"Kỳ đánh giá: {T2:%d/%m/%Y} – {END - timedelta(days=1):%d/%m/%Y} (UTC). Dữ liệu mô phỏng."
+    period = period_label(start, end)
 
     def sheet(index, widths):
         ws = workbook.create_sheet(SHEETS[index])
@@ -233,7 +270,7 @@ def build_workbook(data, metadata, snapshot):
     overview.row_dimensions[18].height = 38
     for row, index, text in ((20, 1, "Xem kết quả theo khách hàng"),
                              (21, 2, "Xem hiệu quả từng công thức"),
-                             (22, 4, "Xem thành phần và định lượng")):
+                             (22, 3, "Xem thành phần và định lượng")):
         overview.cell(row, 1, f"{text} tại sheet {SHEETS[index]}.")
         overview.merge_cells(start_row=row, start_column=1, end_row=row, end_column=5)
         overview.row_dimensions[row].height = 28
@@ -243,7 +280,8 @@ def build_workbook(data, metadata, snapshot):
     overview.row_dimensions[provenance_row].height = 26
     technical_notes = [
         f"source_kind=SYNTHETIC; research_only=true; production_approved=false. Model: {metadata['model_version']}. Dataset: {data.id}.",
-        f"Protocol: {PROTOCOL}; CUSTOM_BOM / REPEAT / Top-5; as_of={T2.isoformat()}; TEST trước {END.isoformat()}; exact recipe_id matching.",
+        f"Protocol: {PROTOCOL}; CUSTOM_BOM / REPEAT / Top-5; as_of={T2.isoformat()}. "
+        "Giữ nguyên gợi ý tại mốc này; chỉ các lượt mua BOM trong kỳ UTC đã chọn được tính. Đối chiếu bằng recipe_id.",
         "Thành phần là định lượng gốc trong công thức mô phỏng; không phải lượng đóng gói hoặc lượng khách đã uống. Không cộng hao hụt, không đổi đơn vị. Tên nguyên liệu giữ nguyên nguồn, không phải tên thương mại đã phê duyệt.",
         "Tín hiệu từ mua sản phẩm là suy diễn, không phải ảnh chụp công thức thực tế. Đối chiếu này chỉ dùng lượt mua công thức, không dùng cầu nối sản phẩm để tính trùng.",
         "Số đơn tính riêng từng công thức nên một đơn có thể xuất hiện ở nhiều dòng. Số lượng mua theo đơn vị nguồn từng công thức; không phải gram/ml đã uống. "
@@ -256,7 +294,7 @@ def build_workbook(data, metadata, snapshot):
     finish(overview, 3, 12)
     overview["A14"].font = Font(name="Calibri", size=11, bold=True, color=GREEN)
     overview.cell(provenance_row, 1).font = Font(name="Calibri", size=11, bold=True, color=GREEN)
-    for row, index in ((20, 1), (21, 2), (22, 4)):
+    for row, index in ((20, 1), (21, 2), (22, 3)):
         link(overview.cell(row, 1), f"'{SHEETS[index]}'!A1")
 
     detail = sheet(1, [18, 17, 27, 27, 27, 23, 28, 42])
@@ -266,11 +304,6 @@ def build_workbook(data, metadata, snapshot):
     header(detail, 4, HEADERS[1])
     stats = sheet(2, [12, 30, 30, 22, 23, 43, 25, 24])
     header(stats, 3, HEADERS[2])
-    compare = sheet(3, [22, 18, 23, 23, 23, 27])
-    compare.merge_cells("A3:F3")
-    compare["A3"] = "Một công thức được tính là trùng khi AI đề xuất đúng công thức mà khách đã mua trong kỳ đánh giá. Không đồng nghĩa AI tạo ra đơn hàng đó. Mỗi công thức chỉ tính một lần cho mỗi khách."
-    compare.row_dimensions[3].height = 38
-    header(compare, 4, HEADERS[3])
     for r in records:
         texts = ["\n".join(labels[rid] for rid in r[key]) or "Không có" for key in ("recommended", "purchased", "matched")]
         ratio = r["match_rate"] if r["match_rate"] is not None else "Không có gợi ý"
@@ -278,15 +311,9 @@ def build_workbook(data, metadata, snapshot):
                        "Tra cứu công thức", r["customer_id"]])
         lines = max(sum(max(1, math.ceil(len(line) / 42)) for line in text.splitlines()) for text in texts)
         detail.row_dimensions[detail.max_row].height = max(30, 15 * lines + 6)
-        compare.append([r["recommendation_id"], customers[r["customer_id"]], r["returned_k"], r["relevant_count"], r["hits"], ratio])
-        compare.row_dimensions[compare.max_row].height = 30
         if r["match_rate"] is not None:
             detail.cell(detail.max_row, 6).number_format = PERCENT
-            compare.cell(compare.max_row, 6).number_format = PERCENT
     finish(detail, 4)
-    finish(compare, 4)
-    for row in range(5, detail.max_row + 1):
-        link(detail.cell(row, 7), f"'{SHEETS[4]}'!A1")
 
     for n, r in enumerate(snapshot["recipes"], 1):
         stats.append([n, labels[r["recipe_id"]], r["suggested_customers"], r["recommendation_count"],
@@ -298,7 +325,7 @@ def build_workbook(data, metadata, snapshot):
             stats.cell(stats.max_row, 7).number_format = PERCENT
     stats_end = stats.max_row
     finish(stats, 3, stats_end)
-    catalog = sheet(4, [18, 26, 36, 20, 12, 42, 20, 40, 28])
+    catalog = sheet(3, [18, 26, 36, 20, 12, 42, 20, 40, 28])
     catalog["A1"] = "DANH MỤC CÔNG THỨC VÀ THÀNH PHẦN"
     catalog["A2"] = "Tra cứu nguyên liệu và định lượng của từng công thức được hệ thống AI sử dụng trong nghiên cứu."
     catalog.merge_cells("A3:H3")
@@ -322,6 +349,24 @@ def build_workbook(data, metadata, snapshot):
         link(stats.cell(row, 2), f"BOM_Catalog_{labels[r['recipe_id']]}")
     for row in range(5, catalog.max_row + 1):
         link(catalog.cell(row, 9), f"BOM_Stats_{catalog.cell(row, 1).value}")
+
+    lookup = sheet(4, [19, 22, 15, 15, 15, 15, 43])
+    lookup.merge_cells("A2:G2")
+    lookup["A2"] = "Bấm từng mã CT để xem đầy đủ nguyên liệu, định lượng và đơn vị. Nếu dòng đích bị ẩn, hãy xóa bộ lọc danh mục."
+    header(lookup, 3, HEADERS[4])
+    for record in records:
+        customer_id = record["customer_id"]
+        suggestions = [labels[rid] for rid in record["recommended"]] or ["Không có gợi ý"]
+        lookup.append([customers[customer_id], *suggestions, *([None] * (5 - len(suggestions))), customer_id])
+        lookup.row_dimensions[lookup.max_row].height = 30
+    finish(lookup)
+    for index, record in enumerate(records):
+        code = customers[record["customer_id"]]
+        name = f"BOM_Customer_{code}"
+        workbook.defined_names.add(DefinedName(name, attr_text=anchor_formula(code, lookup, "A", 4, lookup.max_row)))
+        link(detail.cell(index + 5, 7), name)
+        for rank, rid in enumerate(record["recommended"], 2):
+            link(lookup.cell(index + 4, rank), f"BOM_Catalog_{labels[rid]}")
     output = BytesIO()
     workbook.save(output)
     return output.getvalue()

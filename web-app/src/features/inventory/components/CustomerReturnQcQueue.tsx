@@ -37,6 +37,7 @@ import { formatDateTime } from "../../order/utils/order-formatters";
 import styles from "../pages/CustomerReturnListPage.module.css";
 import { CustomerReturnActionMenu } from "./CustomerReturnActionMenu";
 import { CustomerReturnWarehouseInspectionModal } from "./CustomerReturnWarehouseInspectionModal";
+import { useOrderReturnAccess } from "@/auth/order-return-access";
 
 const PAGE_SIZE = 10;
 const CUSTOMER_RETURN_STATUS_TABS: { key: string; label: string; isError?: boolean }[] = [
@@ -70,6 +71,7 @@ export function CustomerReturnQcQueue({
     /** Tăng giá trị để tải lại danh sách (nút Làm mới ở header). */
     reloadSignal?: number;
 } = {}) {
+    const { canReceive, canDisposition } = useOrderReturnAccess();
     const [searchTerm, setSearchTerm] = useState("");
     const debouncedSearchTerm = useDebouncedValue(searchTerm.trim(), 350);
 
@@ -243,6 +245,7 @@ export function CustomerReturnQcQueue({
     };
 
     const handleConfirmReceive = (row: OrderReturnListRow) => {
+        if (!canReceive || receivingId) return;
         setReceivingId(row.id);
         setReceiveConfirmError("");
         receiveOrderReturn(row.id)
@@ -379,9 +382,10 @@ export function CustomerReturnQcQueue({
                                 <CustomerReturnActionMenu
                                     isOpen={openActionId === row.id}
                                     isReceiving={receivingId === row.id}
-                                    onInspect={() => setSelectedId(row.id)}
+                                    onInspect={() => { if (canDisposition) setSelectedId(row.id); }}
                                     onOpenChange={(open) => handleActionMenuChange(row.id, open)}
                                     onReceive={() => {
+                                        if (!canReceive) return;
                                         setReceiveConfirmError("");
                                         setConfirmReceiveRow(row);
                                     }}
@@ -432,7 +436,7 @@ export function CustomerReturnQcQueue({
             ) : null}
 
             {/* Inspection Form Modal */}
-            {selectedReturn && qcSummary ? (
+            {selectedReturn && qcSummary && canDisposition ? (
                 <ReturnInspectionModal
                     isOpen
                     onClose={closeSelection}
@@ -470,7 +474,7 @@ export function CustomerReturnQcQueue({
                 />
             ) : null}
 
-            {confirmReceiveRow ? (
+            {confirmReceiveRow && canReceive ? (
                 <ConfirmDialog
                     confirmLabel="Xác nhận nhận hàng"
                     confirmVariant="primary"

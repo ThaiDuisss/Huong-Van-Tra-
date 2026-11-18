@@ -34,6 +34,7 @@ import { Button, IconButton } from "../../../components/ui/Button";
 import { ModalShell } from "../../../components/ui/Overlay";
 import { StatusBadge } from "../../../components/ui/StatusBadge";
 import styles from "./ReturnInspectionModal.module.css";
+import { useOrderReturnAccess } from "../../../auth/order-return-access";
 
 interface ReturnInspectionModalProps {
     isOpen: boolean;
@@ -103,6 +104,7 @@ export function ReturnInspectionModal({
     qcSummary,
     returnItem
 }: ReturnInspectionModalProps) {
+    const { canDisposition } = useOrderReturnAccess();
     const [step, setStep] = useState<1 | 2>(1);
     const [qcDraftLines, setQcDraftLines] = useState<Record<string, QcDraftLine>>({});
     const [generalNote, setGeneralNote] = useState("");
@@ -428,6 +430,7 @@ export function ReturnInspectionModal({
 
     // Final Submission
     const handleConfirmSubmit = () => {
+        if (!canDisposition) return;
         if (submissionInFlightRef.current) return;
         if (!submissionRef.current && !validateBeforeReview()) {
             setStep(1);
@@ -501,7 +504,7 @@ export function ReturnInspectionModal({
             });
     };
 
-    if (!isOpen) {
+    if (!isOpen || !canDisposition) {
         return null;
     }
 
@@ -516,7 +519,7 @@ export function ReturnInspectionModal({
                 {/* Header */}
                 <div className={styles.modalHeader}>
                     <div className={styles.headerInfo}>
-                        <h2 id="return-inspection-modal-title">Kiểm tra hàng trả</h2>
+                        <h2 id="return-inspection-modal-title">Tạo yêu cầu kiểm định</h2>
                         <div className={styles.headerMeta}>
                             <span className={styles.returnCodeTag}>
                                 {getReturnCode(returnItem)}
@@ -531,7 +534,7 @@ export function ReturnInspectionModal({
                             </span>
                         </div>
                     </div>
-                    <IconButton aria-label="Đóng kiểm tra hàng trả" onClick={onClose}>
+                    <IconButton aria-label="Đóng tạo yêu cầu kiểm định" onClick={onClose}>
                         <X size={18} aria-hidden="true" />
                     </IconButton>
                 </div>

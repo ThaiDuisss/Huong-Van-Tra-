@@ -1,23 +1,9 @@
 import type { QueryParams } from "@/lib/api-client";
 
 export type CustomerStatus = "ACTIVE" | "INACTIVE" | "SUSPENDED";
-export type CustomerType = "INDIVIDUAL" | "BUSINESS";
 export type CustomerTierStatus = "ACTIVE" | "INACTIVE";
-export type CustomerTierAssignmentReason =
-    | "INITIAL_TIER"
-    | "YEARLY_QUALIFICATION"
-    | "YEARLY_REVIEW"
-    | "MANUAL_ADJUSTMENT";
-export type CustomerTierAssignmentStatus =
-    | "ACTIVE"
-    | "REPLACED"
-    | "EXPIRED"
-    | "CANCELLED";
-export type CustomerPurchaseTransactionType =
-    | "PURCHASE"
-    | "PARTIAL_REFUND"
-    | "FULL_REFUND"
-    | "ADJUSTMENT";
+export type LoyaltyTransactionType = "EARN" | "REVERSE" | "ADJUST" | "REDEEM";
+export type LoyaltyReferenceType = "ORDER" | "REFUND" | "MANUAL";
 export type CustomerSort =
     | "lastPurchaseDesc"
     | "lastPurchaseAsc"
@@ -33,15 +19,20 @@ export interface CustomerResponse {
     phone: string;
     email: string | null;
     dateOfBirth: string | null;
-    customerType: CustomerType;
     tierId: string | null;
     tierCode: string | null;
     tierName: string | null;
     tierColor: string | null;
     lastPurchaseDate: string | null;
     totalSpent: number;
+    totalOrderCount: number;
+    pointBalance: number;
     status: CustomerStatus;
     createdAt: string;
+    /** Chỉ có ở GET /customer/{id}: hạng kế tiếp và phần còn thiếu để lên hạng. */
+    nextTier?: CustomerTierResponse | null;
+    remainingSpending?: number | null;
+    remainingOrderCount?: number | null;
 }
 
 export interface CreateCustomerRequest {
@@ -50,10 +41,6 @@ export interface CreateCustomerRequest {
     phone: string;
     email?: string | null;
     dateOfBirth?: string | null;
-    customerType?: CustomerType | null;
-    tierId?: string | null;
-    lastPurchaseDate?: string | null;
-    totalSpent?: number | null;
     status?: CustomerStatus | null;
 }
 
@@ -63,6 +50,7 @@ export interface CustomerTierResponse {
     name: string;
     minSpending: number;
     minOrderCount: number;
+    pointMultiplier: number;
     status: CustomerTierStatus;
     colorCode: string;
 }
@@ -72,6 +60,7 @@ export interface CustomerTierRequest {
     name: string;
     minSpending: number;
     minOrderCount: number;
+    pointMultiplier: number;
     status: CustomerTierStatus;
     colorCode: string;
 }
@@ -94,57 +83,23 @@ export interface PageResponse<T> {
     last: boolean;
 }
 
-export interface TierProgressResponse {
-    currentTier: CustomerTierResponse | null;
-    qualifiedTierForCurrentYear: CustomerTierResponse | null;
-    currentYear: number;
-    totalSpent: number;
-    totalOrderCount: number;
-    nextTier: CustomerTierResponse | null;
-    remainingSpending: number | null;
-    remainingOrderCount: number | null;
-    currentTierEffectiveUntil: string | null;
-}
-
-export interface CustomerTierAssignmentResponse {
+export interface LoyaltyTransactionResponse {
     id: string;
     customerId: string;
-    tier: CustomerTierResponse | null;
-    qualificationYear: number | null;
-    assignmentReason: CustomerTierAssignmentReason;
-    effectiveFrom: string;
-    effectiveUntil: string | null;
-    status: CustomerTierAssignmentStatus;
-    note: string | null;
-}
-
-export interface CustomerTierYearlyMetricResponse {
-    id: string;
-    customerId: string;
-    tierYear: number;
-    totalSpent: number;
-    totalOrderCount: number;
-    qualifiedTier: CustomerTierResponse | null;
-    calculatedAt: string;
-}
-
-export interface CustomerPurchaseTransactionResponse {
-    id: string;
-    customerId: string;
-    orderId: string | null;
-    referenceId: string | null;
-    transactionType: CustomerPurchaseTransactionType;
-    amount: number;
-    orderCountDelta: number;
-    occurredAt: string;
+    type: LoyaltyTransactionType;
+    points: number;
+    balanceAfter: number;
+    referenceType: LoyaltyReferenceType;
+    /** Mã hiển thị của chứng từ (mã đơn / mã phiếu hoàn), không phải UUID. */
+    referenceCode: string | null;
     reason: string | null;
-    metadata: string | null;
+    createdAt: string;
 }
 
-export interface ManualTierAdjustmentRequest {
-    tierId: string;
+export interface LoyaltyAdjustmentRequest {
+    /** Số điểm cộng (dương) hoặc trừ (âm), khác 0. */
+    points: number;
     reason: string;
-    effectiveFrom?: string | null;
 }
 
 export interface ChangeTierStatusRequest {
@@ -164,7 +119,6 @@ export interface CustomerImportRow {
     phone?: string | null;
     email?: string | null;
     dateOfBirth?: string | null;
-    customerType?: string | null;
 }
 
 export interface CustomerImportRequest {

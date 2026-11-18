@@ -16,7 +16,6 @@ import org.hvtra.customer.dto.response.CustomerImportRowResult;
 import org.hvtra.customer.dto.response.CustomerResponse;
 import org.hvtra.customer.exception.CustomerServiceException;
 import org.hvtra.customer.model.enums.CustomerImportRowStatus;
-import org.hvtra.customer.model.enums.CustomerType;
 import org.hvtra.customer.repository.CustomerRepository;
 import org.hvtra.customer.service.CustomerImportService;
 import org.hvtra.customer.service.CustomerService;
@@ -33,7 +32,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import java.util.regex.Pattern;
 
@@ -121,7 +119,6 @@ public class CustomerImportServiceImpl implements CustomerImportService {
         candidate.phone = normalizePhone(row.phone());
         candidate.email = trimToNull(row.email());
         candidate.dateOfBirth = parseDateOfBirth(row.dateOfBirth(), candidate.errors);
-        candidate.customerType = parseCustomerType(row.customerType(), candidate.errors);
 
         // Cùng bộ ràng buộc với API tạo đơn lẻ (CustomerRequest).
         for (ConstraintViolation<CustomerRequest> violation : validator.validate(candidate.toRequest())) {
@@ -138,8 +135,7 @@ public class CustomerImportServiceImpl implements CustomerImportService {
                 && trimToNull(row.fullName()) == null
                 && trimToNull(row.phone()) == null
                 && trimToNull(row.email()) == null
-                && trimToNull(row.dateOfBirth()) == null
-                && trimToNull(row.customerType()) == null;
+                && trimToNull(row.dateOfBirth()) == null;
     }
 
     private LocalDate parseDateOfBirth(String raw, List<String> errors) {
@@ -159,21 +155,6 @@ public class CustomerImportServiceImpl implements CustomerImportService {
             return null;
         }
         return date;
-    }
-
-    private CustomerType parseCustomerType(String raw, List<String> errors) {
-        String value = trimToNull(raw);
-        if (value == null) {
-            return CustomerType.INDIVIDUAL;
-        }
-        return switch (value.toLowerCase(Locale.ROOT)) {
-            case "individual", "cá nhân", "ca nhan" -> CustomerType.INDIVIDUAL;
-            case "business", "doanh nghiệp", "doanh nghiep" -> CustomerType.BUSINESS;
-            default -> {
-                errors.add(Message.CUSTOMER_IMPORT_TYPE_INVALID);
-                yield CustomerType.INDIVIDUAL;
-            }
-        };
     }
 
     private String describe(ConstraintViolation<CustomerRequest> violation) {
@@ -322,7 +303,6 @@ public class CustomerImportServiceImpl implements CustomerImportService {
         private String phone;
         private String email;
         private LocalDate dateOfBirth;
-        private CustomerType customerType = CustomerType.INDIVIDUAL;
         private final List<String> errors = new ArrayList<>();
 
         private CustomerRequest toRequest() {
@@ -332,12 +312,6 @@ public class CustomerImportServiceImpl implements CustomerImportService {
                     phone,
                     email,
                     dateOfBirth,
-                    Objects.requireNonNullElse(customerType, CustomerType.INDIVIDUAL),
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
                     null
             );
         }

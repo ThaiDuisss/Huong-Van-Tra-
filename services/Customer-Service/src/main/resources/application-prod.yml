@@ -18,19 +18,6 @@ spring:
       mode: never
   flyway:
     enabled: ${FLYWAY_ENABLED:true}
-  cloud:
-    discovery:
-      client:
-        simple:
-          instances:
-            order-service:
-              - host: order-service
-                port: 8086
-                secure: false
-            file-service:
-              - host: file-service
-                port: 8101
-                secure: false
 
 eureka:
   client:
@@ -38,7 +25,7 @@ eureka:
     register-with-eureka: false
     fetch-registry: false
 
-# kafka-config.enabled vẫn là false như dev (service này chỉ produce qua kafka-producer-config).
+# Consumer order.completed / customer.order-refunded bật theo application.yml.
 # bootstrap-servers của application.yml đang hardcode IP VPS nên vẫn phải override.
 kafka-config:
   bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS}

@@ -211,8 +211,7 @@ class ResilientFeignClientsTest {
                             new CustomBundleInventoryClient.CreatePackingRequest(
                                     ID, "ORD-1", ID, ID, "bundle", ID, List.of())),
                     () -> context.getBean(CatalogClient.class).decrementSellableQuantity(
-                            ID, new CatalogClient.SellableQuantityAdjustmentRequest(BigDecimal.ONE, ID, "sale", "op-1")),
-                    () -> context.getBean(CustomerClient.class).updateCustomerPurchase(ID)
+                            ID, new CatalogClient.SellableQuantityAdjustmentRequest(BigDecimal.ONE, ID, "sale", "op-1"))
             );
 
             for (ResponseScript failure : List.of(status(503), status(504), connectionRefused())) {
@@ -248,7 +247,7 @@ class ResilientFeignClientsTest {
             assertThat(transport.requests()).hasSize(2);
 
             transport = transport(context).respondingWith(connectionRefused(), json("[]"));
-            assertThat(context.getBean(CustomerClient.class).getCustomers("0900")).isEmpty();
+            assertThat(context.getBean(CustomerClient.class).lookupCustomers("0900", 20)).isEmpty();
             assertThat(transport.requests()).hasSize(2);
 
             transport = transport(context).respondingWith(status(503), json("{}"));

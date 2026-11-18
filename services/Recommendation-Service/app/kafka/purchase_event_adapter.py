@@ -4,6 +4,7 @@ import logging
 from typing import Any
 
 from app.schemas.interaction import CanonicalInteraction
+from app.kafka.numeric_time import decimal_epoch
 
 logger = logging.getLogger(__name__)
 
@@ -40,10 +41,12 @@ class PurchaseEventAdapter:
             raise PurchaseEventValidationError("Missing required field 'occurredAt'")
         if isinstance(val, datetime):
             return val
-        if isinstance(val, (int, float)):
+        if isinstance(val, (int, float, Decimal)):
             try:
                 if isinstance(val, bool):
                     raise ValueError("Boolean timestamp")
+                if isinstance(val, Decimal):
+                    return decimal_epoch(val)
                 if val > 1e11:
                     return datetime.fromtimestamp(val / 1000.0, tz=timezone.utc)
                 return datetime.fromtimestamp(val, tz=timezone.utc)
@@ -53,8 +56,8 @@ class PurchaseEventAdapter:
             try:
                 clean_str = val.replace("Z", "+00:00")
                 return datetime.fromisoformat(clean_str)
-            except Exception as e:
-                raise PurchaseEventValidationError(f"Invalid 'occurredAt' timestamp format: {val}") from e
+            except ValueError:
+                raise PurchaseEventValidationError("Invalid occurredAt timestamp format") from None
         raise PurchaseEventValidationError(f"Unsupported 'occurredAt' type: {type(val)}")
 
     def to_canonical_interactions(self, payload: dict[str, Any]) -> list[CanonicalInteraction]:
@@ -68,7 +71,7 @@ class PurchaseEventAdapter:
         event_type = payload.get("eventType")
         if event_type != "ORDER_COMPLETED":
             raise PurchaseEventValidationError(
-                f"Invalid eventType '{event_type}', expected 'ORDER_COMPLETED'"
+                "Invalid eventType, expected ORDER_COMPLETED"
             )
 
         # Version 1 remains readable without additive envelope fields for legacy
@@ -82,13 +85,13 @@ class PurchaseEventAdapter:
         order_status = payload.get("orderStatus")
         if order_status != "COMPLETED":
             raise PurchaseEventValidationError(
-                f"Invalid orderStatus '{order_status}', expected 'COMPLETED'"
+                "Invalid orderStatus, expected COMPLETED"
             )
 
         payment_status = payload.get("paymentStatus")
         if payment_status != "PAID":
             raise PurchaseEventValidationError(
-                f"Invalid paymentStatus '{payment_status}', expected 'PAID'"
+                "Invalid paymentStatus, expected PAID"
             )
 
         order_id = payload.get("orderId")
@@ -152,11 +155,11 @@ class PurchaseEventAdapter:
                 raise PurchaseEventValidationError(f"Item at index {idx} missing required 'quantity'")
             try:
                 quantity = Decimal(str(quantity_raw))
-            except (InvalidOperation, ValueError) as e:
-                raise PurchaseEventValidationError(f"Item at index {idx} has invalid quantity '{quantity_raw}'") from e
+            except (InvalidOperation, ValueError):
+                raise PurchaseEventValidationError(f"Item at index {idx} has invalid quantity") from None
 
             if not quantity.is_finite() or quantity <= 0:
-                raise PurchaseEventValidationError(f"Item at index {idx} has non-positive quantity '{quantity}'")
+                raise PurchaseEventValidationError(f"Item at index {idx} has non-positive quantity")
             if quantity.adjusted() >= 11 or quantity != quantity.quantize(Decimal("0.001")):
                 raise PurchaseEventValidationError("quantity exceeds the persisted DECIMAL(14,3) contract")
 
@@ -165,10 +168,10 @@ class PurchaseEventAdapter:
             if unit_price_raw is not None:
                 try:
                     unit_price = Decimal(str(unit_price_raw))
-                except (InvalidOperation, ValueError) as e:
+                except (InvalidOperation, ValueError):
                     raise PurchaseEventValidationError(
-                        f"Item at index {idx} has invalid unitPrice '{unit_price_raw}'"
-                    ) from e
+                        f"Item at index {idx} has invalid unitPrice"
+                    ) from None
                 if not unit_price.is_finite() or unit_price < 0:
                     raise PurchaseEventValidationError("unitPrice must be finite and nonnegative")
                 if unit_price.adjusted() >= 12 or unit_price != unit_price.quantize(Decimal("0.01")):

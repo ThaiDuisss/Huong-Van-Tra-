@@ -12,17 +12,16 @@ from app.service.business_report_excel import (
     WIDTHS as OPERATIONAL_WIDTHS, RIGHT, LINE_HEIGHT, _visual_lines, add_kpis, add_methodology, finish_print_area, prepare_sheet, write_table,
 )
 
-SHEETS = ["TỔNG QUAN BÁO CÁO", "CHI TIẾT THEO KHÁCH HÀNG", "THỐNG KÊ SẢN PHẨM", "ĐỐI CHIẾU KẾT QUẢ GỢI Ý"]
+SHEETS = ["TỔNG QUAN BÁO CÁO", "CHI TIẾT THEO KHÁCH HÀNG", "THỐNG KÊ SẢN PHẨM"]
 HEADERS = [
     ["STT", "Sản phẩm", "Lượt AI gợi ý", "Số lượng sản phẩm bán", "Lượt gợi ý trùng mua"],
     ["Mã KH", "Ngày gợi ý", "AI đề xuất", "Sản phẩm khách mua", "Sản phẩm trùng", "Tỷ lệ gợi ý trùng mua (%)"],
     ["STT", "Sản phẩm", "Số khách được gợi ý", "Lượt gợi ý", "Số đơn có mua", "Lượt gợi ý trùng mua", "Tỷ lệ trùng mua (%)", "Số lượng sản phẩm bán"],
-    ["Mã gợi ý", "Mã KH", "Số món gợi ý", "Số món khách mua", "Số món trùng", "Tỷ lệ trùng mua (%)"],
 ]
 WIDTHS = (OPERATIONAL_WIDTHS[0], [13, 18, 42, 42, 38, 24],
-          [7, 38, 17, 16, 18, 18, 19, 20], [14, 13, 18, 21, 18, 24])
+          [7, 38, 17, 16, 18, 18, 19, 20])
 MARKER = "DỮ LIỆU KIỂM THỬ"
-PRESENTATION_SCHEMA = "sale-pos-ai-report-v2"
+PRESENTATION_SCHEMA = "sale-pos-ai-report-v3"
 PERCENT_FORMAT = "0.00%"
 UNKNOWN = "—"
 SOURCE_NOTE = ("Báo cáo sử dụng lịch sử mua hàng để kiểm tra mức độ phù hợp của sản phẩm AI đề xuất. "
@@ -43,7 +42,7 @@ def match_rate(matched, recommended):
 
 
 def opportunity_match_value(row):
-    """One display value per stable opportunity, shared by both customer-facing tables."""
+    """One display value per stable opportunity in the customer detail table."""
     if not row.prediction.items:
         return "Không có gợi ý"
     if not row.ground_truth:
@@ -126,7 +125,7 @@ def create_workbook(result, products, split_manifest, executed_at, period, sourc
                 totals=[None, "Tổng", metrics["total_recommendation_items"], UNKNOWN,
                         metrics["total_matched_opportunity_product_pairs"]])
     add_methodology(overview, [SOURCE_NOTE, CALCULATION_NOTE, LIMITATION_NOTE])
-    details, comparisons = [], []
+    details = []
     for row in result.rows:
         p = row.prediction
         alias = aliases[p.opportunity_ref]
@@ -136,8 +135,6 @@ def create_workbook(result, products, split_manifest, executed_at, period, sourc
         matches = "\n".join(name(i) for i in row.hits) or status
         rate = rates[p.opportunity_ref]
         details.append([alias["customer_display"], UNKNOWN, suggested, truth, matches, rate])
-        comparisons.append([alias["opportunity_display"], alias["customer_display"], len(p.items),
-                            len(row.ground_truth), len(row.hits) if row.ground_truth else None, rate])
     physical = write_table(wb.worksheets[1], HEADERS[1], details, "Customers", WIDTHS[1], repeat_columns=(0, 1))
     for row, positions in zip(result.rows, physical):
         _percentage(wb.worksheets[1].cell(positions[0], 6))
@@ -154,15 +151,6 @@ def create_workbook(result, products, split_manifest, executed_at, period, sourc
     physical = write_table(wb.worksheets[2], HEADERS[2], rows, "Products", WIDTHS[2])
     for positions in physical:
         _percentage(wb.worksheets[2].cell(positions[0], 7))
-    physical = write_table(wb.worksheets[3], HEADERS[3], comparisons, "Matches", WIDTHS[3], repeat_columns=(0, 1))
-    for row, positions in zip(result.rows, physical):
-        missed = [name(p) for p in row.ground_truth if p not in row.hits]
-        for position in positions:
-            cell = wb.worksheets[3].cell(position, 6)
-            _percentage(cell)
-            cell.comment = Comment("Kết quả đối chiếu: " + STATUSES[row.status] + ".\nTỷ lệ = số món trùng / số món gợi ý.\n"
-                                   + ("Chưa có dữ liệu mua hàng đối chiếu." if not row.ground_truth else
-                                      "Sản phẩm khách mua chưa được gợi ý: " + "; ".join(missed) if missed else "Không còn sản phẩm mua ngoài danh sách gợi ý."), "Hương Vân Trà")
     for ws in wb:
         finish_print_area(ws)
     return wb
@@ -210,25 +198,9 @@ def verify_workbook(content, result, marker=MARKER):
     aliases = display_identifiers(result)
     by_ref = {r.prediction.opportunity_ref: r for r in result.rows}
     alias_by_ref = {a["opportunity_reference"]: a for a in aliases}
-    ref_by_suggestion = {a["opportunity_display"]: a["opportunity_reference"] for a in aliases}
     ref_by_customer = {a["customer_display"]: a["opportunity_reference"] for a in aliases}
-    compared = _table_rows(wb.worksheets[3], "Matches")
-    if len(compared) != len(by_ref) or len(by_ref) != len(result.rows) or set(by_ref) != set(alias_by_ref):
+    if len(by_ref) != len(result.rows) or set(by_ref) != set(alias_by_ref):
         raise ValueError("Workbook opportunity counts differ")
-    comparison_cells = {}
-    for physical_row, saved in enumerate(compared, 4):
-        ref = ref_by_suggestion.get(saved[0])
-        if ref not in by_ref or ref in comparison_cells:
-            raise ValueError("Workbook opportunity identity differs")
-        row, alias = by_ref[ref], alias_by_ref[ref]
-        p = row.prediction
-        if list(saved[:5]) != [alias["opportunity_display"], alias["customer_display"], len(p.items),
-                               len(row.ground_truth), len(row.hits) if row.ground_truth else None]:
-            raise ValueError("Workbook opportunity identity or matching differs")
-        cell = wb.worksheets[3].cell(physical_row, 6)
-        expected = opportunity_match_value(row)
-        percentage(cell, expected if isinstance(expected, (int, float)) else None, expected)
-        comparison_cells[ref] = cell
     stats = product_statistics(result)
     products = [r for r in _table_rows(wb.worksheets[2], "Products") if r[0] is not None]
     if (sum(r[3] for r in products) != m["total_recommendation_items"]
@@ -252,8 +224,6 @@ def verify_workbook(content, result, marker=MARKER):
             raise ValueError("Workbook customer percentage must occur once per opportunity")
         expected = opportunity_match_value(by_ref[ref])
         percentage(primary[0], expected if isinstance(expected, (int, float)) else None, expected)
-        if primary[0].value != comparison_cells[ref].value:
-            raise ValueError("Customer and comparison percentages differ for the same opportunity")
     for ws in wb:
         if any(c.data_type == "f" for row in ws for c in row):
             raise ValueError("Workbook must contain literal values, not injected formulas")

@@ -9,6 +9,7 @@ import org.hvtra.orderservice.domain.enums.OrderRefundStatus;
 import org.hvtra.orderservice.domain.enums.RefundProgressStatus;
 import org.hvtra.commonservice.common_core.logging.action.UserAction;
 import org.hvtra.commonservice.common_core.utils.SecurityUtils;
+import org.hvtra.commonservice.common_core.utils.OrderReturnAuthorization;
 import org.hvtra.orderservice.domain.enums.OrderStatus;
 import org.hvtra.orderservice.domain.enums.PaymentStatus;
 import org.hvtra.orderservice.domain.enums.ReturnStatus;
@@ -53,7 +54,6 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
@@ -82,10 +82,6 @@ public class OrderController {
     static final String PERMISSION_ORDER_CREATE = "order:create";
     /** Permission xem đơn hàng / lịch sử bán hàng. */
     private static final String PERMISSION_ORDER_VIEW = "order:view";
-    /** Permission xử lý trả hàng (tạo, duyệt, xem phiếu trả hàng). */
-    private static final String PERMISSION_ORDER_RETURN = "order:return";
-    /** Permission hoàn tiền cho phiếu trả hàng. */
-    private static final String PERMISSION_ORDER_REFUND = "order:refund";
     /** Permission xem báo cáo thống kê (mặc định chỉ MANAGER có). */
     private static final String PERMISSION_REPORT_VIEW = "report:view";
     private static final Role[] MANAGER_ONLY_ROLES = {Role.MANAGER, Role.SUPER_ADMIN};
@@ -93,9 +89,7 @@ public class OrderController {
     private static final String PERMISSION_ORDER_CANCEL = "order:cancel";
     /** Vai trò được chấp nhận khi gateway cũ chưa relay permission (giữ hành vi trước khi có phân quyền). */
     private static final Role[] LEGACY_POS_ROLES = {Role.SALE_STAFF, Role.MANAGER, Role.SUPER_ADMIN};
-    /** Như trên, kèm QC: dùng cho các API trả hàng mà QC cũng được xem dù không có order:view. */
-    private static final Role[] LEGACY_POS_ROLES_WITH_QC =
-            {Role.SALE_STAFF, Role.MANAGER, Role.SUPER_ADMIN, Role.QC};
+    // Phân quyền trả hàng / hoàn tiền nằm trong OrderReturnAuthorization (dùng chung Order, Inventory, Payment).
 
     @Operation(summary = "checkout hoa don POS da tao draft")
     @UserAction(value = "ORDER_CHECKOUT", entityType = "Order", entityId = "#result.id")
@@ -257,7 +251,7 @@ public class OrderController {
             @PathVariable UUID orderId,
             @Valid @RequestBody CheckOrderReturnEligibilityRequest request
     ) {
-        SecurityUtils.requirePermission(PERMISSION_ORDER_RETURN, LEGACY_POS_ROLES_WITH_QC);
+        OrderReturnAuthorization.requireCreate();
         return orderReturnService.checkReturnEligibility(orderId, request);
     }
 
@@ -268,14 +262,14 @@ public class OrderController {
             @PathVariable UUID orderId,
             @Valid @RequestBody CreateOrderReturnRequest request
     ) {
-        SecurityUtils.requirePermission(PERMISSION_ORDER_RETURN, LEGACY_POS_ROLES_WITH_QC);
+        OrderReturnAuthorization.requireCreate();
         return orderReturnService.createReturn(orderId, request);
     }
 
     @Operation(summary = "lay danh sach hoan hang cua don hang")
     @GetMapping("/" + UUID_PATH + "/returns")
     public List<OrderReturnResponse> getReturnsByOrder(@PathVariable UUID orderId) {
-        SecurityUtils.requireAnyPermission(LEGACY_POS_ROLES_WITH_QC, PERMISSION_ORDER_VIEW, PERMISSION_ORDER_RETURN);
+        OrderReturnAuthorization.requireRead();
         return orderReturnService.getReturnsByOrder(orderId);
     }
 
@@ -295,7 +289,7 @@ public class OrderController {
             @RequestParam(defaultValue = "false") boolean paged,
             @RequestParam(defaultValue = "false") boolean warehouseActiveOnly
     ) {
-        SecurityUtils.requireAnyPermission(LEGACY_POS_ROLES_WITH_QC, PERMISSION_ORDER_VIEW, PERMISSION_ORDER_RETURN);
+        OrderReturnAuthorization.requireRead();
         String effectiveDisplayStatus = displayStatus != null && !displayStatus.isBlank() ? displayStatus : status;
         ReturnStatus rawStatus = null;
         if (effectiveDisplayStatus != null) {
@@ -334,7 +328,7 @@ public class OrderController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate toDate,
             @RequestParam(defaultValue = "false") boolean warehouseActiveOnly
     ) {
-        SecurityUtils.requireAnyPermission(LEGACY_POS_ROLES_WITH_QC, PERMISSION_ORDER_VIEW, PERMISSION_ORDER_RETURN);
+        OrderReturnAuthorization.requireRead();
         return orderReturnService.getReturnStatusCounts(keyword, fromDate, toDate, warehouseActiveOnly);
     }
 
@@ -350,7 +344,7 @@ public class OrderController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size
     ) {
-        SecurityUtils.requireAnyPermission(LEGACY_POS_ROLES, PERMISSION_ORDER_VIEW, PERMISSION_ORDER_REFUND);
+        OrderReturnAuthorization.requireRead();
         return orderReturnService.getRefunds(keyword, status, progressStatus, fromDate, toDate, sort, page, size);
     }
 
@@ -361,28 +355,29 @@ public class OrderController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fromDate,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate toDate
     ) {
-        SecurityUtils.requireAnyPermission(LEGACY_POS_ROLES, PERMISSION_ORDER_VIEW, PERMISSION_ORDER_REFUND);
+        OrderReturnAuthorization.requireRead();
         return orderReturnService.getRefundStats(keyword, fromDate, toDate);
     }
 
     @Operation(summary = "lay chi tiet hoan tien")
     @GetMapping("/refunds/{returnId:[0-9a-fA-F\\-]{36}}")
     public OrderRefundDetailResponse getRefundDetail(@PathVariable UUID returnId) {
-        SecurityUtils.requireAnyPermission(LEGACY_POS_ROLES, PERMISSION_ORDER_VIEW, PERMISSION_ORDER_REFUND);
+        OrderReturnAuthorization.requireRead();
         return orderReturnService.getRefundDetail(returnId);
     }
 
     @Operation(summary = "lay chi tiet hoan hang")
     @GetMapping("/returns/{returnId:[0-9a-fA-F\\-]{36}}")
     public OrderReturnResponse getReturnById(@PathVariable UUID returnId) {
-        SecurityUtils.requireAnyPermission(LEGACY_POS_ROLES_WITH_QC, PERMISSION_ORDER_VIEW, PERMISSION_ORDER_RETURN);
+        // Inventory's Kafka consumer reads the authoritative return before creating its inspection.
+        OrderReturnAuthorization.requireEvidenceRead();
         return orderReturnService.getReturnById(returnId);
     }
 
     @Operation(summary = "lay timeline xu ly hoan hang")
     @GetMapping("/returns/{returnId:[0-9a-fA-F\\-]{36}}/timeline")
     public List<OrderReturnTimelineResponse> getReturnTimeline(@PathVariable UUID returnId) {
-        SecurityUtils.requireAnyPermission(LEGACY_POS_ROLES_WITH_QC, PERMISSION_ORDER_VIEW, PERMISSION_ORDER_RETURN);
+        OrderReturnAuthorization.requireRead();
         return orderReturnService.getReturnTimeline(returnId);
     }
 
@@ -427,28 +422,28 @@ public class OrderController {
     @Operation(summary = "xem truoc so tien hoan tien")
     @GetMapping("/returns/{returnId:[0-9a-fA-F\\-]{36}}/refund-preview")
     public OrderReturnRefundPreviewResponse getRefundPreview(@PathVariable UUID returnId) {
-        SecurityUtils.requireAnyPermission(LEGACY_POS_ROLES, PERMISSION_ORDER_VIEW, PERMISSION_ORDER_REFUND);
+        OrderReturnAuthorization.requireRead();
         return orderReturnService.getRefundPreview(returnId);
     }
 
     @Operation(summary = "xac nhan cua hang da nhan hang tra lai")
     @PutMapping("/returns/{returnId:[0-9a-fA-F\\-]{36}}/receive")
     public OrderReturnResponse receiveReturn(@PathVariable UUID returnId) {
-        SecurityUtils.requirePermission(PERMISSION_ORDER_RETURN, LEGACY_POS_ROLES_WITH_QC);
+        OrderReturnAuthorization.requireReceive();
         return orderReturnService.receiveReturn(returnId);
     }
 
     @Operation(summary = "huy phieu hoan hang chua hoan tat")
     @PutMapping("/returns/{returnId:[0-9a-fA-F\\-]{36}}/cancel")
     public OrderReturnResponse cancelReturn(@PathVariable UUID returnId) {
-        SecurityUtils.requirePermission(PERMISSION_ORDER_RETURN, LEGACY_POS_ROLES_WITH_QC);
+        OrderReturnAuthorization.requireCreate();
         return orderReturnService.cancelReturn(returnId);
     }
 
     @Operation(summary = "hoan tien cho phieu hoan hang")
     @PostMapping("/returns/{returnId:[0-9a-fA-F\\-]{36}}/refund")
     public OrderReturnRefundResponse refundReturn(@PathVariable UUID returnId) {
-        SecurityUtils.requirePermission(PERMISSION_ORDER_REFUND, MANAGER_ONLY_ROLES);
+        OrderReturnAuthorization.requireRefund();
         return orderReturnService.refundReturn(returnId);
     }
 
@@ -459,9 +454,7 @@ public class OrderController {
             @PathVariable UUID returnId,
             @Valid @RequestBody SubmitReturnInventoryDispositionRequest request
     ) {
-        if (!SecurityUtils.hasAnyRole(Role.QC, Role.MANAGER, Role.SUPER_ADMIN)) {
-            throw new AccessDeniedException("Customer return disposition requires QC or manager role");
-        }
+        OrderReturnAuthorization.requireDisposition();
         return orderReturnService.submitInventoryDisposition(returnId, request);
     }
 
@@ -471,9 +464,7 @@ public class OrderController {
             @PathVariable UUID returnId,
             @PathVariable UUID commandId
     ) {
-        if (!SecurityUtils.hasAnyRole(Role.QC, Role.MANAGER, Role.SUPER_ADMIN)) {
-            throw new AccessDeniedException("Customer return disposition requires QC or manager role");
-        }
+        OrderReturnAuthorization.requireEvidenceRead();
         return orderReturnService.getInventoryDisposition(returnId, commandId);
     }
 

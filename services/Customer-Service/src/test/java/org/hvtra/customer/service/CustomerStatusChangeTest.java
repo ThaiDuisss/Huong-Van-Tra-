@@ -5,13 +5,11 @@ import org.hvtra.customer.dto.request.ChangeCustomerStatusRequest;
 import org.hvtra.customer.dto.request.CustomerRequest;
 import org.hvtra.customer.dto.response.CustomerResponse;
 import org.hvtra.customer.exception.CustomerServiceException;
-import org.hvtra.customer.infrastructure.gateway.OrderGateway;
 import org.hvtra.customer.mapper.CustomerMapper;
 import org.hvtra.customer.model.entity.Customer;
+import org.hvtra.customer.model.entity.CustomerTier;
 import org.hvtra.customer.model.enums.CustomerStatus;
 import org.hvtra.customer.repository.CustomerRepository;
-import org.hvtra.customer.repository.CustomerTierRepository;
-import org.hvtra.customer.repository.LoyaltyTransactionRepository;
 import org.hvtra.customer.service.impl.CustomerServiceImpl;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -39,15 +37,8 @@ class CustomerStatusChangeTest {
         customerRepository = mock(CustomerRepository.class);
         customerService = new CustomerServiceImpl(
                 customerRepository,
-                mock(CustomerTierRepository.class),
                 new CustomerMapper(),
-                mock(LoyaltyAccountService.class),
-                mock(LoyaltyPointRuleService.class),
-                mock(LoyaltyTransactionRepository.class),
-                mock(OrderGateway.class),
-                mock(TierQualificationService.class),
-                mock(TierAssignmentService.class),
-                mock(LoyaltyTierService.class)
+                mock(TierQualificationService.class)
         );
         when(customerRepository.save(any(Customer.class))).thenAnswer(invocation -> invocation.getArgument(0));
     }
@@ -103,7 +94,7 @@ class CustomerStatusChangeTest {
         when(customerRepository.existsByPhone("0901234567")).thenReturn(true);
 
         assertThatThrownBy(() -> customerService.create(new CustomerRequest(
-                "KH-1", "Nguyễn Văn A", "0901234567", null, null, null, null, null, null, null, null, null)))
+                "KH-1", "Nguyễn Văn A", "0901234567", null, null, null)))
                 .isInstanceOf(CustomerServiceException.class)
                 .hasMessage(Message.CUSTOMER_PHONE_EXISTS)
                 .extracting(exception -> ((CustomerServiceException) exception).getStatus())
@@ -112,17 +103,19 @@ class CustomerStatusChangeTest {
     }
 
     @Test
-    void updateKeepsPurchaseStatisticsWhenRequestOmitsThem() {
+    void updateKeepsPurchaseStatisticsTierAndPoints() {
         UUID id = UUID.randomUUID();
         Customer customer = customer();
         when(customerRepository.findByIdAndIsDeletedFalse(id)).thenReturn(Optional.of(customer));
 
         CustomerResponse response = customerService.update(id, new CustomerRequest(
-                null, "Nguyễn Văn B", "0901234567", null, null, null, null, null, null, null, null, null));
+                null, "Nguyễn Văn B", "0901234567", null, null, null));
 
         assertThat(response.fullName()).isEqualTo("Nguyễn Văn B");
         assertThat(response.totalOrderCount()).isEqualTo(3);
         assertThat(response.totalSpent()).isEqualByComparingTo("250000");
+        assertThat(response.pointBalance()).isEqualTo(25);
+        assertThat(response.tierCode()).isEqualTo("SILVER");
         assertThat(response.status()).isEqualTo(CustomerStatus.ACTIVE);
     }
 
@@ -133,6 +126,12 @@ class CustomerStatusChangeTest {
         customer.setPhone("0901234567");
         customer.setTotalSpent(BigDecimal.valueOf(250_000));
         customer.setTotalOrderCount(3);
+        customer.setPointBalance(25);
+        CustomerTier silver = new CustomerTier();
+        silver.setId(UUID.randomUUID());
+        silver.setCode("SILVER");
+        silver.setName("Bạc");
+        customer.setTier(silver);
         customer.setStatus(CustomerStatus.ACTIVE);
         return customer;
     }

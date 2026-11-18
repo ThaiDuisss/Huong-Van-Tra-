@@ -20,8 +20,4 @@ public interface ShelfReplenishmentRepository
     /** Phiếu còn mở gắn với cùng một tham chiếu (vd. đơn POS), để gộp các dòng thiếu vào một phiếu. */
     Optional<ShelfReplenishment> findFirstByReferenceIdAndStatusInAndIsDeletedFalseOrderByCreatedAtDesc(
             String referenceId, Collection<InventoryDocumentStatus> statuses);
-
-    long countByStatusAndIsDeletedFalse(InventoryDocumentStatus status);
-
-    long countByStatusAndApprovedAtIsNullAndIsDeletedFalse(InventoryDocumentStatus status);
 }

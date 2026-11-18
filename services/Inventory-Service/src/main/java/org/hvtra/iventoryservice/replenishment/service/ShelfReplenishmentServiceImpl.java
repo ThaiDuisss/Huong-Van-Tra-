@@ -5,6 +5,7 @@ import jakarta.persistence.criteria.Predicate;
 import lombok.extern.slf4j.Slf4j;
 import org.hvtra.commonservice.common_core.domain.entity.InternalUserPrincipal;
 import org.hvtra.commonservice.common_core.utils.SecurityUtils;
+import org.hvtra.iventoryservice.shared.security.DocumentVisibility;
 import org.hvtra.iventoryservice.replenishment.repository.ShelfReplenishmentRepository;
 import org.hvtra.iventoryservice.domain.entity.InventoryBalance;
 import org.hvtra.iventoryservice.domain.entity.InventoryItem;
@@ -95,9 +96,9 @@ public class ShelfReplenishmentServiceImpl implements ShelfReplenishmentService 
     @Override
     public PageResponse<ShelfReplenishmentResponse> findAll(
             InventoryDocumentStatus status, UUID shelfId, String query, Boolean pendingReview, Pageable pageable) {
-        Specification<ShelfReplenishment> spec = (root, cq, cb) -> {
+        Specification<ShelfReplenishment> visible = visibleToCurrentUser();
+        Specification<ShelfReplenishment> filters = (root, cq, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
-            predicates.add(cb.isFalse(root.get("isDeleted")));
             if (Boolean.TRUE.equals(pendingReview)) {
                 predicates.add(cb.equal(root.get("status"), InventoryDocumentStatus.POSTED));
                 predicates.add(cb.isNull(root.get("approvedAt")));
@@ -117,18 +118,35 @@ public class ShelfReplenishmentServiceImpl implements ShelfReplenishmentService 
             }
             return cb.and(predicates.toArray(Predicate[]::new));
         };
-        return PageResponse.from(replenishmentRepository.findAll(spec, pageable).map(document -> toResponse(document, false)));
+        return PageResponse.from(replenishmentRepository.findAll(visible.and(filters), pageable)
+                .map(document -> toResponse(document, false)));
     }
 
     @Override
     public ShelfReplenishmentSummaryResponse summary() {
+        Specification<ShelfReplenishment> visible = visibleToCurrentUser();
         return new ShelfReplenishmentSummaryResponse(
-                replenishmentRepository.countByStatusAndIsDeletedFalse(InventoryDocumentStatus.DRAFT),
-                replenishmentRepository.countByStatusAndIsDeletedFalse(InventoryDocumentStatus.PENDING_APPROVAL),
-                replenishmentRepository.countByStatusAndIsDeletedFalse(InventoryDocumentStatus.POSTED),
-                replenishmentRepository.countByStatusAndIsDeletedFalse(InventoryDocumentStatus.CANCELLED),
-                replenishmentRepository.countByStatusAndIsDeletedFalse(InventoryDocumentStatus.REJECTED),
-                replenishmentRepository.countByStatusAndApprovedAtIsNullAndIsDeletedFalse(InventoryDocumentStatus.POSTED));
+                replenishmentRepository.count(visible.and(hasStatus(InventoryDocumentStatus.DRAFT))),
+                replenishmentRepository.count(visible.and(hasStatus(InventoryDocumentStatus.PENDING_APPROVAL))),
+                replenishmentRepository.count(visible.and(hasStatus(InventoryDocumentStatus.POSTED))),
+                replenishmentRepository.count(visible.and(hasStatus(InventoryDocumentStatus.CANCELLED))),
+                replenishmentRepository.count(visible.and(hasStatus(InventoryDocumentStatus.REJECTED))),
+                replenishmentRepository.count(visible.and(hasStatus(InventoryDocumentStatus.POSTED))
+                        .and((root, cq, cb) -> cb.isNull(root.get("approvedAt")))));
+    }
+
+    /** Phiếu chưa xoá và nằm trong phạm vi xem theo role (xem {@link DocumentVisibility}). */
+    private Specification<ShelfReplenishment> visibleToCurrentUser() {
+        DocumentVisibility scope = DocumentVisibility.current();
+        return (root, cq, cb) -> cb.and(
+                cb.isFalse(root.get("isDeleted")),
+                scope.toPredicate(cb, root.get("createdBy"), () -> cb.or(
+                        cb.equal(root.get("status"), InventoryDocumentStatus.RECEIVING),
+                        cb.equal(root.get("qcBy"), scope.userId()))));
+    }
+
+    private static Specification<ShelfReplenishment> hasStatus(InventoryDocumentStatus status) {
+        return (root, cq, cb) -> cb.equal(root.get("status"), status);
     }
 
     @Override

@@ -18,6 +18,7 @@ public final class OrderEventType {
     public static final String RETURN_INVENTORY_DISPOSITION_REQUESTED =
             "RETURN_INVENTORY_DISPOSITION_REQUESTED";
     public static final String INVENTORY_RESERVATION_CONFIRM_REQUESTED = "INVENTORY_RESERVATION_CONFIRM_REQUESTED";
-    public static final String CUSTOMER_PURCHASE_UPDATE_REQUESTED = "CUSTOMER_PURCHASE_UPDATE_REQUESTED";
+    /** Một phiếu hoàn tiền xong; Customer-Service trừ chi tiêu và điểm của khách. */
+    public static final String ORDER_REFUNDED = "ORDER_REFUNDED";
     public static final String PROMOTION_USAGE_COMMIT_REQUESTED = "PROMOTION_USAGE_COMMIT_REQUESTED";
 }

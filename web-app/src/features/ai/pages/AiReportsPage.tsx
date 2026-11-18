@@ -211,8 +211,8 @@ export function AiReportsPage({ api = getAiReportApi() }: { api?: AiReportApi | 
         onClose={() => setExportOpen(false)} onExported={(kind) => {
           setExportOpen(false);
           setFeedback(kind === "CUSTOM_BOM"
-            ? "Đã xuất và tải báo cáo BOM (SYNTHETIC). Bản xuất được lưu theo receipt, chưa tự thêm vào danh sách báo cáo gốc."
-            : "Đã xuất và tải báo cáo AI.");
+            ? "Đã tải báo cáo BOM mô phỏng. Báo cáo xuất chưa tự thêm vào danh sách báo cáo gốc."
+            : "Đã xuất và tải báo cáo AI theo sản phẩm.");
         }} /> : null}
     </section>
   );

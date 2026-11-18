@@ -2,6 +2,7 @@ package org.hvtra.paymentservice.controller;
 
 import io.swagger.v3.oas.annotations.Operation;
 import lombok.RequiredArgsConstructor;
+import org.hvtra.commonservice.common_core.utils.OrderReturnAuthorization;
 import org.hvtra.paymentservice.dto.request.CheckoutRequest;
 import org.hvtra.paymentservice.dto.request.ManualPaymentConfirmRequest;
 import org.hvtra.paymentservice.dto.request.RefundPaymentRequest;
@@ -63,6 +64,7 @@ public class PaymentController {
             @PathVariable("orderId") UUID orderId,
             @Valid @RequestBody RefundPaymentRequest request
     ) {
+        OrderReturnAuthorization.requireRefund();
         return paymentService.refundOrderReturn(orderId, request);
     }
 
@@ -71,6 +73,7 @@ public class PaymentController {
     public List<PaymentRefundSummaryResponse> lookupRefundSummaries(
             @Valid @RequestBody RefundSummaryLookupRequest request
     ) {
+        OrderReturnAuthorization.requireEvidenceRead();
         return paymentService.lookupRefundSummaries(request);
     }
 

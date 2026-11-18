@@ -1,8 +1,7 @@
 import type { AiBusinessExport, AiBusinessExportInput } from "../types/ai-report.types";
 
 export type BusinessExportRecovery = AiBusinessExportInput & {report?: AiBusinessExport};
-export const BOM_REPORT_FROM = "2026-04-01";
-export const BOM_REPORT_TO = "2026-04-30";
+export type BomExportPeriod = Pick<AiBusinessExportInput, "fromDate" | "toDate">;
 const recoveryKey = (actor: string) => `hvt:ai-business-export:${actor}`;
 
 export function readBusinessExportRecovery(actor?: string): BusinessExportRecovery | null {
@@ -29,8 +28,8 @@ export function readBomExportRecovery(actor?: string): BusinessExportRecovery | 
   try {
     const r = JSON.parse(sessionStorage.getItem(`hvt:ai-bom-export:${actor}`) || "null") as BusinessExportRecovery | null;
     if (!r || r.reportType !== "CUSTOM_BOM" || !/^[0-9a-f-]{36}$/i.test(r.requestId)
-        || r.fromDate !== BOM_REPORT_FROM || r.toDate !== BOM_REPORT_TO) return null;
-    return {requestId: r.requestId, fromDate: BOM_REPORT_FROM, toDate: BOM_REPORT_TO, reportType: "CUSTOM_BOM"};
+        || validateBomPeriod(r.fromDate, r.toDate)) return null;
+    return {requestId: r.requestId, fromDate: r.fromDate, toDate: r.toDate, reportType: "CUSTOM_BOM"};
   } catch {return null;}
 }
 
@@ -38,7 +37,7 @@ export function saveBomExportRecovery(actor: string | undefined, record: Busines
   if (!actor) return;
   try {
     if (record) sessionStorage.setItem(`hvt:ai-bom-export:${actor}`, JSON.stringify({requestId: record.requestId,
-      fromDate: BOM_REPORT_FROM, toDate: BOM_REPORT_TO, reportType: "CUSTOM_BOM"}));
+      fromDate: record.fromDate, toDate: record.toDate, reportType: "CUSTOM_BOM"}));
     else sessionStorage.removeItem(`hvt:ai-bom-export:${actor}`);
   } catch { /* Same-intent retry remains available in memory. */ }
 }
@@ -47,11 +46,17 @@ export function vietnamToday(now = new Date()): string {
   return new Intl.DateTimeFormat("en-CA", {timeZone: "Asia/Bangkok", year: "numeric", month: "2-digit", day: "2-digit"}).format(now);
 }
 
-export function validateBusinessPeriod(fromDate: string, toDate: string, today = vietnamToday()): string | null {
+export function validateBomPeriod(fromDate: string, toDate: string): string | null {
   const validDate = (value: string) => /^\d{4}-\d{2}-\d{2}$/.test(value)
     && !Number.isNaN(Date.parse(value)) && new Date(value).toISOString().slice(0, 10) === value;
   if (!validDate(fromDate) || !validDate(toDate)) return "Vui lòng chọn đầy đủ ngày bắt đầu và ngày kết thúc.";
   if (fromDate > toDate) return "Ngày bắt đầu phải trước hoặc bằng ngày kết thúc.";
+  return null;
+}
+
+export function validateBusinessPeriod(fromDate: string, toDate: string, today = vietnamToday()): string | null {
+  const invalid = validateBomPeriod(fromDate, toDate);
+  if (invalid) return invalid;
   if (toDate > today) return "Ngày kết thúc không được sau hôm nay.";
   if ((Date.parse(toDate) - Date.parse(fromDate)) / 86_400_000 >= 366) return "Vui lòng chọn khoảng thời gian không quá 366 ngày.";
   return null;

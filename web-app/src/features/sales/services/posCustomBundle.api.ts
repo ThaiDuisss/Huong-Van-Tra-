@@ -51,9 +51,6 @@ function optionalUuid(value?: string | null) {
 
 /** Giới hạn mặc định của backend (order.custom-bundle.*), dùng để báo lỗi sớm trên POS. */
 export const bundleLimits = {
-    minTotalQuantity: 50,
-    maxTotalQuantity: 1000,
-    minLineQuantity: 5,
     maxIngredients: 10
 };
 

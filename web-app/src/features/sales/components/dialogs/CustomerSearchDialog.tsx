@@ -13,7 +13,7 @@ import {
 } from "react";
 
 import { Button, IconButton } from "../../../../components/ui/Button";
-import { StatusBadge, type BadgeTone } from "../../../../components/ui/StatusBadge";
+import { StatusBadge } from "../../../../components/ui/StatusBadge";
 import { formatCurrency } from "../../services/money";
 import type { SaleCustomer } from "../../types/sale.types";
 
@@ -41,20 +41,22 @@ function getInitials(name: string) {
     .toUpperCase();
 }
 
-function getTierTone(tier: SaleCustomer["tier"]): BadgeTone {
-  if (tier === "VIP Kim Cương") {
-    return "info";
-  }
-
-  if (tier === "VIP Vàng") {
-    return "warning";
-  }
-
-  if (tier === "VIP Bạc") {
-    return "neutral";
-  }
-
-  return "success";
+function TierBadge({ customer }: { customer: SaleCustomer }) {
+  return (
+    <StatusBadge
+      size="sm"
+      tone="neutral"
+      icon={
+        <span
+          className="size-2 shrink-0 rounded-full"
+          style={{ backgroundColor: customer.tierColor || "#94a3b8" }}
+          aria-hidden="true"
+        />
+      }
+    >
+      {customer.tier}
+    </StatusBadge>
+  );
 }
 
 function CustomerAvatar({ customer }: { customer: SaleCustomer }) {
@@ -301,7 +303,7 @@ function CustomerGroup({
               </span>
 
               <span className="grid justify-items-end gap-0.5 text-right">
-                <StatusBadge size="sm" tone={getTierTone(customer.tier)}>{customer.tier}</StatusBadge>
+                <TierBadge customer={customer} />
                 <span className="text-xs text-neutral-500">
                   {customer.customerCode}
                 </span>

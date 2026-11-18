@@ -1,3 +1,6 @@
+import { Leaf } from "lucide-react";
+
+import { Button } from "../../../../components/ui/Button";
 import { CartList } from "../cart/CartList";
 import { CartNote } from "../cart/CartNote";
 import { ProductSearchBar } from "../product/ProductSearchBar";
@@ -39,6 +42,7 @@ interface SaleWorkspaceProps {
     onInvoiceNew(): void;
     onInvoiceClose(id: string): void;
     onNoteChange(value: string): void;
+    onCustomBundleOpen(): void;
 }
 
 export function SaleWorkspace({
@@ -69,7 +73,8 @@ export function SaleWorkspace({
     onInvoiceSelect,
     onInvoiceNew,
     onInvoiceClose,
-    onNoteChange
+    onNoteChange,
+    onCustomBundleOpen
 }: SaleWorkspaceProps) {
     return (
         <section className={styles.saleWorkspace}>
@@ -112,7 +117,16 @@ export function SaleWorkspace({
                 onNoteChange={onProductNoteChange}
             />
 
-            <CartNote value={note} onChange={onNoteChange} />
+            {/* POS chỉ bán nhanh: không còn bộ chọn loại đơn, chỉ giữ lối vào đóng trà theo yêu cầu. */}
+            <div className="flex min-w-0 gap-3">
+                <div className="min-w-0 flex-1 [&>label]:h-full">
+                    <CartNote value={note} onChange={onNoteChange} />
+                </div>
+                <Button variant="secondary" className="h-full shrink-0" onClick={onCustomBundleOpen}>
+                    <Leaf size={20} aria-hidden="true" />
+                    Đóng trà theo yêu cầu
+                </Button>
+            </div>
         </section>
     );
 }

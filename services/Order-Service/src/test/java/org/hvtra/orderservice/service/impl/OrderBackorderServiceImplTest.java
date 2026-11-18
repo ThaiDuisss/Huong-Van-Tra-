@@ -131,7 +131,6 @@ class OrderBackorderServiceImplTest {
         assertEquals(OrderInventoryProcessingStatus.CONSUMED, order.getInventoryProcessingStatus());
         verify(orderPaymentEventService).processPaidOrderInventory(order, null, true);
         verifyNoInteractions(paymentClient);
-        verify(orderCustomerService).updateCustomerPurchase(orderId);
         verify(orderOutboxPublisher).publishPaymentCompletedOrchestration(order, "PAY-001", sagaId.toString());
         verify(orderStatusHistoryWriter).write(eq(order), eq(OrderStatus.PAYMENT_CONFIRMED),
                 eq(OrderStatus.COMPLETED), any(), any());
