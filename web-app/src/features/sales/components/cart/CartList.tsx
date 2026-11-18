@@ -84,13 +84,14 @@ export function CartList({
           const discountAmount = calculateCartItemDiscountAmount(item);
           const netTotal = Math.max(0, grossTotal - discountAmount);
           const isEditingDiscount = editingProductId === item.productId;
+          const displayName = item.bundle ? item.name : item.variant || item.name;
 
           return (
             <article className={styles.cartRow} key={item.productId}>
               <span className={styles.rowIndex}>{index + 1}</span>
               <span className={styles.sku}>{item.sku}</span>
               <span className={styles.productName}>
-                {item.name}
+                {displayName}
                 {item.note ? (
                   <small className={styles.itemNote}>
                     Yêu cầu: {item.note}
@@ -111,7 +112,7 @@ export function CartList({
                   type="button"
                   className={styles.unitSelect}
                   onClick={() => onUnitChange(item.productId)}
-                  aria-label={`Đổi đơn vị ${item.name}, đang là ${unitLabel(item)}`}
+                  aria-label={`Đổi đơn vị ${displayName}, đang là ${unitLabel(item)}`}
                   title={item.variant || undefined}
                 >
                   <span>{unitLabel(item)}</span>
@@ -127,20 +128,20 @@ export function CartList({
                 <button
                   type="button"
                   onClick={() => onDecrement(item.productId)}
-                  aria-label={`Giảm số lượng ${item.name}`}
+                  aria-label={`Giảm số lượng ${displayName}`}
                 >
                   <Minus size={16} aria-hidden="true" />
                 </button>
                 <QuantityInput
                   key={item.quantity}
-                  label={`Số lượng ${item.name}`}
+                  label={`Số lượng ${displayName}`}
                   quantity={item.quantity}
                   onCommit={(quantity) => onQuantityChange(item.productId, quantity)}
                 />
                 <button
                   type="button"
                   onClick={() => onIncrement(item.productId)}
-                  aria-label={`Tăng số lượng ${item.name}`}
+                  aria-label={`Tăng số lượng ${displayName}`}
                 >
                   <Plus size={16} aria-hidden="true" />
                 </button>
@@ -159,7 +160,7 @@ export function CartList({
                   onClick={() =>
                     setEditingProductId(isEditingDiscount ? null : item.productId)
                   }
-                  aria-label={`Sửa giảm giá ${item.name}`}
+                  aria-label={`Sửa giảm giá ${displayName}`}
                 >
                   <BadgePercent size={16} aria-hidden="true" />
                   <span>
@@ -173,7 +174,7 @@ export function CartList({
                     type="button"
                     className={styles.clearDiscountButton}
                     onClick={() => onDiscountChange(item.productId, null)}
-                    aria-label={`Bỏ giảm giá ${item.name}`}
+                    aria-label={`Bỏ giảm giá ${displayName}`}
                   >
                     <X size={14} aria-hidden="true" />
                   </button>
@@ -199,7 +200,7 @@ export function CartList({
                     setEditingNoteItem(item);
                     setDraftNote(item.note ?? "");
                   }}
-                  aria-label={`Sửa yêu cầu ${item.name}`}
+                  aria-label={`Sửa yêu cầu ${displayName}`}
                 >
                   <MessageSquareText size={18} aria-hidden="true" />
                 </button>
@@ -208,7 +209,7 @@ export function CartList({
                   type="button"
                   className={styles.iconAction}
                   onClick={() => onRemove(item.productId)}
-                  aria-label={`Xóa ${item.name} khỏi hóa đơn`}
+                  aria-label={`Xóa ${displayName} khỏi hóa đơn`}
                 >
                   <Trash2 size={18} aria-hidden="true" />
                 </button>

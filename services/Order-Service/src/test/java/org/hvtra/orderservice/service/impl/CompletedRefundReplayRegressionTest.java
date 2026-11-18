@@ -36,6 +36,8 @@ import org.hvtra.orderservice.service.support.OrderReturnHistoryWriter;
 import org.hvtra.orderservice.service.support.OrderReturnPhysicalCompletionHandler;
 import org.hvtra.orderservice.service.support.OrderReturnPhysicalProgressResolver;
 import org.hvtra.orderservice.service.support.OrderReturnRefundEligibilityResolver;
+import org.hvtra.commonservice.common_core.domain.entity.InternalUserPrincipal;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -46,6 +48,10 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 import org.springframework.http.MediaType;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
@@ -56,7 +62,9 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 import org.springframework.transaction.support.TransactionTemplate;
 
 import java.math.BigDecimal;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
@@ -136,6 +144,14 @@ class CompletedRefundReplayRegressionTest {
                         mock(PosOfflineCheckoutService.class), mock(OrderExportService.class), service,
                         mock(OrderReturnReportService.class)))
                 .setControllerAdvice(new OrderGlobalExceptionHandler()).build();
+        InternalUserPrincipal principal = new InternalUserPrincipal(
+                UUID.randomUUID().toString(), "tester", "test", Set.of("MANAGER"), "test-request",
+                Set.of("order:refund"));
+        List<GrantedAuthority> authorities = new ArrayList<>();
+        principal.roles().forEach(role -> authorities.add(new SimpleGrantedAuthority("ROLE_" + role)));
+        principal.permissions().forEach(permission -> authorities.add(new SimpleGrantedAuthority(permission)));
+        SecurityContextHolder.getContext().setAuthentication(
+                new UsernamePasswordAuthenticationToken(principal, null, authorities));
         new TransactionTemplate(transactionManager).executeWithoutResult(status -> {
             BigDecimal amount = new BigDecimal("10000");
             Order order = Order.builder().orderCode("D2-" + UUID.randomUUID()).orderType("POS")
@@ -164,6 +180,11 @@ class CompletedRefundReplayRegressionTest {
             assertFalse(TransactionSynchronizationManager.isActualTransactionActive(), "Payment lookup must not hold DB locks");
             return List.of(summary);
         });
+    }
+
+    @AfterEach
+    void clearAuthentication() {
+        SecurityContextHolder.clearContext();
     }
 
     @Test

@@ -150,6 +150,8 @@ export interface PosOrderDto {
     expectedAvailableAt?: string | null;
     depositAmount?: number;
     inventoryProcessingStatus?: string;
+    /** Lý do chưa trừ được tồn kho khi inventoryProcessingStatus = FAILED. */
+    inventoryFailureReason?: string | null;
     items?: PosOrderItemDto[];
 }
 

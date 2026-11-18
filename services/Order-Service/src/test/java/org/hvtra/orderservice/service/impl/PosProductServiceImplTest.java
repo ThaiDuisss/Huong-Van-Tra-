@@ -34,14 +34,14 @@ class PosProductServiceImplTest {
         assertTrue(result.content().isEmpty());
         assertEquals(0, result.page());
         assertEquals(20, result.size());
-        verify(catalog).findAll(null, null, null, null, null, null, "ACTIVE", 0, 20);
+        verify(catalog).findAll(null, null, null, null, null, null, "ACTIVE", 0, LIMIT);
         verifyNoInteractions(inventory);
     }
 
     @Test
     void explicitProductFilterWithEmptyCatalogPageReturnsEmptyBeforePriceOrStockLookup() {
         UUID parent = UUID.fromString("22222222-2222-4222-8222-222222222222");
-        when(catalog.findAll(null, null, null, null, parent, null, "ACTIVE", 0, 50))
+        when(catalog.findAll(null, null, null, null, parent, null, "ACTIVE", 0, LIMIT))
                 .thenReturn(new PageResponse<>(List.of(), 0, 50, 0, 0, true, true));
 
         var result = service.searchVariants(new PosProductSearchRequest(null, null, null, parent, 0, 50));
@@ -49,14 +49,16 @@ class PosProductServiceImplTest {
         assertTrue(result.content().isEmpty());
         assertEquals(0, result.totalElements());
         assertEquals(50, result.size());
-        verify(catalog).findAll(null, null, null, null, parent, null, "ACTIVE", 0, 50);
+        verify(catalog).findAll(null, null, null, null, parent, null, "ACTIVE", 0, LIMIT);
         verifyNoInteractions(inventory);
     }
 
     @Test
-    void productNameFallbackAndExplicitParentFilterAreSentWithoutChangingCatalogTotals() {
+    void tooManyCandidatesFallsBackToCatalogPagingWithoutChangingCatalogTotals() {
         CatalogVariantResponse variant = variant();
         var request = new PosProductSearchRequest(" ", "SKU", "Tea", variant.productId(), 2, 5);
+        when(catalog.findAll("Tea", "SKU", null, null, variant.productId(), null, "ACTIVE", 0, LIMIT))
+                .thenReturn(new PageResponse<>(List.of(variant), 0, LIMIT, LIMIT + 1L, 2, true, false));
         when(catalog.findAll("Tea", "SKU", null, null, variant.productId(), null, "ACTIVE", 2, 5))
                 .thenReturn(new PageResponse<>(List.of(variant), 2, 5, 11, 3, false, true));
         var result = service.searchVariants(request);
@@ -71,8 +73,8 @@ class PosProductServiceImplTest {
     @Test
     void stockLookupDeduplicatesVariantIdsAndKeepsFirstResponseForDuplicateIdentity() {
         CatalogVariantResponse variant = variant();
-        when(catalog.findAll("Tea", null, null, null, null, null, "ACTIVE", 0, 20))
-                .thenReturn(new PageResponse<>(List.of(variant, variant), 0, 20, 2, 1, true, true));
+        when(catalog.findAll("Tea", null, null, null, null, null, "ACTIVE", 0, LIMIT))
+                .thenReturn(new PageResponse<>(List.of(variant, variant), 0, LIMIT, 2, 1, true, true));
         UUID shelf = UUID.randomUUID();
         UUID warehouse = UUID.randomUUID();
         var stock = new InventoryClient.StockVariantBatchResponse(variant.id(), shelf, new BigDecimal("8"), BigDecimal.ONE,
@@ -93,6 +95,45 @@ class PosProductServiceImplTest {
         assertEquals(warehouse, row.warehouseLocationId());
         assertEquals("IN_STOCK", row.stockStatus());
         assertEquals(new BigDecimal("99"), row.sellableQuantity());
+    }
+
+    @Test
+    void inStockVariantsAreRankedFirstAcrossAllPagesBeforePaging() {
+        CatalogVariantResponse outNewest = variant();
+        CatalogVariantResponse warehouseOnly = variant();
+        CatalogVariantResponse outOlder = variant();
+        CatalogVariantResponse onShelf = variant();
+        when(catalog.findAll("Tea", null, null, null, null, null, "ACTIVE", 0, LIMIT))
+                .thenReturn(new PageResponse<>(List.of(outNewest, warehouseOnly, outOlder, onShelf), 0, LIMIT, 4, 1, true, true));
+        when(inventory.getStocksByVariantIds(any())).thenReturn(List.of(
+                stock(warehouseOnly.id(), "0", "4"),
+                stock(onShelf.id(), "2", "0"),
+                stock(outOlder.id(), "0", "0")));
+
+        var first = service.searchVariants(new PosProductSearchRequest("Tea", null, null, null, 0, 2));
+        var second = service.searchVariants(new PosProductSearchRequest("Tea", null, null, null, 1, 2));
+
+        assertEquals(List.of(onShelf.id(), warehouseOnly.id()), first.content().stream().map(r -> r.variantId()).toList());
+        assertEquals(List.of(outNewest.id(), outOlder.id()), second.content().stream().map(r -> r.variantId()).toList());
+        assertEquals(4, first.totalElements());
+        assertEquals(2, first.totalPages());
+        assertTrue(first.first());
+        assertFalse(first.last());
+        assertTrue(second.last());
+        verify(catalog, never()).findAll(any(), any(), any(), any(), any(), any(), any(), eq(1), anyInt());
+    }
+
+    @Test
+    void pageBeyondRankedResultsIsEmptyButKeepsTotals() {
+        CatalogVariantResponse variant = variant();
+        when(catalog.findAll("Tea", null, null, null, null, null, "ACTIVE", 0, LIMIT))
+                .thenReturn(new PageResponse<>(List.of(variant), 0, LIMIT, 1, 1, true, true));
+
+        var result = service.searchVariants(new PosProductSearchRequest("Tea", null, null, null, 3, 20));
+
+        assertTrue(result.content().isEmpty());
+        assertEquals(1, result.totalElements());
+        assertTrue(result.last());
     }
 
     @ParameterizedTest
@@ -139,6 +180,14 @@ class PosProductServiceImplTest {
         when(catalog.findById(id)).thenThrow(failure);
         assertSame(failure, assertThrows(RuntimeException.class, () -> service.getPosView(id)));
         verifyNoInteractions(inventory);
+    }
+
+    private static final int LIMIT = PosProductServiceImpl.STOCK_RANKING_CANDIDATE_LIMIT;
+
+    private static InventoryClient.StockVariantBatchResponse stock(UUID variantId, String shelf, String warehouse) {
+        BigDecimal available = new BigDecimal(shelf).add(new BigDecimal(warehouse));
+        return new InventoryClient.StockVariantBatchResponse(variantId, null, available, BigDecimal.ZERO,
+                available.signum() > 0 ? "IN_STOCK" : "OUT_OF_STOCK", new BigDecimal(shelf), new BigDecimal(warehouse), null, null);
     }
 
     private CatalogVariantResponse variant() {

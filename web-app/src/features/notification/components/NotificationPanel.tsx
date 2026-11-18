@@ -34,7 +34,7 @@ export function NotificationPanel({
     onMarkAllRead
 }: NotificationPanelProps) {
     return (
-        <section className="absolute bottom-12 left-0 z-50 w-[340px] rounded-xl border border-[#dfe7e2] bg-white p-3 text-[#172317] shadow-[0_22px_64px_rgba(15,35,20,0.20)]">
+        <section className="flex min-h-0 w-[360px] flex-col rounded-xl border border-[#dfe7e2] bg-white p-3 text-[#172317] shadow-[0_22px_64px_rgba(15,35,20,0.20)]">
             <header className="flex items-center justify-between gap-3 border-b border-[#edf0f4] pb-3">
                 <div>
                     <h2 className="text-[14px] font-extrabold">Thông báo</h2>
@@ -54,7 +54,7 @@ export function NotificationPanel({
                 </Button>
             </header>
 
-            <div className="mt-3 grid max-h-[420px] gap-2 overflow-y-auto pr-1">
+            <div className="mt-3 grid min-h-0 flex-1 content-start gap-2 overflow-y-auto pr-1">
                 {notifications.length === 0 ? (
                     <p className="rounded-lg bg-[#f7fff9] px-3 py-5 text-center text-[12px] font-semibold text-[#5f6b7a]">
                         Chưa có thông báo mới.

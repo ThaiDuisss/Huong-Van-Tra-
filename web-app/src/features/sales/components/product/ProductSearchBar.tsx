@@ -164,15 +164,15 @@ export function ProductSearchBar({
                   <img
                     className="size-16 rounded-xl object-cover"
                     src={product.imageUrl}
-                    alt={product.name}
+                    alt={product.variant || product.name}
                   />
 
                   <div className="min-w-0">
                     <h3
                       className="truncate text-base font-bold text-gray-500"
-                      title={product.name}
+                      title={product.variant || product.name}
                     >
-                      {product.name}
+                      {product.variant || product.name}
                     </h3>
                     <div className="mt-1 flex flex-wrap gap-1.5">
                       <StatusBadge
@@ -207,7 +207,7 @@ export function ProductSearchBar({
                         onAdd(product);
                       }}
                       className="grid size-9 place-items-center rounded-full border border-pos-border bg-white text-gray-500 shadow-[0_2px_8px_rgba(0,0,0,0.05)] hover:border-hvt-green-700 hover:bg-hvt-green-50"
-                      aria-label={`Thêm ${product.name} vào giỏ`}
+                      aria-label={`Thêm ${product.variant || product.name} vào giỏ`}
                     >
                       {addingProductId === product.id ? (
                         <span className="text-xs font-bold">...</span>

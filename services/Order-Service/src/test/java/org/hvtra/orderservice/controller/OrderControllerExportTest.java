@@ -12,6 +12,8 @@ import org.hvtra.orderservice.service.OrderReturnReportService;
 import org.hvtra.orderservice.service.OrderReturnService;
 import org.hvtra.orderservice.service.OrderService;
 import org.hvtra.orderservice.service.PosOfflineCheckoutService;
+import org.hvtra.commonservice.common_core.domain.entity.InternalUserPrincipal;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -23,10 +25,16 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.context.SecurityContextHolder;
 
 import java.lang.reflect.Method;
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
@@ -69,6 +77,21 @@ class OrderControllerExportTest {
                 orderReturnService,
                 orderReturnReportService
         );
+        // Test này kiểm tra việc controller gọi đúng service/tham số, không phải phân quyền từng
+        // endpoint (đã có test riêng: OrderCreatePermissionTest) — xác thực với đủ permission liên quan.
+        InternalUserPrincipal principal = new InternalUserPrincipal(
+                UUID.randomUUID().toString(), "tester", "test", Set.of("MANAGER"), "test-request",
+                Set.of("order:view", "order:return", "order:refund", "report:view"));
+        List<GrantedAuthority> authorities = new ArrayList<>();
+        principal.roles().forEach(role -> authorities.add(new SimpleGrantedAuthority("ROLE_" + role)));
+        principal.permissions().forEach(permission -> authorities.add(new SimpleGrantedAuthority(permission)));
+        SecurityContextHolder.getContext().setAuthentication(
+                new UsernamePasswordAuthenticationToken(principal, null, authorities));
+    }
+
+    @AfterEach
+    void clearAuthentication() {
+        SecurityContextHolder.clearContext();
     }
 
     @Test

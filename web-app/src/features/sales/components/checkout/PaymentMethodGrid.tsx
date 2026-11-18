@@ -1,8 +1,4 @@
-import {
-  PanelsTopLeft,
-  Landmark,
-  WalletCards
-} from "lucide-react";
+import { Landmark, WalletCards } from "lucide-react";
 import type { SalePaymentMethod } from "../../types/sale.types";
 
 interface PaymentMethodGridProps {
@@ -24,11 +20,6 @@ const paymentMethods = [
     value: "BANK_TRANSFER",
     label: "Chuyển khoản",
     icon: Landmark
-  },
-  {
-    value: "COMBINED",
-    label: "Thanh toán tổng hợp",
-    icon: PanelsTopLeft
   }
 ] as const;
 
@@ -55,8 +46,6 @@ export function PaymentMethodGrid({
               aria-disabled={disabled || undefined}
               onClick={() => onChange(method.value)}
               className={`grid h-[58px] place-items-center rounded-lg border px-1 text-[12px] font-semibold disabled:cursor-not-allowed disabled:opacity-50 ${
-                method.value === "COMBINED" ? "col-span-2" : ""
-              } ${
                 active
                   ? "border-[#8fd6a5] bg-[#f7fff9] text-[#12231a]"
                   : "border-pos-border bg-white text-[#12231a]"

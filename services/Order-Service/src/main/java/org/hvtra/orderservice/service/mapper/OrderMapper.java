@@ -154,6 +154,7 @@ public class OrderMapper {
                 .status(order.getStatus())
                 .paymentStatus(order.getPaymentStatus())
                 .inventoryProcessingStatus(order.getInventoryProcessingStatus())
+                .inventoryFailureReason(order.getInventoryFailureReason())
                 .returnStatus(order.getReturnStatus())
                 .paymentMethod(paymentMethod)
                 .paymentMethodLabel(toPaymentMethodLabel(paymentMethod))

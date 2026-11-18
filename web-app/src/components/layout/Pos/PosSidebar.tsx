@@ -9,7 +9,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { useMemo, useState } from "react";
 
 import { HvtLogo } from "../../shared/HvtLogo";
-import { PosNotificationButton } from "../../../features/notification/components/PosNotificationButton";
+import { NotificationButton } from "../../../features/notification/components/NotificationButton";
 import { OfflineSyncButton } from "../../../features/sales/components/offline/OfflineSyncButton";
 import { useAuth } from "../../../auth/auth-context";
 import { useSidebarCollapsed } from "../useSidebarCollapsed";
@@ -224,7 +224,7 @@ export function PosSidebar() {
           aria-label="Tiện ích"
         >
           <li>
-            <PosNotificationButton />
+            <NotificationButton placement="pos" />
           </li>
           <li>
             <OfflineSyncButton />

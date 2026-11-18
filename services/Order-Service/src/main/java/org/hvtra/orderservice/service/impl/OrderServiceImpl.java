@@ -1733,6 +1733,7 @@ public class OrderServiceImpl implements OrderService {
                 .offlineSale(order.isOfflineSale())
                 .clientOrderId(order.getClientOrderId())
                 .inventoryProcessingStatus(order.getInventoryProcessingStatus())
+                .inventoryFailureReason(order.getInventoryFailureReason())
                 .items(order.getItems().stream().map(this::toItemResponse).toList())
                 .customerName(order.getCustomerNameSnapshot())
                 .customerPhone(order.getCustomerPhoneSnapshot())

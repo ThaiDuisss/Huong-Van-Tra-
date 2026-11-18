@@ -100,6 +100,34 @@ public final class SecurityUtils {
         throw new AccessDeniedException("Thiếu quyền " + permission);
     }
 
+    /**
+     * Bắt buộc có ít nhất một trong các permission (vd. một API vừa cho phép order:view vừa cho phép
+     * order:return xem). Khi gateway chưa relay permission (permissionsKnown() == false) thì chấp nhận một
+     * trong {@code fallbackRoles} như {@link #requirePermission(String, Role...)}.
+     */
+    public static void requireAnyPermission(Role[] fallbackRoles, String... permissions) {
+        if (permissions != null) {
+            for (String permission : permissions) {
+                if (hasPermission(permission)) {
+                    return;
+                }
+            }
+        }
+        Object principal = authentication().getPrincipal();
+        boolean permissionsKnown = principal instanceof InternalUserPrincipal internalUser
+                && internalUser.permissionsKnown();
+        if (!permissionsKnown && fallbackRoles != null) {
+            for (Role role : fallbackRoles) {
+                if (hasRole(role)) {
+                    return;
+                }
+            }
+        }
+        throw new AccessDeniedException(
+                "Thiếu quyền " + (permissions == null ? "" : String.join(" hoặc ", permissions))
+        );
+    }
+
     public static boolean isSuperAdmin() {
         return hasRole(Role.SUPER_ADMIN);
     }

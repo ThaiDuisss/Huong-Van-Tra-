@@ -1,5 +1,4 @@
 import {
-    Bell,
     CircleHelp,
     MapPin,
     Menu,
@@ -9,6 +8,7 @@ import { useMemo } from "react";
 import { Link, useLocation } from "react-router-dom";
 
 import { useAuth } from "../../../auth/auth-context";
+import { NotificationButton } from "../../../features/notification/components/NotificationButton";
 import { Button, IconButton } from "../../ui/Button";
 import {
     filterSystemNavigationByRoles,
@@ -164,10 +164,7 @@ export function SystemTopbar() {
             </nav>
 
             <div className="ml-auto flex items-center gap-2">
-                <IconButton aria-label="Thông báo" className="relative" size="md" variant="secondary">
-                    <Bell size={17} aria-hidden="true" />
-                    <span className="absolute right-1.5 top-1.5 size-3 rounded-full border-2 border-white bg-red-500" />
-                </IconButton>
+                <NotificationButton placement="topbar" />
                 <IconButton aria-label="Trợ giúp" size="md" variant="secondary">
                     <CircleHelp size={17} aria-hidden="true" />
                 </IconButton>

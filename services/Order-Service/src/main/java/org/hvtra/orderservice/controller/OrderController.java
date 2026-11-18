@@ -80,8 +80,22 @@ public class OrderController {
 
     /** Permission (client role Keycloak) cho phép tạo và thanh toán đơn bán tại quầy. */
     static final String PERMISSION_ORDER_CREATE = "order:create";
+    /** Permission xem đơn hàng / lịch sử bán hàng. */
+    private static final String PERMISSION_ORDER_VIEW = "order:view";
+    /** Permission xử lý trả hàng (tạo, duyệt, xem phiếu trả hàng). */
+    private static final String PERMISSION_ORDER_RETURN = "order:return";
+    /** Permission hoàn tiền cho phiếu trả hàng. */
+    private static final String PERMISSION_ORDER_REFUND = "order:refund";
+    /** Permission xem báo cáo thống kê (mặc định chỉ MANAGER có). */
+    private static final String PERMISSION_REPORT_VIEW = "report:view";
+    private static final Role[] MANAGER_ONLY_ROLES = {Role.MANAGER, Role.SUPER_ADMIN};
+    /** Permission hủy đơn đã xác nhận (khác với hủy hóa đơn nháp — chỉ MANAGER có mặc định). */
+    private static final String PERMISSION_ORDER_CANCEL = "order:cancel";
     /** Vai trò được chấp nhận khi gateway cũ chưa relay permission (giữ hành vi trước khi có phân quyền). */
     private static final Role[] LEGACY_POS_ROLES = {Role.SALE_STAFF, Role.MANAGER, Role.SUPER_ADMIN};
+    /** Như trên, kèm QC: dùng cho các API trả hàng mà QC cũng được xem dù không có order:view. */
+    private static final Role[] LEGACY_POS_ROLES_WITH_QC =
+            {Role.SALE_STAFF, Role.MANAGER, Role.SUPER_ADMIN, Role.QC};
 
     @Operation(summary = "checkout hoa don POS da tao draft")
     @UserAction(value = "ORDER_CHECKOUT", entityType = "Order", entityId = "#result.id")
@@ -109,6 +123,7 @@ public class OrderController {
     @PostMapping("/pos/draft/items")
     @ResponseStatus(HttpStatus.CREATED)
     public OrderResponse addDraftItem(@Valid @RequestBody AddDraftOrderItemRequest request) {
+        SecurityUtils.requirePermission(PERMISSION_ORDER_CREATE, LEGACY_POS_ROLES);
         return orderService.addDraftItem(request);
     }
 
@@ -120,6 +135,7 @@ public class OrderController {
             @PathVariable UUID itemId,
             @Valid @RequestBody UpdateDraftOrderItemQuantityRequest request
     ) {
+        SecurityUtils.requirePermission(PERMISSION_ORDER_CREATE, LEGACY_POS_ROLES);
         return orderService.updateDraftItemQuantity(orderId, itemId, request);
     }
 
@@ -127,6 +143,7 @@ public class OrderController {
     @UserAction(value = "ORDER_DRAFT_ITEM_REMOVE", entityType = "Order", entityId = "#orderId", detail = "#itemId")
     @DeleteMapping("/pos/draft/" + UUID_PATH + "/items/{itemId}")
     public OrderResponse removeDraftItem(@PathVariable UUID orderId, @PathVariable UUID itemId) {
+        SecurityUtils.requirePermission(PERMISSION_ORDER_CREATE, LEGACY_POS_ROLES);
         return orderService.removeDraftItem(orderId, itemId);
     }
 
@@ -134,6 +151,7 @@ public class OrderController {
     @UserAction(value = "ORDER_DRAFT_CANCEL", entityType = "Order", entityId = "#orderId")
     @PostMapping("/pos/draft/" + UUID_PATH + "/cancel")
     public OrderResponse cancelDraftOrder(@PathVariable UUID orderId) {
+        SecurityUtils.requirePermission(PERMISSION_ORDER_CREATE, LEGACY_POS_ROLES);
         return orderService.cancelDraftOrder(orderId);
     }
 
@@ -141,6 +159,7 @@ public class OrderController {
     @UserAction(value = "ORDER_POS_PAYMENT_CANCEL", entityType = "Order", entityId = "#orderId")
     @PostMapping("/pos/" + UUID_PATH + "/payment/cancel")
     public OrderResponse cancelPosPayment(@PathVariable UUID orderId) {
+        SecurityUtils.requirePermission(PERMISSION_ORDER_CREATE, LEGACY_POS_ROLES);
         return orderService.cancelPosPayment(orderId);
     }
 
@@ -158,6 +177,7 @@ public class OrderController {
     @Operation(summary = "lay chi tiet don hang")
     @GetMapping("/" + UUID_PATH)
     public OrderResponse getOrderById(@PathVariable UUID orderId) {
+        SecurityUtils.requirePermission(PERMISSION_ORDER_VIEW, LEGACY_POS_ROLES);
         return orderService.getOrderById(orderId);
     }
 
@@ -177,6 +197,7 @@ public class OrderController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate toDate,
             @RequestParam(defaultValue = "businessStatus") String sort
     ) {
+        SecurityUtils.requirePermission(PERMISSION_ORDER_VIEW, LEGACY_POS_ROLES);
         byte[] excelBytes = orderExportService.exportOrders(
                 keyword,
                 status,
@@ -205,6 +226,7 @@ public class OrderController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate toDate,
             @RequestParam(defaultValue = "invoicePayment") String sort
     ) {
+        SecurityUtils.requirePermission(PERMISSION_ORDER_VIEW, LEGACY_POS_ROLES);
         byte[] excelBytes = orderExportService.exportInvoices(
                 keyword,
                 paymentStatus,
@@ -235,6 +257,7 @@ public class OrderController {
             @PathVariable UUID orderId,
             @Valid @RequestBody CheckOrderReturnEligibilityRequest request
     ) {
+        SecurityUtils.requirePermission(PERMISSION_ORDER_RETURN, LEGACY_POS_ROLES_WITH_QC);
         return orderReturnService.checkReturnEligibility(orderId, request);
     }
 
@@ -245,12 +268,14 @@ public class OrderController {
             @PathVariable UUID orderId,
             @Valid @RequestBody CreateOrderReturnRequest request
     ) {
+        SecurityUtils.requirePermission(PERMISSION_ORDER_RETURN, LEGACY_POS_ROLES_WITH_QC);
         return orderReturnService.createReturn(orderId, request);
     }
 
     @Operation(summary = "lay danh sach hoan hang cua don hang")
     @GetMapping("/" + UUID_PATH + "/returns")
     public List<OrderReturnResponse> getReturnsByOrder(@PathVariable UUID orderId) {
+        SecurityUtils.requireAnyPermission(LEGACY_POS_ROLES_WITH_QC, PERMISSION_ORDER_VIEW, PERMISSION_ORDER_RETURN);
         return orderReturnService.getReturnsByOrder(orderId);
     }
 
@@ -270,6 +295,7 @@ public class OrderController {
             @RequestParam(defaultValue = "false") boolean paged,
             @RequestParam(defaultValue = "false") boolean warehouseActiveOnly
     ) {
+        SecurityUtils.requireAnyPermission(LEGACY_POS_ROLES_WITH_QC, PERMISSION_ORDER_VIEW, PERMISSION_ORDER_RETURN);
         String effectiveDisplayStatus = displayStatus != null && !displayStatus.isBlank() ? displayStatus : status;
         ReturnStatus rawStatus = null;
         if (effectiveDisplayStatus != null) {
@@ -308,6 +334,7 @@ public class OrderController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate toDate,
             @RequestParam(defaultValue = "false") boolean warehouseActiveOnly
     ) {
+        SecurityUtils.requireAnyPermission(LEGACY_POS_ROLES_WITH_QC, PERMISSION_ORDER_VIEW, PERMISSION_ORDER_RETURN);
         return orderReturnService.getReturnStatusCounts(keyword, fromDate, toDate, warehouseActiveOnly);
     }
 
@@ -323,6 +350,7 @@ public class OrderController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size
     ) {
+        SecurityUtils.requireAnyPermission(LEGACY_POS_ROLES, PERMISSION_ORDER_VIEW, PERMISSION_ORDER_REFUND);
         return orderReturnService.getRefunds(keyword, status, progressStatus, fromDate, toDate, sort, page, size);
     }
 
@@ -333,24 +361,28 @@ public class OrderController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fromDate,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate toDate
     ) {
+        SecurityUtils.requireAnyPermission(LEGACY_POS_ROLES, PERMISSION_ORDER_VIEW, PERMISSION_ORDER_REFUND);
         return orderReturnService.getRefundStats(keyword, fromDate, toDate);
     }
 
     @Operation(summary = "lay chi tiet hoan tien")
     @GetMapping("/refunds/{returnId:[0-9a-fA-F\\-]{36}}")
     public OrderRefundDetailResponse getRefundDetail(@PathVariable UUID returnId) {
+        SecurityUtils.requireAnyPermission(LEGACY_POS_ROLES, PERMISSION_ORDER_VIEW, PERMISSION_ORDER_REFUND);
         return orderReturnService.getRefundDetail(returnId);
     }
 
     @Operation(summary = "lay chi tiet hoan hang")
     @GetMapping("/returns/{returnId:[0-9a-fA-F\\-]{36}}")
     public OrderReturnResponse getReturnById(@PathVariable UUID returnId) {
+        SecurityUtils.requireAnyPermission(LEGACY_POS_ROLES_WITH_QC, PERMISSION_ORDER_VIEW, PERMISSION_ORDER_RETURN);
         return orderReturnService.getReturnById(returnId);
     }
 
     @Operation(summary = "lay timeline xu ly hoan hang")
     @GetMapping("/returns/{returnId:[0-9a-fA-F\\-]{36}}/timeline")
     public List<OrderReturnTimelineResponse> getReturnTimeline(@PathVariable UUID returnId) {
+        SecurityUtils.requireAnyPermission(LEGACY_POS_ROLES_WITH_QC, PERMISSION_ORDER_VIEW, PERMISSION_ORDER_RETURN);
         return orderReturnService.getReturnTimeline(returnId);
     }
 
@@ -361,6 +393,7 @@ public class OrderController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fromDate,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate toDate
     ) {
+        SecurityUtils.requirePermission(PERMISSION_REPORT_VIEW, MANAGER_ONLY_ROLES);
         return orderReturnReportService.getSummary(branchId, fromDate, toDate);
     }
 
@@ -377,6 +410,7 @@ public class OrderController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size
     ) {
+        SecurityUtils.requirePermission(PERMISSION_REPORT_VIEW, MANAGER_ONLY_ROLES);
         return orderReturnReportService.getDetails(
                 keyword,
                 returnStatus,
@@ -393,24 +427,28 @@ public class OrderController {
     @Operation(summary = "xem truoc so tien hoan tien")
     @GetMapping("/returns/{returnId:[0-9a-fA-F\\-]{36}}/refund-preview")
     public OrderReturnRefundPreviewResponse getRefundPreview(@PathVariable UUID returnId) {
+        SecurityUtils.requireAnyPermission(LEGACY_POS_ROLES, PERMISSION_ORDER_VIEW, PERMISSION_ORDER_REFUND);
         return orderReturnService.getRefundPreview(returnId);
     }
 
     @Operation(summary = "xac nhan cua hang da nhan hang tra lai")
     @PutMapping("/returns/{returnId:[0-9a-fA-F\\-]{36}}/receive")
     public OrderReturnResponse receiveReturn(@PathVariable UUID returnId) {
+        SecurityUtils.requirePermission(PERMISSION_ORDER_RETURN, LEGACY_POS_ROLES_WITH_QC);
         return orderReturnService.receiveReturn(returnId);
     }
 
     @Operation(summary = "huy phieu hoan hang chua hoan tat")
     @PutMapping("/returns/{returnId:[0-9a-fA-F\\-]{36}}/cancel")
     public OrderReturnResponse cancelReturn(@PathVariable UUID returnId) {
+        SecurityUtils.requirePermission(PERMISSION_ORDER_RETURN, LEGACY_POS_ROLES_WITH_QC);
         return orderReturnService.cancelReturn(returnId);
     }
 
     @Operation(summary = "hoan tien cho phieu hoan hang")
     @PostMapping("/returns/{returnId:[0-9a-fA-F\\-]{36}}/refund")
     public OrderReturnRefundResponse refundReturn(@PathVariable UUID returnId) {
+        SecurityUtils.requirePermission(PERMISSION_ORDER_REFUND, MANAGER_ONLY_ROLES);
         return orderReturnService.refundReturn(returnId);
     }
 
@@ -433,6 +471,9 @@ public class OrderController {
             @PathVariable UUID returnId,
             @PathVariable UUID commandId
     ) {
+        if (!SecurityUtils.hasAnyRole(Role.QC, Role.MANAGER, Role.SUPER_ADMIN)) {
+            throw new AccessDeniedException("Customer return disposition requires QC or manager role");
+        }
         return orderReturnService.getInventoryDisposition(returnId, commandId);
     }
 
@@ -449,6 +490,7 @@ public class OrderController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size
     ) {
+        SecurityUtils.requirePermission(PERMISSION_ORDER_VIEW, LEGACY_POS_ROLES);
         return orderService.getOrders(
                 keyword,
                 status,
@@ -467,6 +509,7 @@ public class OrderController {
     public OrderReturnEligibilityStatsResponse getOrderReturnEligibilityStats(
             @RequestParam(required = false) String keyword
     ) {
+        SecurityUtils.requirePermission(PERMISSION_ORDER_VIEW, LEGACY_POS_ROLES);
         return orderService.getOrderReturnEligibilityStats(keyword);
     }
 
@@ -478,11 +521,13 @@ public class OrderController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size
     ) {
+        SecurityUtils.requirePermission(PERMISSION_ORDER_VIEW, LEGACY_POS_ROLES);
         return orderService.getTodaySales(status, paymentStatus, paymentMethod, page, size);
     }
 
     @GetMapping("/today-sales/summary")
     public TodaySalesSummaryResponse getTodaySalesSummary() {
+        SecurityUtils.requirePermission(PERMISSION_ORDER_VIEW, LEGACY_POS_ROLES);
         return orderService.getTodaySalesSummary();
     }
 
@@ -491,6 +536,7 @@ public class OrderController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fromDate,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate toDate
     ) {
+        SecurityUtils.requirePermission(PERMISSION_REPORT_VIEW, MANAGER_ONLY_ROLES);
         return orderService.getOrderStats(fromDate, toDate);
     }
 
@@ -500,6 +546,7 @@ public class OrderController {
             @PathVariable UUID orderId,
             @Valid @RequestBody UpdateOrderStatusRequest request
     ) {
+        SecurityUtils.requirePermission(PERMISSION_ORDER_CANCEL, MANAGER_ONLY_ROLES);
         return orderService.updateOrderStatus(orderId, request);
     }
 
@@ -509,6 +556,7 @@ public class OrderController {
             @PathVariable UUID orderId,
             @Valid @RequestBody CancelOrderRequest request
     ) {
+        SecurityUtils.requirePermission(PERMISSION_ORDER_CANCEL, MANAGER_ONLY_ROLES);
         return orderService.cancelOrder(orderId, request);
     }
 

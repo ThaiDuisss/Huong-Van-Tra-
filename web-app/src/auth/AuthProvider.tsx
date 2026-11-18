@@ -17,6 +17,8 @@ const TOKEN_REFRESH_INTERVAL_MS = 60 * 1000;
 
 type UserCacheEntry = {
     cachedAt: number;
+    /** JWT sub của phiên đã tải user này; khác phiên hiện tại thì cache không dùng được. */
+    subject?: string;
     user: CurrentUser;
 };
 
@@ -28,7 +30,11 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function isFreshCache(entry: UserCacheEntry) {
-    return Date.now() - entry.cachedAt < USER_CACHE_TTL_MS;
+    // Cache gắn với đúng tài khoản đang đăng nhập: đăng xuất bằng redirect không kịp xoá cache,
+    // nên tài khoản đăng nhập sau không được dùng vai trò của tài khoản trước.
+    return Date.now() - entry.cachedAt < USER_CACHE_TTL_MS
+        && Boolean(entry.subject)
+        && entry.subject === keycloak.subject;
 }
 
 function sanitizeUserForCache(user: CurrentUser): CurrentUser {
@@ -74,6 +80,7 @@ function readStoredUserCache() {
 
         const entry: UserCacheEntry = {
             cachedAt,
+            subject: typeof parsedValue.subject === "string" ? parsedValue.subject : undefined,
             user: parsedValue.user as CurrentUser
         };
 
@@ -101,6 +108,7 @@ function readUserCache() {
 function writeUserCache(user: CurrentUser) {
     const entry: UserCacheEntry = {
         cachedAt: Date.now(),
+        subject: keycloak.subject,
         user: sanitizeUserForCache(user)
     };
 
@@ -365,6 +373,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             },
 
             async logout() {
+                // keycloak.logout() chuyển trang ngay, onAuthLogout không chạy: tự xoá cache user.
+                clearUserCache();
                 await keycloak.logout({
                     redirectUri: `${window.location.origin}/login`,
                 });

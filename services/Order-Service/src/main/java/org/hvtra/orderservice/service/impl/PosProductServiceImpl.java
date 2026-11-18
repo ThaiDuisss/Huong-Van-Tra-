@@ -14,6 +14,8 @@ import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.util.Collections;
+import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -23,6 +25,9 @@ import java.util.stream.Collectors;
 @Slf4j
 @Service
 public class PosProductServiceImpl implements PosProductService {
+
+    /** Số biến thể tối đa được xếp theo tồn trong một lần tìm; vượt quá thì dùng phân trang gốc của Catalog. */
+    static final int STOCK_RANKING_CANDIDATE_LIMIT = 500;
 
     private final CatalogClient catalogClient;
     private final InventoryClient inventoryClient;
@@ -38,7 +43,7 @@ public class PosProductServiceImpl implements PosProductService {
         String sku = request != null ? request.sku() : null;
         String productName = request != null ? request.productName() : null;
         UUID productId = request != null ? request.productId() : null;
-        int page = request != null ? request.page() : 0;
+        int page = request != null ? Math.max(request.page(), 0) : 0;
         int size = (request != null && request.size() > 0) ? request.size() : 20;
 
         log.debug("POS searching variants with keyword: {}, sku: {}, productName: {}, page: {}, size: {}",
@@ -46,7 +51,9 @@ public class PosProductServiceImpl implements PosProductService {
 
         String searchKeyword = (keyword != null && !keyword.isBlank()) ? keyword : productName;
 
-        PageResponse<CatalogVariantResponse> pageResponse = catalogClient.findAll(
+        // Tồn kho nằm ở Inventory-Service (DB riêng) nên không thể ORDER BY tồn ngay trong truy vấn Catalog.
+        // Lấy toàn bộ biến thể khớp từ khóa, ghép tồn, xếp hàng còn tồn lên đầu rồi mới cắt trang.
+        PageResponse<CatalogVariantResponse> candidates = catalogClient.findAll(
                 searchKeyword,
                 sku,
                 null,
@@ -54,32 +61,65 @@ public class PosProductServiceImpl implements PosProductService {
                 productId,
                 null,
                 "ACTIVE",
-                page,
-                size
+                0,
+                STOCK_RANKING_CANDIDATE_LIMIT
         );
 
+        if (candidates == null || candidates.content() == null || candidates.content().isEmpty()) {
+            return emptyPage(page, size);
+        }
+
+        if (candidates.totalElements() > candidates.content().size()) {
+            // Quá nhiều kết quả để xếp theo tồn trong một lần: giữ phân trang gốc của Catalog để không làm mất sản phẩm.
+            log.info("POS search matched {} variants (> {}), falling back to catalog paging without stock ranking",
+                    candidates.totalElements(), STOCK_RANKING_CANDIDATE_LIMIT);
+            return searchCatalogPage(searchKeyword, sku, productId, page, size);
+        }
+
+        List<CatalogVariantResponse> variants = distinctById(candidates.content());
+        Map<UUID, StockVariantBatchResponse> stockMap = loadStockMap(variants.stream()
+                .map(CatalogVariantResponse::id)
+                .toList());
+
+        List<PosProductVariantResponse> ranked = variants.stream()
+                .map(v -> toPosProductVariantResponse(v, stockMap.get(v.id())))
+                .sorted(Comparator.comparingInt(PosProductServiceImpl::stockRank))
+                .toList();
+
+        int total = ranked.size();
+        int totalPages = (total + size - 1) / size;
+        int from = Math.min((int) Math.min((long) page * size, Integer.MAX_VALUE), total);
+        int to = Math.min(from + size, total);
+
+        return new PageResponse<>(
+                ranked.subList(from, to),
+                page,
+                size,
+                total,
+                totalPages,
+                page == 0,
+                page >= totalPages - 1
+        );
+    }
+
+    private PageResponse<PosProductVariantResponse> searchCatalogPage(
+            String searchKeyword, String sku, UUID productId, int page, int size) {
+        PageResponse<CatalogVariantResponse> pageResponse = catalogClient.findAll(
+                searchKeyword, sku, null, null, productId, null, "ACTIVE", page, size);
+
         if (pageResponse == null || pageResponse.content() == null || pageResponse.content().isEmpty()) {
-            return new PageResponse<>(
-                    Collections.emptyList(),
-                    page,
-                    size,
-                    0,
-                    0,
-                    true,
-                    true
-            );
+            return emptyPage(page, size);
         }
 
         List<CatalogVariantResponse> variants = pageResponse.content();
-        List<UUID> variantIds = variants.stream()
+        Map<UUID, StockVariantBatchResponse> stockMap = loadStockMap(variants.stream()
                 .map(CatalogVariantResponse::id)
                 .distinct()
-                .toList();
-
-        Map<UUID, StockVariantBatchResponse> stockMap = loadStockMap(variantIds);
+                .toList());
 
         List<PosProductVariantResponse> posVariants = variants.stream()
                 .map(v -> toPosProductVariantResponse(v, stockMap.get(v.id())))
+                .sorted(Comparator.comparingInt(PosProductServiceImpl::stockRank))
                 .toList();
 
         return new PageResponse<>(
@@ -91,6 +131,33 @@ public class PosProductServiceImpl implements PosProductService {
                 pageResponse.first(),
                 pageResponse.last()
         );
+    }
+
+    /** 0 = còn trên kệ, 1 = chỉ còn trong kho, 2 = hết hàng. Sort ổn định nên giữ thứ tự Catalog trong cùng nhóm. */
+    private static int stockRank(PosProductVariantResponse variant) {
+        if (isPositive(variant.shelfQuantity())) {
+            return 0;
+        }
+        if (isPositive(variant.warehouseQuantity()) || isPositive(variant.availableQuantity())) {
+            return 1;
+        }
+        return 2;
+    }
+
+    private static boolean isPositive(BigDecimal value) {
+        return value != null && value.signum() > 0;
+    }
+
+    private static List<CatalogVariantResponse> distinctById(List<CatalogVariantResponse> variants) {
+        Map<UUID, CatalogVariantResponse> byId = new LinkedHashMap<>();
+        for (CatalogVariantResponse variant : variants) {
+            byId.putIfAbsent(variant.id(), variant);
+        }
+        return List.copyOf(byId.values());
+    }
+
+    private static PageResponse<PosProductVariantResponse> emptyPage(int page, int size) {
+        return new PageResponse<>(Collections.emptyList(), page, size, 0, 0, true, true);
     }
 
     @Override

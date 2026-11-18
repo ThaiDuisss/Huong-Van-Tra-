@@ -1,12 +1,10 @@
 import { CartList } from "../cart/CartList";
 import { CartNote } from "../cart/CartNote";
-import { OrderTypeSelector } from "../cart/OrderTypeSelector";
 import { ProductSearchBar } from "../product/ProductSearchBar";
 import { formatCurrency } from "../../services/money";
 import type {
     SaleCartItem,
     SaleManualDiscount,
-    SaleOrderType,
     SaleProductPreview
 } from "../../types/sale.types";
 import styles from "../../pages/PosSalePage.module.css";
@@ -24,7 +22,6 @@ interface SaleWorkspaceProps {
     addingProductId: string | null;
     cartItems: SaleCartItem[];
     note: string;
-    orderType: SaleOrderType;
     onSearchChange(value: string): void;
     onSearchClear(): void;
     onProductAdd(product: SaleProductPreview): void;
@@ -42,7 +39,6 @@ interface SaleWorkspaceProps {
     onInvoiceNew(): void;
     onInvoiceClose(id: string): void;
     onNoteChange(value: string): void;
-    onOrderTypeChange(value: SaleOrderType): void;
 }
 
 export function SaleWorkspace({
@@ -57,7 +53,6 @@ export function SaleWorkspace({
     addingProductId,
     cartItems,
     note,
-    orderType,
     onSearchChange,
     onSearchClear,
     onProductAdd,
@@ -74,8 +69,7 @@ export function SaleWorkspace({
     onInvoiceSelect,
     onInvoiceNew,
     onInvoiceClose,
-    onNoteChange,
-    onOrderTypeChange
+    onNoteChange
 }: SaleWorkspaceProps) {
     return (
         <section className={styles.saleWorkspace}>
@@ -119,11 +113,6 @@ export function SaleWorkspace({
             />
 
             <CartNote value={note} onChange={onNoteChange} />
-
-            <OrderTypeSelector
-                value={orderType}
-                onChange={onOrderTypeChange}
-            />
         </section>
     );
 }

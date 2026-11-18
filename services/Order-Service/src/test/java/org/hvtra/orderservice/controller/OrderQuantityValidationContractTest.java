@@ -1,5 +1,6 @@
 package org.hvtra.orderservice.controller;
 
+import org.hvtra.commonservice.common_core.domain.entity.InternalUserPrincipal;
 import org.hvtra.orderservice.dto.request.AddDraftBundleItemRequest;
 import org.hvtra.orderservice.dto.request.CreateOrderReturnRequest;
 import org.hvtra.orderservice.dto.response.OrderResponse;
@@ -10,6 +11,7 @@ import org.hvtra.orderservice.service.OrderReturnReportService;
 import org.hvtra.orderservice.service.OrderReturnService;
 import org.hvtra.orderservice.service.OrderService;
 import org.hvtra.orderservice.service.PosOfflineCheckoutService;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -19,11 +21,18 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.MediaType;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.validation.beanvalidation.LocalValidatorFactoryBean;
 
 import java.math.BigDecimal;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -50,6 +59,20 @@ class OrderQuantityValidationContractTest {
         validator.afterPropertiesSet();
         mvc = MockMvcBuilders.standaloneSetup(new OrderController(orders, offline, exports, returns, reports),
                 new OrderCustomBundleController(bundles)).setValidator(validator).build();
+
+        InternalUserPrincipal principal = new InternalUserPrincipal(
+                UUID.randomUUID().toString(), "tester", "test", Set.of("SALE_STAFF"), "test-request",
+                Set.of("order:return", "order:create"));
+        List<GrantedAuthority> authorities = new ArrayList<>();
+        principal.roles().forEach(role -> authorities.add(new SimpleGrantedAuthority("ROLE_" + role)));
+        principal.permissions().forEach(permission -> authorities.add(new SimpleGrantedAuthority(permission)));
+        SecurityContextHolder.getContext().setAuthentication(
+                new UsernamePasswordAuthenticationToken(principal, null, authorities));
+    }
+
+    @AfterEach
+    void clearAuthentication() {
+        SecurityContextHolder.clearContext();
     }
 
     @ParameterizedTest

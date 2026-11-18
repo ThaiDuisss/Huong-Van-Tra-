@@ -10,7 +10,6 @@ import { PaymentMethodGrid } from "./PaymentMethodGrid";
 import { QuickCashButtons } from "./QuickCashButtons";
 import { ReturnMoneyAction } from "./ReturnMoneyAction";
 import { BankTransferDialog } from "../dialogs/BankTransferDialog";
-import { CombinedPaymentDialog } from "../dialogs/CombinedPaymentDialog";
 import type { PaymentStatusValue } from "../dialogs/PaymentStatus";
 import type { PosCheckoutPaymentResult } from "../../services/posCheckout.service";
 import type {
@@ -23,10 +22,7 @@ import type {
 } from "../../types/sale.types";
 
 /** Các phương thức cần máy chủ xác nhận giao dịch, không dùng được khi offline. */
-const OFFLINE_DISABLED_METHODS: readonly SalePaymentMethod[] = [
-    "BANK_TRANSFER",
-    "COMBINED"
-];
+const OFFLINE_DISABLED_METHODS: readonly SalePaymentMethod[] = ["BANK_TRANSFER"];
 
 interface CheckoutPanelProps {
     discounts: SaleDiscountOption[];
@@ -44,6 +40,7 @@ interface CheckoutPanelProps {
     checkoutLoading: boolean;
     checkoutError: string;
     checkoutSuccess: string;
+    checkoutWarning?: string;
     customers: SaleCustomer[];
     customersLoading: boolean;
     customersError: string;
@@ -94,6 +91,7 @@ export function CheckoutPanel({
     checkoutLoading,
     checkoutError,
     checkoutSuccess,
+    checkoutWarning = "",
     customers,
     customersLoading,
     customersError,
@@ -121,9 +119,7 @@ export function CheckoutPanel({
     onCompletePayment
 }: CheckoutPanelProps) {
     const [bankTransferOpen, setBankTransferOpen] = useState(false);
-    const [combinedPaymentOpen, setCombinedPaymentOpen] = useState(false);
     const isBankTransfer = paymentMethod === "BANK_TRANSFER";
-    const isCombinedPayment = paymentMethod === "COMBINED";
     const cashDue = amountDue ?? totals.total;
     const canCompletePayment =
         totals.total > 0 &&
@@ -226,10 +222,6 @@ export function CheckoutPanel({
                             onBankTransferStart();
                         }
                     }
-
-                    if (value === "COMBINED") {
-                        setCombinedPaymentOpen(true);
-                    }
                 }}
             />
 
@@ -250,6 +242,15 @@ export function CheckoutPanel({
                 </p>
             ) : null}
 
+            {checkoutWarning ? (
+                <p
+                    role="alert"
+                    className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-800"
+                >
+                    {checkoutWarning}
+                </p>
+            ) : null}
+
             {isBankTransfer && bankTransferOpen ? (
                 <BankTransferDialog
                     amount={totals.total}
@@ -262,16 +263,6 @@ export function CheckoutPanel({
                     onClose={() => setBankTransferOpen(false)}
                     onCancel={onBankTransferCancel}
                     onRefreshStatus={onBankTransferRefresh}
-                />
-            ) : null}
-
-            {isCombinedPayment && combinedPaymentOpen ? (
-                <CombinedPaymentDialog
-                    subtotal={totals.subtotal}
-                    discountAmount={totals.discountAmount}
-                    total={totals.total}
-                    onClose={() => setCombinedPaymentOpen(false)}
-                    onConfirm={() => setCombinedPaymentOpen(false)}
                 />
             ) : null}
 

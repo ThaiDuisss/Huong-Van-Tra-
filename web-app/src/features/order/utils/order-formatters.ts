@@ -9,7 +9,8 @@ const ORDER_STATUS_LABELS: Record<string, string> = {
     DRAFT: "Nháp",
     PENDING: "Chờ duyệt",
     PENDING_PAYMENT: "Chờ thanh toán",
-    PAYMENT_CONFIRMED: "Chờ duyệt",
+    // Đã thu tiền nhưng chưa hoàn tất: chờ trừ tồn kho, chờ hàng (đơn cọc/chờ hàng) hoặc chờ kho đóng gói bundle.
+    PAYMENT_CONFIRMED: "Chờ xử lý kho",
     PROCESSING: "Đang xử lý",
     SHIPPING: "Đang giao hàng",
     COMPLETED: "Đã hoàn thành",

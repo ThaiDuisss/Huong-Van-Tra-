@@ -44,6 +44,11 @@ interface PosCheckoutResult {
     backorder: boolean;
     expectedAvailableAt: string | null;
     debtAmount: number;
+    /**
+     * Đã thu tiền nhưng Inventory chưa trừ được tồn: đơn nằm ở "Chờ xử lý kho" và máy chủ tự thử lại.
+     * null khi trừ kho thành công.
+     */
+    inventoryIssue: { reason: string | null } | null;
 }
 
 /** Số tiền phải thu ở lần thanh toán này: tiền cọc nếu đơn chờ hàng đặt cọc, ngược lại là tổng tiền. */
@@ -291,8 +296,31 @@ export async function completePosCheckout(
         payment: toPaymentResult(order.payment),
         backorder: Boolean(order.backorder),
         expectedAvailableAt: order.expectedAvailableAt ?? null,
-        debtAmount: Number(order.debtAmount ?? 0)
+        debtAmount: Number(order.debtAmount ?? 0),
+        inventoryIssue:
+            order.inventoryProcessingStatus === "FAILED"
+                ? { reason: order.inventoryFailureReason?.trim() || null }
+                : null
     };
+}
+
+/** Cảnh báo cho thu ngân khi đơn đã thu tiền nhưng chưa trừ được tồn kho. */
+export function getInventoryIssueWarning(
+    orderCode: string | undefined,
+    issue: { reason: string | null } | null
+) {
+    if (!issue) {
+        return "";
+    }
+
+    const order = orderCode ? `Đơn ${orderCode}` : "Đơn";
+    const reason = issue.reason ? `: ${issue.reason}` : "";
+
+    return (
+        `${order} đã thu tiền nhưng chưa trừ được tồn kho${reason}. ` +
+        `Đơn đang ở trạng thái "Chờ xử lý kho", hệ thống sẽ tự thử lại; ` +
+        "kiểm tra lại hàng trên kệ/trong kho nếu đơn vẫn chưa hoàn tất."
+    );
 }
 
 export interface LocalPosSaleInput {

@@ -8,6 +8,7 @@ import type { SaleCartItem, SaleDiscountOption, SaleTotals } from "../types/sale
 import {
     buildLocalPosSale,
     completePosCheckout,
+    getInventoryIssueWarning,
     getLocalPosSaleValidationMessage,
     getPosAmountDue,
     getPosCheckoutValidationMessage
@@ -180,8 +181,47 @@ describe("completePosCheckout", () => {
             payment: expect.objectContaining({ status: "PAID", transferContent: "HVTRA1" }),
             backorder: false,
             expectedAvailableAt: null,
-            debtAmount: 0
+            debtAmount: 0,
+            inventoryIssue: null
         });
+    });
+
+    it("flags a paid order whose stock could not be deducted", async () => {
+        vi.mocked(posOrderApi.checkout).mockResolvedValue({
+            orderCode: "POS-00014",
+            payment: null,
+            status: "PAYMENT_CONFIRMED",
+            paymentStatus: "PAID",
+            inventoryProcessingStatus: "FAILED",
+            inventoryFailureReason: " Không đủ hàng cho Trà xanh: cần 2, trên kệ 0, trong kho 1 "
+        } as never);
+
+        const result = await completePosCheckout(checkoutInput());
+
+        expect(result.inventoryIssue).toEqual({
+            reason: "Không đủ hàng cho Trà xanh: cần 2, trên kệ 0, trong kho 1"
+        });
+        expect(getInventoryIssueWarning(result.orderCode, result.inventoryIssue)).toBe(
+            "Đơn POS-00014 đã thu tiền nhưng chưa trừ được tồn kho: Không đủ hàng cho Trà xanh: cần 2, trên kệ 0, trong kho 1. "
+                + "Đơn đang ở trạng thái \"Chờ xử lý kho\", hệ thống sẽ tự thử lại; "
+                + "kiểm tra lại hàng trên kệ/trong kho nếu đơn vẫn chưa hoàn tất."
+        );
+    });
+
+    it("keeps no warning when stock was consumed or the reason is missing", async () => {
+        vi.mocked(posOrderApi.checkout).mockResolvedValue({
+            orderCode: "POS-00015",
+            payment: null,
+            inventoryProcessingStatus: "CONSUMED"
+        } as never);
+
+        const result = await completePosCheckout(checkoutInput());
+
+        expect(result.inventoryIssue).toBeNull();
+        expect(getInventoryIssueWarning(result.orderCode, result.inventoryIssue)).toBe("");
+        expect(getInventoryIssueWarning(undefined, { reason: null })).toMatch(
+            /^Đơn đã thu tiền nhưng chưa trừ được tồn kho\. /
+        );
     });
 
     it("sends a deposit for a cash backorder and drops a non-UUID customer id", async () => {

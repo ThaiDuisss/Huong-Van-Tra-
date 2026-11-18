@@ -52,6 +52,7 @@ import {
     getLocalPosSaleValidationMessage,
     getPosAmountDue,
     completePosCheckout,
+    getInventoryIssueWarning,
     type PosCheckoutPaymentResult
 } from "../services/posCheckout.service";
 import { posOrderApi, type PosOrderDto } from "../services/posOrder.api";
@@ -517,8 +518,8 @@ export function PosSalePage() {
         replenishedMissingRef.current = {};
     }, [draftOrder?.id]);
     const [note, setNote] = useState(persistedSale?.note ?? "");
-    const [orderType, setOrderType] =
-        useState<SaleOrderType>(persistedSale?.orderType ?? "QUICK_SALE");
+    // POS chỉ còn bán tại quầy: hoá đơn cũ lưu "DELIVERY" cũng nạp lại thành bán nhanh.
+    const [orderType, setOrderType] = useState<SaleOrderType>("QUICK_SALE");
     const [selectedDiscountId, setSelectedDiscountId] =
         useState(persistedSale?.selectedDiscountId ?? "none");
     const [promotionDiscounts, setPromotionDiscounts] = useState<
@@ -558,6 +559,8 @@ export function PosSalePage() {
         });
     const [checkoutLoading, setCheckoutLoading] = useState(false);
     const [checkoutError, setCheckoutError] = useState("");
+    /** Cảnh báo sau thanh toán (vd. đã thu tiền nhưng chưa trừ được tồn kho). */
+    const [checkoutWarning, setCheckoutWarning] = useState("");
     const [checkoutSuccess, setCheckoutSuccess] = useState(
         persistedSale
             ? `Đã khôi phục đơn đang bán${
@@ -914,6 +917,7 @@ export function PosSalePage() {
 
         setCheckoutError("");
         setCheckoutSuccess("");
+        setCheckoutWarning("");
         setBankTransferEventMessage("");
         setBankTransferStatus("WAITING");
         setBankTransferPayment(null);
@@ -983,6 +987,7 @@ export function PosSalePage() {
         setCheckoutLoading(true);
         setCheckoutError("");
         setCheckoutSuccess("");
+        setCheckoutWarning("");
 
         const record = buildLocalPosSale({
             cartItems,
@@ -1061,6 +1066,7 @@ export function PosSalePage() {
         setCheckoutLoading(true);
         setCheckoutError("");
         setCheckoutSuccess("");
+        setCheckoutWarning("");
 
         let couponUsage: CouponUsageResponse | null = null;
 
@@ -1102,6 +1108,9 @@ export function PosSalePage() {
                 return;
             }
 
+            setCheckoutWarning(
+                getInventoryIssueWarning(checkout.orderCode, checkout.inventoryIssue)
+            );
             setCheckoutSuccess(
                 (checkout.orderCode
                     ? `Thanh toán thành công đơn ${checkout.orderCode}.`
@@ -1159,6 +1168,7 @@ export function PosSalePage() {
         setBankTransferEventMessage(message);
         setCheckoutError(message);
         setCheckoutSuccess("");
+        setCheckoutWarning("");
 
         if (order) {
             setDraftOrder(order);
@@ -1595,6 +1605,7 @@ export function PosSalePage() {
             applyDraftOrder(order);
             setCheckoutError("");
             setCheckoutSuccess("");
+            setCheckoutWarning("");
             void refreshBackorderEstimate(order);
         } catch (error) {
             logApiError(error);
@@ -1631,6 +1642,7 @@ export function PosSalePage() {
         setBankTransferEventMessage("");
         setCheckoutError("");
         setCheckoutSuccess("");
+        setCheckoutWarning("");
     }
 
     /**
@@ -1794,6 +1806,7 @@ export function PosSalePage() {
                 applyDraftOrder(order);
                 setCheckoutError("");
                 setCheckoutSuccess("");
+                setCheckoutWarning("");
                 stockByVariantIdRef.current[variantId] = product;
 
                 if (waitAccepted) {
@@ -1916,6 +1929,7 @@ export function PosSalePage() {
             applyDraftOrder(order);
             setCheckoutError("");
             setCheckoutSuccess("");
+            setCheckoutWarning("");
 
             if (waitAccepted && quantity > 0) {
                 backorderVariantIdsRef.current.add(variantId);
@@ -2050,6 +2064,7 @@ export function PosSalePage() {
         setBankTransferEventMessage("");
         setCheckoutError("");
         setCheckoutSuccess("");
+        setCheckoutWarning("");
     }
 
     async function changeProductNote(productId: string, nextNote: string) {
@@ -2082,6 +2097,7 @@ export function PosSalePage() {
             applyDraftOrder(orderAfterAdd);
             setCheckoutError("");
             setCheckoutSuccess("");
+            setCheckoutWarning("");
         } catch (error) {
             logApiError(error);
             setCheckoutError(
@@ -2146,8 +2162,10 @@ export function PosSalePage() {
         setDraftOrder(sale?.draftOrder ?? null);
         setCartItemsById(sale?.cartItemsById ?? {});
         setNote(sale?.note ?? "");
-        setOrderType(sale?.orderType ?? "QUICK_SALE");
-        setPaymentMethod(sale?.paymentMethod ?? "CASH");
+        setOrderType("QUICK_SALE");
+        setPaymentMethod(
+            !sale?.paymentMethod || sale.paymentMethod === "COMBINED" ? "CASH" : sale.paymentMethod
+        );
         setCashReceived(sale?.cashReceived ?? 0);
         setSelectedDiscountId(sale?.selectedDiscountId ?? "none");
         setManualOrderDiscount(sale?.manualOrderDiscount ?? null);
@@ -2165,6 +2183,7 @@ export function PosSalePage() {
         setShelfShortage(null);
         setCheckoutError("");
         setCheckoutSuccess("");
+        setCheckoutWarning("");
         patchCurrentDeliveryState(initialDeliveryState);
     }
 
@@ -2340,6 +2359,7 @@ export function PosSalePage() {
     async function closeCurrentInvoice(): Promise<boolean> {
         setCheckoutError("");
         setCheckoutSuccess("");
+        setCheckoutWarning("");
 
         try {
             await releaseCouponUsage(reservedCouponUsage, "cancel");
@@ -2915,6 +2935,7 @@ export function PosSalePage() {
                 setBankTransferEventMessage(matchedNotification.message);
                 setCheckoutError(matchedNotification.message);
                 setCheckoutSuccess("");
+                setCheckoutWarning("");
                 return;
             }
 
@@ -3032,6 +3053,7 @@ export function PosSalePage() {
                         checkoutLoading={checkoutLoading}
                         checkoutError={checkoutError}
                         checkoutSuccess={checkoutSuccess}
+                        checkoutWarning={checkoutWarning}
                         customers={customers}
                         customersLoading={customersLoading}
                         customersError={customersError}
@@ -3091,7 +3113,6 @@ export function PosSalePage() {
                 addingProductId={addingProductId}
                 cartItems={cartItems}
                 note={note}
-                orderType={orderType}
                 onSearchChange={changeSearchQuery}
                 onSearchClear={clearSearch}
                 onProductAdd={addProductFromSearch}
@@ -3123,12 +3144,6 @@ export function PosSalePage() {
                     void closeInvoice(id);
                 }}
                 onNoteChange={setNote}
-                onOrderTypeChange={(value) => {
-                    if (workspaceMutation.current.isLocked()) return;
-                    recommendationVersion.current += 1;
-                    setRecommendationGeneration(generation => generation + 1);
-                    setOrderType(value);
-                }}
             />
             {shelfShortage ? (
                 <ShelfShortageDialog

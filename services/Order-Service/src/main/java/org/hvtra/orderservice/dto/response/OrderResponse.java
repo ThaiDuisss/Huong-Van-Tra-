@@ -29,6 +29,8 @@ public class OrderResponse {
     private OrderStatus status;
     private PaymentStatus paymentStatus;
     private OrderInventoryProcessingStatus inventoryProcessingStatus;
+    /** Lý do chưa trừ được tồn kho khi inventoryProcessingStatus = FAILED (đơn đã thu tiền, chờ xử lý kho). */
+    private String inventoryFailureReason;
     private OrderReturnStatus returnStatus;
     private String paymentMethod;
     private String paymentMethodLabel;

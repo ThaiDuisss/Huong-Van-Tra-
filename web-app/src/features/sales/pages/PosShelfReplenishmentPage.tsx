@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
-import { ChevronDown, ChevronRight, ExternalLink, PackageOpen, Search, X } from "lucide-react";
+import { ChevronDown, ChevronRight, ExternalLink, PackageOpen, Search } from "lucide-react";
 
-import { Button, IconButton } from "../../../components/ui/Button";
 import { buttonClassName } from "../../../components/ui/button-styles";
 import { routePaths } from "../../../routes/path";
 import { ShelfReplenishmentStatusBadge } from "../../inventory/components/ShelfReplenishmentStatusBadge";
@@ -19,10 +18,6 @@ import {
     type ShelfReplenishmentStatusFilter
 } from "../../inventory/utils/shelfReplenishment.utils";
 import { ActionLogPagination } from "../../action-log/components/ActionLogPagination";
-import { useProductSearch } from "../hooks/useProductSearch";
-import type { SaleProductPreview } from "../types/sale.types";
-
-const currentBranchId = import.meta.env.VITE_POS_BRANCH_ID ?? null;
 
 const SEARCH_DEBOUNCE_MS = 350;
 
@@ -30,7 +25,7 @@ function errorMessage(error: unknown) {
     return error instanceof Error ? error.message : "Đã có lỗi xảy ra";
 }
 
-/** Màn POS: tự đưa hàng từ kho lên kệ và xem các phiếu nhập kệ gần đây. */
+/** Màn POS: xem các phiếu nhập kệ gần đây. */
 export function PosShelfReplenishmentPage() {
     const [filter, setFilter] = useState<ShelfReplenishmentStatusFilter>("ALL");
     const [keywordInput, setKeywordInput] = useState("");
@@ -43,8 +38,6 @@ export function PosShelfReplenishmentPage() {
     const [listError, setListError] = useState("");
     const [expandedId, setExpandedId] = useState<string | null>(null);
     const [detailById, setDetailById] = useState<Record<string, ShelfReplenishment>>({});
-    /** Tăng lên để tải lại danh sách (vd. sau khi vừa đưa hàng lên kệ). */
-    const [reloadKey, setReloadKey] = useState(0);
 
     useEffect(() => {
         const timer = window.setTimeout(() => {
@@ -86,7 +79,7 @@ export function PosShelfReplenishmentPage() {
         return () => {
             cancelled = true;
         };
-    }, [filter, keyword, page, pageSize, reloadKey]);
+    }, [filter, keyword, page, pageSize]);
 
     async function toggleSlip(id: string) {
         if (expandedId === id) {
@@ -115,7 +108,7 @@ export function PosShelfReplenishmentPage() {
                         Phiếu nhập kệ
                     </h1>
                     <p className="text-sm font-semibold text-[#697684]">
-                        Đưa hàng từ kho lên kệ bán ngay; quản lý duyệt lại phiếu sau.
+                        Theo dõi các phiếu nhập kệ; quản lý duyệt lại phiếu sau.
                     </p>
                 </div>
                 <a
@@ -129,15 +122,7 @@ export function PosShelfReplenishmentPage() {
                 </a>
             </header>
 
-            <div className="grid min-h-0 grid-cols-[380px_minmax(0,1fr)] gap-4 overflow-hidden">
-                <ManualIssueForm
-                    branchId={currentBranchId}
-                    onIssued={(slip) => {
-                        setDetailById((current) => ({ ...current, [slip.id]: slip }));
-                        setReloadKey((key) => key + 1);
-                    }}
-                />
-
+            <div className="grid min-h-0 overflow-hidden">
                 <div className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)_auto] gap-3 overflow-hidden">
                     <div className="grid gap-2">
                         <div className="grid gap-3 rounded-xl border border-[#e8eef0] bg-white px-4 py-3 shadow-pos-card">
@@ -291,188 +276,6 @@ export function PosShelfReplenishmentPage() {
                     ) : null}
                 </div>
             </div>
-        </section>
-    );
-}
-
-/** Thu ngân tự chọn mặt hàng và số lượng để đưa từ kho lên kệ ngay; quản lý duyệt lại sau. */
-function ManualIssueForm({
-    branchId,
-    onIssued
-}: {
-    branchId: string | null;
-    onIssued(slip: ShelfReplenishment): void;
-}) {
-    const [keyword, setKeyword] = useState("");
-    const [selected, setSelected] = useState<SaleProductPreview | null>(null);
-    const [draft, setDraft] = useState("");
-    const [submitting, setSubmitting] = useState(false);
-    const [message, setMessage] = useState<{ tone: "ok" | "error"; text: string } | null>(null);
-    // Dùng chung cách tìm với ô tìm hàng của màn bán hàng (debounce + cache theo từ khoá).
-    const search = useProductSearch(keyword, selected === null);
-    const searching = keyword.trim().length > 0 && selected === null;
-
-    const quantity = Number(draft);
-    const overWarehouse = selected !== null && quantity > selected.warehouseQuantity;
-    const canIssue =
-        selected !== null && Number.isInteger(quantity) && quantity > 0 && !overWarehouse && !submitting;
-
-    async function issue() {
-        if (!selected || !canIssue) {
-            return;
-        }
-
-        const variantId = selected.productVariantId ?? selected.id;
-        setSubmitting(true);
-        setMessage(null);
-
-        try {
-            const slip = await shelfReplenishmentApi.create({
-                shelfId: selected.shelfLocationId ?? null,
-                warehouseId: selected.warehouseLocationId ?? null,
-                branchId,
-                note: `POS: đưa ${selected.name} lên kệ`,
-                submit: false,
-                issueNow: true,
-                lines: [{ productVariantId: variantId, quantity }]
-            });
-            setMessage({
-                tone: "ok",
-                text: `${slip.documentCode}: đã đưa ${quantity} ${selected.name} lên kệ, chờ Quản lý duyệt lại.`
-            });
-            setSelected(null);
-            setKeyword("");
-            setDraft("");
-            onIssued(slip);
-        } catch (error) {
-            setMessage({ tone: "error", text: `Không đưa được hàng lên kệ: ${errorMessage(error)}` });
-        } finally {
-            setSubmitting(false);
-        }
-    }
-
-    return (
-        <section className="grid content-start gap-3 self-start rounded-xl border border-[#e8eef0] bg-white p-4 shadow-pos-card">
-            <div className="grid gap-0.5">
-                <h2 className="text-base font-black text-[#172317]">Đưa hàng từ kho lên kệ</h2>
-                <p className="text-xs font-semibold text-[#697684]">
-                    Tìm mặt hàng, nhập số lượng muốn đưa lên (có thể cả thùng). Hàng lên kệ ngay.
-                </p>
-            </div>
-            {selected ? (
-                <div className="grid gap-2">
-                    <div className="flex items-center justify-between gap-3 rounded-lg border border-[#b9dfc8] bg-[#eaf7ec] px-3 py-2">
-                        <span className="grid">
-                            <strong className="text-sm font-black text-[#172317]">
-                                {selected.name}
-                                {selected.variant ? ` · ${selected.variant}` : ""}
-                            </strong>
-                            <small className="text-xs font-semibold text-[#536078]">
-                                Trên kệ {selected.shelfQuantity} · Trong kho {selected.warehouseQuantity}
-                            </small>
-                        </span>
-                        <IconButton aria-label="Chọn mặt hàng khác" onClick={() => setSelected(null)}>
-                            <X aria-hidden="true" size={16} />
-                        </IconButton>
-                    </div>
-                    <div className="flex gap-2">
-                        <input
-                            autoFocus
-                            aria-label="Số lượng đưa lên kệ"
-                            className="h-10 min-w-0 flex-1 rounded-lg border border-[#dce5e1] px-3 text-sm font-black tabular-nums outline-none focus:border-[#159734]"
-                            inputMode="numeric"
-                            onChange={(event) => setDraft(event.currentTarget.value.replace(/\D/g, ""))}
-                            onKeyDown={(event) => {
-                                if (event.key === "Enter") {
-                                    void issue();
-                                }
-                            }}
-                            placeholder="Số lượng"
-                            value={draft}
-                        />
-                        <Button
-                            disabled={!canIssue}
-                            onClick={() => {
-                                void issue();
-                            }}
-                            variant="primary"
-                        >
-                            {submitting ? "Đang chuyển..." : "Đưa lên kệ ngay"}
-                        </Button>
-                    </div>
-                    {overWarehouse ? (
-                        <p className="text-xs font-semibold text-amber-700">
-                            Kho chỉ còn {selected.warehouseQuantity}.
-                        </p>
-                    ) : null}
-                </div>
-            ) : (
-                <div className="relative">
-                    <Search
-                        aria-hidden="true"
-                        className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#697684]"
-                        size={16}
-                    />
-                    <input
-                        aria-label="Tìm mặt hàng cần đưa lên kệ"
-                        className="h-10 w-full rounded-lg border border-[#dce5e1] pl-9 pr-3 text-sm font-semibold outline-none focus:border-[#159734]"
-                        onChange={(event) => setKeyword(event.currentTarget.value)}
-                        placeholder="Tìm theo tên, SKU hoặc quét mã vạch"
-                        value={keyword}
-                    />
-                    {searching && (search.loading || search.error || search.products.length === 0) ? (
-                        <p
-                            className={`absolute z-10 mt-1 w-full rounded-lg border bg-white px-3 py-2 text-sm font-semibold shadow-pos-panel ${
-                                search.error ? "border-red-200 text-red-700" : "border-[#e8eef0] text-[#697684]"
-                            }`}
-                            role={search.error ? "alert" : "status"}
-                        >
-                            {search.loading
-                                ? "Đang tìm..."
-                                : search.error
-                                  ? `Không tìm được mặt hàng: ${errorMessage(search.error)}`
-                                  : "Không có mặt hàng nào khớp."}
-                        </p>
-                    ) : null}
-                    {searching && !search.loading && search.products.length > 0 ? (
-                        <ul className="absolute z-10 mt-1 max-h-64 w-full overflow-y-auto rounded-lg border border-[#e8eef0] bg-white shadow-pos-panel">
-                            {search.products.slice(0, 10).map((product) => (
-                                <li key={product.id}>
-                                    <button
-                                        className="grid w-full gap-0.5 px-3 py-2 text-left hover:bg-[#f4faf6]"
-                                        onClick={() => {
-                                            setSelected(product);
-                                            setDraft("");
-                                        }}
-                                        type="button"
-                                    >
-                                        <strong className="text-sm font-black text-[#172317]">
-                                            {product.name}
-                                            {product.variant ? ` · ${product.variant}` : ""}
-                                        </strong>
-                                        <small className="text-xs font-semibold text-[#697684]">
-                                            {product.sku} · Trên kệ {product.shelfQuantity} · Trong kho{" "}
-                                            {product.warehouseQuantity}
-                                        </small>
-                                    </button>
-                                </li>
-                            ))}
-                        </ul>
-                    ) : null}
-                </div>
-            )}
-            {message ? (
-                <p
-                    className={`rounded-lg px-3 py-2 text-sm font-semibold ${
-                        message.tone === "ok"
-                            ? "border border-[#b9dfc8] bg-[#eaf7ec] text-[#07883a]"
-                            : "border border-red-200 bg-red-50 text-red-700"
-                    }`}
-                    role={message.tone === "error" ? "alert" : "status"}
-                >
-                    {message.text}
-                </p>
-            ) : null}
         </section>
     );
 }
