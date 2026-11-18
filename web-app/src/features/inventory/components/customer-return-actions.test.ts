@@ -28,7 +28,7 @@ vi.mock("react-dom", async () => {
 vi.mock("@/auth/useAuthorization", () => ({
     useAuthorization: () => ({
         roles: ["ROLE_QC"],
-        permissions: ["inventory:view", "inventory:receive", "inventory:qc", "inventory:adjust"]
+        permissions: ["inventory:view", "inventory:qc", "inventory:adjust"]
     })
 }));
 

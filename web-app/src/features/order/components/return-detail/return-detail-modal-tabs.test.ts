@@ -131,7 +131,7 @@ describe("ReturnDetailModal tab visibility & receive authorization by role", () 
 
         const qcAccess = getOrderReturnAccess(
             ["QC_STAFF"],
-            [PERMISSIONS.INVENTORY_VIEW, PERMISSIONS.INVENTORY_RECEIVE, PERMISSIONS.INVENTORY_QC, PERMISSIONS.INVENTORY_ADJUST]
+            [PERMISSIONS.INVENTORY_VIEW, PERMISSIONS.INVENTORY_QC, PERMISSIONS.INVENTORY_ADJUST]
         );
         expect(qcAccess.returnDetailOverviewOnly).toBe(false);
         expect(qcAccess.canReceive).toBe(true);
@@ -161,9 +161,9 @@ describe("ReturnDetailModal tab visibility & receive authorization by role", () 
         expect(resolveReturnDetailTab("inspection", false)).toBe("inspection");
     });
 
-    it("renders only Overview content without tab bar or Receive button for SALE_POS, even when initialTab targets a hidden tab", () => {
-        mockAuth.roles = [ROLES.SALE_STAFF];
-        mockAuth.permissions = [PERMISSIONS.ORDER_VIEW, PERMISSIONS.ORDER_RETURN, PERMISSIONS.ORDER_REFUND, PERMISSIONS.INVENTORY_RECEIVE];
+    it.each([ROLES.SALE_STAFF, "SALE_POS"])("hides Receive and other tabs for %s even with inventory:receive", (role) => {
+        mockAuth.roles = [role];
+        mockAuth.permissions = [PERMISSIONS.ORDER_VIEW, PERMISSIONS.ORDER_RETURN, PERMISSIONS.INVENTORY_RECEIVE];
 
         const markup = renderToStaticMarkup(
             createElement(ReturnDetailModal, {
@@ -176,7 +176,6 @@ describe("ReturnDetailModal tab visibility & receive authorization by role", () 
         );
 
         expect(markup).toContain("RET202611180001");
-        expect(markup).toContain("Hủy phiếu");
         expect(markup).not.toContain("Xác nhận nhận hàng");
         expect(markup).not.toContain('role="tablist"');
         expect(markup).not.toContain("Sản phẩm (2)");
@@ -188,8 +187,6 @@ describe("ReturnDetailModal tab visibility & receive authorization by role", () 
         mockAuth.roles = [role];
         mockAuth.permissions = [
             PERMISSIONS.INVENTORY_VIEW,
-            PERMISSIONS.INVENTORY_RECEIVE,
-            PERMISSIONS.INVENTORY_QC,
             PERMISSIONS.INVENTORY_ADJUST
         ];
 
@@ -220,8 +217,8 @@ describe("ReturnDetailModal tab visibility & receive authorization by role", () 
 
     it.each([
         { permissions: undefined },
-        { permissions: [PERMISSIONS.INVENTORY_VIEW] }
-    ])("hides Receive for QC on CREATED without a known receive grant ($permissions)", ({ permissions }) => {
+        { permissions: [] }
+    ])("renders Receive for QC on CREATED when permissions are unavailable or empty ($permissions)", ({ permissions }) => {
         mockAuth.roles = ["QC_STAFF"];
         mockAuth.permissions = permissions;
 
@@ -234,7 +231,24 @@ describe("ReturnDetailModal tab visibility & receive authorization by role", () 
         );
 
         expect(markup).toContain('role="tablist"');
-        expect(markup).not.toContain("Xác nhận nhận hàng");
+        expect(markup).toContain("Xác nhận nhận hàng");
+    });
+
+    it.each([ROLES.MANAGER, ROLES.INVENTORY_STAFF])("keeps %s eligible to receive without inventory:receive", (role) => {
+        expect(getOrderReturnAccess([role], []).canReceive).toBe(true);
+    });
+
+    it("does not let an unrelated role receive even with inventory:receive", () => {
+        expect(getOrderReturnAccess(["AUDITOR"], [PERMISSIONS.INVENTORY_RECEIVE]).canReceive).toBe(false);
+    });
+
+    it("does not grant other return actions to QC with only inventory:view and inventory:adjust", () => {
+        const access = getOrderReturnAccess([ROLES.QC], [PERMISSIONS.INVENTORY_VIEW, PERMISSIONS.INVENTORY_ADJUST]);
+        expect(access.canReadWarehouse).toBe(true);
+        expect(access.canCreate).toBe(false);
+        expect(access.canQc).toBe(false);
+        expect(access.canDisposition).toBe(false);
+        expect(access.canRefund).toBe(false);
     });
 
     it("preserves all 4 tabs and actions for SUPER_ADMIN", () => {

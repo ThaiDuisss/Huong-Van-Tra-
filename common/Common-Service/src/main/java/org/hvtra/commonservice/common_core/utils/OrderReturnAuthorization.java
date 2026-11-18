@@ -4,6 +4,9 @@ import org.hvtra.commonservice.common_core.domain.constants.Role;
 import org.hvtra.commonservice.common_core.domain.entity.InternalUserPrincipal;
 import org.springframework.security.access.AccessDeniedException;
 
+import java.util.Arrays;
+import java.util.Set;
+
 /** Action boundaries shared by Order, Inventory and Payment. Permissions never replace the role boundary. */
 public final class OrderReturnAuthorization {
     private static final Role[] SALES = {Role.SALE_STAFF, Role.MANAGER, Role.SUPER_ADMIN};
@@ -22,7 +25,11 @@ public final class OrderReturnAuthorization {
     }
 
     public static void requireReceive() {
-        requireAction("inventory:receive", WAREHOUSE);
+        Set<String> realmRoles = SecurityUtils.currentUser().roles();
+        if (realmRoles == null || Arrays.stream(WAREHOUSE)
+                .noneMatch(role -> realmRoles.stream().anyMatch(role::matches))) {
+            throw new AccessDeniedException("Vai trò không được thực hiện thao tác trả hàng này");
+        }
     }
 
     public static void requireQc() {
