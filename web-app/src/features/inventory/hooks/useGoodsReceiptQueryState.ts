@@ -6,7 +6,7 @@ import {
     goodsReceiptStatusOptions,
     qcResultOptions
 } from "../constants/goods-receipt.constants";
-import type { GoodsReceiptListQuery } from "../types/goods-receipt.types";
+import type { GoodsReceiptListQuery, GoodsReceiptStatus } from "../types/goods-receipt.types";
 
 function numberParam(value: string | null, fallback: number) {
     const parsed = Number(value);
@@ -36,7 +36,11 @@ export const defaultGoodsReceiptQuery: GoodsReceiptListQuery = {
     supplierId: "ALL"
 };
 
-export function useGoodsReceiptQueryState() {
+/**
+ * @param defaultStatus trạng thái lọc khi URL chưa có `status` (vd. quản lý mặc định xem phiếu chờ duyệt).
+ * Khi khác "ALL", lựa chọn "Tất cả" được ghi rõ `status=ALL` lên URL để không bị quay về mặc định.
+ */
+export function useGoodsReceiptQueryState(defaultStatus: "ALL" | GoodsReceiptStatus = "ALL") {
     const [searchParams, setSearchParams] = useSearchParams();
 
     const query = useMemo<GoodsReceiptListQuery>(
@@ -67,11 +71,11 @@ export function useGoodsReceiptQueryState() {
             status: oneOf(
                 searchParams.get("status"),
                 ["ALL", ...goodsReceiptStatusOptions],
-                "ALL"
+                defaultStatus
             ),
             supplierId: searchParams.get("supplierId") ?? "ALL"
         }),
-        [searchParams]
+        [searchParams, defaultStatus]
     );
 
     function setQuery(patch: Partial<GoodsReceiptListQuery>) {
@@ -82,7 +86,8 @@ export function useGoodsReceiptQueryState() {
             const serialized =
                 key === "page" ? String(Number(value) + 1) : String(value);
 
-            if (serialized && serialized !== "ALL") {
+            const keepAll = key === "status" && defaultStatus !== "ALL";
+            if (serialized && (serialized !== "ALL" || keepAll)) {
                 next.set(key, serialized);
             }
         });

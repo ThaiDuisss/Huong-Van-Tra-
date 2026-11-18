@@ -22,6 +22,7 @@ import org.hvtra.iventoryservice.document.repository.projection.InventoryDocumen
 import org.hvtra.iventoryservice.integration.catalog.client.CatalogClient;
 import org.hvtra.iventoryservice.integration.identity.client.IdentityClient;
 import org.hvtra.commonservice.common_core.utils.SecurityUtils;
+import org.hvtra.iventoryservice.shared.security.DocumentVisibility;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.hvtra.iventoryservice.goodsreceipt.mapper.GoodsReceiptMapper;
 import org.hvtra.iventoryservice.document.repository.InventoryDocumentBatchAllocationRepository;
@@ -95,13 +96,17 @@ public class GoodsReceiptServiceImpl implements GoodsReceiptService {
         String statusParam = status != null ? status.name() : null;
         String queryPattern = toQueryPattern(query);
 
+        DocumentVisibility scope = DocumentVisibility.current();
+
         long totalElements = goodsReceiptRepository.countMatching(
-                statusParam, locationId, supplierId, fromDate, toDate, queryPattern);
+                statusParam, locationId, supplierId, fromDate, toDate, queryPattern,
+                scope.seeAll(), scope.ownScope(), scope.qcScope(), scope.userId());
 
         List<GoodsReceiptListItemRow> rows = totalElements == 0
                 ? List.of()
                 : goodsReceiptRepository.searchListItems(
                         statusParam, locationId, supplierId, fromDate, toDate, queryPattern,
+                        scope.seeAll(), scope.ownScope(), scope.qcScope(), scope.userId(),
                         pageable.getPageSize(), pageable.getOffset());
 
         Map<UUID, String> supplierNameMap = fetchSupplierNames(distinctUuids(
@@ -139,9 +144,11 @@ public class GoodsReceiptServiceImpl implements GoodsReceiptService {
             Instant fromDate,
             Instant toDate
     ) {
+        DocumentVisibility scope = DocumentVisibility.current();
         List<GoodsReceiptExportRow> rows = goodsReceiptRepository.searchExportRows(
                 status != null ? status.name() : null,
                 locationId, supplierId, fromDate, toDate, toQueryPattern(query),
+                scope.seeAll(), scope.ownScope(), scope.qcScope(), scope.userId(),
                 MAX_EXPORT_ROWS);
 
         Map<UUID, String> supplierNameMap = fetchSupplierNames(distinctUuids(
@@ -387,7 +394,9 @@ public class GoodsReceiptServiceImpl implements GoodsReceiptService {
 
     @Override
     public GoodsReceiptSummaryCountResponse getSummaryCounts() {
-        List<Object[]> rows = goodsReceiptRepository.countGroupByStatus();
+        DocumentVisibility scope = DocumentVisibility.current();
+        List<Object[]> rows = goodsReceiptRepository.countGroupByStatus(
+                scope.seeAll(), scope.ownScope(), scope.qcScope(), scope.userId());
 
         Map<InventoryDocumentStatus, Long> statusCounts = new EnumMap<>(InventoryDocumentStatus.class);
         long total = 0;
@@ -880,9 +889,13 @@ public class GoodsReceiptServiceImpl implements GoodsReceiptService {
             if (resolution.excessResolution() == ReceiptExcessResolution.ACCEPT_ORDERED_ONLY) {
                 posted = accepted.min(ordered);
             }
-        } else if (received.compareTo(ordered) < 0) {
+        } else if (received.compareTo(ordered) < 0 || nvl(line.getRejectedQuantity()).compareTo(BigDecimal.ZERO) > 0) {
+            // Giao thiếu, hoặc giao đủ nhưng có hàng hỏng (số đạt QC < số đặt): nhận phần đạt & đóng dòng
+            // hoặc từ chối nhận cả dòng, trả lại NCC
             if (resolution == null || resolution.shortageResolution() == null) {
-                throw ErrorCode.RECEIPT_SHORTAGE_RESOLUTION_REQUIRED.exception(line.getLineNo(), itemName);
+                throw received.compareTo(ordered) < 0
+                        ? ErrorCode.RECEIPT_SHORTAGE_RESOLUTION_REQUIRED.exception(line.getLineNo(), itemName)
+                        : ErrorCode.RECEIPT_DAMAGED_RESOLUTION_REQUIRED.exception(line.getLineNo(), itemName);
             }
             line.setShortageResolution(resolution.shortageResolution());
             if (resolution.shortageResolution() == ReceiptShortageResolution.REJECT_LINE) {

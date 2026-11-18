@@ -142,6 +142,7 @@ class ProductionOrderServiceImplTest {
     @Test
     @DisplayName("findAll - Success returning paged production orders")
     void findAll_Success() {
+        authenticateWith(Role.MANAGER);
         Pageable pageable = PageRequest.of(0, 10);
         Page<ProductionOrder> page = new PageImpl<>(List.of(order), pageable, 1);
         when(productionOrderRepository.findAll(any(Specification.class), eq(pageable))).thenReturn(page);

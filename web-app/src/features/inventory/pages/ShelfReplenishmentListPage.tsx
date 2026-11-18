@@ -2,6 +2,7 @@ import { Eye, Pencil, Plus } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 
+import { useAuthorization } from "../../../auth/useAuthorization";
 import { routePaths } from "../../../routes/path";
 import { ActionButton } from "../../manufacturing/components/shared/ActionButton";
 import {
@@ -41,9 +42,13 @@ const columns: Column[] = [
 
 export function ShelfReplenishmentListPage() {
     const navigate = useNavigate();
+    const { isSuperAdmin, isManager } = useAuthorization();
     const [keywordInput, setKeywordInput] = useState("");
     const [keyword, setKeyword] = useState("");
-    const [status, setStatus] = useState<ShelfReplenishmentStatusFilter>("ALL");
+    // Admin / quản lý xem được mọi phiếu nên mặc định lọc phiếu chờ duyệt
+    const [status, setStatus] = useState<ShelfReplenishmentStatusFilter>(() =>
+        isSuperAdmin() || isManager() ? "PENDING_APPROVAL" : "ALL"
+    );
     const [page, setPage] = useState(1);
     const [pageSize, setPageSize] = useState(20);
     const [summary, setSummary] = useState<ShelfReplenishmentSummary | null>(null);

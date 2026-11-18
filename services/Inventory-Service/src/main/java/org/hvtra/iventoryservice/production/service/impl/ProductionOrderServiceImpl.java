@@ -1,5 +1,6 @@
 package org.hvtra.iventoryservice.production.service.impl;
 
+import org.hvtra.iventoryservice.shared.security.DocumentVisibility;
 import jakarta.persistence.criteria.Predicate;
 import lombok.extern.slf4j.Slf4j;
 import org.hvtra.commonservice.common_core.domain.constants.Role;
@@ -163,9 +164,12 @@ public class ProductionOrderServiceImpl implements ProductionOrderService {
     @Override
     public PageResponse<ProductionOrderResponse> findAll(
             ProductionOrderStatus status, UUID productVariantId, String search, Pageable pageable) {
+        // Lệnh sản xuất không có bước tiếp nhận/QC nên QC không thuộc phạm vi xem (xem DocumentVisibility)
+        DocumentVisibility scope = DocumentVisibility.current();
         Specification<ProductionOrder> spec = (root, query, cb) -> {
             var predicates = new ArrayList<Predicate>();
             predicates.add(cb.equal(root.get("isDeleted"), false));
+            predicates.add(scope.toPredicate(cb, root.get("createdBy"), null));
             if (status != null) {
                 predicates.add(cb.equal(root.get("status"), status));
             }

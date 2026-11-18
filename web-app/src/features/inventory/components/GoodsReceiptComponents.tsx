@@ -21,6 +21,7 @@ import { useLookupDropdown } from "../../manufacturing/components/shared/useLook
 import { supplierApi } from "../../manufacturing/services/supplier.api";
 import { inventoryLocationApi } from "../services/inventoryLocation.api";
 import {
+    DAMAGED_RESOLUTION_LABELS,
     EXCESS_RESOLUTION_LABELS,
     SHORTAGE_RESOLUTION_LABELS,
     hasLineException
@@ -688,7 +689,9 @@ export function GoodsReceiptInspectionTable({
 function LineResolutionText({ line }: { line: GoodsReceiptDetail["lines"][number] }) {
     const parts = [
         line.excessResolution ? EXCESS_RESOLUTION_LABELS[line.excessResolution] : null,
-        line.shortageResolution ? SHORTAGE_RESOLUTION_LABELS[line.shortageResolution] : null,
+        line.shortageResolution
+            ? (line.shortageQuantity > 0 ? SHORTAGE_RESOLUTION_LABELS : DAMAGED_RESOLUTION_LABELS)[line.shortageResolution]
+            : null,
         line.qc.failedQuantity > 0 ? "Hủy hàng không đạt QC" : null
     ].filter(Boolean);
 

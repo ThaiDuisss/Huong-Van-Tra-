@@ -6,6 +6,7 @@ import org.hvtra.iventoryservice.availability.service.SupplyLeadTimeService;
 import org.hvtra.iventoryservice.batch.repository.InventoryBatchRepository;
 import org.hvtra.iventoryservice.document.repository.InventoryDocumentBatchAllocationRepository;
 import org.hvtra.iventoryservice.document.repository.InventoryDocumentLineRepository;
+import org.hvtra.iventoryservice.domain.entity.InventoryItem;
 import org.hvtra.iventoryservice.domain.entity.document.GoodsReceipt;
 import org.hvtra.iventoryservice.domain.entity.document.InventoryDocumentLine;
 import org.hvtra.iventoryservice.domain.enums.InventoryDocumentStatus;
@@ -24,6 +25,7 @@ import org.hvtra.iventoryservice.movement.repository.InventoryTransactionReposit
 import org.hvtra.iventoryservice.shared.exception.BadRequestException;
 import org.hvtra.iventoryservice.shared.exception.ResourceNotFoundException;
 import org.hvtra.iventoryservice.stock.repository.InventoryBalanceRepository;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -32,6 +34,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -96,6 +99,11 @@ class GoodsReceiptServiceImplTest {
     private UUID receiptId;
     private GoodsReceipt receipt;
 
+    @AfterEach
+    void clearSecurityContext() {
+        SecurityContextHolder.clearContext();
+    }
+
     @BeforeEach
     void setUp() {
         receiptId = UUID.fromString("550e8400-e29b-41d4-a716-446655440080");
@@ -120,7 +128,8 @@ class GoodsReceiptServiceImplTest {
         rawCounts.add(new Object[]{InventoryDocumentStatus.DRAFT, 5L});
         rawCounts.add(new Object[]{InventoryDocumentStatus.APPROVED, 3L});
         rawCounts.add(new Object[]{InventoryDocumentStatus.POSTED, 10L});
-        when(goodsReceiptRepository.countGroupByStatus()).thenReturn(rawCounts);
+        authenticateWith(Role.MANAGER, UUID.randomUUID());
+        when(goodsReceiptRepository.countGroupByStatus(true, false, false, null)).thenReturn(rawCounts);
 
         GoodsReceiptSummaryCountResponse response = service.getSummaryCounts();
 
@@ -129,6 +138,46 @@ class GoodsReceiptServiceImplTest {
         assertThat(response.approved()).isEqualTo(3L);
         assertThat(response.posted()).isEqualTo(10L);
         assertThat(response.total()).isEqualTo(18L);
+    }
+
+    @Test
+    @DisplayName("getSummaryCounts - QC chỉ đếm phiếu đang tiếp nhận hoặc do mình QC")
+    void getSummaryCounts_QcScope() {
+        UUID qcId = UUID.randomUUID();
+        authenticateWith(Role.QC, qcId);
+        when(goodsReceiptRepository.countGroupByStatus(false, false, true, qcId)).thenReturn(List.of());
+
+        service.getSummaryCounts();
+
+        verify(goodsReceiptRepository).countGroupByStatus(false, false, true, qcId);
+    }
+
+    @Test
+    @DisplayName("findAll - Nhân viên kho chỉ thấy phiếu do mình tạo")
+    void findAll_InventoryStaffScope() {
+        UUID staffId = UUID.randomUUID();
+        authenticateWith(Role.INVENTORY_STAFF, staffId);
+
+        service.findAll(null, null, null, null, null, null, PageRequest.of(0, 20));
+
+        verify(goodsReceiptRepository).countMatching(null, null, null, null, null, null, false, true, false, staffId);
+    }
+
+    @Test
+    @DisplayName("post - Dòng giao đủ nhưng có hàng hỏng bắt buộc chọn cách xử lý")
+    void post_DamagedLineRequiresResolution() {
+        InventoryDocumentLine line = receipt.getLines().getFirst();
+        InventoryItem item = new InventoryItem();
+        item.setName("Trà xanh");
+        line.setInventoryItem(item);
+        line.setReceivedQuantity(new BigDecimal("100.00"));
+        line.setAcceptedQuantity(new BigDecimal("90.00"));
+        line.setRejectedQuantity(new BigDecimal("10.00"));
+        receipt.setStatus(InventoryDocumentStatus.PENDING_EXCEPTION_APPROVAL);
+        when(goodsReceiptRepository.findByIdWithDetails(receiptId)).thenReturn(Optional.of(receipt));
+
+        assertThatThrownBy(() -> service.post(receiptId, null))
+                .hasMessageContaining("hàng hỏng");
     }
 
     @Test

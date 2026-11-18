@@ -34,8 +34,23 @@ public interface GoodsReceiptRepository extends JpaRepository<GoodsReceipt, UUID
 
     Optional<GoodsReceipt> findByIdAndIsDeletedFalse(UUID id);
 
-    @Query("SELECT d.status, COUNT(d) FROM GoodsReceipt d WHERE d.isDeleted = false GROUP BY d.status")
-    List<Object[]> countGroupByStatus();
+    /** Đếm theo trạng thái trong phạm vi xem của người dùng (xem {@code DocumentVisibility}). */
+    @Query("""
+            SELECT d.status, COUNT(d) FROM GoodsReceipt d
+            WHERE d.isDeleted = false
+              AND (:seeAll = true
+                   OR (:ownScope = true AND d.createdBy = :scopeUserId)
+                   OR (:qcScope = true AND (d.status IN (org.hvtra.iventoryservice.domain.enums.InventoryDocumentStatus.APPROVED,
+                                                         org.hvtra.iventoryservice.domain.enums.InventoryDocumentStatus.RECEIVING)
+                                            OR d.qcBy = :scopeUserId)))
+            GROUP BY d.status
+            """)
+    List<Object[]> countGroupByStatus(
+            @Param("seeAll") boolean seeAll,
+            @Param("ownScope") boolean ownScope,
+            @Param("qcScope") boolean qcScope,
+            @Param("scopeUserId") UUID scopeUserId
+    );
 
     String RECEIPT_ROW_SELECT = """
             SELECT
@@ -91,6 +106,9 @@ public interface GoodsReceiptRepository extends JpaRepository<GoodsReceipt, UUID
                      OR LOWER(d.document_code) LIKE :queryPattern
                      OR LOWER(d.reference_id) LIKE :queryPattern
                      OR LOWER(d.note) LIKE :queryPattern)
+                AND (:seeAll = true
+                     OR (:ownScope = true AND d.created_by = :scopeUserId)
+                     OR (:qcScope = true AND (d.status IN ('APPROVED', 'RECEIVING') OR d.qc_by = :scopeUserId)))
             """;
 
     // Danh sách phân trang: chỉ lấy các trường hiển thị, tổng nhận tính bằng subquery cho đúng các dòng của trang
@@ -121,6 +139,10 @@ public interface GoodsReceiptRepository extends JpaRepository<GoodsReceipt, UUID
             @Param("fromDate") Instant fromDate,
             @Param("toDate") Instant toDate,
             @Param("queryPattern") String queryPattern,
+            @Param("seeAll") boolean seeAll,
+            @Param("ownScope") boolean ownScope,
+            @Param("qcScope") boolean qcScope,
+            @Param("scopeUserId") UUID scopeUserId,
             @Param("limit") int limit,
             @Param("offset") long offset
     );
@@ -135,7 +157,11 @@ public interface GoodsReceiptRepository extends JpaRepository<GoodsReceipt, UUID
             @Param("supplierId") UUID supplierId,
             @Param("fromDate") Instant fromDate,
             @Param("toDate") Instant toDate,
-            @Param("queryPattern") String queryPattern
+            @Param("queryPattern") String queryPattern,
+            @Param("seeAll") boolean seeAll,
+            @Param("ownScope") boolean ownScope,
+            @Param("qcScope") boolean qcScope,
+            @Param("scopeUserId") UUID scopeUserId
     );
 
     // Xuất Excel: toàn bộ phiếu khớp bộ lọc (không phân trang), số liệu dòng gom bằng GROUP BY trong cùng 1 query
@@ -168,6 +194,10 @@ public interface GoodsReceiptRepository extends JpaRepository<GoodsReceipt, UUID
             @Param("fromDate") Instant fromDate,
             @Param("toDate") Instant toDate,
             @Param("queryPattern") String queryPattern,
+            @Param("seeAll") boolean seeAll,
+            @Param("ownScope") boolean ownScope,
+            @Param("qcScope") boolean qcScope,
+            @Param("scopeUserId") UUID scopeUserId,
             @Param("limit") int limit
     );
 }

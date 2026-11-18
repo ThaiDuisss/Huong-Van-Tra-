@@ -59,6 +59,13 @@ interface QcDraftLine {
     note?: string;
 }
 
+/** Ngày hôm nay theo giờ máy người dùng, định dạng yyyy-MM-dd cho input type="date". */
+function todayIsoDate() {
+    const now = new Date();
+    const pad = (value: number) => String(value).padStart(2, "0");
+    return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+}
+
 export function GoodsReceiptDetailPage() {
     const { receiptId } = useParams();
     const [receipt, setReceipt] = useState<GoodsReceiptDetail | null>(null);
@@ -250,7 +257,8 @@ export function GoodsReceiptDetailPage() {
                 acceptedQuantity: l.qc?.passedQuantity ?? 0,
                 rejectedQuantity: l.qc?.failedQuantity ?? 0,
                 supplierLot: l.supplierLot ?? "",
-                manufactureDate: l.manufacturedAt ? l.manufacturedAt.split("T")[0] : "",
+                // Mặc định Ngày sản xuất (MFG) là hôm nay nếu chưa khai báo
+                manufactureDate: l.manufacturedAt ? l.manufacturedAt.split("T")[0] : todayIsoDate(),
                 expiryDate: l.expiryDate ? l.expiryDate.split("T")[0] : "",
                 isIngredient: l.itemType === "INGREDIENT",
                 note: l.qc?.inspectionNote ?? ""
@@ -277,22 +285,19 @@ export function GoodsReceiptDetailPage() {
     async function submitQc() {
         if (!receipt) return;
 
+        // Lỗi validate được ném lại cho modal hiển thị ngay trong modal (không đóng modal, không toast)
         for (let i = 0; i < qcDraft.length; i++) {
             const line = qcDraft[i];
             if (line.acceptedQuantity + line.rejectedQuantity !== line.receivedQuantity) {
-                const targetPage = Math.floor(i / qcPageSize) + 1;
-                setQcPage(targetPage);
-                showToast(`Dòng #${i + 1} (${line.materialName}): Tổng SL Đạt + Lỗi phải bằng Thực nhận (${line.receivedQuantity}).`, false);
-                return;
+                setQcPage(Math.floor(i / qcPageSize) + 1);
+                throw new Error(`Dòng #${i + 1} (${line.materialName}): Tổng SL Đạt + Lỗi phải bằng Thực nhận (${line.receivedQuantity}).`);
             }
             if (line.acceptedQuantity > 0 && (!line.manufactureDate || (!line.isIngredient && !line.expiryDate))) {
-                const targetPage = Math.floor(i / qcPageSize) + 1;
-                setQcPage(targetPage);
+                setQcPage(Math.floor(i / qcPageSize) + 1);
                 const message = line.isIngredient
                     ? "Vui lòng nhập Ngày sản xuất."
                     : "Vui lòng nhập đầy đủ Ngày sản xuất & Hạn sử dụng.";
-                showToast(`Dòng #${i + 1} (${line.materialName}): ${message}`, false);
-                return;
+                throw new Error(`Dòng #${i + 1} (${line.materialName}): ${message}`);
             }
         }
 
@@ -332,8 +337,6 @@ export function GoodsReceiptDetailPage() {
             setReceipt(updated);
             showToast("Kiểm định số lượng & chất lượng thành công.", true);
             setInspectionOpen(false);
-        } catch (err) {
-            throw err;
         } finally {
             setMutationLoading(false);
         }
@@ -519,9 +522,9 @@ export function GoodsReceiptDetailPage() {
                             </>
                         ) : null}
 
-                        {receipt.status === "APPROVED" && (isInventoryStaff() || isManager() || isSuperAdmin()) ? (
+                        {receipt.status === "APPROVED" && (isInventoryStaff() || isQc()) ? (
                             <Button disabled={mutationLoading} onClick={startReceiving} variant="primary">
-                                Tiếp nhận kiểm đếm thực tế
+                                Tiếp nhận hàng
                             </Button>
                         ) : null}
 

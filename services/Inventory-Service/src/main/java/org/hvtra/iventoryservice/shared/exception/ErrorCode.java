@@ -23,6 +23,7 @@ public enum ErrorCode {
     INVENTORY_DOCUMENT_NOT_PENDING_EXCEPTION(10006, "Chỉ phiếu đang Chờ duyệt ngoại lệ mới được duyệt ngoại lệ và ghi sổ", HttpStatus.BAD_REQUEST),
     RECEIPT_EXCESS_RESOLUTION_REQUIRED(10007, "Dòng %d (%s) giao thừa: vui lòng chọn cách xử lý phần thừa", HttpStatus.BAD_REQUEST),
     RECEIPT_SHORTAGE_RESOLUTION_REQUIRED(10008, "Dòng %d (%s) giao thiếu: vui lòng chọn cách xử lý phần thiếu", HttpStatus.BAD_REQUEST),
+    RECEIPT_DAMAGED_RESOLUTION_REQUIRED(10009, "Dòng %d (%s) có hàng hỏng: vui lòng chọn cách xử lý dòng", HttpStatus.BAD_REQUEST),
 
     // ===== Phiếu nhập kệ (chuyển kho lên kệ) =====
     SHELF_REPLENISHMENT_NOT_PENDING(10201, "Chỉ duyệt hoặc từ chối được phiếu nhập kệ đang chờ duyệt", HttpStatus.BAD_REQUEST),

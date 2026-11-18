@@ -2,6 +2,7 @@ import { Plus } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
+import { useAuthorization } from "../../../auth/useAuthorization";
 import { Button } from "../../../components/ui/Button";
 import { type BadgeTone, StatusBadge } from "../../../components/ui/StatusBadge";
 import { routePaths } from "../../../routes/path";
@@ -63,9 +64,13 @@ function formatDateTime(value: string) {
 
 export function ProductionOrderListPage() {
     const navigate = useNavigate();
+    const { isSuperAdmin, isManager } = useAuthorization();
 
     const [search, setSearch] = useState("");
-    const [status, setStatus] = useState<"ALL" | ProductionOrderApiStatus>("ALL");
+    // Admin / quản lý xem được mọi lệnh nên mặc định lọc lệnh chờ duyệt
+    const [status, setStatus] = useState<"ALL" | ProductionOrderApiStatus>(() =>
+        isSuperAdmin() || isManager() ? "PENDING_APPROVAL" : "ALL"
+    );
     const [page, setPage] = useState(1);
     const [pageSize, setPageSize] = useState(10);
     const [refreshKey, setRefreshKey] = useState(0);

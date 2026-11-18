@@ -14,6 +14,10 @@ public class InventorySecurityConfig extends BaseSecurityConfig {
 
     /** Role được duyệt phiếu kho — khớp với isSuperAdmin()/isManager() ở FE. */
     private static final String[] APPROVER_ROLES = Role.names(Role.SUPER_ADMIN, Role.MANAGER);
+    /** Role được bắt đầu tiếp nhận hàng của phiếu nhập NCC (Đã duyệt → Đang tiếp nhận). */
+    private static final String[] RECEIVING_ROLES = Role.names(Role.INVENTORY_STAFF, Role.QC);
+    /** Role được kiểm đếm + kiểm định QC phiếu nhập NCC. */
+    private static final String[] QC_ROLES = Role.names(Role.QC);
     /** Role được quản lý vị trí lưu kho. */
     private static final String[] SUPER_ADMIN_ROLES = Role.names(Role.SUPER_ADMIN);
     /** Role được lập yêu cầu chuyển kho lên kệ (thủ kho, và nhân viên bán tạo từ POS khi kệ thiếu hàng). */
@@ -35,6 +39,14 @@ public class InventorySecurityConfig extends BaseSecurityConfig {
                         "/api/inventory/goods-receipts/*/post",
                         "/api/inventory/goods-receipts/*/cancel")
                 .hasAnyRole(APPROVER_ROLES);
+
+        // Phiếu nhập NCC — bắt đầu tiếp nhận hàng: chỉ nhân viên kho và QC
+        auth.requestMatchers(HttpMethod.POST, "/api/inventory/goods-receipts/*/start-receiving")
+                .hasAnyRole(RECEIVING_ROLES);
+
+        // Phiếu nhập NCC — kiểm đếm + kiểm định QC: chỉ QC
+        auth.requestMatchers(HttpMethod.POST, "/api/inventory/goods-receipts/*/qc")
+                .hasAnyRole(QC_ROLES);
 
         // Phiếu nhập kệ (SC-05) — duyệt / từ chối / duyệt lại phiếu POS xuất ngay: chỉ ADMIN và MANAGER.
         // Người duyệt khác người tạo và hủy chỉ bởi người tạo / Admin: kiểm tra theo dữ liệu phiếu trong service.
