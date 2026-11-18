@@ -472,7 +472,100 @@ export function RoleUnavailable({
     );
 }
 
+/**
+ * Bảng dòng hàng đặt và nhận thực tế (Tab Dòng hàng)
+ */
 export function GoodsReceiptLineTable({
+    receipt
+}: {
+    receipt: GoodsReceiptDetail;
+}) {
+    const [page, setPage] = useState(1);
+    const [pageSize, setPageSize] = useState(10);
+
+    const totalLines = receipt.lines.length;
+    const totalPages = Math.max(1, Math.ceil(totalLines / pageSize));
+    const pagedLines = receipt.lines.slice(
+        (page - 1) * pageSize,
+        page * pageSize
+    );
+
+    return (
+        <div className="grid gap-3">
+            <div className="overflow-x-auto rounded-xl border border-[#e8eef0] bg-white shadow-pos-card">
+                <Table className="min-w-[850px]">
+                    <TableHead>
+                        <TableRow>
+                            <Th align="center">#</Th>
+                            <Th>Tên nguyên liệu</Th>
+                            <Th>Đơn vị</Th>
+                            <Th align="right">Số lượng đặt</Th>
+                            <Th align="right">Số thực nhận</Th>
+                            <Th align="right">Thiếu</Th>
+                            <Th align="right">Thừa</Th>
+                        </TableRow>
+                    </TableHead>
+                    <tbody>
+                        {pagedLines.map((line, idx) => {
+                            const lineNo = (page - 1) * pageSize + idx + 1;
+                            const isShort = line.shortageQuantity > 0;
+                            const isSurplus = line.surplusQuantity > 0;
+                            return (
+                                <TableRow key={line.id} className={isShort || isSurplus ? "bg-amber-50/20" : undefined}>
+                                    <Td align="center">
+                                        <span className="tabular-nums text-[#697684]">{lineNo}</span>
+                                    </Td>
+                                    <Td strong>
+                                        <div className="grid">
+                                            <span>{line.materialName}</span>
+                                            {line.skuCode ? (
+                                                <span className="font-mono text-[11px] text-[#8793a1]">
+                                                    {line.skuCode}
+                                                </span>
+                                            ) : null}
+                                        </div>
+                                    </Td>
+                                    <Td>{line.unit || "—"}</Td>
+                                    <Td align="right">
+                                        {line.orderedQuantity != null ? formatVietnamNumber(line.orderedQuantity) : "—"}
+                                    </Td>
+                                    <Td align="right" strong>
+                                        {formatVietnamNumber(line.receivedQuantity)}
+                                    </Td>
+                                    <Td align="right" className={isShort ? "font-bold text-red-600" : undefined}>
+                                        {isShort ? formatVietnamNumber(line.shortageQuantity) : "0"}
+                                    </Td>
+                                    <Td align="right" className={isSurplus ? "font-bold text-amber-600" : undefined}>
+                                        {isSurplus ? formatVietnamNumber(line.surplusQuantity) : "0"}
+                                    </Td>
+                                </TableRow>
+                            );
+                        })}
+                    </tbody>
+                </Table>
+            </div>
+            {totalLines > pageSize ? (
+                <Pagination
+                    onPageChange={(p: number) => setPage(p)}
+                    onPageSizeChange={(s: number) => {
+                        setPageSize(s);
+                        setPage(1);
+                    }}
+                    page={page}
+                    pageCount={totalPages}
+                    pageSize={pageSize}
+                    totalItems={totalLines}
+                    totalItemsLabel="Tổng số mặt hàng"
+                />
+            ) : null}
+        </div>
+    );
+}
+
+/**
+ * Bảng kết quả kiểm định chất lượng & xử lý ngoại lệ (Tab Kiểm định)
+ */
+export function GoodsReceiptInspectionTable({
     receipt
 }: {
     receipt: GoodsReceiptDetail;
@@ -490,16 +583,14 @@ export function GoodsReceiptLineTable({
 
     return (
         <div className="grid gap-3">
-            <div className="overflow-x-auto rounded-xl border border-[#e8eef0] bg-white">
-                <Table className="min-w-[900px]">
+            <div className="overflow-x-auto rounded-xl border border-[#e8eef0] bg-white shadow-pos-card">
+                <Table className="min-w-[950px]">
                     <TableHead>
                         <TableRow>
+                            <Th align="center">#</Th>
                             <Th>Tên nguyên liệu</Th>
                             <Th>Ngoại lệ</Th>
-                            <Th align="right">Số đặt</Th>
                             <Th align="right">Số nhận</Th>
-                            <Th align="right">Thiếu</Th>
-                            <Th align="right">Thừa</Th>
                             <Th align="right">Đạt QC</Th>
                             <Th align="right">Không đạt</Th>
                             {isPosted ? (
@@ -509,56 +600,70 @@ export function GoodsReceiptLineTable({
                                     <Th>Cách xử lý</Th>
                                 </>
                             ) : null}
+                            <Th>Lô NCC</Th>
                             <Th>Ngày sản xuất</Th>
+                            <Th>Ghi chú QC</Th>
                         </TableRow>
                     </TableHead>
                     <tbody>
-                        {pagedLines.map((line) => (
-                            <TableRow key={line.id} className={hasLineException(line) ? "bg-amber-50/40" : undefined}>
-                                <Td strong>{line.materialName}</Td>
-                                <Td>
-                                    <LineExceptionBadges line={line} />
-                                </Td>
-                                <Td align="right">
-                                    {line.orderedQuantity ?? "-"}
-                                </Td>
-                                <Td align="right">
-                                    {formatVietnamNumber(line.receivedQuantity)}
-                                </Td>
-                                <Td align="right">
-                                    {line.shortageQuantity > 0
-                                        ? formatVietnamNumber(line.shortageQuantity)
-                                        : "0"}
-                                </Td>
-                                <Td align="right">
-                                    {line.surplusQuantity > 0
-                                        ? formatVietnamNumber(line.surplusQuantity)
-                                        : "0"}
-                                </Td>
-                                <Td align="right">
-                                    {formatVietnamNumber(line.qc.passedQuantity)}
-                                </Td>
-                                <Td align="right">
-                                    {formatVietnamNumber(line.qc.failedQuantity)}
-                                </Td>
-                                {isPosted ? (
-                                    <>
-                                        <Td align="right" strong>
-                                            {formatVietnamNumber(line.postedQuantity ?? line.qc.passedQuantity)}
-                                        </Td>
-                                        <Td align="right">
-                                            {formatVietnamNumber(line.returnedQuantity)}
-                                        </Td>
-                                        <Td>
-                                            <LineResolutionText line={line} />
-                                        </Td>
-                                    </>
-                                ) : null}
-                                <Td>
-                                    {formatVietnamDateTime(line.manufacturedAt)}
-                                </Td>
-                            </TableRow>
-                        ))}
+                        {pagedLines.map((line, idx) => {
+                            const lineNo = (page - 1) * pageSize + idx + 1;
+                            const hasException = hasLineException(line);
+                            const hasFailed = line.qc.failedQuantity > 0;
+                            return (
+                                <TableRow key={line.id} className={hasException ? "bg-amber-50/40" : undefined}>
+                                    <Td align="center">
+                                        <span className="tabular-nums text-[#697684]">{lineNo}</span>
+                                    </Td>
+                                    <Td strong>
+                                        <div className="grid">
+                                            <span>{line.materialName}</span>
+                                            {line.skuCode ? (
+                                                <span className="font-mono text-[11px] text-[#8793a1]">
+                                                    {line.skuCode}
+                                                </span>
+                                            ) : null}
+                                        </div>
+                                    </Td>
+                                    <Td>
+                                        <LineExceptionBadges line={line} />
+                                    </Td>
+                                    <Td align="right">
+                                        {formatVietnamNumber(line.receivedQuantity)}
+                                    </Td>
+                                    <Td align="right" strong className="text-[#159734]">
+                                        {formatVietnamNumber(line.qc.passedQuantity)}
+                                    </Td>
+                                    <Td align="right" className={hasFailed ? "font-bold text-red-600" : undefined}>
+                                        {formatVietnamNumber(line.qc.failedQuantity)}
+                                    </Td>
+                                    {isPosted ? (
+                                        <>
+                                            <Td align="right" strong>
+                                                {formatVietnamNumber(line.postedQuantity ?? line.qc.passedQuantity)}
+                                            </Td>
+                                            <Td align="right">
+                                                {formatVietnamNumber(line.returnedQuantity)}
+                                            </Td>
+                                            <Td>
+                                                <LineResolutionText line={line} />
+                                            </Td>
+                                        </>
+                                    ) : null}
+                                    <Td>
+                                        <span className="font-mono text-xs">{line.supplierLot || "—"}</span>
+                                    </Td>
+                                    <Td>
+                                        {line.manufacturedAt ? formatVietnamDateTime(line.manufacturedAt) : "—"}
+                                    </Td>
+                                    <Td>
+                                        <span className="text-xs italic text-[#697684]">
+                                            {line.qc.inspectionNote || "—"}
+                                        </span>
+                                    </Td>
+                                </TableRow>
+                            );
+                        })}
                     </tbody>
                 </Table>
             </div>
@@ -866,11 +971,11 @@ function Th({
     align = "left",
     children
 }: {
-    align?: "left" | "right";
+    align?: "left" | "right" | "center";
     children: ReactNode;
 }) {
     return (
-        <TableHeaderCell className={align === "right" ? "text-right" : undefined}>
+        <TableHeaderCell className={align === "right" ? "text-right" : align === "center" ? "text-center" : undefined}>
             {children}
         </TableHeaderCell>
     );
@@ -879,15 +984,17 @@ function Th({
 function Td({
     align = "left",
     children,
+    className = "",
     strong = false
 }: {
-    align?: "left" | "right";
+    align?: "left" | "right" | "center";
     children: ReactNode;
+    className?: string;
     strong?: boolean;
 }) {
     return (
         <TableCell
-            className={`${align === "right" ? "text-right" : ""} ${strong ? "font-black text-[#172317]" : "font-semibold text-[#536078]"}`}
+            className={`${align === "right" ? "text-right" : align === "center" ? "text-center" : ""} ${strong ? "font-black text-[#172317]" : "font-semibold text-[#536078]"} ${className}`}
         >
             {children}
         </TableCell>

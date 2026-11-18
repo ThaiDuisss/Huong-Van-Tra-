@@ -16,6 +16,7 @@ import {
 import { TextArea } from "../../../components/ui/Field";
 import {
     GoodsReceiptAuditTimeline,
+    GoodsReceiptInspectionTable,
     GoodsReceiptLifecycleStepper,
     GoodsReceiptLineTable,
     GoodsReceiptStatusBadge,
@@ -31,9 +32,9 @@ import type {
 } from "../types/goods-receipt.types";
 import { hasLineException } from "../utils/goodsReceiptException";
 import { printExceptionReport } from "../utils/goodsReceiptExceptionReport";
-import { formatVietnamDateTime, formatVietnamNumber } from "../utils/inventory-format";
+import { formatVietnamDateTime } from "../utils/inventory-format";
 
-type ReceiptTab = "lines" | "overview" | "cost" | "documents" | "evidence" | "audit";
+type ReceiptTab = "lines" | "inspection" | "cost" | "documents" | "evidence" | "audit";
 
 interface ReceiveDraftLine {
     lineId: string;
@@ -117,7 +118,26 @@ export function GoodsReceiptDetailPage() {
         };
     }, [receiptId]);
 
-    const { isSuperAdmin, isManager, isInventoryStaff, isQc, keycloakSubject } = useAuthorization();
+    const { isSuperAdmin, isManager, isInventoryStaff, isQc, keycloakSubject, userId, user } = useAuthorization();
+
+    const creatorId = receipt?.createdBy?.id;
+    const currentActorIds = [keycloakSubject, userId, user?.id].filter(Boolean) as string[];
+    const isOwner = Boolean(
+        creatorId &&
+        currentActorIds.some(
+            (actorId) => creatorId.toLowerCase() === actorId.toLowerCase()
+        )
+    );
+
+    const hasQcCompleted = Boolean(
+        receipt && (receipt.status === "PENDING_EXCEPTION_APPROVAL" || receipt.status === "POSTED")
+    );
+
+    useEffect(() => {
+        if (tab === "inspection" && !hasQcCompleted) {
+            setTab("lines");
+        }
+    }, [tab, hasQcCompleted]);
 
     useEffect(() => loadReceipt(), [loadReceipt]);
 
@@ -470,9 +490,9 @@ export function GoodsReceiptDetailPage() {
                                 In biên bản ngoại lệ
                             </Button>
                         ) : null}
-                        {/* Chỉnh sửa: phiếu DRAFT/REJECTED, chỉ ADMIN hoặc người tạo (createdBy = Keycloak subject) */}
+                        {/* Chỉnh sửa: phiếu DRAFT/REJECTED, chỉ ADMIN hoặc người tạo */}
                         {(receipt.status === "DRAFT" || receipt.status === "REJECTED")
-                            && (isSuperAdmin() || (Boolean(keycloakSubject) && receipt.createdBy.id === keycloakSubject)) ? (
+                            && (isSuperAdmin() || isOwner) ? (
                             <Link
                                 className={buttonClassName({ variant: "secondary" })}
                                 state={{ receipt }}
@@ -520,7 +540,7 @@ export function GoodsReceiptDetailPage() {
                         {receipt.status !== "POSTED" &&
                             receipt.status !== "CANCELLED" &&
                             receipt.status !== "REJECTED" &&
-                            (isSuperAdmin() || isManager()) ? (
+                            isOwner ? (
                             <Button disabled={mutationLoading} onClick={() => setCancelOpen(true)} variant="dangerOutline">
                                 Hủy phiếu
                             </Button>
@@ -535,15 +555,15 @@ export function GoodsReceiptDetailPage() {
             {/* THANH TAB NỘI DUNG */}
             <nav className="flex gap-2 overflow-x-auto pb-1">
                 {[
-                    ["overview", "Tổng quan phiếu"],
-                    ["lines", "Dòng hàng & Kiểm định"],
+                    ["lines", "Dòng hàng"],
+                    ...(hasQcCompleted ? [["inspection", "Kiểm định"]] : []),
                     // ["cost", "Giá trị nhập kho"],
                     // ["documents", "Chứng từ liên quan"],
                     // ["evidence", "Ảnh & Biên bản"],
                     ["audit", "Lịch sử xử lý"]
                 ].map(([value, label]) => (
                     <button
-                        className={`h-10 shrink-0 rounded-lg px-4 text-sm font-black ${tab === value
+                        className={`h-10 shrink-0 rounded-lg px-4 text-sm font-black transition-colors ${tab === value
                             ? "bg-[#159734] text-white"
                             : "bg-white text-[#536078] hover:bg-[#f4faf5]"
                             }`}
@@ -556,27 +576,14 @@ export function GoodsReceiptDetailPage() {
                 ))}
             </nav>
 
-            {/* TAB: DÒNG HÀNG & KIỂM ĐỊNH */}
+            {/* TAB: DÒNG HÀNG */}
             {tab === "lines" ? (
                 <GoodsReceiptLineTable receipt={receipt} />
             ) : null}
 
-            {/* TAB: TỔNG QUAN PHIẾU */}
-            {tab === "overview" ? (
-                <div className="grid gap-3 md:grid-cols-3">
-                    <div className="rounded-xl border border-[#e8eef0] bg-white p-4">
-                        <div className="text-xs font-bold text-[#697684]">Tổng số dòng hàng</div>
-                        <div className="text-lg font-black text-[#172317]">{receipt.totalLines} dòng</div>
-                    </div>
-                    <div className="rounded-xl border border-[#e8eef0] bg-white p-4">
-                        <div className="text-xs font-bold text-[#697684]">Tổng số lượng thực nhận</div>
-                        <div className="text-lg font-black text-[#159734]">{formatVietnamNumber(receipt.totalReceivedQuantity)}</div>
-                    </div>
-                    <div className="rounded-xl border border-[#e8eef0] bg-white p-4">
-                        <div className="text-xs font-bold text-[#697684]">Kết quả kiểm tra QC</div>
-                        <div className="text-lg font-black text-[#172317]"><QcBadge result={receipt.qcResult} /></div>
-                    </div>
-                </div>
+            {/* TAB: KIỂM ĐỊNH */}
+            {tab === "inspection" && hasQcCompleted ? (
+                <GoodsReceiptInspectionTable receipt={receipt} />
             ) : null}
 
             {/* TAB: LỊCH SỬ XỬ LÝ */}

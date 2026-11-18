@@ -1,5 +1,7 @@
 package org.hvtra.iventoryservice.goodsreceipt.service.impl;
 
+import org.hvtra.commonservice.common_core.domain.constants.Role;
+import org.hvtra.commonservice.common_core.domain.entity.InternalUserPrincipal;
 import org.hvtra.iventoryservice.availability.service.SupplyLeadTimeService;
 import org.hvtra.iventoryservice.batch.repository.InventoryBatchRepository;
 import org.hvtra.iventoryservice.document.repository.InventoryDocumentBatchAllocationRepository;
@@ -30,12 +32,16 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.context.SecurityContextHolder;
 
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -246,10 +252,26 @@ class GoodsReceiptServiceImplTest {
         verify(goodsReceiptRepository).save(receipt);
     }
 
+    private void authenticateWith(Role role, UUID userId) {
+        InternalUserPrincipal principal = new InternalUserPrincipal(
+                userId.toString(),
+                "test-user",
+                "test-issuer",
+                Set.of(role.name()),
+                "corr-123"
+        );
+        SecurityContextHolder.getContext().setAuthentication(new UsernamePasswordAuthenticationToken(
+                principal, null, List.of(new SimpleGrantedAuthority(role.authority()))));
+    }
+
     @Test
-    @DisplayName("cancel - Success cancelling document")
+    @DisplayName("cancel - Success cancelling document by creator")
     void cancel_Success() {
+        UUID creatorId = UUID.randomUUID();
+        receipt.setCreatedBy(creatorId);
         receipt.setStatus(InventoryDocumentStatus.DRAFT);
+        authenticateWith(Role.INVENTORY_STAFF, creatorId);
+
         when(goodsReceiptRepository.findByIdWithDetails(receiptId)).thenReturn(Optional.of(receipt));
         when(goodsReceiptRepository.save(any(GoodsReceipt.class))).thenReturn(receipt);
 
@@ -261,9 +283,29 @@ class GoodsReceiptServiceImplTest {
     }
 
     @Test
+    @DisplayName("cancel - Throws BadRequestException when caller is not the creator")
+    void cancel_ThrowsBadRequest_WhenNotCreator() {
+        UUID creatorId = UUID.randomUUID();
+        UUID otherUserId = UUID.randomUUID();
+        receipt.setCreatedBy(creatorId);
+        receipt.setStatus(InventoryDocumentStatus.DRAFT);
+        authenticateWith(Role.INVENTORY_STAFF, otherUserId);
+
+        when(goodsReceiptRepository.findByIdWithDetails(receiptId)).thenReturn(Optional.of(receipt));
+
+        assertThatThrownBy(() -> service.cancel(receiptId, "Hủy bởi người khác"))
+                .isInstanceOf(BadRequestException.class)
+                .hasMessageContaining("Chỉ người tạo mới có quyền hủy phiếu nhập kho");
+    }
+
+    @Test
     @DisplayName("cancel - Throws BadRequestException when cancelling POSTED document")
     void cancel_Posted_ThrowsException() {
+        UUID creatorId = UUID.randomUUID();
+        receipt.setCreatedBy(creatorId);
         receipt.setStatus(InventoryDocumentStatus.POSTED);
+        authenticateWith(Role.INVENTORY_STAFF, creatorId);
+
         when(goodsReceiptRepository.findByIdWithDetails(receiptId)).thenReturn(Optional.of(receipt));
 
         assertThatThrownBy(() -> service.cancel(receiptId, "Thử hủy phiếu đã post"))

@@ -933,6 +933,12 @@ public class GoodsReceiptServiceImpl implements GoodsReceiptService {
             throw new BadRequestException("Cannot cancel an already POSTED document");
         }
 
+        UUID currentUserId = getCurrentUserId();
+        boolean isCreator = currentUserId != null && currentUserId.equals(document.getCreatedBy());
+        if (!isCreator) {
+            throw new BadRequestException("Chỉ người tạo mới có quyền hủy phiếu nhập kho");
+        }
+
         document.setStatus(InventoryDocumentStatus.CANCELLED);
         if (note != null && !note.isBlank()) {
             document.setNote((document.getNote() != null ? document.getNote() + " | " : "") + "Hủy phiếu: " + note);
