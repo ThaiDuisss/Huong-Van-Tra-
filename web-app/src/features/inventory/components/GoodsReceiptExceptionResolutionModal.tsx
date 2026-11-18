@@ -19,6 +19,8 @@ import type {
 import {
     EXCESS_RESOLUTION_LABELS,
     SHORTAGE_RESOLUTION_LABELS,
+    DAMAGED_RESOLUTION_LABELS,
+    needsShortageResolution,
     getLineException,
     hasLineException,
     isLineResolved,
@@ -195,11 +197,18 @@ function ExceptionLineCard({
                 />
             ) : null}
 
-            {shortage > 0 ? (
+            {needsShortageResolution(line) ? (
                 <ResolutionOptions
                     name={`shortage-${line.id}`}
-                    title={`Giao thiếu ${formatVietnamNumber(shortage)} ${line.unit} — chọn cách xử lý:`}
-                    options={SHORTAGE_OPTIONS.map((value) => ({ label: SHORTAGE_RESOLUTION_LABELS[value], value }))}
+                    title={
+                        shortage > 0
+                            ? `Giao thiếu ${formatVietnamNumber(shortage)} ${line.unit} — chọn cách xử lý:`
+                            : `Có ${formatVietnamNumber(damaged)} ${line.unit} hàng hỏng — chọn cách xử lý:`
+                    }
+                    options={SHORTAGE_OPTIONS.map((value) => ({
+                        label: shortage > 0 ? SHORTAGE_RESOLUTION_LABELS[value] : DAMAGED_RESOLUTION_LABELS[value],
+                        value
+                    }))}
                     value={resolution?.shortageResolution}
                     onChange={(value) => onChange({ shortageResolution: value as ReceiptShortageResolution })}
                 />

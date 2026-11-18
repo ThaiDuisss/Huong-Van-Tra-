@@ -89,14 +89,20 @@ export function GoodsReceiptInspectionModal({
 
     const handleQcSubmit = async () => {
         setIsValidating(true);
-        if (hasQcErrors) return;
+        // Tính lỗi ngay với chế độ validate (state isValidating chưa cập nhật trong lần bấm đầu)
+        const firstErrorIdx = qcDraft.findIndex((line) => getQcLineError(line, true) !== null);
+        if (firstErrorIdx >= 0) {
+            onQcPageChange(Math.floor(firstErrorIdx / qcPageSize) + 1);
+            setSubmitError(`Dòng #${firstErrorIdx + 1} (${qcDraft[firstErrorIdx].materialName}): ${getQcLineError(qcDraft[firstErrorIdx], true)}`);
+            return;
+        }
         setSubmitError("");
         setLocalLoading(true);
         try {
             await onQcSubmit();
             onOpenChange(false);
-        } catch (err: any) {
-            setSubmitError(err?.message || "Có lỗi xảy ra khi hoàn tất kiểm định QC");
+        } catch (err) {
+            setSubmitError(err instanceof Error && err.message ? err.message : "Có lỗi xảy ra khi hoàn tất kiểm định QC");
         } finally {
             setLocalLoading(false);
         }

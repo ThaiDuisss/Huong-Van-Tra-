@@ -66,9 +66,17 @@ export function useInventoryResource<T>(load: () => Promise<T>) {
     const [data, setData] = useState<T | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
+    const [refreshKey, setRefreshKey] = useState(0);
 
     useEffect(() => {
         let active = true;
+
+        queueMicrotask(() => {
+            if (active) {
+                setLoading(true);
+                setError("");
+            }
+        });
 
         void load()
             .then((response) => {
@@ -90,9 +98,14 @@ export function useInventoryResource<T>(load: () => Promise<T>) {
         return () => {
             active = false;
         };
-    }, [load]);
+    }, [load, refreshKey]);
 
-    return { data, loading, error };
+    return {
+        data,
+        loading,
+        error,
+        refresh: useCallback(() => setRefreshKey((k) => k + 1), [])
+    };
 }
 
 export { messageOf };

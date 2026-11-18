@@ -17,10 +17,14 @@ public class ProductionOrderMapper {
      * để tránh N+1 khi đọc order.getLines().
      */
     public ProductionOrderResponse toResponse(ProductionOrder order) {
+        return toResponse(order, null);
+    }
+
+    public ProductionOrderResponse toResponse(ProductionOrder order, String createByName) {
         List<ProductionOrderLineResponse> lines = order.getLines() == null
                 ? Collections.emptyList()
                 : order.getLines().stream().map(this::toLineResponse).toList();
-        return build(order, lines);
+        return build(order, lines, createByName);
     }
 
     /**
@@ -28,20 +32,27 @@ public class ProductionOrderMapper {
      * để tránh N+1 khi map nhiều order trong 1 trang.
      */
     public ProductionOrderResponse toSummaryResponse(ProductionOrder order) {
-        return build(order, Collections.emptyList());
+        return toSummaryResponse(order, null);
     }
 
-    private ProductionOrderResponse build(ProductionOrder order, List<ProductionOrderLineResponse> lines) {
+    public ProductionOrderResponse toSummaryResponse(ProductionOrder order, String createByName) {
+        return build(order, Collections.emptyList(), createByName);
+    }
+
+    private ProductionOrderResponse build(ProductionOrder order, List<ProductionOrderLineResponse> lines, String createByName) {
         return new ProductionOrderResponse(
                 order.getId(),
                 order.getOrderCode(),
                 order.getStatus(),
-                order.getProductVariant().getId(),
+                order.getProductVariant() != null ? order.getProductVariant().getId() : null,
+                order.getProductVariant() != null ? order.getProductVariant().getName() : null,
                 order.getPlannedQuantity(),
                 order.getUnitId(),
                 order.getLocationId(),
                 order.getNote(),
                 lines,
+                order.getCreatedBy(),
+                createByName,
                 order.getSubmittedBy(),
                 order.getSubmittedAt(),
                 order.getApprovedBy(),
@@ -60,8 +71,8 @@ public class ProductionOrderMapper {
     public ProductionOrderLineResponse toLineResponse(ProductionOrderLine line) {
         return new ProductionOrderLineResponse(
                 line.getId(),
-                line.getIngredient().getId(),
-                null,
+                line.getIngredient() != null ? line.getIngredient().getId() : null,
+                line.getIngredient() != null ? line.getIngredient().getName() : null,
                 line.getRequiredQuantity(),
                 line.getUnitId(),
                 line.getWasteRate(),

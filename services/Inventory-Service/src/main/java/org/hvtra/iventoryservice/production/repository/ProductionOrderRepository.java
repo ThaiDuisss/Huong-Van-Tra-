@@ -2,6 +2,10 @@ package org.hvtra.iventoryservice.production.repository;
 
 import org.hvtra.iventoryservice.domain.entity.production.ProductionOrder;
 import org.hvtra.iventoryservice.domain.enums.ProductionOrderStatus;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
@@ -18,16 +22,27 @@ import java.util.UUID;
 public interface ProductionOrderRepository
         extends JpaRepository<ProductionOrder, UUID>, JpaSpecificationExecutor<ProductionOrder> {
 
+    @Override
+    @EntityGraph(attributePaths = {"productVariant"})
+    Page<ProductionOrder> findAll(Specification<ProductionOrder> spec, Pageable pageable);
+
     boolean existsByOrderCode(String orderCode);
 
     /**
-     * Chỉ fetch "lines" (1 bag). KHÔNG fetch kèm "lines.allocations" ở đây — join 2 collection dạng
+     * Chỉ fetch "lines" (1 bag) kèm productVariant và lines.ingredient (đều là ManyToOne).
+     * KHÔNG fetch kèm "lines.allocations" ở đây — join 2 collection dạng
      * List (bag) cùng lúc bị Hibernate ném MultipleBagFetchException. "allocations" của từng dòng vẫn
      * lazy-load bình thường khi cần (đã có @BatchSize trên ProductionOrderLine.allocations để Hibernate
      * gộp nhiều lần lazy-load đó thành 1 câu "IN (...)" thay vì N query riêng lẻ).
      */
-    @Query("SELECT DISTINCT o FROM ProductionOrder o LEFT JOIN FETCH o.lines WHERE o.id = :id")
-    Optional<ProductionOrder> findByIdWithLines(UUID id);
+    @Query("""
+            SELECT DISTINCT o FROM ProductionOrder o
+            JOIN FETCH o.productVariant
+            LEFT JOIN FETCH o.lines l
+            LEFT JOIN FETCH l.ingredient
+            WHERE o.id = :id
+            """)
+    Optional<ProductionOrder> findByIdWithLines(@Param("id") UUID id);
 
     /** Lệnh đã duyệt trong kỳ kèm dòng nguyên liệu — dùng cho báo cáo sản xuất. */
     @Query("""

@@ -301,13 +301,25 @@ public interface InventoryBalanceRepository
             @Param("inventoryItemIds") Collection<UUID> inventoryItemIds,
             @Param("warehouseId") UUID warehouseId);
 
+    /**
+     * Tồn khả dụng của nguyên liệu để kiểm tra trước khi tạo lệnh sản xuất.
+     * Chỉ lấy batch AVAILABLE, chưa hết hạn, thuộc location ACTIVE kiểu WAREHOUSE.
+     * Không lọc theo location cụ thể vì nguyên liệu có thể nằm ở nhiều kho khác nhau.
+     */
     @Query("""
             select b from InventoryBalance b
             join fetch b.inventoryItem i
+            join fetch b.inventoryBatch batch
+            join fetch b.location l
             where i.id in :inventoryItemIds
+              and batch.status = org.hvtra.iventoryservice.domain.enums.InventoryBatchStatus.AVAILABLE
+              and (batch.expiryDate is null or batch.expiryDate >= :today)
+              and l.status = org.hvtra.iventoryservice.domain.enums.InventoryStatus.ACTIVE
+              and l.type = org.hvtra.iventoryservice.domain.enums.InventoryLocationType.WAREHOUSE
             """)
     List<InventoryBalance> findActiveWarehouseBalancesByInventoryItemIds(
-            @Param("inventoryItemIds") Collection<UUID> inventoryItemIds);
+            @Param("inventoryItemIds") Collection<UUID> inventoryItemIds,
+            @Param("today") LocalDate today);
 
     @Query("""
             select b from InventoryBalance b

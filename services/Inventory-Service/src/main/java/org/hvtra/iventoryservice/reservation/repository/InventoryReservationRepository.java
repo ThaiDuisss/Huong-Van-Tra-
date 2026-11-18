@@ -4,6 +4,8 @@ import org.hvtra.iventoryservice.domain.entity.InventoryReservation;
 import org.hvtra.iventoryservice.domain.enums.ReservationStatus;
 import org.hvtra.iventoryservice.domain.enums.ReservationType;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 import java.time.Instant;
 import java.util.List;
@@ -26,9 +28,17 @@ public interface InventoryReservationRepository extends JpaRepository<InventoryR
     List<InventoryReservation> findByStatusAndExpiresAtBefore(ReservationStatus status, Instant expiresAt);
 
     /** Nguyên liệu đang giữ chỗ cho việc sản xuất bù một mặt hàng (sinh ra khi bán), cũ nhất trước. */
+    @Query("""
+            select r from InventoryReservation r
+            where r.productVariantId = :productVariantId
+              and r.inventoryItemIngredient.id = :inventoryItemId
+              and r.reservationType = :reservationType
+              and r.status = :status
+            order by r.createdAt asc
+            """)
     List<InventoryReservation> findByProductVariantIdAndInventoryItem_IdAndReservationTypeAndStatusOrderByCreatedAtAsc(
-            UUID productVariantId,
-            UUID inventoryItemId,
-            ReservationType reservationType,
-            ReservationStatus status);
+            @Param("productVariantId") UUID productVariantId,
+            @Param("inventoryItemId") UUID inventoryItemId,
+            @Param("reservationType") ReservationType reservationType,
+            @Param("status") ReservationStatus status);
 }

@@ -2,153 +2,157 @@
 name: implement-ut
 description: >-
   Use this skill when implementing, expanding, refactoring unit tests, or drafting Unit Test Excel Reports
-  across the Hương Vân Trà ecosystem. Enforces module & method hierarchy, 100% service method coverage,
-  strict input parameters formatting (concrete data + regex for random IDs), structured 3-part Expected Results
-  (Return, Exception, Log Message), Java style rules (no FQCNs), dynamic Excel file discovery, and mandatory
-  Tester identity confirmation with user.
+  across the Hương Vân Trà ecosystem (specifically for Report-5.1_Unit Test.xlsx). Enforces 100% English documentation,
+  module & method hierarchy, 100% service method coverage, strict input parameters formatting (concrete data + regex for random IDs),
+  structured 3-part Expected Results (Return, Exception, Log Message), Java style rules (no FQCNs), dynamic Excel file discovery,
+  and mandatory Tester identity confirmation with user.
 ---
 
 # Implement Unit Test (UT) & Test Report Standards
 
-Tài liệu quy chuẩn toàn diện về **phương pháp chia Module & Method**, **viết mã nguồn Unit Test (JUnit 5 + Mockito)** và **quy trình tự động tìm kiếm, lập/cập nhật tài liệu Báo cáo Kiểm thử Unit Test (Excel Report)** trong toàn bộ hệ sinh thái **Hương Vân Trà**.
+Comprehensive standard guide on **Module & Method hierarchy**, **Unit Test implementation (JUnit 5 + Mockito)**, and **the automated process of discovering, authoring, and maintaining Unit Test Excel Reports (`Report-5.1_Unit Test.xlsx`)** across the entire **Hương Vân Trà** ecosystem.
+
+> [!IMPORTANT]
+> **100% ENGLISH ENFORCEMENT:**
+> All documentation, sheet titles, module descriptions, unit test case descriptions, input parameter specifications, structured 3-part expected results, and test report contents **MUST BE WRITTEN IN 100% ENGLISH**. No Vietnamese is permitted inside the report sheets or unit test specifications.
 
 ---
 
-## 1. Quy Trình Tổng Thể (End-to-End Workflow)
+## 1. End-to-End Workflow
 
 ```plaintext
-BƯỚC 1: Xác nhận Tên Tester (BẮT BUỘC HỎI NGƯỜI DÙNG nếu chưa có)
-  └── BƯỚC 2: Rà soát Service Interface (Đếm đủ 100% methods)
-        └── BƯỚC 3: Phân chia Module & Gom nhóm miền nghiệp vụ
-              └── BƯỚC 4: Thiết kế Test Cases (Input cụ thể + Regex, Expected 3 dòng)
-                    └── BƯỚC 5: Viết Code Unit Test (JUnit 5 + Mockito, No FQCN)
-                          └── BƯỚC 6: Chạy xác minh `mvn test` đạt 100% Pass
-                                └── BƯỚC 7: Tự tìm kiếm File Excel Báo cáo trong Workspace
-                                      ├── Tìm thấy -> Cập nhật Cover, Stats & Module sheets
-                                      └── Không thấy -> DỪNG & Báo ngay cho người dùng
+STEP 1: Confirm Tester Identity (MANDATORY TO CONFIRM WITH USER if not already specified)
+  └── STEP 2: Audit Service Interface (Account for 100% of defined methods)
+        └── STEP 3: Partition Sub-domains & Group Business Modules
+              └── STEP 4: Design Test Cases (Concrete Input + Regex, Structured 3-line Expected Results)
+                    └── STEP 5: Implement Unit Test Code (JUnit 5 + Mockito, Standard Imports, No FQCNs)
+                          └── STEP 6: Execute & Verify `mvn test` achieves 100% Pass
+                                └── STEP 7: Automatically Locate Excel Report in Workspace (`*Unit Test*.xlsx`)
+                                      ├── Found -> Update Cover, Statistics, and Module sheets
+                                      └── Not Found -> STOP & Alert user immediately (DO NOT generate blank files)
 ```
 
 ---
 
-## 2. Quy Định Về Tên Tester (Tester Identity Rule)
+## 2. Tester Identity Rule
 
 > [!CAUTION]
-> **TUYỆT ĐỐI KHÔNG TỰ Ý GHI TÊN TESTER LINH TINH:**
-> - Nghiêm cấm tự tiện ghi tên AI (như `Antigravity`, `AI Assistant`, `TesterBot`, v.v.) hoặc tự bịa một cái tên bất kỳ vào file báo cáo.
-> - **BẮT BUỘC HỎI NGƯỜI DÙNG**:
->   - Nếu trong phiên làm việc người dùng chưa từng chỉ định tên Tester, agent **bắt buộc phải dừng lại và hỏi người dùng**:
->     > *"Vui lòng cho tôi biết tên Tester phụ trách để ghi vào file báo cáo Excel (ví dụ: AnNV, HoangLV,...)?"*
->   - Chỉ khi người dùng đã trả lời hoặc đã chỉ định rõ (ví dụ: *"Tester để AnNV"*), mới được dùng tên đó để ghi vào:
->     - Ô `Creator` ở sheet `Cover`.
->     - Ô `Creator` ở sheet `Test Statistics`.
->     - Cột `Tester` (Cột H) ở tất cả các dòng Test Case trong các sheet Module chi tiết.
+> **NEVER ARBITRARILY INVENT OR INSERT PLACEHOLDER TESTER NAMES:**
+> - Strictly prohibited from inserting AI names (e.g., `Antigravity`, `AI Assistant`, `TesterBot`, etc.) or arbitrary names.
+> - **MANDATORY USER CONFIRMATION**:
+>   - If the user has not yet specified a Tester name in the current conversation, the agent **must pause and prompt the user**:
+>     > *"Please provide the Tester name to record in the Excel report (e.g., AnNV, HoangLV, etc.)?"*
+>   - Only when the user has explicitly provided or confirmed the name (e.g., *"Tester: AnNV"*), use that exact name for:
+>     - `Creator` cell in `Cover` sheet.
+>     - `Creator` cell in `Test Statistics` sheet.
+>     - `Tester` column (Column H) across all test case rows in all Module sheets.
 
 ---
 
-## 3. Quy Chuẩn Phân Chia Module vs Method Trong Microservice
+## 3. Module vs Method Hierarchy in Microservices
 
-Khi tiếp cận một Microservice (như `Catalog-Service`, `Inventory-Service`):
+When analyzing a microservice (e.g., `Catalog-Service`, `Inventory-Service`):
 
-### 3.1. Phân biệt các cấp độ cấu trúc
-- **Service (Microservice)**: Ứng dụng độc lập chịu trách nhiệm một miền lớn (ví dụ: `Catalog-Service`).
-- **Module (Phân hệ)**: Nhóm chức năng gom toàn bộ code xử lý một miền nghiệp vụ gắn kết (ví dụ: `Product_Module`, `Ingredient_Module`).
-- **Feature (Tính năng)**: Trải nghiệm nghiệp vụ từ góc nhìn người dùng (ví dụ: "Tạo sản phẩm", "Trừ tồn bán được", "Cấu hình định lượng BOM").
-- **Method (Phương thức)**: Hành động cụ thể gắn liền với đối tượng/Service Interface (ví dụ: `create()`, `findById()`, `decrementSellableQuantity()`).
+### 3.1. Architectural Hierarchy
+- **Service (Microservice)**: Independent standalone application responsible for a bounded context (e.g., `Catalog-Service`).
+- **Module**: Functional grouping of closely coupled entities and business logic (e.g., `Product_Module`, `Location_Module`).
+- **Feature**: Business capability from user or system perspective (e.g., "Create Product", "Decrement Sellable Stock", "Configure BOM").
+- **Method**: Concrete method signature defined on a Service Interface (e.g., `create()`, `findById()`, `decrementSellableQuantity()`).
 
-### 3.2. Nguyên tắc gom nhóm Module (Sub-domain Grouping)
-- Các thực thể có **quan hệ phụ thuộc trực tiếp (Parent - Child)** và chia sẻ chung vòng đời nghiệp vụ nên được **gộp chung vào 1 Module** thay vì xé nhỏ thành quá nhiều sheet rời rạc:
-  - *Ví dụ trong Catalog-Service:* Sản phẩm gốc (`Product`), Biến thể mặt hàng (`ProductVariant`) và Định lượng công thức (`BomItem`) có quan hệ mật thiết -> **Gộp chung vào `Product_Module`**.
-  - *Ví dụ trong Inventory-Service:* Vị trí kho (`Location`), Kệ quầy (`StoreShelf`) và Mặt hàng kho (`InventoryItem`) -> **Gộp chung vào `Location_Item_Module`**.
+### 3.2. Sub-domain Grouping Principles
+- Closely coupled entities sharing a parent-child lifecycle should be **consolidated into a single Module sheet** rather than fractured into fragmented sheets:
+  - *Catalog-Service Example:* Root product (`Product`), variant items (`ProductVariant`), and recipe items (`BomItem`) $\rightarrow$ Consolidated into **`Product_Module`**.
+  - *Inventory-Service Example:* Locations (`InventoryLocation`) and shelves (`StoreShelf`) $\rightarrow$ Consolidated into **`Location_Module`**.
 
-### 3.3. Quy tắc rà soát 100% Method Coverage
+### 3.3. 100% Service Method Coverage Rule
 > [!IMPORTANT]
-> **Tuyệt đối không được bỏ sót method.**
-> Trước khi viết test và lập báo cáo:
-> 1. Mở trực tiếp file Service Interface (`<Entity>Service.java`).
-> 2. Liệt kê toàn bộ các phương thức (method signature) được định nghĩa trong Interface.
-> 3. Mỗi method bắt buộc có tối thiểu:
->    - 1 Test case luồng chuẩn (`Normal` - Happy path).
->    - Các Test case luồng ngoại lệ (`Abnormal` - Bad request, Not found, Conflict, Duplicate).
->    - Các Test case giá trị biên (`Boundary` - Zero, số âm, ngưỡng threshold, chuyển giao trạng thái) nếu có logic so sánh/tính toán.
+> **Never omit any service method.**
+> Before authoring tests and populating Excel reports:
+> 1. Directly inspect the target Service Interface (`<Entity>Service.java`).
+> 2. Enumerate every declared method signature.
+> 3. Each method must have at minimum:
+>    - 1 Happy-path test case (`Normal`).
+>    - Negative/exception test cases (`Abnormal` - Bad Request, Not Found, Duplicate Code, Conflict).
+>    - Edge/boundary test cases (`Boundary` - Zero, negative numbers, threshold transitions, empty collections) where conditional logic applies.
 
 ---
 
-## 4. Quy Chuẩn Thiết Kế Test Case (Excel Report Columns)
+## 4. Test Case Design Standards (Excel Report Columns)
 
-### 4.1. Quy chuẩn Cột "Input parameters"
+### 4.1. "Input parameters" Column Specifications
 > [!CAUTION]
-> **TUYỆT ĐỐI KHÔNG** dùng các từ chung chung như `valid`, `invalid`, `non-existent`, `random-uuid`.
-> Phải truyền **dữ liệu cụ thể (concrete values)** mô phỏng đúng payload thực tế.
+> **STRICTLY PROHIBITED** from using generic placeholders like `valid`, `invalid`, `non-existent`, `random-uuid`.
+> Always pass **concrete, realistic values** mimicking true API payloads.
 
-- **Đối với các ID/Mã tự sinh hoặc sinh ngẫu nhiên:**
-  - Phải chỉ định một giá trị mẫu cụ thể và kèm theo **biểu thức chính quy (Regex Pattern)** để mô tả định dạng sinh ngẫu nhiên.
-  - Cú pháp chuẩn: `<tên_biến>="<giá_trị_mẫu>" (Regex: <pattern>)`
+- **For auto-generated or random identifiers:**
+  - Provide a concrete sample value accompanied by its **Regex Pattern**.
+  - Standard syntax: `<variable_name>="<sample_value>" (Regex: <pattern>)`
 
-**Bảng tra cứu định dạng Regex chuẩn trong dự án:**
-| Loại dữ liệu | Ví dụ dữ liệu cụ thể | Định dạng Regex chuẩn |
+**Standard Project Regex Reference:**
+| Data Type | Concrete Sample Value | Standard Regex Pattern |
 |:---|:---|:---|
 | **UUID v4** | `"550e8400-e29b-41d4-a716-446655440000"` | `^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$` |
-| **Mã vạch EAN-13** | `"8930000000018"` | `^893\d{10}$` |
-| **Mã SKU Biến thể** | `"TRA-HOP-00001"` | `^[A-Z0-9]+-[A-Z0-9]+-\d{5}$` |
-| **Mã Sản phẩm** | `"SP-00001"` | `^SP-\d{5}$` |
-| **Mã Danh mục** | `"CAT-00001"` | `^CAT-\d{5}$` |
-| **Mã Nguyên liệu** | `"NL-00001"` | `^NL-\d{5}$` |
-| **Mã Nhà cung cấp** | `"NCC-00001"` | `^NCC-\d{5}$` |
-| **Mã Lô hàng** | `"LOT-20261103-001"` | `^LOT-\d{8}-\d{3}$` |
-| **Mã Token / Khóa ngẫu nhiên** | `"a1B2c3D4"` | `^[a-zA-Z0-9]{8,16}$` |
+| **EAN-13 Barcode** | `"8930000000018"` | `^893\d{10}$` |
+| **Variant SKU** | `"TRA-HOP-00001"` | `^[A-Z0-9]+-[A-Z0-9]+-\d{5}$` |
+| **Product Code** | `"SP-00001"` | `^SP-\d{5}$` |
+| **Category Code** | `"CAT-00001"` | `^CAT-\d{5}$` |
+| **Ingredient Code** | `"NL-00001"` | `^NL-\d{5}$` |
+| **Supplier Code** | `"NCC-00001"` | `^NCC-\d{5}$` |
+| **Batch Code** | `"LOT-20261103-001"` | `^LOT-\d{8}-\d{3}$` |
+| **Receipt Code** | `"GR-202611-00001"` | `^GR-\d{6}-\d{5}$` |
 
-**Ví dụ thực tế trong cột Input parameters:**
-- ❌ **Sai:** `name="Trà Shan Tuyết", categoryId=valid`
-- ✅ **Đúng:** `name="Trà Shan Tuyết", categoryId="550e8400-e29b-41d4-a716-446655440001" (Regex: ^[0-9a-fA-F-]{36}$)`
-- ❌ **Sai:** `id=random-uuid`
-- ✅ **Đúng:** `id="00000000-0000-0000-0000-000000000000" (ID không tồn tại)`
-- ❌ **Sai:** `productCode="SP-01" (đã có trong DB)`
-- ✅ **Đúng:** `productCode="SP-00001" (đã tồn tại trong DB), name="Trà Ô Long"`
+**Concrete Input Examples:**
+- ❌ **Wrong:** `name="Ancient Green Tea", categoryId=valid`
+- ✅ **Correct:** `name="Ancient Green Tea", categoryId="550e8400-e29b-41d4-a716-446655440001" (Regex: ^[0-9a-fA-F-]{36}$)`
+- ❌ **Wrong:** `id=random-uuid`
+- ✅ **Correct:** `id="00000000-0000-0000-0000-000000000000" (non-existent ID)`
+- ❌ **Wrong:** `productCode="SP-01" (already in DB)`
+- ✅ **Correct:** `productCode="SP-00001" (already exists in DB), name="Oolong Tea"`
 
 ---
 
-### 4.2. Quy chuẩn Cột "Expected Results"
+### 4.2. "Expected Results" Column Specifications
 > [!IMPORTANT]
-> Cột **Expected Results** bắt buộc phải trình bày thành **3 dòng riêng biệt** (ngăn cách bằng dấu xuống dòng `\n`):
-> 1. `Return: <Object trả về | null | hành động của hàm void>`
-> 2. `Exception: <Tên Exception Class và Message> (hoặc N/A nếu thành công)`
-> 3. `Log Message: <Nội dung log ghi nhận> (hoặc N/A nếu không log)`
+> The **Expected Results** column must strictly be formatted as **3 distinct lines** (separated by `\n`):
+> 1. `Return: <Returned Object | null | void execution outcome>`
+> 2. `Exception: <ExceptionClass("Message") | N/A>`
+> 3. `Log Message: <"Log content" | N/A>`
 
 > [!TIP]
-> **Quy tắc ghi dòng `Return:`**
-> - **Hàm có trả về Object:** Ghi trực tiếp Object đó, KHÔNG ghi thêm `Pass`, `Fail` hay `trả về...` rườm rà.
-> - **Hàm không trả về Object (hoặc test ném Exception):** Ghi rõ `null`.
-> - **Hàm `void`:** Ghi trực tiếp trạng thái/hành động được thực thi (những gì lưu vào DB/hệ thống), KHÔNG ghi `Pass`, `Fail` hay `void`.
+> **Rules for the `Return:` line:**
+> - **Method returning an Object:** Output the object representation directly; do NOT prefix with `Pass`, `Fail`, or `returns...`.
+> - **Method returning null or throwing Exception:** State `null`.
+> - **Void method:** State the persisted entity state or action executed in database; do NOT write `Pass`, `Fail`, or `void`.
 
-#### Cấu trúc chuẩn:
+#### Standard Structure:
 ```text
-Return: <Object cụ thể theo input | null | hành động/trạng thái DB của hàm void>
-Exception: <Tên Exception("Nội dung thông báo") | N/A>
-Log Message: <"Nội dung log" | N/A>
+Return: <Concrete Object representation | null | database action of void method>
+Exception: <ExceptionClass("Message") | N/A>
+Log Message: <"Log content" | N/A>
 ```
 
-#### Ví dụ hàm trả về Object (Normal Case):
+#### Example 1: Object Return (Normal Case)
 ```text
-Return: ProductResponse(id="550e8400-e29b-41d4-a716-446655440000", productCode="SP-00001", name="Trà Shan Tuyết Cổ Thụ", status=ACTIVE)
+Return: ProductResponse(id="550e8400-e29b-41d4-a716-446655440000", productCode="SP-00001", name="Ancient Shan Tuyet Tea", status=ACTIVE)
 Exception: N/A
 Log Message: "Generated productCode=SP-00001 and persisted successfully"
 ```
 
-#### Ví dụ hàm ném ngoại lệ / không trả về Object (Abnormal Case):
+#### Example 2: Exception Thrown (Abnormal Case)
 ```text
 Return: null
 Exception: ResourceNotFoundException("Category not found with id: 00000000-0000-0000-0000-000000000000")
 Log Message: "Failed to create product: Category not found"
 ```
 
-#### Ví dụ hàm `void` (Normal Case):
+#### Example 3: Void Method (Normal Case)
 ```text
-Return: isDeleted=true lưu vào DB thành công
+Return: Persists isDeleted=true in database successfully
 Exception: N/A
 Log Message: "Soft deleted product 550e8400-e29b-41d4-a716-446655440000"
 ```
 
-#### Ví dụ hàm kiểm tra biên (Boundary Case):
+#### Example 4: Boundary / Threshold Transition (Boundary Case)
 ```text
 Return: SellableQuantityAdjustmentResponse(thresholdCrossed=true, productionThreshold=30.00, productionBatchQuantity=50.00)
 Exception: N/A
@@ -157,52 +161,37 @@ Log Message: "Production threshold crossed for variant 550e8400-e29b-41d4-a716-4
 
 ---
 
-### 4.3. Quy chuẩn Phân loại Test Case Type
-- **`Normal`**: Luồng xử lý nghiệp vụ chuẩn, dữ liệu hợp lệ (Happy path).
-- **`Abnormal`**: Dữ liệu sai, vi phạm validation, vi phạm khóa ngoại, trùng mã, ném Exception (Sad path).
-- **`Boundary`**: Giá trị biên (bằng 0, số âm, ngưỡng chuyển trạng thái, tập rỗng, tối đa/tối thiểu).
+### 4.3. Test Case Classification
+- **`Normal`**: Standard business logic execution with valid input payloads (Happy path).
+- **`Abnormal`**: Invalid payloads, validation failures, foreign key violations, duplicate codes, exception thrown (Sad path).
+- **`Boundary`**: Edge cases (zero, negative values, transition thresholds, empty lists, max/min bounds).
 
 ---
 
-## 5. Quy Trình Tự Động Tìm Kiếm & Cập Nhật File Báo Cáo Excel
+## 5. Automated Excel Report Discovery Protocol
 
-Khi hoàn thành viết Unit Test cho một Service hoặc Module, agent/tester phải thực hiện đúng quy trình tìm kiếm và xử lý file:
-
-### 5.1. Tự tìm kiếm File Báo Cáo Trong Workspace (Dynamic File Discovery)
 > [!IMPORTANT]
-> **Không bao giờ giả định file luôn cố định ở một thư mục duy nhất.**
-> File báo cáo có thể nằm ở `.local/doc/`, `docs/`, `doc/`, `reports/`, hoặc thư mục con khác do người dùng chỉ định.
+> **Never assume the Excel file is permanently located at a hardcoded path.**
+> Search dynamically in the repository:
+> ```bash
+> find . -type f -name "*Unit Test*.xlsx" -o -name "*Report*Unit*.xlsx"
+> ```
+> - File ending in `.original.xlsx` is the **Master Template** (preserving styles and formulas).
+> - File without `.original` is the **Active Report File** to update.
+> - **IF NO MATCHING FILE IS FOUND:**
+>   - **NEVER create a blank Excel file from scratch** (this destroys all predefined formulas, styles, and alignments).
+>   - **STOP IMMEDIATELY AND PROMPT THE USER** for the correct file path or template.
 
-**Quy trình tìm kiếm:**
-1. Thực hiện quét tìm kiếm file Excel có tên khớp với các mẫu sau:
-   - `*Unit Test*.xlsx`
-   - `*Report*Unit*.xlsx`
-   - `Report-5.1*.xlsx`
-2. Ví dụ câu lệnh tìm kiếm:
-   ```bash
-   find . -type f -name "*Unit Test*.xlsx" -o -name "*Report*Unit*.xlsx"
-   ```
-3. Phân biệt file:
-   - File có đuôi `.original.xlsx` là **File Template gốc** (chứa định dạng chuẩn, các công thức `=COUNTIF`, `=SUM`, màu sắc, font chữ).
-   - File không có chữ `.original` là **File Báo Cáo hiện tại** cần chỉnh sửa/ghi đè.
-
-### 5.2. Xử lý kịch bản KHÔNG TÌM THẤY FILE
-> [!CAUTION]
-> **NẾU QUÉT TOÀN BỘ REPO MÀ KHÔNG TÌM THẤY BẤT KỲ FILE BÁO CÁO HAY TEMPLATE NÀO:**
-> - **TUYỆT ĐỐI KHÔNG tự tiện tạo file Excel trắng từ đầu** (vì sẽ làm mất sạch font chữ, viền bảng, merge cell và toàn bộ các công thức `=COUNTIF`, `=SUM` phức tạp của template dự án).
-> - **DỪNG LẠI NGAY LẬP TỨC VÀ BÁO CHO NGƯỜI DÙNG:**
->   > *"Tôi đã tìm kiếm file tài liệu kiểm thử Unit Test (theo mẫu `*Unit Test*.xlsx`) trong toàn bộ thư mục dự án nhưng không tìm thấy file nào. Vui lòng cho tôi biết đường dẫn chính xác của file báo cáo hoặc cung cấp file template để tôi tiến hành điền kết quả kiểm thử."*
-
-### 5.3. Cập nhật các Sheet trong File Excel (Khi Đã Tìm Thấy File)
+### 5.1. Excel Sheet Update Protocol
 1. **Sheet `Cover`**:
-   - `Creator`: Điền tên Tester (đã xác nhận với người dùng).
-   - `Issue Date`: Ngày lập báo cáo (định dạng `dd/MM/yyyy`).
-   - `Record of Change`: Ghi rõ nội dung cập nhật và phiên bản.
+   - `Creator`: Confirmed Tester name.
+   - `Issue Date`: Report date (`dd/MM/yyyy`).
+   - `Record of Change`: Document version and update summary in English.
 2. **Sheet `Test Cases`**:
-   - Khai báo đầy đủ danh sách Module với: Số thứ tự, Tên Module, Tên Sheet (`<Name>_Module`), Mô tả và Pre-conditions.
+   - Enumerate all Modules with: Index, Module Name, Sheet Name (`<Name>_Module`), Description, and Pre-conditions.
 3. **Sheet `Test Statistics`**:
-   - Creator: Điền tên Tester.
-   - Các dòng thống kê của từng Module phải dùng **công thức Excel động trỏ sang Sheet tương ứng**:
+   - Creator: Confirmed Tester name.
+   - Module rows must use **dynamic Excel formulas**:
      - Passed: `='<SheetName>'!B5`
      - Failed: `='<SheetName>'!C5`
      - Untested: `='<SheetName>'!D5`
@@ -210,25 +199,21 @@ Khi hoàn thành viết Unit Test cho một Service hoặc Module, agent/tester 
      - Abnormal: `='<SheetName>'!C9`
      - Boundary: `='<SheetName>'!D9`
      - Total: `='<SheetName>'!B3`
-   - Dòng `Sub total` dùng hàm `=SUM(...)` trên các cột tương ứng.
-   - Các chỉ số đo độ bao phủ (`Test coverage`, `Normal case`, `Abnormal case`, `Boundary case`) tính toán theo công thức tự động.
-4. **Các Sheet Chi tiết Module (`<Name>_Module`)**:
-   - Copy từ sheet template `ModuleName1` để giữ nguyên style, màu sắc, border và công thức ở header (rows 1 đến 11).
-   - Đặt tiêu đề `Code Module` tại `B2`.
-   - Bắt đầu ghi từ row 12: Dòng tiêu đề Method (nền xám/xanh nhạt), tiếp theo là các dòng UTC.
-   - Cột `Tester`: Điền tên Tester đã được người dùng chỉ định.
-   - Cột `Round 1`: Điền `Passed` (nền xanh lá nhạt).
-   - Cột `Test date`: Ngày test thực tế (`dd/MM/yyyy`).
+   - Row `Sub total`: Dynamic formula `=SUM(...)`.
+4. **Module Detail Sheets (`<Name>_Module`)**:
+   - Inherit formatting from template (`ModuleName1`) to preserve typography, borders, and count formulas in rows 1-11.
+   - Row 12+: Method header row (light cyan fill, bold), followed by unit test case rows.
+   - All text content must be in **100% English**.
 
 ---
 
-## 6. Quy Tắc Bắt Buộc Về Java Code Style (JUnit 5 + Mockito)
+## 6. Java Code Style Standards (JUnit 5 + Mockito)
 
 > [!CAUTION]
-> **Tuyệt đối không dùng Fully Qualified Class Names (FQCN)** trong chữ ký hàm, trường dữ liệu, generics hoặc biến cục bộ (ví dụ: cấm viết `PageResponse<org.hvtra.catalog.dto.response.LookupResponse>`).
-> Luôn dùng `import` chuẩn ở đầu file và sử dụng tên class ngắn gọn (ví dụ: `import org.hvtra.catalog.dto.response.LookupResponse;` và `PageResponse<LookupResponse>`).
+> **Strictly prohibit Fully Qualified Class Names (FQCNs)** in method signatures, field declarations, generics, or local variables.
+> Always declare standard imports at the top of the file and use simple class names.
 
-### 6.1. Template Mẫu Chuẩn Cho Service Test
+### 6.1. Standard Test Template
 ```java
 package org.hvtra.catalog.service.impl;
 
@@ -296,11 +281,11 @@ class ProductServiceImplTest {
 
         category = new Category();
         category.setId(categoryId);
-        category.setName("Trà Thượng Hạng");
+        category.setName("Premium Green Tea");
 
         product = new Product();
         product.setId(productId);
-        product.setName("Trà Shan Tuyết Cổ Thụ");
+        product.setName("Ancient Shan Tuyet Tea");
         product.setProductCode("SP-00001");
         product.setStatus(Status.ACTIVE);
         product.setCategory(category);
@@ -313,7 +298,7 @@ class ProductServiceImplTest {
         @Test
         @DisplayName("create with valid category generates code and returns response")
         void create_WhenValidCategory_ShouldGenerateCodeAndSave() {
-            ProductRequest request = new ProductRequest(categoryId, null, "Trà Shan Tuyết Cổ Thụ", "Mô tả", null, Status.ACTIVE);
+            ProductRequest request = new ProductRequest(categoryId, null, "Ancient Shan Tuyet Tea", "Description", null, Status.ACTIVE);
 
             BusinessSequence seq = new BusinessSequence();
             seq.setCurrentValue(1L);
@@ -334,7 +319,7 @@ class ProductServiceImplTest {
         @DisplayName("create when category not found throws ResourceNotFoundException")
         void create_WhenCategoryNotFound_ShouldThrowResourceNotFoundException() {
             UUID unknownCategoryId = UUID.fromString("00000000-0000-0000-0000-000000000000");
-            ProductRequest request = new ProductRequest(unknownCategoryId, null, "Trà Shan Tuyết Cổ Thụ", "Mô tả", null, Status.ACTIVE);
+            ProductRequest request = new ProductRequest(unknownCategoryId, null, "Ancient Shan Tuyet Tea", "Description", null, Status.ACTIVE);
 
             when(categoryRepository.findById(unknownCategoryId)).thenReturn(Optional.empty());
 
@@ -345,25 +330,12 @@ class ProductServiceImplTest {
 }
 ```
 
-### 6.2. Lưu ý bẫy `Optional.map(mapper::toResponse)` khi Mock
-Trong Spring Boot Service thường có pattern:
-```java
-return repository.findById(id)
-        .map(mapper::toResponse)
-        .orElseThrow(() -> new ResourceNotFoundException("Entity", id));
-```
-Khi mock method này, `when(mapper.toResponse(any())).thenReturn(...)` **bắt buộc phải trả về một instance non-null**. Nếu để mặc định `null`, `Optional.map` sẽ trả về `Optional.empty()` và kích hoạt `orElseThrow()`, gây fail test giả tạo.
-
 ---
 
-## 7. Checklist Trước Khi Hoàn Thành Nhiệm Vụ Unit Test
+## 7. Definition of Done Checklist
 
-- [ ] **Tên Tester**: Đã hỏi và xác nhận với người dùng, không tự ý ghi tên AI hay tên bừa bãi.
-- [ ] **Bao phủ Method**: Đã rà soát đủ 100% method trong Service Interface tương ứng.
-- [ ] **Chạy test**: Chạy `mvn test` trên microservice tương ứng đạt **100% Pass (0 Failures, 0 Errors)**.
-- [ ] **Tìm kiếm file Excel**: Đã tự tìm kiếm trong repo (`*Unit Test*.xlsx`):
-  - Nếu có file: Đã điền đầy đủ, đúng công thức, đúng format 3 dòng, đúng Regex.
-  - Nếu không tìm thấy file nào: Đã thông báo rõ ràng cho người dùng biết, không tự tạo file trắng.
-- [ ] **Kiểm tra Migration**: Đã chạy script kiểm tra migration naming của dự án:
-  `python3 -B scripts/migrations/check_migration_naming.py`
-  `python3 -B -m unittest discover -s scripts/migrations -p "test_*.py"`
+- [ ] **100% English**: All documentation, sheet titles, module descriptions, unit test cases, inputs, expected results, and exception messages are in English.
+- [ ] **Tester Identity**: Confirmed directly with user; populated in Cover, Statistics, and all test case rows.
+- [ ] **100% Method Coverage**: Every method declared in the Service Interface has corresponding Normal, Abnormal, and Boundary test cases.
+- [ ] **Dynamic Excel Formulas**: All count and summary formulas intact without `#REF!` errors.
+- [ ] **Test Execution**: `mvn test` passes 100% with zero failures or errors.

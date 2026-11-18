@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 
+import { useAuthorization } from "../../../auth/role-utils";
+import { ROLES } from "../../../auth/roles";
 import { Button } from "../../../components/ui/Button";
 import { TextInput } from "../../../components/ui/Field";
 import { Table, TableCell, TableHead, TableHeaderCell, TableRow } from "../../../components/ui/Table";
@@ -15,6 +17,8 @@ import type { BomItemResponse } from "../types/bom.types";
 
 export function ProductionOrderCreatePage() {
     const navigate = useNavigate();
+    const { hasAnyRole } = useAuthorization();
+    const isManagerOrAdmin = hasAnyRole([ROLES.SUPER_ADMIN, ROLES.MANAGER]);
 
     const [variantId, setVariantId] = useState("");
     const [variantOptions, setVariantOptions] = useState<LookupItem[]>([]);
@@ -88,6 +92,9 @@ export function ProductionOrderCreatePage() {
             }));
             setLocationOptions((prev) => (page === 0 ? options : [...prev, ...options]));
             setLocationHasMore(!res.last);
+            if (page === 0 && options.length > 0) {
+                setLocationId((current) => current || options[0].id);
+            }
         } catch (err) {
             console.error("Lỗi tải danh sách kho sản xuất", err);
             setLocationHasMore(false);
@@ -351,7 +358,7 @@ export function ProductionOrderCreatePage() {
                     Lưu bản nháp
                 </Button>
                 <Button disabled={!canSubmit} onClick={() => void handleSave(true)} variant="primary">
-                    {submitting ? "Đang xử lý..." : "Lưu & Gửi duyệt"}
+                    {submitting ? "Đang xử lý..." : isManagerOrAdmin ? "Tạo & Duyệt ngay" : "Lưu & Gửi duyệt"}
                 </Button>
             </div>
         </section>

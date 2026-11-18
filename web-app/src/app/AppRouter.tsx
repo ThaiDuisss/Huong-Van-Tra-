@@ -91,6 +91,7 @@ import {
   BACKOFFICE_ROLES,
   CUSTOMER_ROLES,
   INVENTORY_OPERATION_ROLES,
+  INVENTORY_LOCATION_ROLES,
   INVENTORY_ROLES,
   MANUFACTURING_ROLES,
   MARKETING_ROLES,
@@ -324,12 +325,15 @@ export function AppRouter() {
           <Route path="import-excel/:batchId" element={<ProductImportReviewPage />} />
         </Route>
 
+        <Route element={<RoleGate roles={INVENTORY_LOCATION_ROLES} />}>
+          <Route path="inventory/locations" element={<InventoryLocationPage />} />
+        </Route>
+
         <Route element={<RoleGate roles={INVENTORY_ROLES} />}>
           <Route
             path="inventory"
             element={<Navigate to={routePaths.systemDashboardOverview} replace />}
           />
-          <Route path="inventory/locations" element={<InventoryLocationPage />} />
           <Route path="inventory/transactions" element={<InventoryTransactionPage />} />
           <Route path="inventory/shelves" element={<ShelfManagementPage />} />
           <Route path="inventory/balances" element={<Navigate to={routePaths.warehouseInventory} replace />} />

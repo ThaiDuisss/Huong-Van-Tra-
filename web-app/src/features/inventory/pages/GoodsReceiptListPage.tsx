@@ -64,10 +64,24 @@ function getDeleteErrorMessage(error: unknown): string {
     return "Không thể xóa phiếu nhập kho. Vui lòng thử lại sau.";
 }
 
+const QC_STATUS_FILTERS: Array<"ALL" | GoodsReceiptStatus> = [
+    "ALL",
+    "APPROVED",
+    "RECEIVING",
+    "PENDING_EXCEPTION_APPROVAL",
+    "POSTED",
+    "CANCELLED"
+];
+
 export function GoodsReceiptListPage() {
-    const { query, resetQuery, setQuery } = useGoodsReceiptQueryState();
+    const { isSuperAdmin, isManager, isQc, isInventoryStaff, keycloakSubject } = useAuthorization();
+    // Admin / quản lý mặc định lọc phiếu chờ duyệt; QC mặc định lọc phiếu đang tiếp nhận (chờ kiểm định)
+    const canReviewAll = isSuperAdmin() || isManager();
+    // QC kiêm nhân viên kho vẫn cần thấy phiếu nháp / chờ duyệt do mình tạo
+    const isQcOnly = !canReviewAll && isQc() && !isInventoryStaff();
+    const defaultStatus = canReviewAll ? "PENDING_APPROVAL" : isQcOnly ? "RECEIVING" : "ALL";
+    const { query, resetQuery, setQuery } = useGoodsReceiptQueryState(defaultStatus);
     const navigate = useNavigate();
-    const { isSuperAdmin, keycloakSubject } = useAuthorization();
     const [deleteTarget, setDeleteTarget] = useState<GoodsReceiptListItem | null>(null);
     const [deleting, setDeleting] = useState(false);
     const [deleteError, setDeleteError] = useState("");
@@ -183,17 +197,21 @@ export function GoodsReceiptListPage() {
         Boolean(query.receivedTo)
     ].filter(Boolean).length;
 
-    const statusOptions: Array<{ label: string; value: "ALL" | GoodsReceiptStatus }> = [
+    const allStatusOptions: Array<{ label: string; value: "ALL" | GoodsReceiptStatus }> = [
         { label: `Tất cả (${summaryCounts.total ?? 0})`, value: "ALL" },
         { label: `Bản nháp (${summaryCounts.draft ?? 0})`, value: "DRAFT" },
         { label: `Chờ duyệt (${summaryCounts.pendingApproval ?? 0})`, value: "PENDING_APPROVAL" },
-        { label: `Đã duyệt (Chờ giao) (${summaryCounts.approved ?? 0})`, value: "APPROVED" },
+        { label: `Đã duyệt (${summaryCounts.approved ?? 0})`, value: "APPROVED" },
         { label: `Đang tiếp nhận (${summaryCounts.receiving ?? 0})`, value: "RECEIVING" },
         { label: `Chờ duyệt ngoại lệ (${summaryCounts.pendingExceptionApproval ?? 0})`, value: "PENDING_EXCEPTION_APPROVAL" },
         { label: `Đã nhập kho (${summaryCounts.postedToday ?? 0})`, value: "POSTED" },
         { label: `Từ chối (${summaryCounts.rejected ?? 0})`, value: "REJECTED" },
         { label: `Đã hủy (${summaryCounts.cancelled ?? 0})`, value: "CANCELLED" }
     ];
+    // QC chỉ thấy phiếu từ lúc đã duyệt trở đi (backend đã giới hạn), nên ẩn các trạng thái không liên quan
+    const statusOptions = isQcOnly
+        ? allStatusOptions.filter((option) => QC_STATUS_FILTERS.includes(option.value))
+        : allStatusOptions;
 
     // Xuất toàn bộ phiếu khớp bộ lọc hiện tại qua API riêng, không chỉ trang đang xem
     const handleExportExcel = async () => {
@@ -243,10 +261,13 @@ export function GoodsReceiptListPage() {
                 error={error}
                 extraHeaderActions={
                     <div className="flex flex-wrap items-center gap-2 w-full justify-start sm:w-auto sm:justify-end">
-                        <ActionButton variant="secondary" onClick={() => navigate(routePaths.goodsReceiptImportCreate)}>
-                            <Upload size={17} aria-hidden="true" />
-                            Nhập Excel
-                        </ActionButton>
+                        {/* QC chỉ kiểm định, không tạo / nhập phiếu */}
+                        {!isQcOnly ? (
+                            <ActionButton variant="secondary" onClick={() => navigate(routePaths.goodsReceiptImportCreate)}>
+                                <Upload size={17} aria-hidden="true" />
+                                Nhập Excel
+                            </ActionButton>
+                        ) : null}
                         <ActionButton disabled={exporting} variant="secondary" onClick={() => void handleExportExcel()}>
                             <Download size={17} aria-hidden="true" />
                             {exporting ? "Đang xuất..." : "Xuất Excel"}
@@ -264,13 +285,15 @@ export function GoodsReceiptListPage() {
                                 </span>
                             ) : null}
                         </Button>
-                        <Link
-                            className={buttonClassName({ variant: "primary", size: "lg" })}
-                            to="/management/inventory/receipts/new"
-                        >
-                            <Plus size={17} aria-hidden="true" />
-                            <span>Tạo phiếu nhập mới</span>
-                        </Link>
+                        {!isQcOnly ? (
+                            <Link
+                                className={buttonClassName({ variant: "primary", size: "lg" })}
+                                to="/management/inventory/receipts/new"
+                            >
+                                <Plus size={17} aria-hidden="true" />
+                                <span>Tạo phiếu nhập mới</span>
+                            </Link>
+                        ) : null}
                     </div>
                 }
                 filters={filters}
