@@ -96,7 +96,7 @@ export function ShelfReplenishmentListPage() {
     return (
         <InventoryResourceManagement<ShelfReplenishment, ReplenishmentStatusFilterOption>
             columns={columns}
-            description="Chuyển hàng từ kho lên kệ bán. Phiếu do POS tạo khi kệ thiếu hàng cũng nằm ở đây."
+            description="Chuyển hàng từ kho lên kệ bán. "
             detailPath={(item) => shelfReplenishmentDetailPath(item.id)}
             error={resource.error}
             extraHeaderActions={
