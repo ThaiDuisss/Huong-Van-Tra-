@@ -5,7 +5,7 @@ from threading import Lock
 from app.ingredient_poc.recommendation.data import ResearchDataset, sha256, utc
 from app.ingredient_demo.bom_report import build_report_snapshot
 from app.ingredient_poc.recommendation.model import IngredientRecommender
-from app.ingredient_poc.synthetic import END, T1
+from app.ingredient_poc.synthetic import END, T1, T2
 
 
 class ArtifactVerificationError(ValueError):
@@ -54,7 +54,9 @@ class IngredientDemoService:
                      "cohort_as_of": END.isoformat(), "cold_at_train_cutoff": not self.data.history(customer, T1)}
                     for customer in sorted(self.data.customers)]}
 
-    def report_snapshot(self):
+    def report_snapshot(self, label_start=T2, label_end=END):
+        if (label_start, label_end) != (T2, END):
+            return build_report_snapshot(self._model, label_start, label_end)
         with self._lock:
             if self._report is None:
                 self._report = build_report_snapshot(self._model)

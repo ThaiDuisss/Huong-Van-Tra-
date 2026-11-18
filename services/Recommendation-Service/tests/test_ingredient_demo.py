@@ -98,6 +98,23 @@ class BomReportBoundaryTests(unittest.TestCase):
         self.assertEqual(workbook[SHEETS[2]]["G4"].value, "Chưa được gợi ý")
         self.assertEqual(workbook[SHEETS[1]]["F5"].value, "Không có gợi ý")
 
+    def test_selected_utc_day_excludes_earlier_and_next_midnight_purchases(self):
+        from datetime import timedelta
+
+        model = self.model()
+        original = model.data.tables["sale_items"][0]
+        start = T2 + timedelta(days=1)
+        end = start + timedelta(days=1)
+        model.data.tables["sale_items"].extend([
+            dict(original, order_item_id="last-instant", purchased_at=end - timedelta(microseconds=1)),
+            dict(original, order_item_id="next-midnight", purchased_at=end),
+        ])
+        result = build_report_snapshot(model, start, end)
+        self.assertEqual(result["summary"]["test_bom_sale_rows"], 1)
+        self.assertEqual(result["summary"]["matches"], 1)
+        self.assertEqual(result["summary"]["recommendations"], 2)
+        self.assertEqual(sum(r["sold_quantity"] for r in result["recipes"]), Decimal(2))
+
     def test_duplicate_lines_and_incompatible_sale_units_fail(self):
         model = self.model()
         model.data.tables["sale_items"].append(deepcopy(model.data.tables["sale_items"][0]))
@@ -196,14 +213,14 @@ class IngredientDemoIntegrationTests(unittest.TestCase):
         self.assertEqual({row["cohort"] for row in rows}, {"PRODUCT_ONLY", "BOM_ONLY", "MIXED"})
         self.assertFalse(any("email" in row or "name" in row for row in rows))
 
-    def test_excel_download_has_four_sheets_and_complete_customer_rows(self):
+    def test_excel_download_has_lookup_and_complete_customer_rows(self):
         response = self.excel_response
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.headers["content-type"], "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
         self.assertIn("Ingredient_Recommendation_Research_20260401.xlsx", response.headers["content-disposition"])
         self.assertEqual(response.headers["cache-control"], "private, no-store")
         self.assertEqual(self.workbook.sheetnames, SHEETS)
-        self.assertEqual([len(list(table_rows(ws))) for ws in self.workbook.worksheets[1:]], [400, 80, 348])
+        self.assertEqual([len(list(table_rows(ws))) for ws in self.workbook.worksheets[1:]], [400, 80, 348, 400])
         for index, ws in enumerate(self.workbook.worksheets[1:], 1):
             self.assertEqual([c.value for c in ws[HEADER_ROWS[index]]], HEADERS[index])
         self.assertEqual(self.client.get(PREFIX + "/reports/excel").content, response.content)

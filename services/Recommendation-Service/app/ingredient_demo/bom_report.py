@@ -8,11 +8,13 @@ from app.ingredient_poc.synthetic import END, T2
 PROTOCOL = "BOM_TEST_TOP5_REPEAT_V1"
 
 
-def build_report_snapshot(model):
+def build_report_snapshot(model, label_start=T2, label_end=END):
+    if not T2 <= label_start < label_end <= END:
+        raise ValueError("BOM evaluation period must be inside the verified UTC TEST window")
     data = model.data
     eligible = {c["recipe_id"] for c in data.candidates(T2) if c["recommendation_type"] == "CUSTOM_BOM"}
     purchases = [s for s in data.tables["sale_items"]
-                 if s["purchase_type"] == "CUSTOM_BOM" and T2 <= s["purchased_at"] < END]
+                 if s["purchase_type"] == "CUSTOM_BOM" and label_start <= s["purchased_at"] < label_end]
     truth, orders, quantity, units = defaultdict(set), defaultdict(set), defaultdict(Decimal), defaultdict(set)
     sale_counts, recommended, matched = Counter(), Counter(), Counter()
     suggested_customers = defaultdict(set)
@@ -75,10 +77,11 @@ def build_report_snapshot(model):
                         "match_rate": matched[rid] / recommended[rid] if recommended[rid] else None})
     appearances, hits = sum(recommended.values()), sum(matched.values())
     return {"protocol": {"name": PROTOCOL, "mode": "CUSTOM_BOM", "policy": "REPEAT", "top_k": 5,
-                         "as_of": T2.isoformat(), "label_end_exclusive": END.isoformat(),
+                         "as_of": T2.isoformat(), "label_start_inclusive": label_start.isoformat(),
+                         "label_end_exclusive": label_end.isoformat(),
                          "match_identity": "(CUSTOM_BOM, recipe_id)",
                          "ratio": "matched recommendations / returned recommendations",
-                         "purchase_scope": "TEST [T2, END); eligible CUSTOM_BOM labels only",
+                         "purchase_scope": "Selected UTC period within TEST; eligible CUSTOM_BOM labels only",
                          "phase3_original_metrics": False},
             "summary": {"customers": len(records), "customers_with_bom_labels": sum(bool(truth[c]) for c in data.customers),
                         "recommendations": appearances, "matches": hits,
