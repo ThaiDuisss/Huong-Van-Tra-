@@ -259,6 +259,7 @@ public class FileService {
         Set<String> allowed = Set.of(
                 "image/png",
                 "image/jpeg",
+                "image/webp",
                 "application/pdf",
                 "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         );

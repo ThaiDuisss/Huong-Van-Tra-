@@ -67,6 +67,7 @@ file:
   allowed-content-types:
     - image/png
     - image/jpeg
+    - image/webp
     - application/pdf
 
 security:
