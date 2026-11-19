@@ -1,6 +1,7 @@
 package org.hvtra.apigateway.utils;
 
 public class GatewayConstants {
+    public static final String TASTE_PREVIEW_PATH = "/api/recommendation/taste/preview";
     public  static final String X_FORWARDED_FOR = "X-Forwarded-For";
 
     // Header

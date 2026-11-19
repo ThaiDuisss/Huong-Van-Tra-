@@ -10,6 +10,7 @@ import org.springframework.cloud.gateway.filter.GlobalFilter;
 import org.springframework.core.Ordered;
 import org.springframework.http.server.reactive.ServerHttpRequest;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
@@ -99,9 +100,12 @@ public class InternalUserContextRelayFilter implements GlobalFilter, Ordered {
                     String permissions = extractPermissions(jwt);
                     String permissionsSignature = signPermissions(userId, permissions, correlationId);
                     String rawPath = exchange.getRequest().getURI().getRawPath();
-                    boolean recommendation = rawPath.startsWith(RECOMMENDATION_PREFIX);
+                    boolean productRecommendation = rawPath.startsWith(RECOMMENDATION_PREFIX);
+                    boolean tastePreview = GatewayConstants.TASTE_PREVIEW_PATH.equals(rawPath)
+                            && HttpMethod.POST.equals(exchange.getRequest().getMethod());
+                    boolean recommendation = productRecommendation || tastePreview;
                     String customerId = "";
-                    if (recommendation && !isBlank(customerIdClaim)) {
+                    if (productRecommendation && !isBlank(customerIdClaim)) {
                         Object claim = jwt.getClaims().get(customerIdClaim);
                         if (claim instanceof String text) {
                             customerId = text;

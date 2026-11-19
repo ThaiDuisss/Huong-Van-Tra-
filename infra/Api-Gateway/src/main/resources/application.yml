@@ -71,6 +71,18 @@ spring:
             filters:
               - StripPrefix=2
 
+          - id: taste-recommendation-preview
+            uri: ${RECOMMENDATION_SERVICE_URL:http://localhost:8090}
+            predicates:
+              - name: Path
+                args:
+                  patterns: /api/recommendation/taste/preview
+                  matchTrailingSlash: false
+              - Method=POST
+            filters:
+              - StripPrefix=2
+              - RequestSize=20KB
+
           - id: file-service
             uri: lb://file-service
             predicates:

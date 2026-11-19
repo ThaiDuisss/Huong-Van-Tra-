@@ -3,6 +3,8 @@ package org.hvtra.catalog.repository;
 import org.hvtra.catalog.dto.response.VariantCostResponse;
 import org.hvtra.catalog.dto.response.VariantInventorySummaryResponse;
 import org.hvtra.catalog.entity.ProductVariant;
+import org.hvtra.catalog.enums.Status;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Modifying;
@@ -25,6 +27,14 @@ public interface ProductVariantRepository extends JpaRepository<ProductVariant, 
     List<ProductVariant> findByProductId(@Param("productId") UUID productId);
 
     Optional<ProductVariant> findFirstByCustomBundleTrueAndIsDeletedFalse();
+
+    @Query("""
+            select v from ProductVariant v join fetch v.product p
+            where v.isDeleted = false and v.customBundle = false and p.isDeleted = false
+              and v.status = :active and p.status = :active
+            order by v.id
+            """)
+    List<ProductVariant> findTasteSnapshotVariants(@Param("active") Status active, Pageable page);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select v from ProductVariant v where v.id = :id and v.isDeleted = false")
