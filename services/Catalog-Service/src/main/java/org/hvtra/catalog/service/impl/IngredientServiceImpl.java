@@ -27,6 +27,7 @@ import org.hvtra.commonservice.common_core.repository.BusinessSequenceRepository
 import org.hvtra.catalog.repository.IngredientRepository;
 import org.hvtra.catalog.repository.UnitRepository;
 import org.hvtra.catalog.service.IngredientService;
+import org.hvtra.catalog.taste.TasteComposition;
 import org.hvtra.catalog.util.ExcelExportHelper;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
@@ -47,18 +48,21 @@ public class IngredientServiceImpl implements IngredientService {
     private final BusinessSequenceRepository businessSequenceRepository;
     private final UnitRepository unitRepository;
     private final CatalogOutboxPublisher catalogOutboxPublisher;
+    private final TasteComposition composition;
 
     public IngredientServiceImpl(
             IngredientRepository repository,
             IngredientMapper mapper,
             BusinessSequenceRepository businessSequenceRepository,
             UnitRepository unitRepository,
-            CatalogOutboxPublisher catalogOutboxPublisher) {
+            CatalogOutboxPublisher catalogOutboxPublisher,
+            TasteComposition composition) {
         this.repository = repository;
         this.mapper = mapper;
         this.businessSequenceRepository = businessSequenceRepository;
         this.unitRepository = unitRepository;
         this.catalogOutboxPublisher = catalogOutboxPublisher;
+        this.composition = composition;
     }
 
     @Transactional
@@ -166,6 +170,7 @@ public class IngredientServiceImpl implements IngredientService {
     @Override
     @Transactional
     public IngredientResponse update(UUID id, IngredientRequest request) {
+        lockComposition();
         Ingredient ingredient = get(id);
         if (ingredient.getIsDeleted()) {
             throw new ResourceNotFoundException("Ingredient", id);
@@ -179,6 +184,7 @@ public class IngredientServiceImpl implements IngredientService {
             ingredient.setUnit(null);
         }
         Ingredient saved = repository.save(ingredient);
+        updateComposition(id);
 
         if (catalogOutboxPublisher != null) {
             catalogOutboxPublisher.publishIngredientUpdated(saved);
@@ -190,12 +196,14 @@ public class IngredientServiceImpl implements IngredientService {
     @Override
     @Transactional
     public IngredientResponse updateStatus(UUID id, Status status) {
+        lockComposition();
         Ingredient ingredient = get(id);
         if (ingredient.getIsDeleted()) {
             throw new ResourceNotFoundException("Ingredient", id);
         }
         ingredient.setStatus(status);
         Ingredient saved = repository.save(ingredient);
+        updateComposition(id);
 
         if (catalogOutboxPublisher != null) {
             catalogOutboxPublisher.publishIngredientUpdated(saved);
@@ -267,14 +275,28 @@ public class IngredientServiceImpl implements IngredientService {
     @Override
     @Transactional
     public void delete(UUID id) {
+        lockComposition();
         Ingredient ingredient = get(id);
         if (ingredient.getIsDeleted()) {
             throw new ResourceNotFoundException("Ingredient", id);
         }
         ingredient.setIsDeleted(true);
         repository.save(ingredient);
+        updateComposition(id);
         if (catalogOutboxPublisher != null) {
             catalogOutboxPublisher.publishIngredientDeleted(ingredient);
+        }
+    }
+
+    private void lockComposition() {
+        if (composition != null) {
+            composition.lockWrites();
+        }
+    }
+
+    private void updateComposition(UUID ingredientId) {
+        if (composition != null) {
+            composition.changedIngredient(ingredientId);
         }
     }
 

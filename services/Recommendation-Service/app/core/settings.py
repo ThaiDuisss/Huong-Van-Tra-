@@ -24,6 +24,13 @@ class Settings(BaseSettings):
     mysql_echo_sql: bool = False
 
     catalog_service_url: str = "http://localhost:8081"
+    taste_catalog_sync_secret: SecretStr | None = None
+    taste_catalog_auto_refresh: bool = False
+    taste_catalog_refresh_seconds: int = Field(default=60, ge=5, le=3600)
+    taste_catalog_ttl_seconds: int = Field(default=300, ge=10, le=86400)
+    taste_catalog_max_variants: int = Field(default=2000, ge=1, le=10000)
+    taste_catalog_max_bytes: int = Field(default=4194304, ge=1024, le=16777216)
+    taste_catalog_timeout_seconds: float = Field(default=15, gt=0, le=120)
     internal_header_secret: str = Field(default="", repr=False)
     app_environment: Literal["production", "development", "test"] = "production"
     internal_replay_backend: Literal["redis", "memory"] = "redis"

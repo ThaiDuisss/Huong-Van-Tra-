@@ -37,6 +37,7 @@ import org.hvtra.catalog.repository.SellableAdjustmentRepository;
 import org.hvtra.catalog.repository.UnitRepository;
 import org.hvtra.commonservice.common_core.repository.BusinessSequenceRepository;
 import org.hvtra.catalog.service.ProductVariantService;
+import org.hvtra.catalog.taste.TasteComposition;
 import org.hvtra.catalog.util.ExcelExportHelper;
 import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.CellStyle;
@@ -81,6 +82,7 @@ public class ProductVariantServiceImpl implements ProductVariantService {
     private final IngredientRepository ingredientRepository;
     private final SellableAdjustmentRepository adjustmentRepository;
     private final CatalogOutboxPublisher catalogOutboxPublisher;
+    private final TasteComposition composition;
 
     public ProductVariantServiceImpl(
             ProductVariantRepository repository,
@@ -90,7 +92,8 @@ public class ProductVariantServiceImpl implements ProductVariantService {
             BusinessSequenceRepository businessSequenceRepository,
             IngredientRepository ingredientRepository,
             SellableAdjustmentRepository adjustmentRepository,
-            CatalogOutboxPublisher catalogOutboxPublisher) {
+            CatalogOutboxPublisher catalogOutboxPublisher,
+            TasteComposition composition) {
         this.repository = repository;
         this.productRepository = productRepository;
         this.mapper = mapper;
@@ -99,6 +102,7 @@ public class ProductVariantServiceImpl implements ProductVariantService {
         this.ingredientRepository = ingredientRepository;
         this.adjustmentRepository = adjustmentRepository;
         this.catalogOutboxPublisher = catalogOutboxPublisher;
+        this.composition = composition;
     }
 
     @Override
@@ -281,16 +285,27 @@ public class ProductVariantServiceImpl implements ProductVariantService {
     @Override
     @Transactional
     public ProductResponse.VariantResponse update(UUID id, ProductVariantRequest request) {
-        ProductVariant variant = get(id);
+        ProductVariant variant = composition == null ? get(id) : lockForComposition(id);
         requireNotCustomBundle(variant);
+        BigDecimal previousQuantity = variant.getQuantity();
+        UUID previousUnit = variant.getUnit() == null ? null : variant.getUnit().getId();
         apply(variant, request);
         ProductVariant savedVariant = repository.save(variant);
+        if (composition != null && (previousQuantity.compareTo(variant.getQuantity()) != 0
+                || !request.unitId().equals(previousUnit))) {
+            composition.changedVariant(id);
+        }
 
         if (catalogOutboxPublisher != null) {
             catalogOutboxPublisher.publishVariantUpdated(savedVariant);
         }
 
         return mapper.toVariantResponse(savedVariant);
+    }
+
+    private ProductVariant lockForComposition(UUID id) {
+        composition.lockWrites();
+        return repository.findByIdForUpdate(id).orElseThrow(() -> new ResourceNotFoundException("ProductVariant", id));
     }
 
     @Override
