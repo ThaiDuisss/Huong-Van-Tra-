@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.models.business_report import CompletedPurchaseOrder
 from app.models.interaction_event import InteractionEvent, InteractionEventType
+from app.models.order_event_inbox import OrderReturnLine
 from app.models.product_variant import ProductVariant
 from app.service.evidence_fingerprint import fingerprint
 
@@ -50,7 +51,7 @@ class ExploreHistoryRepository:
             InteractionEvent.created_at <= as_of,
         ).distinct()))
 
-        # Only preference returns are retained in this projection by the current consumer.
+        # Before signed ingestion, only preference returns had a persisted history row.
         return_order_id = InteractionEvent.order_id
         if db.get_bind().dialect.name == "mysql":
             # Match the receipt collation without wrapping its indexed primary key.
@@ -67,9 +68,20 @@ class ExploreHistoryRepository:
             InteractionEvent.event_time <= as_of,
             InteractionEvent.created_at <= as_of,
         ))
+        signed_returns = db.execute(select(
+            OrderReturnLine.return_item_id, OrderReturnLine.order_id, OrderReturnLine.order_item_id,
+            OrderReturnLine.product_variant_id, OrderReturnLine.quantity,
+        ).where(
+            OrderReturnLine.customer_id == customer_id,
+            OrderReturnLine.purchase_type == "PRODUCT",
+            OrderReturnLine.occurred_at <= as_of,
+            OrderReturnLine.observed_at <= as_of,
+        ))
         returned_units: dict[tuple[str, str], dict[str, Decimal]] = defaultdict(dict)
         observed_returns = {}
-        for return_id, order_id, line_id, variant_id, quantity in returns:
+        for return_id, order_id, line_id, variant_id, quantity in (
+            entry for result in (signed_returns, returns) for entry in result
+        ):
             if not return_id or not order_id or not line_id or not variant_id:
                 raise ExploreHistoryError
             identity = (order_id, line_id, variant_id)
@@ -94,6 +106,12 @@ class ExploreHistoryRepository:
             seen_lines = set()
             for line in lines:
                 if not isinstance(line, dict):
+                    raise ExploreHistoryError
+                line_type = line.get("purchase_type", "PRODUCT")
+                if line_type == "CUSTOM_BUNDLE" or (line_type == "PRODUCT" and
+                                                   "purchase_type" in line and line.get("product_id") is None):
+                    continue
+                if line_type != "PRODUCT":
                     raise ExploreHistoryError
                 line_id, product_id, variant_id = (
                     line.get("order_item_id"), line.get("product_id"), line.get("product_variant_id"),

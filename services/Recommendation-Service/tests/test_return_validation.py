@@ -1,19 +1,10 @@
-"""RETURN contract and mocked transaction/offset boundaries; no broker or DB."""
+"""Pure RETURN adapter contract. Signed ingress and transaction tests live in test_signed_order_inbox."""
 from copy import deepcopy
 from datetime import datetime, timezone
 from decimal import Decimal, localcontext
-import json
-from pathlib import Path
-from types import SimpleNamespace
 import unittest
-from unittest.mock import MagicMock, patch
 
-from app.kafka.purchase_consumer import PurchaseKafkaConsumer
-from app.kafka.purchase_event_adapter import PurchaseEventValidationError
-from app.kafka.return_consumer import ReturnKafkaConsumer
 from app.kafka.return_event_adapter import ReturnEventAdapter, ReturnEventValidationError
-from app.kafka.worker import KafkaWorker
-from app.service.interaction_service import InteractionService
 
 
 EVENT = "550e8400-e29b-41d4-a716-446655440001"
@@ -23,9 +14,6 @@ CUSTOMER = "550e8400-e29b-41d4-a716-446655440004"
 RETURN_LINE = "550e8400-e29b-41d4-a716-446655440101"
 ORDER_LINE = "550e8400-e29b-41d4-a716-446655440201"
 VARIANT = "550e8400-e29b-41d4-a716-446655440301"
-TOPIC = "notification.return.completed"
-PURCHASE_FIXTURE = (Path(__file__).resolve().parents[2]
-                    / "Order-Service/src/test/resources/contracts/product-completed-v1.json")
 
 
 def payload():
@@ -66,21 +54,6 @@ def headers(value):
         ("saga_id", None), ("correlation_id", value["correlationId"].encode()),
         ("causation_id", None),
     ]
-
-
-def message(value, supplied_headers=None, *, topic=TOPIC, partition=0, offset=14):
-    msg = MagicMock()
-    msg.error.return_value = None
-    msg.value.return_value = json.dumps(value).encode()
-    msg.headers.return_value = supplied_headers
-    msg.topic.return_value = topic
-    msg.partition.return_value = partition
-    msg.offset.return_value = offset
-    return msg
-
-
-def committed(topic=TOPIC, partition=0, offset=15):
-    return [SimpleNamespace(topic=topic, partition=partition, offset=offset, error=None)]
 
 
 class ReturnAdapterTests(unittest.TestCase):
@@ -354,193 +327,6 @@ class ReturnHeaderTests(unittest.TestCase):
                          "headers", {"event_id": EVENT}, [("event_id",)], [None], [(123, b"value")]):
             with self.subTest(headers=repr(supplied)), self.assertRaises(ReturnEventValidationError):
                 ReturnEventAdapter.validate_headers(payload(), supplied)
-
-
-class ReturnConsumerSafetyTests(unittest.TestCase):
-    def setUp(self):
-        self.db = MagicMock()
-        self.factory = MagicMock(return_value=self.db)
-        self.kafka = MagicMock()
-        self.kafka.commit.return_value = committed()
-        self.service = MagicMock()
-        self.service.process_batch.return_value = [SimpleNamespace(id=RETURN_LINE)]
-        self.consumer = ReturnKafkaConsumer(consumer=self.kafka, interaction_service=self.service,
-                                           session_factory=self.factory, settings=SimpleNamespace())
-
-    def assert_no_db_or_ack(self):
-        self.factory.assert_not_called()
-        self.service.process_batch.assert_not_called()
-        self.db.assert_not_called()
-        self.assertEqual(self.db.mock_calls, [])
-        self.kafka.commit.assert_not_called()
-
-    def test_invalid_payload_matrix_never_opens_session_writes_or_acks(self):
-        invalid = []
-        for quantity in (0, -1, "NaN", "Infinity", "100000000000", "0.0001"):
-            source = payload()
-            source["items"][0]["quantity"] = quantity
-            invalid.append(source)
-        invalid.extend([dict(payload(), occurredAt="2026-11-06T08:30:00"),
-                        dict(payload(), returnId="not-a-uuid"), dict(payload(), eventVersion=2)])
-        for source in invalid:
-            with self.subTest(payload=source), self.assertRaises(ReturnEventValidationError):
-                self.consumer.consume_message(message(source))
-            self.assert_no_db_or_ack()
-
-    def test_invalid_header_and_operational_header_mismatch_cannot_ack(self):
-        for reason in ("CHANGE_OF_MIND", "DEFECTIVE"):
-            source = payload()
-            source["items"][0]["returnReason"] = reason
-            with self.subTest(reason=reason), self.assertRaises(ReturnEventValidationError):
-                self.consumer.consume_message(message(source, [("event_id", b"wrong")]))
-            self.assert_no_db_or_ack()
-
-    def test_valid_first_line_then_invalid_or_duplicate_second_line_never_opens_db(self):
-        for change in ({"quantity": "0.0001"}, {"returnItemId": RETURN_LINE},
-                       {"orderItemId": ORDER_LINE}):
-            source = two_lines()
-            source["items"][1].update(change)
-            with self.subTest(change=change), self.assertRaises(ReturnEventValidationError):
-                self.consumer.consume_message(message(source, headers(source)))
-            self.assert_no_db_or_ack()
-
-    def test_valid_multiple_lines_are_one_batch_before_synchronous_offset_commit(self):
-        source = two_lines()
-        msg = message(source, headers(source))
-        order = MagicMock()
-        order.attach_mock(self.service.process_batch, "batch")
-        order.attach_mock(self.db.close, "close")
-        order.attach_mock(self.kafka.commit, "ack")
-        result = self.consumer.consume_message(msg)
-        self.assertEqual(result, self.service.process_batch.return_value)
-        self.factory.assert_called_once_with()
-        self.service.process_batch.assert_called_once()
-        db, rows = self.service.process_batch.call_args.args
-        self.assertIs(db, self.db)
-        self.assertEqual(len(rows), 2)
-        self.assertEqual([c[0] for c in order.mock_calls], ["batch", "close", "ack"])
-        self.kafka.commit.assert_called_once_with(message=msg, asynchronous=False)
-
-    def test_legacy_missing_header_or_header_method_remains_accepted(self):
-        for remove_method in (False, True):
-            self.kafka.reset_mock()
-            msg = message(payload())
-            if remove_method:
-                del msg.headers
-            with self.subTest(missing_method=remove_method):
-                self.consumer.consume_message(msg)
-                self.kafka.commit.assert_called_once_with(message=msg, asynchronous=False)
-
-    def test_operational_noop_is_validated_and_acked_without_db(self):
-        source = payload()
-        source["items"][0]["returnReason"] = "DAMAGED"
-        self.assertEqual(self.consumer.consume_message(message(source, headers(source))), [])
-        self.factory.assert_not_called()
-        self.service.process_batch.assert_not_called()
-        self.kafka.commit.assert_called_once()
-
-    def test_real_batch_boundary_commits_all_lines_before_ack(self):
-        service = InteractionService(MagicMock(), MagicMock(), MagicMock())
-        events = [SimpleNamespace(id=RETURN_LINE), SimpleNamespace(id=ORDER_LINE)]
-        self.consumer.interaction_service = service
-        order = MagicMock()
-        order.attach_mock(self.db.commit, "db_commit")
-        order.attach_mock(self.kafka.commit, "ack")
-        with patch.object(service, "_process_one", side_effect=events) as process:
-            result = self.consumer.consume_message(message(two_lines()))
-        self.assertEqual(result, events)
-        self.assertEqual(process.call_count, 2)
-        self.assertEqual([c[0] for c in order.mock_calls], ["db_commit", "ack"])
-        self.db.rollback.assert_not_called()
-
-    def test_real_batch_second_line_failure_rolls_back_without_partial_commit_or_ack(self):
-        service = InteractionService(MagicMock(), MagicMock(), MagicMock())
-        self.consumer.interaction_service = service
-        with patch.object(service, "_process_one", side_effect=[SimpleNamespace(id=RETURN_LINE),
-                                                               RuntimeError("second line failed")]) as process:
-            with self.assertRaisesRegex(RuntimeError, "second line failed"):
-                self.consumer.consume_message(message(two_lines()))
-        self.assertEqual(process.call_count, 2)
-        self.db.commit.assert_not_called()
-        self.db.rollback.assert_called()
-        self.db.close.assert_called_once()
-        self.kafka.commit.assert_not_called()
-
-    def test_batch_or_db_failure_closes_and_rolls_back_without_ack(self):
-        self.service.process_batch.side_effect = RuntimeError("DB failure")
-        with self.assertRaisesRegex(RuntimeError, "DB failure"):
-            self.consumer.consume_message(message(two_lines()))
-        self.db.rollback.assert_called_once()
-        self.db.close.assert_called_once()
-        self.kafka.commit.assert_not_called()
-
-    def test_offset_failure_is_propagated_after_processing_without_skip(self):
-        self.kafka.commit.side_effect = RuntimeError("offset unavailable")
-        with self.assertRaisesRegex(RuntimeError, "offset unavailable"):
-            self.consumer.consume_message(message(payload()))
-        self.service.process_batch.assert_called_once()
-        self.db.close.assert_called_once()
-
-    def test_worker_pauses_failed_partition_and_only_commits_other_partition(self):
-        invalid = payload()
-        invalid["items"][0]["quantity"] = "NaN"
-        failed = message(invalid)
-        other = message(payload(), partition=1)
-        self.kafka.commit.return_value = committed(partition=1)
-        settings = SimpleNamespace(kafka_order_completed_topic="order.completed",
-                                   kafka_return_completed_topic=TOPIC,
-                                   kafka_bootstrap_servers="unused", kafka_group_id="unused")
-        worker = KafkaWorker(consumer=self.kafka, return_consumer=self.consumer,
-                             purchase_consumer=MagicMock(), settings=settings, error_backoff=0)
-        queue = iter([failed, other])
-
-        def poll(**kwargs):
-            try:
-                return next(queue)
-            except StopIteration:
-                worker.running = False
-                return None
-
-        self.kafka.poll.side_effect = poll
-        with patch.object(worker, "setup_signals"):
-            worker.run()
-        self.kafka.pause.assert_called_once()
-        paused, = self.kafka.pause.call_args.args[0]
-        self.assertEqual((paused.topic, paused.partition), (TOPIC, 0))
-        self.kafka.commit.assert_called_once_with(message=other, asynchronous=False)
-        self.kafka.close.assert_called_once()
-
-
-class PurchaseBoundaryRegressionTests(unittest.TestCase):
-    def setUp(self):
-        self.source = json.loads(PURCHASE_FIXTURE.read_text(encoding="utf-8"))
-        self.db = MagicMock()
-        self.factory = MagicMock(return_value=self.db)
-        self.service = MagicMock()
-        self.service.process_batch.return_value = [SimpleNamespace(id=ORDER_LINE)]
-        self.kafka = MagicMock()
-        self.kafka.commit.return_value = committed(topic="order.completed")
-        self.consumer = PurchaseKafkaConsumer(consumer=self.kafka, interaction_service=self.service,
-                                             session_factory=self.factory, settings=SimpleNamespace())
-
-    def test_purchase_fixture_still_uses_whole_order_batch_and_business_time(self):
-        msg = message(self.source, topic="order.completed")
-        self.consumer.consume_message(msg)
-        self.service.process_batch.assert_called_once()
-        rows = self.service.process_batch.call_args.args[1]
-        self.assertEqual(rows[0].event_type, "PURCHASE")
-        self.assertEqual(rows[0].event_time.isoformat(), self.source["completedAt"].replace("Z", "+00:00"))
-        self.assertEqual(self.service.process_batch.call_args.kwargs, {"completed_order": self.source})
-        self.kafka.commit.assert_called_once_with(message=msg, asynchronous=False)
-
-    def test_purchase_invalid_status_or_header_still_cannot_write_or_ack(self):
-        for value, supplied in ((dict(self.source, orderStatus="PAYMENT_CONFIRMED"), None),
-                                (self.source, [("event_version", b"2")])):
-            with self.subTest(headers=supplied), self.assertRaises(PurchaseEventValidationError):
-                self.consumer.consume_message(message(value, supplied, topic="order.completed"))
-        self.factory.assert_not_called()
-        self.service.process_batch.assert_not_called()
-        self.kafka.commit.assert_not_called()
 
 
 if __name__ == "__main__":

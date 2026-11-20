@@ -53,7 +53,8 @@ class OrderOutboxPublisherTest {
     @BeforeEach
     void setUp() {
         orderOutboxTopicResolver = new OrderOutboxTopicResolver();
-        publisher = new OrderOutboxPublisher(orderOutboxEventService, orderOutboxTopicResolver, historyRepository);
+        publisher = new OrderOutboxPublisher(orderOutboxEventService, orderOutboxTopicResolver, historyRepository,
+                OrderKafkaSignerTest.signer());
         lenient().when(historyRepository.findFirstByOrderIdAndToStatusAndIsDeletedFalseOrderByChangedAtDesc(
                 any(), eq(OrderStatus.COMPLETED))).thenReturn(Optional.of(OrderStatusHistory.builder()
                 .changedAt(Instant.parse("2026-10-01T08:00:00Z")).build()));
@@ -276,6 +277,9 @@ class OrderOutboxPublisherTest {
         assertEquals(orderId.toString(), payload.get("orderId"));
         assertEquals(customerId.toString(), payload.get("customerId"));
         assertEquals("COMPLETED", payload.get("newStatus"));
+        assertEquals(1, payload.get("eventVersion"));
+        assertEquals("order-service", payload.get("sourceService"));
+        assertNotNull(payload.get("kafkaAuth"));
         assertNotNull(payload.get("occurredAt"));
 
         @SuppressWarnings("unchecked")

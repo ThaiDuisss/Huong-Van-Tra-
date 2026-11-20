@@ -12,6 +12,7 @@ from app.kafka.purchase_consumer import (
     create_kafka_consumer,
 )
 from app.kafka.return_consumer import ReturnKafkaConsumer
+from app.kafka.signed_order_event import OrderIngressError, load_keyring
 
 logger = logging.getLogger(__name__)
 
@@ -39,6 +40,8 @@ class KafkaWorker:
         self.error_backoff = error_backoff
         self.running = False
 
+        if consumer is None:
+            load_keyring(self.settings.order_kafka_verification_keys.get_secret_value())
         self.consumer = consumer or create_kafka_consumer(self.settings)
         self.purchase_consumer = purchase_consumer or PurchaseKafkaConsumer(
             consumer=self.consumer,
@@ -120,6 +123,7 @@ class KafkaWorker:
 
         self.setup_signals()
         self.running = True
+        blocked_partitions = set()
 
         self.consumer.subscribe(topics)
         logger.info("Subscribed to topics: %s", topics)
@@ -166,6 +170,9 @@ class KafkaWorker:
                     if hasattr(msg, "topic") and callable(msg.topic)
                     else getattr(msg, "topic", None)
                 )
+                partition = msg.partition()
+                if (msg_topic, partition) in blocked_partitions:
+                    continue
 
                 try:
                     if msg_topic == self.settings.kafka_order_completed_topic:
@@ -185,8 +192,9 @@ class KafkaWorker:
                         msg_topic,
                         getattr(msg, "partition", lambda: "unknown")(),
                         getattr(msg, "offset", lambda: "unknown")(),
-                        proc_exc,
+                        str(proc_exc) if isinstance(proc_exc, OrderIngressError) else type(proc_exc).__name__,
                     )
+                    blocked_partitions.add((msg_topic, partition))
                     if not self._pause_failed_partition(msg):
                         self.running = False
                     # Keep polling other assigned partitions after a bounded backoff.

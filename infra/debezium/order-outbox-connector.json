@@ -23,6 +23,7 @@
     "transforms.outbox.table.field.event.id": "event_id",
     "transforms.outbox.table.field.event.key": "message_key",
     "transforms.outbox.table.field.event.payload": "payload",
+    "transforms.outbox.table.expand.json.payload": "false",
     "transforms.outbox.table.field.event.timestamp": "occurred_at",
     "transforms.outbox.table.fields.additional.placement": "event_id:header:event_id,event_type:header:event_type,event_version:header:event_version,source_service:header:source_service,saga_id:header:saga_id,correlation_id:header:correlation_id,causation_id:header:causation_id,aggregate_type:header:aggregate_type,aggregate_id:header:aggregate_id,business_key:header:business_key",
     "decimal.handling.mode": "string",
