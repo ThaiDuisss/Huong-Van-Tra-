@@ -99,9 +99,9 @@ def decode_kafka_payload(raw_value: Any) -> dict[str, Any]:
     """
     Decode a Kafka value into its business payload.
 
-    Supports both a plain JSON object and Kafka Connect's ``{schema, payload}``
-    envelope. Kafka Connect may encode ``payload`` as either an object or a JSON
-    string. Transport failures use decoder-specific exceptions so they remain
+    Supports a JSON object, a JSON-encoded string carrying an object, and Kafka
+    Connect's ``{schema, payload}`` envelope with an object or JSON string payload.
+    Transport failures use decoder-specific exceptions so they remain
     distinct from business contract validation performed by event adapters.
     """
     if raw_value is None:
@@ -117,6 +117,12 @@ def decode_kafka_payload(raw_value: Any) -> dict[str, Any]:
         raise KafkaPayloadDecodeError(
             f"Unsupported Kafka message value type: {type(raw_value).__name__}"
         )
+
+    if isinstance(decoded, str):
+        inner = _decode_json(decoded, "Kafka Connect JSON string")
+        if not isinstance(inner, dict):
+            raise KafkaPayloadShapeError("Kafka Connect JSON string must contain an object")
+        return _business_object(inner, "json-string")
 
     if not isinstance(decoded, dict):
         raise KafkaPayloadShapeError(

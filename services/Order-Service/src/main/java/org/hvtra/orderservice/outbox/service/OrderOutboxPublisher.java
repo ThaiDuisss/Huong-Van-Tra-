@@ -41,6 +41,7 @@ public class OrderOutboxPublisher {
     private final OutboxEventService<OrderOutboxEvent> orderOutboxEventService;
     private final OrderOutboxTopicResolver orderOutboxTopicResolver;
     private final OrderStatusHistoryRepository orderStatusHistoryRepository;
+    private final OrderKafkaSigner orderKafkaSigner;
 
     public void publishPaymentCompletedOrchestration(Order order, String paymentEventId) {
         publishPaymentCompletedOrchestration(order, paymentEventId, null);
@@ -413,6 +414,9 @@ public class OrderOutboxPublisher {
         String topic = orderOutboxTopicResolver.resolveTopic(eventType);
         String eventId = UUID.randomUUID().toString();
         Map<String, Object> payload = buildPayload(order, eventId, eventType, causationId, sagaId);
+        if (OrderEventType.ORDER_COMPLETED.equals(eventType)) {
+            orderKafkaSigner.sign(topic, orderId, payload);
+        }
 
         orderOutboxEventService.saveEventIfAbsent(new OutboxSaveCommand(
                 eventId,
@@ -507,6 +511,11 @@ public class OrderOutboxPublisher {
                 refundTransactionId,
                 paymentId
         );
+        if (OrderEventType.RETURN_COMPLETED.equals(eventType)) {
+            payload.put("eventVersion", 1);
+            payload.put("sourceService", SOURCE);
+            orderKafkaSigner.sign(topic, returnId, payload);
+        }
 
         orderOutboxEventService.saveEventIfAbsent(new OutboxSaveCommand(
                 eventId,

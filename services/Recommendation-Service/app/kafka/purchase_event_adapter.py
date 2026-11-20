@@ -60,7 +60,7 @@ class PurchaseEventAdapter:
                 raise PurchaseEventValidationError("Invalid occurredAt timestamp format") from None
         raise PurchaseEventValidationError(f"Unsupported 'occurredAt' type: {type(val)}")
 
-    def to_canonical_interactions(self, payload: dict[str, Any]) -> list[CanonicalInteraction]:
+    def validate_completion(self, payload: dict[str, Any]) -> tuple[str, str, str | None, datetime]:
         if not isinstance(payload, dict):
             raise PurchaseEventValidationError("Kafka payload must be a JSON dictionary")
 
@@ -114,6 +114,10 @@ class PurchaseEventAdapter:
                 raise PurchaseEventValidationError("Invalid completedAt timezone or completion after emission")
             event_time = completed_at
 
+        return str(event_id).strip(), str(order_id).strip(), customer_id, event_time
+
+    def to_canonical_interactions(self, payload: dict[str, Any]) -> list[CanonicalInteraction]:
+        event_id, order_id, customer_id, event_time = self.validate_completion(payload)
         raw_items = payload.get("items")
         if not isinstance(raw_items, list) or len(raw_items) == 0:
             raise PurchaseEventValidationError("Missing or empty 'items' array in order.completed event")

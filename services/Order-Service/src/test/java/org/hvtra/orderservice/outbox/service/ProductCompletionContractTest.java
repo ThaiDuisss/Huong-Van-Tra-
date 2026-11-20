@@ -32,7 +32,8 @@ class ProductCompletionContractTest {
     private final OutboxEventService<OrderOutboxEvent> outbox = mock(OutboxEventService.class);
     private final OrderStatusHistoryRepository history = mock(OrderStatusHistoryRepository.class);
     private final Map<String, OutboxSaveCommand> stored = new LinkedHashMap<>();
-    private final OrderOutboxPublisher publisher = new OrderOutboxPublisher(outbox, new OrderOutboxTopicResolver(), history);
+    private final OrderOutboxPublisher publisher = new OrderOutboxPublisher(outbox, new OrderOutboxTopicResolver(),
+            history, OrderKafkaSignerTest.signer());
     private JsonNode fixture;
     private Order order;
 
@@ -153,7 +154,7 @@ class ProductCompletionContractTest {
         ObjectMapper mapper = new ObjectMapper().findAndRegisterModules()
                 .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
         var actual = new OrderOutboxPublisher(new OutboxEventService<>(repository, new OrderOutboxEventFactory(mapper)),
-                new OrderOutboxTopicResolver(), history);
+                new OrderOutboxTopicResolver(), history, OrderKafkaSignerTest.signer(mapper));
         actual.publishOrderCompleted(order, "early", null);
         assertTrue(rows.isEmpty());
         order.setStatus(OrderStatus.COMPLETED);

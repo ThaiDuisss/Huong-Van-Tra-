@@ -73,6 +73,7 @@ class Settings(BaseSettings):
     kafka_return_completed_topic: str = "notification.return.completed"
     kafka_auto_offset_reset: str = "earliest"
     kafka_enable_auto_commit: bool = False
+    order_kafka_verification_keys: SecretStr = SecretStr("")
 
     @property
     def sqlalchemy_database_url(self) -> str:

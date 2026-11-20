@@ -45,6 +45,13 @@
           "target": "/run/secrets/recommendation_worker_mysql_password",
           "read_only": true,
           "bind": {"create_host_path": false}
+        },
+        {
+          "type": "bind",
+          "source": "${HVTRA_WORKER_ORDER_KAFKA_KEYS_FILE:-/nonexistent/hvtra-worker-order-kafka-keys}",
+          "target": "/run/secrets/recommendation_worker_order_kafka_keys",
+          "read_only": true,
+          "bind": {"create_host_path": false}
         }
       ]
     }
