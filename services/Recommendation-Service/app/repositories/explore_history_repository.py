@@ -51,10 +51,14 @@ class ExploreHistoryRepository:
         ).distinct()))
 
         # Only preference returns are retained in this projection by the current consumer.
+        return_order_id = InteractionEvent.order_id
+        if db.get_bind().dialect.name == "mysql":
+            # Match the receipt collation without wrapping its indexed primary key.
+            return_order_id = return_order_id.collate("utf8mb4_0900_ai_ci")
         returns = db.execute(select(
             InteractionEvent.return_item_id, InteractionEvent.order_id, InteractionEvent.order_item_id,
             InteractionEvent.product_variant_id, InteractionEvent.quantity,
-        ).join(CompletedPurchaseOrder, CompletedPurchaseOrder.id == InteractionEvent.order_id).where(
+        ).join(CompletedPurchaseOrder, CompletedPurchaseOrder.id == return_order_id).where(
             InteractionEvent.customer_id == customer_id,
             CompletedPurchaseOrder.customer_id == customer_id,
             CompletedPurchaseOrder.occurred_at <= as_of,
