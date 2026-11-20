@@ -34,13 +34,16 @@ class SoftGroup(StrictDocument):
     priorities: list[Priority] = Field(min_length=1, max_length=32)
 
 
-class TastePreviewRequest(StrictDocument):
+class TasteCriteriaDocument(StrictDocument):
+    hardGroups: list[HardGroup] = Field(default_factory=list, max_length=32)
+    softGroups: list[SoftGroup] = Field(default_factory=list, max_length=32)
+
+
+class TastePreviewRequest(TasteCriteriaDocument):
     taxonomyVersion: Version
     taxonomySha256: Digest
     preparationCode: Preparation
     requestSequence: int = Field(ge=0, le=9007199254740991)
-    hardGroups: list[HardGroup] = Field(default_factory=list, max_length=32)
-    softGroups: list[SoftGroup] = Field(default_factory=list, max_length=32)
     limit: int = Field(default=5, ge=1, le=5)
 
 

@@ -31,6 +31,18 @@ public final class TasteSurveyDto {
     public record Link(@NotNull UUID customerId, @NotNull UUID originInvoiceId, @NotNull UUID sessionId) {
     }
 
+    public record RecommendationSurvey(
+            UUID customerId,
+            TasteSurveyStatus status,
+            long rowVersion,
+            Instant submittedAt,
+            String taxonomyVersion,
+            String taxonomySha256,
+            String criteriaSha256,
+            JsonNode criteria
+    ) {
+    }
+
     public record Response(
             UUID id,
             UUID customerId,

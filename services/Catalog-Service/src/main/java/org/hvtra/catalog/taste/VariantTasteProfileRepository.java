@@ -1,14 +1,12 @@
 package org.hvtra.catalog.taste;
 
+import jakarta.persistence.LockModeType;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.data.jpa.repository.Modifying;
-import org.springframework.data.jpa.repository.Query;
-import org.springframework.data.repository.query.Param;
+import org.springframework.data.jpa.repository.Lock;
 
-import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
@@ -27,15 +25,6 @@ interface VariantTasteProfileRepository extends JpaRepository<VariantTasteProfil
     List<VariantTasteProfile> findByVariantIdInAndStatusAndTaxonomyStateOrderById(
             Collection<UUID> variantIds, VariantTasteProfile.State status, TasteTaxonomy.State state, Pageable page);
 
-    @Modifying
-    @Query("""
-            update VariantTasteProfile p
-               set p.status = :stale,
-                   p.rowVersion = p.rowVersion + 1, p.updatedAt = :now,
-                   p.updatedBy = coalesce(:actor, p.updatedBy)
-             where p.variantId = :id and p.status = :approved
-            """)
-    int markStale(@Param("id") UUID variantId, @Param("approved") VariantTasteProfile.State approved,
-                  @Param("stale") VariantTasteProfile.State stale, @Param("actor") UUID actor,
-                  @Param("now") LocalDateTime now);
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    List<VariantTasteProfile> findByVariantIdAndStatus(UUID variantId, VariantTasteProfile.State status);
 }

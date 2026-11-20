@@ -96,10 +96,24 @@ public class TasteComposition {
         if (!basis.digest().equals(variant.getCompositionSha256())) {
             variant.setCompositionRevision(Math.incrementExact(variant.getCompositionRevision()));
             variant.setCompositionSha256(basis.digest());
-            profiles.markStale(variant.getId(), VariantTasteProfile.State.APPROVED, VariantTasteProfile.State.STALE,
-                    auditor.getCurrentAuditor().orElse(null), now());
+            invalidateApprovedProfiles(variant.getId());
         }
         return basis;
+    }
+
+    private void invalidateApprovedProfiles(UUID variantId) {
+        var approved = profiles.findByVariantIdAndStatus(variantId, VariantTasteProfile.State.APPROVED);
+        if (approved.isEmpty()) {
+            return;
+        }
+        var actor = auditor.getCurrentAuditor();
+        LocalDateTime invalidatedAt = now();
+        for (VariantTasteProfile profile : approved) {
+            profile.setStatus(VariantTasteProfile.State.STALE);
+            profile.stamp(actor.orElse(profile.getUpdatedBy()), invalidatedAt);
+        }
+        // Flush the versioned updates without detaching entities owned by the enclosing transaction.
+        profiles.flush();
     }
 
     @Transactional(readOnly = true, propagation = Propagation.MANDATORY)

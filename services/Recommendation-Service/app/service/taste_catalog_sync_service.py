@@ -54,7 +54,7 @@ class ProjectionView:
             for profile in self.payload.profiles
         ))
 
-    def rankable_variants(self, taxonomy_version: str, preparation_code: str) -> tuple[RankableVariant, ...]:
+    def rankable_variants(self, taxonomy_version: str, preparation_code: str | None = None) -> tuple[RankableVariant, ...]:
         if self.status != "READY" or self.payload is None:
             return ()
         variants = {variant.id: variant for variant in self.payload.variants}
@@ -62,7 +62,8 @@ class ProjectionView:
         return tuple(
             RankableVariant(products[variants[profile.variantId].productId], variants[profile.variantId], profile)
             for profile in self.payload.profiles
-            if profile.taxonomyVersion == taxonomy_version and profile.preparationCode == preparation_code
+            if profile.taxonomyVersion == taxonomy_version
+            and (preparation_code is None or profile.preparationCode == preparation_code)
         )
 
 

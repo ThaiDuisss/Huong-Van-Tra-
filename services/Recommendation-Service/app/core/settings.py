@@ -24,6 +24,9 @@ class Settings(BaseSettings):
     mysql_echo_sql: bool = False
 
     catalog_service_url: str = "http://localhost:8081"
+    customer_service_url: str | None = None
+    customer_taste_read_secret: SecretStr | None = None
+    customer_taste_timeout_seconds: float = Field(default=1.0, gt=0, le=5)
     taste_catalog_sync_secret: SecretStr | None = None
     taste_catalog_auto_refresh: bool = False
     taste_catalog_refresh_seconds: int = Field(default=60, ge=5, le=3600)
