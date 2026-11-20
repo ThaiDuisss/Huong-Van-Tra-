@@ -226,8 +226,21 @@ class TasteSurveyService {
     public TasteSurveyDto.Response latest(UUID customerId) {
         UUID actor = posActor();
         requireExistingCustomer(customerId);
-        return surveys.findFirstByCustomerIdAndStatusOrderBySubmittedAtDescIdDesc(customerId, TasteSurveyStatus.SUBMITTED)
+        return latestSubmitted(customerId)
                 .map(survey -> response(survey, actor)).orElseThrow(TasteSurveyErrors::notFound);
+    }
+
+    @Transactional(readOnly = true)
+    public Optional<TasteSurveyDto.RecommendationSurvey> latestForRecommendation(UUID customerId) {
+        requireExistingCustomer(customerId);
+        return latestSubmitted(customerId).map(survey -> new TasteSurveyDto.RecommendationSurvey(
+                survey.getCustomerId(), survey.getStatus(), survey.getRowVersion(), utc(survey.getSubmittedAt()),
+                survey.getTaxonomyVersion(), survey.getTaxonomySha256(), survey.getCriteriaSha256(),
+                survey.getCriteria()));
+    }
+
+    private Optional<TasteSurvey> latestSubmitted(UUID customerId) {
+        return surveys.findFirstByCustomerIdAndStatusOrderBySubmittedAtDescIdDesc(customerId, TasteSurveyStatus.SUBMITTED);
     }
 
     @Transactional(readOnly = true)

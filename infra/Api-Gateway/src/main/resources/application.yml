@@ -83,6 +83,28 @@ spring:
               - StripPrefix=2
               - RequestSize=20KB
 
+          - id: personalized-product-explore
+            uri: ${RECOMMENDATION_SERVICE_URL:http://localhost:8090}
+            predicates:
+              - name: Path
+                args:
+                  patterns: /api/recommendation/recommendations/{customerId}/explore
+                  matchTrailingSlash: false
+              - Method=GET
+            filters:
+              - StripPrefix=2
+
+          - id: personalized-product-familiar
+            uri: ${RECOMMENDATION_SERVICE_URL:http://localhost:8090}
+            predicates:
+              - name: Path
+                args:
+                  patterns: /api/recommendation/recommendations/{customerId}/familiar
+                  matchTrailingSlash: false
+              - Method=GET
+            filters:
+              - StripPrefix=2
+
           - id: file-service
             uri: lb://file-service
             predicates:

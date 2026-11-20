@@ -6,6 +6,7 @@ from app.recommendation.taste_rules import TasteCriteria, VariantMatch, maximum_
 from app.schemas.taste_catalog import Taxonomy, canonical_bytes, digest
 from app.schemas.taste_recommendation import (
     CompatibleVariant,
+    TasteCriteriaDocument,
     TastePreviewRequest,
     TastePreviewResponse,
     TasteProduct,
@@ -27,16 +28,16 @@ def _validate_values(values: list[str]) -> None:
         raise InvalidTasteCriteria("NONE không thể đi cùng giá trị khác trong nhóm")
 
 
-def _criteria(request: TastePreviewRequest) -> TasteCriteria:
+def normalize_criteria(document: TasteCriteriaDocument, taxonomy_sha256: str) -> TasteCriteria:
     hard: dict[str, tuple[str, ...]] = {}
     soft: dict[str, dict[str, int]] = {}
-    for group in request.hardGroups:
+    for group in document.hardGroups:
         if group.attribute == "UNKNOWN" or group.attribute in hard:
             raise InvalidTasteCriteria("Nhóm bắt buộc có mã không hợp lệ hoặc bị trùng")
         _validate_values(group.allowedValues)
         hard[group.attribute] = tuple(sorted(group.allowedValues))
 
-    for group in request.softGroups:
+    for group in document.softGroups:
         if group.attribute == "UNKNOWN" or group.attribute in soft:
             raise InvalidTasteCriteria("Nhóm ưu tiên có mã không hợp lệ hoặc bị trùng")
         values = [item.value for item in group.priorities]
@@ -47,16 +48,16 @@ def _criteria(request: TastePreviewRequest) -> TasteCriteria:
 
     hard = dict(sorted(hard.items()))
     soft = dict(sorted(soft.items()))
-    document = {
+    canonical_document = {
         "hardGroups": [{"attribute": code, "allowedValues": list(values)} for code, values in hard.items()],
         "softGroups": [
             {"attribute": code, "priorities": [{"value": value, "weight": weight} for value, weight in values.items()]}
             for code, values in soft.items()
         ],
     }
-    if len(canonical_bytes(document)) > 16 * 1024:
+    if len(canonical_bytes(canonical_document)) > 16 * 1024:
         raise InvalidTasteCriteria("Tiêu chí khẩu vị vượt quá 16 KiB")
-    return TasteCriteria(hard, soft, digest({"criteria": document, "taxonomySha256": request.taxonomySha256}))
+    return TasteCriteria(hard, soft, digest({"criteria": canonical_document, "taxonomySha256": taxonomy_sha256}))
 
 
 def _definitions(release: Taxonomy) -> dict[str, AttributeDefinition]:
@@ -71,7 +72,8 @@ def _definitions(release: Taxonomy) -> dict[str, AttributeDefinition]:
     }
 
 
-def _validate_taxonomy(criteria: TasteCriteria, definitions: dict[str, AttributeDefinition]) -> None:
+def validate_criteria_taxonomy(criteria: TasteCriteria, release: Taxonomy) -> dict[str, AttributeDefinition]:
+    definitions = _definitions(release)
     for groups in (criteria.hard, criteria.soft):
         for code, values in groups.items():
             definition = definitions.get(code)
@@ -79,6 +81,7 @@ def _validate_taxonomy(criteria: TasteCriteria, definitions: dict[str, Attribute
                 raise InvalidTasteCriteria("Thuộc tính hoặc giá trị không thuộc taxonomy đã chọn")
             if len(values) > definition.maximum:
                 raise InvalidTasteCriteria("Số lựa chọn vượt quá giới hạn của thuộc tính")
+    return definitions
 
 
 def _display_score(points: int, maximum: int) -> str:
@@ -105,7 +108,7 @@ def _compatible(match: VariantMatch, score: str, definitions: dict[str, Attribut
 
 
 def preview_taste(request: TastePreviewRequest, read_projection: Callable[[], ProjectionView]) -> TastePreviewResponse:
-    criteria = _criteria(request)
+    criteria = normalize_criteria(request, request.taxonomySha256)
     response = TastePreviewResponse(
         status="NO_CRITERIA",
         taxonomyVersion=request.taxonomyVersion,
@@ -133,8 +136,7 @@ def preview_taste(request: TastePreviewRequest, read_projection: Callable[[], Pr
         response.status = "TAXONOMY_MAPPING_REQUIRED"
         return response
 
-    definitions = _definitions(release)
-    _validate_taxonomy(criteria, definitions)
+    definitions = validate_criteria_taxonomy(criteria, release)
     candidates = view.rankable_variants(request.taxonomyVersion, request.preparationCode)
     if not candidates:
         response.status = "TASTE_PROFILE_NOT_READY"
