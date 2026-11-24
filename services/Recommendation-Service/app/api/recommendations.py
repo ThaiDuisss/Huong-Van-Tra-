@@ -1,20 +1,26 @@
 from functools import lru_cache
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Query, Response
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, Response
 from uuid import UUID
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import SQLAlchemyError
 
+from app.clients.customer_taste_client import CustomerTasteClient
 from app.core.config import get_settings
 from app.database.session import get_db
+from app.repositories.explore_history_repository import ExploreHistoryError
+from app.schemas.explore_recommendation import ExploreRecommendationResponse, FamiliarRecommendationResponse
 from app.schemas.recommendation import (
     GuestRecommendationResponse, RecommendationItem, RecommendationMode, RecommendationResponse,
 )
 from app.core.recommendation_auth import authorize_customer, authorize_pos_actor
 from app.repositories.v1_recommendation_repository import V1RecommendationRepository
+from app.service.explore_recommendation_service import ExploreRecommendationService, FamiliarRecommendationService
+from app.service.personalized_taste_features import PersonalizedTasteFeatures
 from app.service.recommendation_service import RecommendationService
 from app.recommendation.v1_artifact import V1ArtifactStore
 from app.service.recommendation_snapshot_service import RecommendationSnapshotService
+from app.service.taste_catalog_sync_service import get_taste_catalog_sync
 
 
 router = APIRouter(prefix="/recommendations", tags=["recommendations"])
@@ -30,6 +36,61 @@ def get_recommendation_service() -> RecommendationService:
     return RecommendationService(
         artifact_store=V1ArtifactStore(settings.v1_artifact_path)
     )
+
+
+@lru_cache
+def get_personalized_taste_features() -> PersonalizedTasteFeatures:
+    return PersonalizedTasteFeatures(CustomerTasteClient(get_settings()), get_taste_catalog_sync().read)
+
+
+def get_explore_recommendation_service(request: Request) -> ExploreRecommendationService:
+    rerankers = getattr(request.app.state, "taste_rerankers", {})
+    return ExploreRecommendationService(
+        get_recommendation_service().artifact_store, taste_features=get_personalized_taste_features(),
+        taste_reranker=rerankers.get("EXPLORE"),
+    )
+
+
+def get_familiar_recommendation_service(request: Request) -> FamiliarRecommendationService:
+    rerankers = getattr(request.app.state, "taste_rerankers", {})
+    return FamiliarRecommendationService(
+        get_recommendation_service().artifact_store, taste_features=get_personalized_taste_features(),
+        taste_reranker=rerankers.get("FAMILIAR"),
+    )
+
+
+@router.get("/{customer_id}/explore", response_model=ExploreRecommendationResponse)
+def explore_products(
+    customer_id: str,
+    response: Response,
+    limit: int = Query(default=5, ge=1, le=5),
+    verified_customer: str = Depends(authorize_customer),
+    db: Session = Depends(get_db),
+    service: ExploreRecommendationService = Depends(get_explore_recommendation_service),
+) -> ExploreRecommendationResponse:
+    response.headers["Cache-Control"] = "private, no-store"
+    try:
+        return service.recommend(db, verified_customer, limit)
+    except (SQLAlchemyError, ExploreHistoryError):
+        raise HTTPException(503, "Personalized purchase evidence unavailable",
+                            headers={"Cache-Control": "private, no-store"}) from None
+
+
+@router.get("/{customer_id}/familiar", response_model=FamiliarRecommendationResponse)
+def familiar_products(
+    customer_id: str,
+    response: Response,
+    limit: int = Query(default=5, ge=1, le=5),
+    verified_customer: str = Depends(authorize_customer),
+    db: Session = Depends(get_db),
+    service: FamiliarRecommendationService = Depends(get_familiar_recommendation_service),
+) -> FamiliarRecommendationResponse:
+    response.headers["Cache-Control"] = "private, no-store"
+    try:
+        return service.recommend(db, verified_customer, limit)
+    except (SQLAlchemyError, ExploreHistoryError):
+        raise HTTPException(503, "Personalized purchase evidence unavailable",
+                            headers={"Cache-Control": "private, no-store"}) from None
 
 
 @router.get("/guest", response_model=GuestRecommendationResponse)

@@ -36,7 +36,8 @@ def _run_worker(plan):
     service = Path(__file__).resolve().parents[1]
     sys.path.insert(0, str(service))
     handler = logging.StreamHandler()
-    handler.setFormatter(_RedactingFormatter((plan.settings["MYSQL_PASSWORD"], plan.settings["MYSQL_USER"])))
+    handler.setFormatter(_RedactingFormatter((plan.settings["MYSQL_PASSWORD"], plan.settings["MYSQL_USER"],
+                                             plan.settings["ORDER_KAFKA_VERIFICATION_KEYS"])))
     root = logging.getLogger()
     root.handlers = [handler]
     root.setLevel(logging.INFO)

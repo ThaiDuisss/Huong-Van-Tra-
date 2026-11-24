@@ -34,14 +34,14 @@ class PosProductServiceImplTest {
         assertTrue(result.content().isEmpty());
         assertEquals(0, result.page());
         assertEquals(20, result.size());
-        verify(catalog).findAll(null, null, null, null, null, null, "ACTIVE", 0, 20);
+        verify(catalog).findSellableVariants(null, null, null, true, 0, 20);
         verifyNoInteractions(inventory);
     }
 
     @Test
     void explicitProductFilterWithEmptyCatalogPageReturnsEmptyBeforePriceOrStockLookup() {
         UUID parent = UUID.fromString("22222222-2222-4222-8222-222222222222");
-        when(catalog.findAll(null, null, null, null, parent, null, "ACTIVE", 0, 50))
+        when(catalog.findSellableVariants(null, null, parent, true, 0, 50))
                 .thenReturn(new PageResponse<>(List.of(), 0, 50, 0, 0, true, true));
 
         var result = service.searchVariants(new PosProductSearchRequest(null, null, null, parent, 0, 50));
@@ -49,7 +49,7 @@ class PosProductServiceImplTest {
         assertTrue(result.content().isEmpty());
         assertEquals(0, result.totalElements());
         assertEquals(50, result.size());
-        verify(catalog).findAll(null, null, null, null, parent, null, "ACTIVE", 0, 50);
+        verify(catalog).findSellableVariants(null, null, parent, true, 0, 50);
         verifyNoInteractions(inventory);
     }
 
@@ -57,7 +57,7 @@ class PosProductServiceImplTest {
     void productNameFallbackAndExplicitParentFilterAreSentWithoutChangingCatalogTotals() {
         CatalogVariantResponse variant = variant();
         var request = new PosProductSearchRequest(" ", "SKU", "Tea", variant.productId(), 2, 5);
-        when(catalog.findAll("Tea", "SKU", null, null, variant.productId(), null, "ACTIVE", 2, 5))
+        when(catalog.findSellableVariants("Tea", "SKU", variant.productId(), true, 2, 5))
                 .thenReturn(new PageResponse<>(List.of(variant), 2, 5, 11, 3, false, true));
         var result = service.searchVariants(request);
         assertEquals(11, result.totalElements());
@@ -71,7 +71,7 @@ class PosProductServiceImplTest {
     @Test
     void stockLookupDeduplicatesVariantIdsAndKeepsFirstResponseForDuplicateIdentity() {
         CatalogVariantResponse variant = variant();
-        when(catalog.findAll("Tea", null, null, null, null, null, "ACTIVE", 0, 20))
+        when(catalog.findSellableVariants("Tea", null, null, true, 0, 20))
                 .thenReturn(new PageResponse<>(List.of(variant, variant), 0, 20, 2, 1, true, true));
         UUID shelf = UUID.randomUUID();
         UUID warehouse = UUID.randomUUID();
@@ -133,6 +133,22 @@ class PosProductServiceImplTest {
     }
 
     @Test
+    void inactiveProductVariantAndBundlePackagingAreNotReturnedAsPosProducts() {
+        CatalogVariantResponse inactiveProduct = variant("SKU", "ACTIVE", "INACTIVE", false);
+        CatalogVariantResponse inactiveVariant = variant("SKU", "INACTIVE", "ACTIVE", false);
+        CatalogVariantResponse bundle = variant("CUSTOM-BUNDLE", "ACTIVE", "ACTIVE", true);
+        when(catalog.findSellableVariants(null, null, null, true, 0, 20))
+                .thenReturn(new PageResponse<>(List.of(inactiveProduct, inactiveVariant, bundle), 0, 20, 3, 1, true, true));
+        for (CatalogVariantResponse variant : List.of(inactiveProduct, inactiveVariant, bundle)) {
+            when(catalog.findById(variant.id())).thenReturn(variant);
+            assertNull(service.getPosView(variant.id()));
+        }
+
+        assertTrue(service.searchVariants(null).content().isEmpty());
+        verifyNoInteractions(inventory);
+    }
+
+    @Test
     void catalogFailurePropagatesInsteadOfBeingMisreportedAsEmptyStock() {
         UUID id = UUID.randomUUID();
         RuntimeException failure = new IllegalStateException("catalog unavailable");
@@ -142,7 +158,12 @@ class PosProductServiceImplTest {
     }
 
     private CatalogVariantResponse variant() {
-        return new CatalogVariantResponse(UUID.randomUUID(), UUID.randomUUID(), "Tea", "TEA", "SKU", "100g", "Tea",
-                new BigDecimal("10000"), new BigDecimal("5000"), "image", UUID.randomUUID(), "STOCK", "ACTIVE", "ACTIVE", true, new BigDecimal("99"));
+        return variant("SKU", "ACTIVE", "ACTIVE", true);
+    }
+
+    private CatalogVariantResponse variant(String sku, String status, String productStatus, boolean sellable) {
+        return new CatalogVariantResponse(UUID.randomUUID(), UUID.randomUUID(), "Tea", "TEA", sku, "100g", "Tea",
+                new BigDecimal("10000"), new BigDecimal("5000"), "image", UUID.randomUUID(), "STOCK", status,
+                productStatus, sellable, new BigDecimal("99"));
     }
 }

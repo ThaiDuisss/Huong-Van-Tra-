@@ -72,4 +72,10 @@ public class ProductVariant extends BaseEntity {
 
     @Column(name = "barcode", unique = true, length = 100)
     private String barcode;
+
+    @Column(name = "composition_revision", nullable = false)
+    private long compositionRevision;
+
+    @Column(name = "composition_sha256", columnDefinition = "CHAR(64)")
+    private String compositionSha256;
 }

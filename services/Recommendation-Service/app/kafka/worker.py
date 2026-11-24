@@ -12,6 +12,7 @@ from app.kafka.purchase_consumer import (
     create_kafka_consumer,
 )
 from app.kafka.return_consumer import ReturnKafkaConsumer
+from app.kafka.signed_order_event import OrderIngressError, load_keyring
 
 logger = logging.getLogger(__name__)
 
@@ -39,6 +40,8 @@ class KafkaWorker:
         self.error_backoff = error_backoff
         self.running = False
 
+        if consumer is None:
+            load_keyring(self.settings.order_kafka_verification_keys.get_secret_value())
         self.consumer = consumer or create_kafka_consumer(self.settings)
         self.purchase_consumer = purchase_consumer or PurchaseKafkaConsumer(
             consumer=self.consumer,
@@ -120,6 +123,7 @@ class KafkaWorker:
 
         self.setup_signals()
         self.running = True
+        blocked_partitions = set()
 
         self.consumer.subscribe(topics)
         logger.info("Subscribed to topics: %s", topics)
@@ -143,7 +147,15 @@ class KafkaWorker:
                 if hasattr(msg, "error") and callable(msg.error):
                     err = msg.error()
                     if err is not None:
-                        if err.code() == KafkaError._PARTITION_EOF:
+                        error_code = err.code()
+                        if error_code in (KafkaError._AUTO_OFFSET_RESET, KafkaError.OFFSET_OUT_OF_RANGE,
+                                          KafkaError._NO_OFFSET):
+                            logger.error(
+                                "Kafka offset requires operator review topic=%s partition=%s error_code=%s",
+                                msg.topic(), msg.partition(), error_code,
+                            )
+                            raise RuntimeError("KAFKA_OFFSET_REVIEW_REQUIRED")
+                        if error_code == KafkaError._PARTITION_EOF:
                             logger.debug(
                                 "Reached end of partition: topic=%s, partition=%s, offset=%s",
                                 msg.topic(),
@@ -166,6 +178,9 @@ class KafkaWorker:
                     if hasattr(msg, "topic") and callable(msg.topic)
                     else getattr(msg, "topic", None)
                 )
+                partition = msg.partition()
+                if (msg_topic, partition) in blocked_partitions:
+                    continue
 
                 try:
                     if msg_topic == self.settings.kafka_order_completed_topic:
@@ -185,14 +200,16 @@ class KafkaWorker:
                         msg_topic,
                         getattr(msg, "partition", lambda: "unknown")(),
                         getattr(msg, "offset", lambda: "unknown")(),
-                        proc_exc,
+                        str(proc_exc) if isinstance(proc_exc, OrderIngressError) else type(proc_exc).__name__,
                     )
+                    blocked_partitions.add((msg_topic, partition))
                     if not self._pause_failed_partition(msg):
                         self.running = False
                     # Keep polling other assigned partitions after a bounded backoff.
                     time.sleep(self.error_backoff)
 
         finally:
+            self.running = False
             logger.info("Stopping poll loop and closing Kafka consumer...")
             try:
                 self.consumer.close()

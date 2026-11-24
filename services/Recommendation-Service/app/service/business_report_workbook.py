@@ -36,6 +36,8 @@ def customer_code(customer_id):
 def purchased_products(order):
     quantities = defaultdict(int)
     for line in order.lines:
+        if line.get("purchase_type", "PRODUCT") != "PRODUCT" or line.get("product_id") is None:
+            continue
         quantity = Decimal(line["quantity"])
         if not quantity.is_finite() or quantity <= 0 or quantity != quantity.to_integral_value():
             # Cups must not silently round fractional source quantities.
@@ -53,7 +55,9 @@ def attribute(snapshots, orders, as_of):
     """
     by_customer = defaultdict(list)
     for order in sorted(orders, key=lambda o: (o.occurred_at, o.id)):
-        if order.customer_id and order.occurred_at <= as_of and order.observed_at <= as_of:
+        if (order.customer_id and order.occurred_at <= as_of and order.observed_at <= as_of
+                and any(line.get("purchase_type", "PRODUCT") == "PRODUCT" and line.get("product_id")
+                        for line in order.lines)):
             by_customer[order.customer_id].append(order)
     candidates, first_orders = defaultdict(list), {}
     times = {customer: [o.occurred_at for o in values] for customer, values in by_customer.items()}

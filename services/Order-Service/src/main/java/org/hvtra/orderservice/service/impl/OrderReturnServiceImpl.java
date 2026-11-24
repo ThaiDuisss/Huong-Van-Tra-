@@ -624,6 +624,10 @@ public class OrderReturnServiceImpl implements OrderReturnService {
             throw new InvalidOrderReturnException(
                     "Failed inventory disposition requires reconciliation before a new command");
         }
+        if (orderReturnInventoryCommandRepository.existsByOrderReturnIdAndStatusAndIsDeletedFalse(
+                returnId, OrderReturnInventoryCommandStatus.PENDING)) {
+            throw new InvalidOrderReturnException("A pending return inventory disposition already exists");
+        }
 
         Map<UUID, OrderReturnItem> returnItemsById = activeReturnItemsById(orderReturn);
         Map<UUID, SubmitReturnInventoryDispositionLineRequest> requestedLinesByReturnItemId =

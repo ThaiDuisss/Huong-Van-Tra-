@@ -47,10 +47,15 @@ def artifact():
     ))
 
 
+def with_sellability(products):
+    return products, {product.product_id for product in products}
+
+
 class ServiceTests(unittest.TestCase):
     def setUp(self):
         self.repository = MagicMock(spec=V1RecommendationRepository)
         self.repository.active_catalog.return_value = catalog()
+        self.repository.serving_catalog.side_effect = lambda db: with_sellability(self.repository.active_catalog(db))
         self.repository.popularity.return_value = [("b", "B", "Lotus floral", 20)]
         self.store = MagicMock(spec=V1ArtifactStore)
         self.store.load.return_value = artifact()
@@ -75,6 +80,20 @@ class ServiceTests(unittest.TestCase):
     def test_four_orders_hybrid(self): self.assert_route(4, "HYBRID")
     def test_five_orders_hybrid(self): self.assert_route(5, "HYBRID")
     def test_six_orders_hybrid(self): self.assert_route(6, "HYBRID")
+
+    def test_unavailable_products_are_removed_before_limit_without_changing_hybrid_scores(self):
+        self.repository.customer_history.return_value = CustomerPurchaseHistory(2, {"a": 3})
+        all_items = self.service.recommend(None, "u", 6, exclude_purchased=False).items
+        unavailable = all_items[0].product_id
+        self.repository.serving_catalog.side_effect = None
+        self.repository.serving_catalog.return_value = catalog(), {
+            product.product_id for product in catalog() if product.product_id != unavailable
+        }
+        result = self.service.recommend(None, "u", 5, exclude_purchased=False)
+        self.assertEqual(result.source, "HYBRID")
+        self.assertEqual([(item.product_id, item.score) for item in result.items],
+                         [(item.product_id, item.score) for item in all_items[1:]])
+        self.assertEqual([item.rank for item in result.items], [1, 2, 3, 4, 5])
 
     def test_exclude_true_filters_before_top_k_and_false_allows_repurchase(self):
         self.repository.customer_history.return_value = CustomerPurchaseHistory(2, {"a": 3})
@@ -329,6 +348,7 @@ class RepositoryTests(unittest.TestCase):
         ddl = (
             "CREATE TABLE interaction_events(id TEXT, customer_id TEXT, product_id TEXT, order_id TEXT, event_type TEXT)",
             "CREATE TABLE products(id TEXT, product_code TEXT, name TEXT, category_id TEXT, status TEXT, is_deleted BOOLEAN)",
+            "CREATE TABLE product_variants(id TEXT, product_id TEXT, sku TEXT, status TEXT, is_deleted BOOLEAN)",
             "CREATE TABLE categories(id TEXT, category_code TEXT)",
             "CREATE TABLE ingredients(id TEXT, ingredient_code TEXT, type INTEGER)",
             "CREATE TABLE product_ingredients(product_id TEXT, ingredient_id TEXT, is_active_bom BOOLEAN)",
@@ -338,6 +358,8 @@ class RepositoryTests(unittest.TestCase):
         for product in catalog():
             self.db.execute(text("INSERT INTO products VALUES(:id,:code,:name,'cat','ACTIVE',0)"),
                             {"id": product.product_id, "code": product.product_code, "name": product.name})
+            self.db.execute(text("INSERT INTO product_variants VALUES(:id,:product_id,:sku,'ACTIVE',0)"),
+                            {"id": "v-" + product.product_id, "product_id": product.product_id, "sku": product.product_code})
         self.db.execute(text("INSERT INTO categories VALUES('cat','tea')"))
 
     def add_events(self, rows):
@@ -427,6 +449,7 @@ class ApiAndLifecycleTests(unittest.TestCase):
         app = FastAPI()
         app.include_router(self.api.router)
         self.repository = MagicMock(spec=V1RecommendationRepository)
+        self.repository.serving_catalog.side_effect = lambda db: with_sellability(self.repository.active_catalog(db))
         self.repository.customer_history.return_value = CustomerPurchaseHistory(0, {})
         self.repository.popularity.return_value = [("a", "A", "Lotus tea", 5)]
         self.service = RecommendationService(MagicMock(spec=V1ArtifactStore), self.repository)

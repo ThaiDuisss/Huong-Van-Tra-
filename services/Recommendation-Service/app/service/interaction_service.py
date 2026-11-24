@@ -97,6 +97,8 @@ class InteractionService:
         if interaction.event_type == "PURCHASE":
             if variant is None or not interaction.product_variant_id or variant.id != interaction.product_variant_id:
                 raise ProductResolutionError("PURCHASE requires an exact known variant")
+            if getattr(variant, "sku", None) == "CUSTOM-BUNDLE":
+                raise ProductResolutionError("Bundle packaging variant is ineligible for Product V1")
             if product_id and product_id != variant.product_id:
                 raise ProductResolutionError("Product identity contradicts variant binding")
             normalized = (interaction.event_time.astimezone(timezone.utc).replace(tzinfo=None)
@@ -113,6 +115,8 @@ class InteractionService:
                     raise PurchaseConflictError("Conflicting purchase business line")
                 return existing
 
+        if variant is not None and interaction.event_type == "RETURN" and product_id and product_id != variant.product_id:
+            raise ProductResolutionError("Return variant contradicts the original product identity")
         if variant is not None:
             product_id = variant.product_id
             product_variant_id = variant.id
@@ -228,10 +232,7 @@ class InteractionService:
         if and only if the failure was an expected duplicate constraint conflict.
         """
         try:
-            events: list[InteractionEvent] = []
-            for interaction in interactions:
-                event = self._process_one(db, interaction)
-                events.append(event)
+            events = self.stage_interactions(db, interactions)
             if completed_order is not None:
                 from app.service.report_purchase_service import record_completed_order
                 record_completed_order(db, completed_order, events)
@@ -256,10 +257,7 @@ class InteractionService:
 
             # Bounded retry: exactly 1 attempt from clean DB state
             try:
-                events = []
-                for interaction in interactions:
-                    event = self._process_one(db, interaction)
-                    events.append(event)
+                events = self.stage_interactions(db, interactions)
                 if completed_order is not None:
                     from app.service.report_purchase_service import record_completed_order
                     record_completed_order(db, completed_order, events)
@@ -273,3 +271,9 @@ class InteractionService:
         except Exception:
             db.rollback()
             raise
+
+    def stage_interactions(
+        self, db: Session, interactions: list[CanonicalInteraction],
+    ) -> list[InteractionEvent]:
+        """Stage effects in the caller's transaction without committing."""
+        return [self._process_one(db, interaction) for interaction in interactions]

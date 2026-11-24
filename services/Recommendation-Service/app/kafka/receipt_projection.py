@@ -1,7 +1,7 @@
 """Allowlisted approved raw, not Information, a validator verdict, or a DB inbox.
 
-No runtime consumer calls this module. Replay is deliberately limited to retained
-validator dependencies. Redacted/unclassified inputs are diagnostic-only.
+Replay is deliberately limited to retained validator dependencies.
+Unclassified or invalid inputs are diagnostic-only.
 """
 from dataclasses import dataclass
 from decimal import Decimal
@@ -25,7 +25,7 @@ PURCHASE_LINE = {"orderItemId", "purchaseType", "itemType", "productVariantId", 
                  "sku", "quantity", "unitPrice", "bomVersionId"}
 RETURN_LINE = {"returnItemId", "orderItemId", "productVariantId", "sku", "quantity",
                "returnReason", "condition"}
-DROP_COMMON = {"orderCode", "userId"}
+DROP_COMMON = {"orderCode", "userId", "kafkaAuth"}
 DROP_PURCHASE = DROP_COMMON | {"paymentMethod", "paymentCode", "finalAmount", "paidAmount",
     "discountAmount", "usageIds", "originalAmount", "customerName", "customerEmail",
     "customerPhone", "cashierName", "branchName"}

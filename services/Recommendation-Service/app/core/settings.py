@@ -24,6 +24,16 @@ class Settings(BaseSettings):
     mysql_echo_sql: bool = False
 
     catalog_service_url: str = "http://localhost:8081"
+    customer_service_url: str | None = None
+    customer_taste_read_secret: SecretStr | None = None
+    customer_taste_timeout_seconds: float = Field(default=1.0, gt=0, le=5)
+    taste_catalog_sync_secret: SecretStr | None = None
+    taste_catalog_auto_refresh: bool = False
+    taste_catalog_refresh_seconds: int = Field(default=60, ge=5, le=3600)
+    taste_catalog_ttl_seconds: int = Field(default=300, ge=10, le=86400)
+    taste_catalog_max_variants: int = Field(default=2000, ge=1, le=10000)
+    taste_catalog_max_bytes: int = Field(default=4194304, ge=1024, le=16777216)
+    taste_catalog_timeout_seconds: float = Field(default=15, gt=0, le=120)
     internal_header_secret: str = Field(default="", repr=False)
     app_environment: Literal["production", "development", "test"] = "production"
     internal_replay_backend: Literal["redis", "memory"] = "redis"
@@ -54,6 +64,7 @@ class Settings(BaseSettings):
 
     model_artifact_path: str = "artifacts/lightfm_model.pkl"  # Legacy research training only.
     v1_artifact_path: str = "artifacts/v1_hybrid_model.npz"
+    taste_ranking_activation_manifest: str | None = None
     recommendation_default_limit: int = 10
     recommendation_max_limit: int = 50
 
@@ -61,8 +72,9 @@ class Settings(BaseSettings):
     kafka_group_id: str = "recommendation-service-order-completed"
     kafka_order_completed_topic: str = "order.completed"
     kafka_return_completed_topic: str = "notification.return.completed"
-    kafka_auto_offset_reset: str = "earliest"
+    kafka_auto_offset_reset: str = "error"
     kafka_enable_auto_commit: bool = False
+    order_kafka_verification_keys: SecretStr = SecretStr("")
 
     @property
     def sqlalchemy_database_url(self) -> str:

@@ -13,6 +13,7 @@ import org.hvtra.catalog.repository.IngredientRepository;
 import org.hvtra.catalog.repository.ProductVariantRepository;
 import org.hvtra.catalog.repository.UnitRepository;
 import org.hvtra.catalog.service.BomItemService;
+import org.hvtra.catalog.taste.TasteComposition;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -30,18 +31,21 @@ public class BomItemServiceImpl implements BomItemService {
     private final IngredientRepository ingredientRepository;
     private final UnitRepository unitRepository;
     private final BomItemMapper mapper;
+    private final TasteComposition composition;
 
     public BomItemServiceImpl(
             BomItemRepository repository,
             ProductVariantRepository productVariantRepository,
             IngredientRepository ingredientRepository,
             UnitRepository unitRepository,
-            BomItemMapper mapper) {
+            BomItemMapper mapper,
+            TasteComposition composition) {
         this.repository = repository;
         this.productVariantRepository = productVariantRepository;
         this.ingredientRepository = ingredientRepository;
         this.unitRepository = unitRepository;
         this.mapper = mapper;
+        this.composition = composition;
     }
 
     @Override
@@ -54,8 +58,14 @@ public class BomItemServiceImpl implements BomItemService {
     @Override
     @Transactional
     public List<BomItemResponse> replaceForVariant(UUID productVariantId, List<BomItemRequest> items) {
+        if (composition != null) {
+            composition.lockWrites();
+        }
         if (!productVariantRepository.existsById(productVariantId)) {
             throw new ResourceNotFoundException("Product variant", productVariantId);
+        }
+        if (composition != null) {
+            productVariantRepository.findByIdForUpdate(productVariantId);
         }
 
         repository.deleteByProductVariantId(productVariantId);
@@ -94,6 +104,9 @@ public class BomItemServiceImpl implements BomItemService {
         }).toList();
 
         List<BomItem> saved = repository.saveAll(toSave);
+        if (composition != null) {
+            composition.changedVariant(productVariantId);
+        }
         return saved.stream().map(mapper::toResponse).toList();
     }
 }

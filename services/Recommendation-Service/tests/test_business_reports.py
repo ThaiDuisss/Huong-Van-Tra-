@@ -21,7 +21,6 @@ from app.api.ai_reports import router as report_router, get_business_report_serv
 from app.api.recommendations import router as recommendation_router, get_recommendation_service
 from app.database.session import get_db
 from app.kafka.purchase_event_adapter import PurchaseEventAdapter, PurchaseEventValidationError
-from app.kafka.purchase_consumer import PurchaseKafkaConsumer
 from app.models.business_report import BusinessReportExport, CompletedPurchaseOrder, RecommendationSnapshot
 from app.models.interaction_event import InteractionEvent
 from app.repositories.interaction_event_repository import InteractionEventRepository
@@ -281,19 +280,6 @@ class PurchaseIngestionTests(DbFixture, unittest.TestCase):
         with self.assertRaises(ProductResolutionError): self.consume()
         self.assertEqual(self.db.scalars(select(InteractionEvent)).all(), [])
 
-    def test_invalid_legacy_or_custom_payload_never_commits_offset(self):
-        import json
-        for change in (dict(items=[]), dict(orderStatus="PAYMENT_CONFIRMED"),
-                       dict(items=[dict(self.payload["items"][0], purchaseType="CUSTOM_BOM")])):
-            msg = MagicMock(); msg.error.return_value = None
-            msg.value.return_value = json.dumps(dict(self.payload, **change)).encode()
-            consumer = PurchaseKafkaConsumer(consumer=MagicMock(), interaction_service=self.interactions,
-                session_factory=lambda: Session(self.engine, expire_on_commit=False), settings=settings())
-            with patch("app.kafka.purchase_consumer.commit_message_offset") as committed:
-                with self.assertRaises(PurchaseEventValidationError): consumer.consume_message(msg)
-                committed.assert_not_called()
-        self.assertEqual(self.db.scalars(select(InteractionEvent)).all(), [])
-
     def test_conflicting_duplicate_order_rolls_back_whole_batch(self):
         self.consume()
         modified = dict(self.payload, eventId=str(uuid4()), items=[dict(self.payload["items"][0], quantity=99), self.payload["items"][1]])
@@ -320,17 +306,6 @@ class PurchaseIngestionTests(DbFixture, unittest.TestCase):
         with self.assertRaises(ValueError): self.consume(invalid)
         for change in (dict(occurredAt="2026-10-12T09:00:00"), dict(items=[dict(self.payload["items"][0], quantity="NaN")])):
             with self.assertRaises(PurchaseEventValidationError): self.consume(dict(self.payload, **change))
-
-    def test_real_consumer_commits_offset_only_after_whole_order_transaction(self):
-        import json
-        msg = MagicMock(); msg.error.return_value = None; msg.value.return_value = json.dumps(self.payload).encode()
-        consumer = PurchaseKafkaConsumer(consumer=MagicMock(), interaction_service=self.interactions,
-            session_factory=lambda: Session(self.engine, expire_on_commit=False), settings=settings())
-        with patch("app.kafka.purchase_consumer.commit_message_offset") as committed:
-            consumer.consume_message(msg)
-            self.assertIsNotNone(self.db.get(CompletedPurchaseOrder, self.payload["orderId"]))
-            committed.assert_called_once()
-
 
 class WorkbookTests(DbFixture, unittest.TestCase):
     def build(self, rows=(), start=date(2026, 10, 11), end=date(2026, 10, 12)):

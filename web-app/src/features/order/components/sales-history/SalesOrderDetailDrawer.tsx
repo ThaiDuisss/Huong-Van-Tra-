@@ -1,6 +1,7 @@
 import { Printer, X } from "lucide-react";
 import { useId } from "react";
 
+import { InvoiceTasteSurvey } from "@/features/customer/components/InvoiceTasteSurvey";
 import { Button, IconButton } from "../../../../components/ui/Button";
 import { ModalShell } from "../../../../components/ui/Overlay";
 import { StatusBadge, type BadgeTone } from "../../../../components/ui/StatusBadge";
@@ -69,6 +70,7 @@ export function SalesOrderDetailDrawer({
     onPrint
 }: SalesOrderDetailDrawerProps) {
     const titleId = useId();
+    const invoiceId = order?.id ?? order?.orderId;
 
     if (!open) {
         return null;
@@ -159,6 +161,15 @@ export function SalesOrderDetailDrawer({
                                     </div>
                                 </dl>
                             </section>
+
+                            {invoiceId && order.customerId && order.status === "COMPLETED" &&
+                            (order.paymentStatus === "PAID" || order.paymentStatus === "PARTIALLY_REFUNDED") ? (
+                                <InvoiceTasteSurvey
+                                    key={`${invoiceId}:${order.customerId}`}
+                                    invoiceId={invoiceId}
+                                    customerId={order.customerId}
+                                />
+                            ) : null}
 
                             <section className={styles.detailSection}>
                                 <h3>Sản phẩm</h3>

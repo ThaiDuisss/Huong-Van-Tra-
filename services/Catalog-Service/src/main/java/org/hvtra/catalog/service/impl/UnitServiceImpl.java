@@ -14,6 +14,7 @@ import org.hvtra.catalog.exception.ResourceNotFoundException;
 import org.hvtra.catalog.mapper.UnitMapper;
 import org.hvtra.catalog.repository.UnitRepository;
 import org.hvtra.catalog.service.UnitService;
+import org.hvtra.catalog.taste.TasteComposition;
 import org.hvtra.catalog.util.ExcelExportHelper;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -46,10 +47,12 @@ import java.util.UUID;
 public class UnitServiceImpl implements UnitService {
     private final UnitRepository repository;
     private final UnitMapper mapper;
+    private final TasteComposition composition;
 
-    public UnitServiceImpl(UnitRepository repository, UnitMapper mapper) {
+    public UnitServiceImpl(UnitRepository repository, UnitMapper mapper, TasteComposition composition) {
         this.repository = repository;
         this.mapper = mapper;
+        this.composition = composition;
     }
 
     @Override
@@ -135,7 +138,7 @@ public class UnitServiceImpl implements UnitService {
     public UnitResponse create(UnitRequest request) {
         validateSymbol(request.symbol(), null);
         Unit unit = new Unit();
-        Unit baseUnit = resolveBaseUnit(request);
+        Unit baseUnit = resolveBaseUnit(request, null);
         mapper.update(unit, request, baseUnit);
         return mapper.toResponse(repository.save(unit));
     }
@@ -143,11 +146,14 @@ public class UnitServiceImpl implements UnitService {
     @Override
     @Transactional
     public UnitResponse update(UUID id, UnitRequest request) {
+        lockComposition();
         validateSymbol(request.symbol(), id);
         Unit unit = get(id);
-        Unit baseUnit = resolveBaseUnit(request);
+        Unit baseUnit = resolveBaseUnit(request, id);
         mapper.update(unit, request, baseUnit);
-        return mapper.toResponse(repository.save(unit));
+        Unit saved = repository.save(unit);
+        updateComposition(Set.of(id));
+        return mapper.toResponse(saved);
     }
 
     private void validateSymbol(String symbol, UUID currentId) {
@@ -166,9 +172,12 @@ public class UnitServiceImpl implements UnitService {
     @Override
     @Transactional
     public UnitResponse updateStatus(UUID id, Status status) {
+        lockComposition();
         Unit unit = get(id);
         unit.setStatus(status);
-        return mapper.toResponse(repository.save(unit));
+        Unit saved = repository.save(unit);
+        updateComposition(Set.of(id));
+        return mapper.toResponse(saved);
     }
 
     private Unit get(UUID id) {
@@ -182,13 +191,21 @@ public class UnitServiceImpl implements UnitService {
     /**
      * Resolve entity đơn vị gốc từ request.
      */
-    private Unit resolveBaseUnit(UnitRequest request) {
+    private Unit resolveBaseUnit(UnitRequest request, UUID unitId) {
         if (request.baseUnitId() != null) {
             if (request.conversionRate() == null || request.conversionRate().compareTo(new BigDecimal("0.0001")) < 0) {
                 throw new BadRequestException("Tỷ lệ quy đổi phải lớn hơn hoặc bằng 0.0001");
             }
-            return repository.findById(request.baseUnitId())
+            Unit baseUnit = repository.findById(request.baseUnitId())
                     .orElseThrow(() -> new ResourceNotFoundException("Unit (base)", request.baseUnitId()));
+            Set<UUID> visited = new HashSet<>();
+            for (Unit current = baseUnit; current != null; current = current.getBaseUnit()) {
+                UUID currentId = current.getId();
+                if (!visited.add(currentId) || (unitId != null && unitId.equals(currentId))) {
+                    throw new BadRequestException("Chuỗi quy đổi đơn vị không được có vòng lặp");
+                }
+            }
+            return baseUnit;
         }
         return null;
     }
@@ -207,6 +224,7 @@ public class UnitServiceImpl implements UnitService {
     @Override
     @Transactional
     public void delete(UUID id) {
+        lockComposition();
         Unit unit = repository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Unit", id));
         if (unit.getIsDeleted()) {
@@ -214,6 +232,19 @@ public class UnitServiceImpl implements UnitService {
         }
         unit.setIsDeleted(true);
         repository.save(unit);
+        updateComposition(Set.of(id));
+    }
+
+    private void lockComposition() {
+        if (composition != null) {
+            composition.lockWrites();
+        }
+    }
+
+    private void updateComposition(Set<UUID> unitIds) {
+        if (composition != null && !unitIds.isEmpty()) {
+            composition.changedUnits(unitIds);
+        }
     }
 
     @Override
@@ -545,6 +576,8 @@ public class UnitServiceImpl implements UnitService {
             Set<String> seenSymbolsInFile = new HashSet<>();
 
             List<Unit> unitsToSave = new ArrayList<>();
+            Set<UUID> existingUnitIds = new HashSet<>();
+            lockComposition();
 
             for (int r = headerRowIndex + 1; r < rowCount; r++) {
                 Row row = sheet.getRow(r);
@@ -606,6 +639,9 @@ public class UnitServiceImpl implements UnitService {
                     unit.setConversionRate(BigDecimal.ONE);
                 }
 
+                if (unit.getId() != null) {
+                    existingUnitIds.add(unit.getId());
+                }
                 unit.setName(cleanName);
                 unit.setSymbol(cleanSymbol);
                 unit.setType(type);
@@ -616,6 +652,7 @@ public class UnitServiceImpl implements UnitService {
 
             if (!unitsToSave.isEmpty()) {
                 repository.saveAll(unitsToSave);
+                updateComposition(existingUnitIds);
             }
         } catch (Exception e) {
             if (e instanceof BadRequestException) {

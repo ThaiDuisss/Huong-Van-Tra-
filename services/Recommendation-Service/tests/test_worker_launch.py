@@ -1,5 +1,6 @@
 """K2 launch boundary: no app import, process start, broker or DB required."""
 from datetime import datetime, timezone
+import base64
 import io
 import json
 import logging
@@ -19,6 +20,7 @@ import worker_launch_guard as guard
 
 NOW = datetime(2026, 11, 11, 6, tzinfo=timezone.utc)
 SECRET = "fixture-credential-DO-NOT-PRINT-4821"
+ORDER_KEYS = json.dumps({"fixture-order": {"1": base64.b64encode(bytes(range(32))).decode()}})
 
 
 def target():
@@ -30,7 +32,7 @@ def target():
                 kafka_bootstrap_servers="broker.example.invalid:19092",
                 kafka_group_id="fixture-existing-group", kafka_order_completed_topic="order.completed",
                 kafka_return_completed_topic="notification.return.completed",
-                kafka_auto_offset_reset="earliest", mysql_host="db.example.invalid", mysql_port="3306",
+                kafka_auto_offset_reset="error", mysql_host="db.example.invalid", mysql_port="3306",
                 mysql_database="fixture_rec", mysql_user="fixture_account")
 
 
@@ -48,9 +50,10 @@ def environment():
             **{name: values[key] for key, name in guard.TARGET_FIELDS.items()}}
 
 
-def reader(document=None, secret=SECRET.encode()):
+def reader(document=None, secret=SECRET.encode(), order_keys=ORDER_KEYS.encode()):
     wire = json.dumps(binding() if document is None else document).encode()
-    return Mock(side_effect=lambda path, limit: wire if path == guard.APPROVAL_FILE else secret)
+    files = {guard.APPROVAL_FILE: wire, guard.PASSWORD_FILE: secret, guard.ORDER_KEYRING_FILE: order_keys}
+    return Mock(side_effect=lambda path, limit: files[path])
 
 
 class LaunchDecisionTests(unittest.TestCase):
@@ -115,13 +118,25 @@ class LaunchDecisionTests(unittest.TestCase):
         self.assertEqual(code, 77)
         worker.assert_not_called()
 
-    def test_different_valid_db_port_or_reset_policy_is_denied(self):
-        for key, value in (("MYSQL_PORT", "3307"), ("KAFKA_AUTO_OFFSET_RESET", "latest")):
-            values = environment()
-            values[key] = value
-            code, _, worker = self.invoke(values)
-            self.assertEqual(code, 77)
-            worker.assert_not_called()
+    def test_different_valid_db_port_is_denied(self):
+        values = environment()
+        values["MYSQL_PORT"] = "3307"
+        code, _, worker = self.invoke(values)
+        self.assertEqual(code, 77)
+        worker.assert_not_called()
+
+    def test_offset_reset_fallback_is_denied_even_if_binding_matches(self):
+        for policy in ("earliest", "latest"):
+            with self.subTest(policy=policy):
+                values = environment()
+                values["KAFKA_AUTO_OFFSET_RESET"] = policy
+                approved = binding()
+                approved["target"]["kafka_auto_offset_reset"] = policy
+                files = reader(approved)
+                code, reason, worker = self.invoke(values, files)
+                self.assertEqual((code, reason), (64, "CONFIGURATION_INVALID\n"))
+                files.assert_not_called()
+                worker.assert_not_called()
 
     def test_missing_each_required_configuration_is_denied(self):
         for key in (*guard.TARGET_FIELDS.values(), "KAFKA_ENABLE_AUTO_COMMIT"):
@@ -189,11 +204,18 @@ class LaunchDecisionTests(unittest.TestCase):
             self.assertEqual(code, 78)
             worker.assert_not_called()
 
+    def test_invalid_order_kafka_keyring_file_denies_launch(self):
+        for document in (b"", b"not-json", b"[]", b'{"fixture":{},"fixture":{}}'):
+            code, reason, worker = self.invoke(files=reader(order_keys=document))
+            self.assertEqual((code, reason), (78, "REQUIRED_SECRET_INVALID\n"))
+            worker.assert_not_called()
+
     def test_valid_binding_only_reaches_mocked_entry_and_no_success_claim_on_stop(self):
         code, text, worker = self.invoke()
         worker.assert_called_once()
         plan = worker.call_args.args[0]
         self.assertEqual(plan.settings["MYSQL_PASSWORD"], SECRET)
+        self.assertEqual(plan.settings["ORDER_KAFKA_VERIFICATION_KEYS"], ORDER_KEYS)
         self.assertEqual(plan.settings["KAFKA_GROUP_ID"], target()["kafka_group_id"])
         self.assertEqual(plan.settings["KAFKA_ENABLE_AUTO_COMMIT"], "false")
         self.assertEqual(plan.settings["MYSQL_ECHO_SQL"], "false")
@@ -296,6 +318,7 @@ class RuntimeIsolationTests(unittest.TestCase):
                 settings = real_import("app.core.config").get_settings()
                 self.assertEqual(settings.mysql_host, target()["mysql_host"])
                 self.assertEqual(settings.mysql_password.get_secret_value(), SECRET)
+                self.assertEqual(settings.order_kafka_verification_keys.get_secret_value(), ORDER_KEYS)
                 self.assertEqual(settings.kafka_group_id, target()["kafka_group_id"])
                 self.assertFalse(settings.kafka_enable_auto_commit)
                 self.assertFalse(settings.mysql_echo_sql)

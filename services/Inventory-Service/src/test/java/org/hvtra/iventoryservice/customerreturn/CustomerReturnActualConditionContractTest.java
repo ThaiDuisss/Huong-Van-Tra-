@@ -1,5 +1,6 @@
 package org.hvtra.iventoryservice.customerreturn;
 
+import org.hvtra.commonservice.common_core.domain.entity.InternalUserPrincipal;
 import org.hvtra.iventoryservice.customerreturn.controller.CustomerReturnInspectionController;
 import org.hvtra.iventoryservice.customerreturn.dto.request.PostCustomerReturnInspectionRequest;
 import org.hvtra.iventoryservice.customerreturn.dto.response.CustomerReturnInspectionLineResponse;
@@ -8,6 +9,7 @@ import org.hvtra.iventoryservice.customerreturn.service.CustomerReturnInspection
 import org.hvtra.iventoryservice.domain.enums.CustomerReturnActualCondition;
 import org.hvtra.iventoryservice.domain.enums.CustomerReturnInspectionStatus;
 import org.hvtra.iventoryservice.domain.enums.CustomerReturnQcResult;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -15,12 +17,16 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.MediaType;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.validation.beanvalidation.LocalValidatorFactoryBean;
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -49,8 +55,18 @@ class CustomerReturnActualConditionContractTest {
                 .setValidator(validator).build();
     }
 
+    @AfterEach
+    void clearAuthentication() {
+        SecurityContextHolder.clearContext();
+    }
+
     @Test
     void postReceivesQcObservationAndResponseSeparatesDeclarationFromActual() throws Exception {
+        InternalUserPrincipal principal = new InternalUserPrincipal(
+                UUID.randomUUID().toString(), "qc-test", "test", Set.of("QC"), "test-request");
+        SecurityContextHolder.getContext().setAuthentication(new UsernamePasswordAuthenticationToken(
+                principal, null, List.of(new SimpleGrantedAuthority("ROLE_QC"))));
+        UUID commandId = UUID.randomUUID();
         CustomerReturnInspectionLineResponse line = new CustomerReturnInspectionLineResponse(
                 lineId, UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(),
                 "SKU-001", "Tra sen", BigDecimal.ONE, CustomerReturnQcResult.WRITE_OFF, null, null,
@@ -58,9 +74,10 @@ class CustomerReturnActualConditionContractTest {
                 CustomerReturnActualCondition.OPENED);
         when(service.postInspection(eq(inspectionId), any())).thenReturn(new CustomerReturnInspectionResponse(
                 inspectionId, "QC-001", UUID.randomUUID(), "RET-001", null, null, "ORD-001",
-                CustomerReturnInspectionStatus.POSTED, null, null, null, List.of(line)));
+                null, CustomerReturnInspectionStatus.POSTED, null, null, null, List.of(line), commandId));
         mockMvc.perform(post(path()).contentType(MediaType.APPLICATION_JSON).content(body("OPENED", "Seal opened")))
                 .andExpect(status().isOk())
+                .andExpect(jsonPath("$.commandId").value(commandId.toString()))
                 .andExpect(jsonPath("$.lines[0].declaredCondition").value("SEALED"))
                 .andExpect(jsonPath("$.lines[0].actualCondition").value("OPENED"))
                 .andExpect(jsonPath("$.lines[0].condition").value("SEALED"))

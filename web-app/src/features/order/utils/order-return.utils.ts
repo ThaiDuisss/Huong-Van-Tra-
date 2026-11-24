@@ -289,6 +289,12 @@ export function getReturnErrorMessage(error: unknown, fallbackMessage?: string) 
     if (message.includes("Order not found")) {
         return "Không tìm thấy đơn hàng. Vui lòng chọn lại đơn hàng.";
     }
+    if (message.includes("A pending return inventory disposition already exists")) {
+        return "Phiếu hoàn đã có yêu cầu xử lý kho đang chờ. Vui lòng theo dõi tiến độ kiểm định.";
+    }
+    if (message.includes("Failed inventory disposition requires reconciliation")) {
+        return "Yêu cầu xử lý kho trước đó đã thất bại. Cần đối soát trước khi tiếp tục.";
+    }
     if (message.includes("Order is not completed")) {
         return "Đơn hàng chưa hoàn thành.";
     }

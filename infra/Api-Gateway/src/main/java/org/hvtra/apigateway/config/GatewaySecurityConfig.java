@@ -1,6 +1,7 @@
 package org.hvtra.apigateway.config;
 
 import lombok.extern.slf4j.Slf4j;
+import org.hvtra.apigateway.utils.GatewayConstants;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.cloud.gateway.config.GlobalCorsProperties;
 import org.springframework.core.convert.converter.Converter;
@@ -53,6 +54,8 @@ public class GatewaySecurityConfig {
 
                 .authorizeExchange(exchanges -> exchanges
                         .pathMatchers("/internal/**", "/api/recommendation/internal/**").denyAll()
+                        .pathMatchers(HttpMethod.POST, GatewayConstants.TASTE_PREVIEW_PATH)
+                        .hasAnyRole("SALE_STAFF", "MANAGER", "SUPER_ADMIN")
                         // Refund execution accepts only the trusted Order -> Payment call after Order eligibility checks.
                         .pathMatchers(HttpMethod.POST, "/api/payments/orders/*/refunds", "/api/payments/orders/*/refunds/**").denyAll()
                         // Inspections originate from the Order disposition command, never a client-supplied inspection.

@@ -51,7 +51,8 @@ class OrderOutboxNotificationContractTest {
 
     @BeforeEach
     void setUp() {
-        publisher = new OrderOutboxPublisher(events, new OrderOutboxTopicResolver(), histories);
+        publisher = new OrderOutboxPublisher(events, new OrderOutboxTopicResolver(), histories,
+                OrderKafkaSignerTest.signer());
     }
 
     @ParameterizedTest

@@ -29,6 +29,7 @@ export function CustomBundleDialog({ branchId, submitLoading, submitError, onClo
                     <DialogDescription>
                         Chọn nguyên liệu và khối lượng khách muốn, bấm "Thêm vào đơn" để đưa bundle vào đơn đang bán;
                         kho đóng gói sau khi thu tiền.
+                        Gợi ý công thức (BOM) chưa sẵn sàng.
                     </DialogDescription>
                 </DialogHeader>
                 <div className="grid h-[min(620px,calc(90vh-110px))] grid-rows-[minmax(0,1fr)] p-4">

@@ -34,7 +34,7 @@ export interface CustomerReturnInspectionLine {
 
 export interface CustomerReturnQcDraft {
     actualCondition: CustomerReturnActualCondition | "";
-    result: CustomerReturnQcResult;
+    result: CustomerReturnQcResult | "";
     destinationLocationId: string;
     note: string;
 }
@@ -49,6 +49,7 @@ export interface CustomerReturnInspection {
     id: string;
     inspectionCode: string;
     returnId: string;
+    commandId?: string | null;
     returnCode: string;
     branchId?: string | null;
     orderId?: string;

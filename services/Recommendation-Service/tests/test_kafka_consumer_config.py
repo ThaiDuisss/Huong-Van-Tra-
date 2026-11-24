@@ -19,14 +19,14 @@ class KafkaConsumerConfigSafetyTests(unittest.TestCase):
         )
 
     def test_manual_commit_configuration_preserves_client_options(self):
-        settings = self.settings(kafka_enable_auto_commit=False, kafka_auto_offset_reset="latest")
+        settings = self.settings(kafka_enable_auto_commit=False, kafka_auto_offset_reset="error")
         with patch("app.kafka.purchase_consumer.Consumer", return_value=sentinel.consumer) as client:
             result = create_kafka_consumer(settings)
         self.assertIs(result, sentinel.consumer)
         client.assert_called_once_with({
             "bootstrap.servers": "127.0.0.1:1",
             "group.id": "config-unit-test",
-            "auto.offset.reset": "latest",
+            "auto.offset.reset": "error",
             "enable.auto.commit": False,
             "enable.auto.offset.store": False,
         })
@@ -36,6 +36,14 @@ class KafkaConsumerConfigSafetyTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "auto-commit must be disabled"):
                 create_kafka_consumer(self.settings(kafka_enable_auto_commit=True))
         client.assert_not_called()
+
+    def test_offset_reset_fallbacks_rejected_before_client_construction(self):
+        for policy in ("earliest", "latest"):
+            with self.subTest(policy=policy), patch("app.kafka.purchase_consumer.Consumer") as client:
+                settings = self.settings(kafka_enable_auto_commit=False, kafka_auto_offset_reset=policy)
+                with self.assertRaisesRegex(ValueError, "auto.offset.reset must be 'error'"):
+                    create_kafka_consumer(settings)
+                client.assert_not_called()
 
     def test_environment_true_values_cannot_enable_auto_commit(self):
         for value in ("true", "1", "yes"):

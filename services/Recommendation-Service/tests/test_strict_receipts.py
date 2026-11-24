@@ -12,9 +12,7 @@ from unittest.mock import MagicMock
 from app.kafka.payload_decoder import (
     KafkaPayloadDecodeError, KafkaPayloadShapeError, decode_kafka_payload,
 )
-from app.kafka.purchase_consumer import PurchaseKafkaConsumer
 from app.kafka.purchase_event_adapter import PurchaseEventAdapter, PurchaseEventValidationError
-from app.kafka.return_consumer import ReturnKafkaConsumer
 from app.kafka.return_event_adapter import ReturnEventAdapter, ReturnEventValidationError
 from app.kafka.receipt_canonical import (
     MissingHashKeyError, ReceiptPolicyError, canonical_bytes, keyed_digest,
@@ -24,7 +22,7 @@ from app.kafka.receipt_hashes import (
     approved_payload_hash, business_claims, event_integrity, verified_replay, wire_fingerprint,
     event_identity,
 )
-from tests.test_return_validation import payload, two_lines, headers, message, committed
+from tests.test_return_validation import payload, two_lines, headers
 
 FIXTURE = (Path(__file__).resolve().parents[2]
            / "Order-Service/src/test/resources/contracts/product-completed-v1.json")
@@ -459,41 +457,6 @@ class StrictConsumerBoundaryTests(unittest.TestCase):
                 self.assertEqual(Decimal(evidence.lines[0]["quantity"]), Decimal(token))
                 self.assertIs(type(evidence.lines[0]["quantity"]), str)
                 db.commit.assert_not_called()  # Existing recorder remains transaction-neutral.
-
-    def test_invalid_wire_never_opens_db_or_calls_business_or_acks(self):
-        for purchase in (False, True):
-            for token in ("1.0000000000000001", "NaN"):
-                factory = MagicMock(); service = MagicMock(); kafka = MagicMock()
-                cls = PurchaseKafkaConsumer if purchase else ReturnKafkaConsumer
-                consumer = cls(consumer=kafka, interaction_service=service, session_factory=factory,
-                               settings=MagicMock())
-                msg = message(payload()); msg.value.return_value = number_wire(token, purchase=purchase)
-                with self.subTest(purchase=purchase, token=token), self.assertRaises(Exception):
-                    consumer.consume_message(msg)
-                factory.assert_not_called(); service.process_batch.assert_not_called(); kafka.commit.assert_not_called()
-
-    def test_duplicate_event_or_line_key_never_opens_db_or_acks(self):
-        for cls in (PurchaseKafkaConsumer, ReturnKafkaConsumer):
-            for wire in (b'{"eventId":"a","eventId":"b"}', b'{"items":[{"quantity":1,"quantity":2}]}'):
-                factory = MagicMock(); service = MagicMock(); kafka = MagicMock()
-                consumer = cls(consumer=kafka, interaction_service=service, session_factory=factory, settings=MagicMock())
-                msg = message(payload()); msg.value.return_value = wire
-                with self.subTest(consumer=cls.__name__, wire=wire), self.assertRaises(KafkaPayloadDecodeError):
-                    consumer.consume_message(msg)
-                factory.assert_not_called(); service.process_batch.assert_not_called(); kafka.commit.assert_not_called()
-
-    def test_valid_decimal_wire_preserves_batch_before_ack(self):
-        for purchase in (False, True):
-            factory = MagicMock(); service = MagicMock(); kafka = MagicMock()
-            kafka.commit.return_value = committed(topic="order.completed" if purchase else "notification.return.completed")
-            cls = PurchaseKafkaConsumer if purchase else ReturnKafkaConsumer
-            consumer = cls(consumer=kafka, interaction_service=service, session_factory=factory, settings=MagicMock())
-            msg = message(payload(), topic="order.completed" if purchase else "notification.return.completed")
-            msg.value.return_value = number_wire("2.500", purchase=purchase)
-            with self.subTest(purchase=purchase):
-                consumer.consume_message(msg)
-                self.assertEqual(service.process_batch.call_args.args[1][0].quantity, Decimal("2.500"))
-                kafka.commit.assert_called_once_with(message=msg, asynchronous=False)
 
     def test_private_validation_errors_do_not_echo_values_or_chains(self):
         cases = [(PurchaseEventAdapter(), dict(json.loads(FIXTURE.read_text(encoding="utf-8")), occurredAt=PRIVATE)),

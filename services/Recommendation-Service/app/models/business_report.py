@@ -33,7 +33,7 @@ class RecommendationSnapshot(Base):
 
 
 class CompletedPurchaseOrder(Base):
-    """Whole validated ORDER_COMPLETED/COMPLETED/PAID event, canonical lines.
+    """Whole validated ORDER_COMPLETED/COMPLETED/PAID event, with source line types.
 
     A second transport event for the same order cannot add quantities again.
     No PII from the upstream order is copied.

@@ -46,19 +46,16 @@ public class PosProductServiceImpl implements PosProductService {
 
         String searchKeyword = (keyword != null && !keyword.isBlank()) ? keyword : productName;
 
-        PageResponse<CatalogVariantResponse> pageResponse = catalogClient.findAll(
+        PageResponse<CatalogVariantResponse> pageResponse = catalogClient.findSellableVariants(
                 searchKeyword,
                 sku,
-                null,
-                null,
                 productId,
-                null,
-                "ACTIVE",
+                true,
                 page,
                 size
         );
 
-        if (pageResponse == null || pageResponse.content() == null || pageResponse.content().isEmpty()) {
+        if (pageResponse == null || pageResponse.content() == null) {
             return new PageResponse<>(
                     Collections.emptyList(),
                     page,
@@ -70,7 +67,9 @@ public class PosProductServiceImpl implements PosProductService {
             );
         }
 
-        List<CatalogVariantResponse> variants = pageResponse.content();
+        List<CatalogVariantResponse> variants = pageResponse.content().stream()
+                .filter(PosProductServiceImpl::isPosSaleVariant)
+                .toList();
         List<UUID> variantIds = variants.stream()
                 .map(CatalogVariantResponse::id)
                 .distinct()
@@ -98,7 +97,7 @@ public class PosProductServiceImpl implements PosProductService {
         log.debug("POS fetching variant detail for POS view with variantId: {}", variantId);
 
         CatalogVariantResponse variant = catalogClient.findById(variantId);
-        if (variant == null) {
+        if (!isPosSaleVariant(variant) || !variantId.equals(variant.id())) {
             return null;
         }
 
@@ -106,6 +105,10 @@ public class PosProductServiceImpl implements PosProductService {
         StockVariantBatchResponse stock = stockMap.get(variantId);
 
         return toPosProductVariantResponse(variant, stock);
+    }
+
+    private static boolean isPosSaleVariant(CatalogVariantResponse variant) {
+        return variant != null && variant.sellable() && !"CUSTOM-BUNDLE".equals(variant.sku());
     }
 
     private Map<UUID, StockVariantBatchResponse> loadStockMap(List<UUID> variantIds) {

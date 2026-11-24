@@ -97,6 +97,7 @@ export interface SalesOrderItemDetail {
 export interface SalesOrderDetail {
     id?: string | null;
     orderId?: string | null;
+    customerId?: string | null;
     orderCode?: string | null;
     soldAt?: string | null;
     createdAt?: string | null;

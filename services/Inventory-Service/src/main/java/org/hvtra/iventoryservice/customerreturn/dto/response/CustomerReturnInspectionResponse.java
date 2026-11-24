@@ -19,7 +19,8 @@ public record CustomerReturnInspectionResponse(
         Instant createdAt,
         Instant postedAt,
         String note,
-        List<CustomerReturnInspectionLineResponse> lines
+        List<CustomerReturnInspectionLineResponse> lines,
+        UUID commandId
 ) {
     public CustomerReturnInspectionResponse(
             UUID id,
@@ -35,6 +36,6 @@ public record CustomerReturnInspectionResponse(
             String note,
             List<CustomerReturnInspectionLineResponse> lines
     ) {
-        this(id, inspectionCode, returnId, returnCode, branchId, orderId, orderCode, null, status, createdAt, postedAt, note, lines);
+        this(id, inspectionCode, returnId, returnCode, branchId, orderId, orderCode, null, status, createdAt, postedAt, note, lines, null);
     }
 }

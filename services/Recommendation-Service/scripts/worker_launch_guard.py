@@ -13,6 +13,7 @@ from typing import Mapping
 APPROVAL_DIRECTORY = Path("/run/hvtra-worker-approval")
 APPROVAL_FILE = APPROVAL_DIRECTORY / "approved-binding.json"
 PASSWORD_FILE = Path("/run/secrets/recommendation_worker_mysql_password")
+ORDER_KEYRING_FILE = Path("/run/secrets/recommendation_worker_order_kafka_keys")
 GATES = {f"G{i:02}" for i in range(1, 9)}
 TARGET_FIELDS = {
     "environment": "HVTRA_WORKER_ENVIRONMENT",
@@ -156,7 +157,7 @@ def authorize(environment, *, read_file=_read_owned_file, now=None):
     if target["writer_role"] != "recommendation-kafka-worker":
         raise LaunchDenied(77, "WRITER_ROLE_NOT_AUTHORIZED")
     if (target["environment"] not in {"production", "development", "test"}
-            or target["kafka_auto_offset_reset"] not in {"earliest", "latest", "error"}
+            or target["kafka_auto_offset_reset"] != "error"
             or target["kafka_order_completed_topic"] == target["kafka_return_completed_topic"]):
         raise LaunchDenied(64, "CONFIGURATION_INVALID")
     if not re.fullmatch(r"[1-9][0-9]{0,4}", target["mysql_port"]) or int(target["mysql_port"]) > 65535:
@@ -181,6 +182,9 @@ def authorize(environment, *, read_file=_read_owned_file, now=None):
             password = password[:-1].removesuffix("\r")
         if not password or "\n" in password or "\r" in password or "\x00" in password:
             raise ValueError()
+        keys = read_file(ORDER_KEYRING_FILE, 32768).decode("utf-8")
+        if not isinstance(json.loads(keys, object_pairs_hook=_unique_pairs), dict):
+            raise ValueError()
     except LaunchDenied:
         raise
     except (UnicodeError, ValueError):
@@ -188,5 +192,5 @@ def authorize(environment, *, read_file=_read_owned_file, now=None):
     settings = {variable: target[key] for key, variable in TARGET_FIELDS.items()
                 if variable.startswith(("MYSQL_", "KAFKA_"))}
     settings.update(APP_ENVIRONMENT=target["environment"], MYSQL_PASSWORD=password,
-                    MYSQL_ECHO_SQL="false", KAFKA_ENABLE_AUTO_COMMIT="false")
+                    ORDER_KAFKA_VERIFICATION_KEYS=keys, MYSQL_ECHO_SQL="false", KAFKA_ENABLE_AUTO_COMMIT="false")
     return LaunchPlan(MappingProxyType(settings))
