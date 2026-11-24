@@ -46,6 +46,9 @@ export const routePaths = {
   importExcelIngredientCreate: "/system/import-excel/ingredients/new",
   importExcelDetail: "/system/import-excel/:batchId",
   productVariants: "/system/product-variants",
+  tasteProfiles: "/system/taste-profiles",
+  tasteProfileEdit: "/system/taste-profiles/edit",
+  tasteProfileEditSingle: "/system/taste-profiles/edit/:variantId",
   productVariantImport: "/system/product-variants/import",
   productVariantsByProduct: "/system/products/:productId/variants",
   productVariantDetail: "/system/product-variants/:id",
@@ -96,6 +99,7 @@ export const routePaths = {
   reportDisposalSummary: "/management/inventory/reports/disposal-summary",
 
   customers: "/system/customers",
+  customerTasteSurveys: "/system/customer-taste-surveys",
   marketingEvents: "/system/marketing/events",
   discountPrograms: "/system/marketing/discount-programs",
   discountProgramDetail: "/system/marketing/discount-programs/:programId",

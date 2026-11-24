@@ -43,6 +43,7 @@ import type {
   SaleCartItem,
   SaleCustomer,
   SaleDiscountOption,
+  SaleProductPreview,
   SaleTotals
 } from "../../types/sale.types";
 import { AddressSelectionModal } from "./AddressSelectionModal";
@@ -63,6 +64,7 @@ interface DeliveryCheckoutPanelProps {
   customerHasMore?: boolean;
   onCustomerSearch?(query: string): void;
   onCustomerLoadMore?(): void;
+  onAddToCart?(product: SaleProductPreview): Promise<boolean>;
   recommendationEntry?: ReactNode;
   state: DeliveryCheckoutState;
   totals: SaleTotals;
@@ -89,6 +91,7 @@ export function DeliveryCheckoutPanel({
   customerHasMore,
   onCustomerSearch,
   onCustomerLoadMore,
+  onAddToCart,
   recommendationEntry,
   state,
   totals,
@@ -203,6 +206,7 @@ export function DeliveryCheckoutPanel({
             onSelect={onCustomerChange}
             onCreated={onCustomerCreated}
             onClear={onCustomerClear}
+            onAddToCart={onAddToCart}
           />
           <div className="mt-3">{recommendationEntry}</div>
           <label className="mt-3 flex items-center justify-between rounded-lg border border-[#dbe4ee] bg-[#f8fafc] px-3 py-2 text-sm font-bold text-[#172317]">

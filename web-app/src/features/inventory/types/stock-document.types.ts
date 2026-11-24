@@ -74,7 +74,12 @@ export interface InventoryAuditEvent {
         | "Đã nhập kho"
         | "Hủy"
         | "Duyệt ngoại lệ"
-        | "Kiểm định";
+        | "Kiểm định"
+        | "SUBMIT"
+        | "APPROVE"
+        | "REJECT"
+        | "POST"
+        | (string & {});
     actor: UserSnapshot;
     roleSnapshot: StockDocumentRole;
     happenedAt: string;
