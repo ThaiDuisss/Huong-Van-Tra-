@@ -51,18 +51,29 @@ export function ProductRecommendationResults({
       : result?.source === "POPULARITY" || result?.modelType === "popularity"
         ? "Sản phẩm phổ biến"
         : "Gợi ý cá nhân hóa";
+
+  const topProducts = products.slice(0, 5);
+
   return (
     <div className="grid gap-3">
-      <p className="text-sm font-semibold text-[#159734]">{label}</p>
-      {!products.length && (
-        <p role="status" className="p-4 text-sm text-slate-600">
-          Chưa có sản phẩm phù hợp với điều kiện gợi ý hiện tại.
+      <div className="flex items-center justify-between">
+        <p className="text-xs font-bold uppercase tracking-wider text-[#159734]">
+          Top 5 sản phẩm gợi ý · {mode === "REPEAT" ? "Đã mua (Mua lại)" : "Chưa mua (Khám phá)"} ({label})
+        </p>
+        <span className="text-[11px] font-semibold text-slate-500">
+          Hiển thị {topProducts.length} / {products.length} sản phẩm
+        </span>
+      </div>
+      {!topProducts.length && (
+        <p role="status" className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-6 text-center text-sm text-slate-500">
+          Chưa có sản phẩm phù hợp với danh mục {mode === "REPEAT" ? "đã mua" : "chưa mua"} của khách hàng.
         </p>
       )}
-      {products.map((product) => (
+      {topProducts.map((product, idx) => (
         <RecommendedProductCard
           key={product.recommendation.productId}
           product={product}
+          rankIndex={idx + 1}
           onAdd={onAdd}
           disabled={disabled || pending !== null}
           onPending={setPending}
@@ -74,11 +85,13 @@ export function ProductRecommendationResults({
 
 function RecommendedProductCard({
   product,
+  rankIndex,
   onAdd,
   disabled,
   onPending,
 }: {
   product: RecommendedProductView;
+  rankIndex?: number;
   onAdd?: RecommendationResultProps["onAdd"];
   disabled?: boolean;
   onPending(value: string | null): void;
@@ -164,8 +177,12 @@ function RecommendedProductCard({
     }
   }
   return (
-    <article className="flex gap-3 rounded-xl border border-[#e1e9e3] p-3">
-      <span className="text-sm font-bold text-[#159734]">#{recommendation.rank}</span>
+    <article className="flex gap-3 rounded-xl border border-[#e1e9e3] bg-white p-3 shadow-2xs hover:border-emerald-300 transition">
+      <div className="flex flex-col items-center gap-1.5 shrink-0">
+        <span className="inline-flex h-6 min-w-10 items-center justify-center rounded-md bg-emerald-50 px-1.5 text-xs font-black text-emerald-800 ring-1 ring-inset ring-emerald-600/20">
+          #{rankIndex ?? recommendation.rank}
+        </span>
+      </div>
       {image ? (
         <img src={image} alt="" className="size-16 shrink-0 rounded-lg object-cover" />
       ) : (

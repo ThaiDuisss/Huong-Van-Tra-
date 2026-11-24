@@ -36,6 +36,13 @@ export const PRODUCT_ROLES: AppRole[] = [
     ROLES.INVENTORY_STAFF
 ];
 
+export const TASTE_PROFILE_ROLES: AppRole[] = [
+    ROLES.SUPER_ADMIN,
+    ROLES.MANAGER,
+    ROLES.QC,
+    ROLES.INVENTORY_STAFF
+];
+
 export const MANUFACTURING_ROLES: AppRole[] = [
     ROLES.SUPER_ADMIN,
     ROLES.MANAGER,
