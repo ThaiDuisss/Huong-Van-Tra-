@@ -147,7 +147,15 @@ class KafkaWorker:
                 if hasattr(msg, "error") and callable(msg.error):
                     err = msg.error()
                     if err is not None:
-                        if err.code() == KafkaError._PARTITION_EOF:
+                        error_code = err.code()
+                        if error_code in (KafkaError._AUTO_OFFSET_RESET, KafkaError.OFFSET_OUT_OF_RANGE,
+                                          KafkaError._NO_OFFSET):
+                            logger.error(
+                                "Kafka offset requires operator review topic=%s partition=%s error_code=%s",
+                                msg.topic(), msg.partition(), error_code,
+                            )
+                            raise RuntimeError("KAFKA_OFFSET_REVIEW_REQUIRED")
+                        if error_code == KafkaError._PARTITION_EOF:
                             logger.debug(
                                 "Reached end of partition: topic=%s, partition=%s, offset=%s",
                                 msg.topic(),
@@ -201,6 +209,7 @@ class KafkaWorker:
                     time.sleep(self.error_backoff)
 
         finally:
+            self.running = False
             logger.info("Stopping poll loop and closing Kafka consumer...")
             try:
                 self.consumer.close()

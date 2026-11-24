@@ -3,7 +3,7 @@ from typing import Callable
 
 from app.recommendation.taste_explanations import AttributeDefinition, explain_variant
 from app.recommendation.taste_rules import TasteCriteria, VariantMatch, maximum_points, rank_variants
-from app.schemas.taste_catalog import Taxonomy, canonical_bytes, digest
+from app.schemas.taste_catalog import ADDED_SWEETNESS, SPLIT_SWEETNESS_VERSIONS, Taxonomy, canonical_bytes, digest
 from app.schemas.taste_recommendation import (
     CompatibleVariant,
     TasteCriteriaDocument,
@@ -48,6 +48,10 @@ def normalize_criteria(document: TasteCriteriaDocument, taxonomy_sha256: str) ->
 
     hard = dict(sorted(hard.items()))
     soft = dict(sorted(soft.items()))
+    not_applicable = tuple(sorted(document.notApplicableAttributes))
+    if ("UNKNOWN" in not_applicable or len(set(not_applicable)) != len(not_applicable)
+            or set(not_applicable).intersection(hard.keys() | soft.keys())):
+        raise InvalidTasteCriteria("Tiêu chí không áp dụng không thể bị trùng hoặc có lựa chọn")
     canonical_document = {
         "hardGroups": [{"attribute": code, "allowedValues": list(values)} for code, values in hard.items()],
         "softGroups": [
@@ -55,9 +59,12 @@ def normalize_criteria(document: TasteCriteriaDocument, taxonomy_sha256: str) ->
             for code, values in soft.items()
         ],
     }
+    if not_applicable:
+        canonical_document["notApplicableAttributes"] = list(not_applicable)
     if len(canonical_bytes(canonical_document)) > 16 * 1024:
         raise InvalidTasteCriteria("Tiêu chí khẩu vị vượt quá 16 KiB")
-    return TasteCriteria(hard, soft, digest({"criteria": canonical_document, "taxonomySha256": taxonomy_sha256}))
+    return TasteCriteria(hard, soft, digest({"criteria": canonical_document, "taxonomySha256": taxonomy_sha256}),
+                         not_applicable)
 
 
 def _definitions(release: Taxonomy) -> dict[str, AttributeDefinition]:
@@ -74,6 +81,13 @@ def _definitions(release: Taxonomy) -> dict[str, AttributeDefinition]:
 
 def validate_criteria_taxonomy(criteria: TasteCriteria, release: Taxonomy) -> dict[str, AttributeDefinition]:
     definitions = _definitions(release)
+    allowed_not_applicable = {
+        item["attributeCode"] for item in release.manifest["attributes"]
+        if release.versionCode in SPLIT_SWEETNESS_VERSIONS and item["attributeCode"] == ADDED_SWEETNESS
+        and item.get("allowsNotApplicable") is True
+    }
+    if not set(criteria.not_applicable).issubset(allowed_not_applicable):
+        raise InvalidTasteCriteria("Thuộc tính không hỗ trợ lựa chọn không áp dụng")
     for groups in (criteria.hard, criteria.soft):
         for code, values in groups.items():
             definition = definitions.get(code)
@@ -104,6 +118,7 @@ def _compatible(match: VariantMatch, score: str, definitions: dict[str, Attribut
         unmatchedSoft=match.unmatched_soft,
         unknownAttributes=match.unknown_attributes,
         reason=explain_variant(match, definitions),
+        sensoryValues=candidate.profile.sensoryValues,
     )
 
 

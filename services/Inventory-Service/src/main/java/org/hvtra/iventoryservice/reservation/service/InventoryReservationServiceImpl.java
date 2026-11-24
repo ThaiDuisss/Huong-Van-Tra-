@@ -1,5 +1,6 @@
 package org.hvtra.iventoryservice.reservation.service;
 
+import lombok.extern.slf4j.Slf4j;
 import org.hvtra.iventoryservice.reservation.dto.request.ApplyInventoryReservationRequest;
 import org.hvtra.iventoryservice.reservation.dto.request.ConfirmInventoryReservationOrderRequest;
 import org.hvtra.iventoryservice.reservation.dto.request.ReleaseInventoryReservationItemRequest;
@@ -44,6 +45,7 @@ import java.util.Map;
 import java.util.UUID;
 
 @Service
+@Slf4j
 @Transactional(readOnly = true)
 public class InventoryReservationServiceImpl implements InventoryReservationService {
 
@@ -382,17 +384,50 @@ public class InventoryReservationServiceImpl implements InventoryReservationServ
     @Override
     @Transactional
     public int expireReservations() {
-        List<InventoryReservation> reservations = reservationRepository.findByStatusAndExpiresAtBefore(
-                ReservationStatus.RESERVED,
-                Instant.now()).stream()
-                .filter(reservation -> reservation.getReservationType() != ReservationType.MATERIAL)
-                .toList();
-        reservations.forEach(reservation -> {
-            releaseReservation(reservation);
-            reservation.setStatus(ReservationStatus.EXPIRED);
-            reservationRepository.save(reservation);
-        });
-        return reservations.size();
+        List<InventoryReservation> reservations = reservationRepository
+                .findByReservationTypeAndStatusAndExpiresAtBeforeAndIsDeletedFalseOrderById(
+                        ReservationType.PRODUCT_VARIANT, ReservationStatus.RESERVED, Instant.now());
+        int expired = 0;
+        for (InventoryReservation reservation : reservations) {
+            if (releaseExpiredProductReservation(reservation)) {
+                reservation.setQuantity(BigDecimal.ZERO);
+                reservation.setStatus(ReservationStatus.EXPIRED);
+                expired++;
+            }
+        }
+        if (expired < reservations.size()) {
+            log.warn("Kept {} expired product reservations for inventory reconciliation", reservations.size() - expired);
+        }
+        return expired;
+    }
+
+    private boolean releaseExpiredProductReservation(InventoryReservation reservation) {
+        InventoryItem item = reservation.getInventoryItemProduct();
+        BigDecimal quantity = reservation.getQuantity();
+        if (item == null || Boolean.TRUE.equals(item.getIsDeleted()) || item.getItemType() != InventoryItemType.PRODUCT_VARIANT
+                || !reservation.getProductVariantId().equals(item.getReferenceId()) || quantity.signum() < 0) {
+            return false;
+        }
+        if (quantity.signum() == 0) {
+            return true;
+        }
+        UUID locationId = reservation.getLocation().getId();
+        List<InventoryReservation> claims = reservationRepository.findActiveProductClaimsForUpdate(
+                item, locationId, ReservationType.PRODUCT_VARIANT, ReservationStatus.RESERVED);
+        List<InventoryBalance> balances = balanceRepository
+                .findByInventoryItem_IdAndLocation_IdAndIsDeletedFalseOrderById(item.getId(), locationId);
+        // Product reservations store no batch allocation. Releasing across multiple balances would guess ownership.
+        if (balances.size() != 1 || claims.stream().anyMatch(claim -> claim.getQuantity().signum() < 0)) {
+            return false;
+        }
+        BigDecimal committed = claims.stream().map(InventoryReservation::getQuantity)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        InventoryBalance balance = balances.getFirst();
+        if (committed.compareTo(quantity) < 0 || balance.getQuantityReserved().compareTo(committed) < 0) {
+            return false;
+        }
+        balance.setQuantityReserved(balance.getQuantityReserved().subtract(quantity));
+        return true;
     }
 
     private InventoryReservation newReservation(

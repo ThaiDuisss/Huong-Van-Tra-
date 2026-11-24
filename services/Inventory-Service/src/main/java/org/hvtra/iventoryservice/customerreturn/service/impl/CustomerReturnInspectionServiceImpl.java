@@ -1091,7 +1091,8 @@ public class CustomerReturnInspectionServiceImpl implements CustomerReturnInspec
                 inspection.getCreatedAt(),
                 inspection.getPostedAt(),
                 inspection.getNote(),
-                lines
+                lines,
+                inspection.getCommandId()
         );
     }
 
@@ -1104,11 +1105,13 @@ public class CustomerReturnInspectionServiceImpl implements CustomerReturnInspec
                 inspection.getBranchId(),
                 inspection.getOrderId(),
                 inspection.getOrderCode(),
+                null,
                 inspection.getStatus(),
                 inspection.getCreatedAt(),
                 inspection.getPostedAt(),
                 inspection.getNote(),
-                inspection.getLines().stream().map(this::toLineResponse).toList());
+                inspection.getLines().stream().map(this::toLineResponse).toList(),
+                inspection.getCommandId());
     }
 
     private CustomerReturnInspectionLineResponse toLineResponse(CustomerReturnInspectionLine line) {

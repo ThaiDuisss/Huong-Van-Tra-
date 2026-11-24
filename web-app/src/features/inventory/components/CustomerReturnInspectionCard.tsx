@@ -1,4 +1,4 @@
-import { useId } from "react";
+import { useId, type ReactNode } from "react";
 import {
     AlertCircle,
     Check,
@@ -36,7 +36,7 @@ import { formatVietnamNumber } from "../utils/inventory-format";
 import styles from "./CustomerReturnWarehouseInspectionModal.module.css";
 
 export interface CustomerReturnInspectionCardProps {
-    line: CustomerReturnInspectionLine;
+    line: Pick<CustomerReturnInspectionLine, "id" | "quantity"> & Partial<CustomerReturnInspectionLine>;
     draft: CustomerReturnQcDraft;
     editable: boolean;
     locations: CustomerReturnQcLocation[];
@@ -44,6 +44,7 @@ export interface CustomerReturnInspectionCardProps {
     reason?: string | null;
     sku?: string | null;
     productName?: string | null;
+    quantityEditor?: ReactNode;
     isCollapsible?: boolean;
     isExpanded?: boolean;
     onToggleExpand?: () => void;
@@ -100,6 +101,7 @@ export function CustomerReturnInspectionCard({
     reason,
     sku,
     productName,
+    quantityEditor,
     isCollapsible = false,
     isExpanded = true,
     onToggleExpand,
@@ -122,13 +124,15 @@ export function CustomerReturnInspectionCard({
         ? "Vui lòng chọn tình trạng thực tế sau khi kiểm tra hàng."
         : null;
 
-    const resultError = draft.result === "RESTOCK" && actual !== "SEALED"
+    const resultError = !draft.result
+        ? "Vui lòng chọn phương án xử lý."
+        : draft.result === "RESTOCK" && actual !== "SEALED"
         ? "Chỉ được nhập lại kho khi tình trạng thực tế còn nguyên seal."
         : draft.result === "QUARANTINE" && line.result !== "QUARANTINE"
             ? "Không tạo mới phân loại cách ly."
             : null;
 
-    const locationError = draft.result !== "WRITE_OFF" &&
+    const locationError = draft.result && draft.result !== "WRITE_OFF" &&
         !eligibleLocations.some((loc) => loc.id === draft.destinationLocationId)
         ? "Vui lòng chọn vị trí kho phù hợp với phân loại xử lý."
         : null;
@@ -148,28 +152,20 @@ export function CustomerReturnInspectionCard({
     // Handle change of actual condition
     const handleActualChange = (newCondition: CustomerReturnActualCondition) => {
         onFieldTouch?.("actualCondition");
-        // If switching away from SEALED while currently selecting RESTOCK, suggest DAMAGED
-        let nextResult = draft.result;
-        let nextLocation = draft.destinationLocationId;
-        if (newCondition !== "SEALED" && draft.result === "RESTOCK") {
-            nextResult = "DAMAGED";
-            nextLocation = "";
-        }
+        const invalidatesRestock = newCondition !== "SEALED" && draft.result === "RESTOCK";
         onChange({
             actualCondition: newCondition,
-            result: nextResult,
-            destinationLocationId: nextLocation
+            result: invalidatesRestock ? "" : draft.result,
+            destinationLocationId: invalidatesRestock ? "" : draft.destinationLocationId
         });
     };
 
     // Handle change of disposition result
     const handleResultChange = (newResult: CustomerReturnQcResult) => {
         onFieldTouch?.("result");
-        // If WRITE_OFF, clear destinationLocationId
-        const nextLocation = newResult === "WRITE_OFF" ? "" : "";
         onChange({
             result: newResult,
-            destinationLocationId: nextLocation
+            destinationLocationId: newResult === draft.result ? draft.destinationLocationId : ""
         });
     };
 
@@ -248,6 +244,7 @@ export function CustomerReturnInspectionCard({
             {/* Card Body */}
             {isExpanded ? (
                 <div className={styles.cardBody}>
+                    {quantityEditor}
                     {/* Section 1: Thông tin khách khai báo */}
                     <div className={styles.declaredInfoRow}>
                         <div className="flex items-center gap-2 text-xs text-[#475569]">
@@ -397,6 +394,7 @@ export function CustomerReturnInspectionCard({
                                     <div className="flex flex-col gap-1">
                                         <select
                                             className={`${styles.selectControl} ${showLocationError ? styles.selectControlError : ""}`}
+                                            disabled={!draft.result}
                                             id={`${cardId}-location`}
                                             onChange={(e) => {
                                                 onFieldTouch?.("destinationLocationId");
@@ -411,7 +409,7 @@ export function CustomerReturnInspectionCard({
                                                 </option>
                                             ))}
                                         </select>
-                                        {eligibleLocations.length === 0 ? (
+                                        {draft.result && eligibleLocations.length === 0 ? (
                                             <span className="text-xs text-amber-700 font-semibold mt-1">
                                                 Chưa có vị trí kho phù hợp với phân loại này. Vui lòng kiểm tra danh mục vị trí kho.
                                             </span>

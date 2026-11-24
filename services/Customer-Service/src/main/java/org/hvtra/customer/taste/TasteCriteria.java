@@ -38,31 +38,48 @@ class TasteCriteria {
         if (value == null || !value.isObject() || json.bytes(value).length > MAX_BYTES) {
             throw invalid("Tiêu chí khẩu vị phải là một JSON object tối đa 16 KiB");
         }
-        onlyFields(value, Set.of("hardGroups", "softGroups"));
+        onlyFields(value, Set.of("hardGroups", "softGroups", "notApplicableAttributes"));
         SortedMap<String, Set<String>> hard = parseHard(groups(value, "hardGroups"));
         SortedMap<String, SortedMap<String, Integer>> soft = parseSoft(groups(value, "softGroups"));
+        Set<String> notApplicable = new TreeSet<>();
+        for (JsonNode attribute : groups(value, "notApplicableAttributes")) {
+            String code = requireCode(attribute);
+            if (hard.containsKey(code) || soft.containsKey(code) || !notApplicable.add(code)) {
+                throw invalid("Tiêu chí không áp dụng không thể bị trùng hoặc có lựa chọn");
+            }
+        }
         soft.forEach((attribute, priorities) -> {
             if (hard.containsKey(attribute) && !hard.get(attribute).containsAll(priorities.keySet())) {
                 throw invalid("Giá trị ưu tiên phải thuộc nhóm bắt buộc của cùng thuộc tính");
             }
         });
         ObjectNode canonical = toJson(hard, soft);
+        if (!notApplicable.isEmpty()) {
+            ArrayNode attributes = canonical.putArray("notApplicableAttributes");
+            notApplicable.forEach(attributes::add);
+        }
         if (json.bytes(canonical).length > MAX_BYTES) {
             throw invalid("Tiêu chí khẩu vị sau chuẩn hóa vượt quá 16 KiB");
         }
-        return new Selection(hard, soft, canonical);
+        return new Selection(hard, soft, notApplicable, canonical);
     }
 
     void validate(Selection criteria, Map<String, TasteTaxonomyAuthority.Attribute> attributes) {
         criteria.hard().forEach((code, values) -> validateGroup(attributes, code, values));
         criteria.soft().forEach((code, values) -> validateGroup(attributes, code, values.keySet()));
+        for (String code : criteria.notApplicable()) {
+            TasteTaxonomyAuthority.Attribute attribute = attributes.get(code);
+            if (attribute == null || !attribute.allowsNotApplicable()) {
+                throw invalid("Thuộc tính không hỗ trợ lựa chọn không áp dụng");
+            }
+        }
     }
 
     String digest(String taxonomySha256, Selection criteria) {
         ObjectNode value = json.object();
         value.set("criteria", criteria.document());
         value.put("taxonomySha256", taxonomySha256);
-        return json.sha256(value);
+        return json.sha256(json.canonical(value));
     }
 
     private SortedMap<String, Set<String>> parseHard(JsonNode groups) {
@@ -187,6 +204,7 @@ class TasteCriteria {
     record Selection(
             SortedMap<String, Set<String>> hard,
             SortedMap<String, SortedMap<String, Integer>> soft,
+            Set<String> notApplicable,
             ObjectNode document
     ) {
         boolean isEmpty() {

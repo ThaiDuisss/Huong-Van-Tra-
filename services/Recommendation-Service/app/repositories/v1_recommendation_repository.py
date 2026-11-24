@@ -10,6 +10,7 @@ from app.models.ingredient import Ingredient
 from app.models.interaction_event import InteractionEvent, InteractionEventType
 from app.models.product import Product
 from app.models.product_ingredient import ProductIngredient
+from app.models.product_variant import ProductVariant
 from app.recommendation.v1_model import CatalogProduct, PurchaseCount
 
 
@@ -48,11 +49,30 @@ class V1RecommendationRepository:
         return CustomerPurchaseHistory(order_count, {p: int(n) for p, n in rows}, missing)
 
     def active_catalog(self, db: Session) -> tuple[CatalogProduct, ...]:
-        products = list(db.execute(select(
+        return self._catalog(db, include_sellability=False)[0]
+
+    def serving_catalog(self, db: Session) -> tuple[tuple[CatalogProduct, ...], set[str]]:
+        """Keep the full artifact vocabulary and track sellable products separately."""
+        return self._catalog(db, include_sellability=True)
+
+    @staticmethod
+    def _has_commercial_variant():
+        return select(ProductVariant.id).where(
+            ProductVariant.product_id == Product.id,
+            ProductVariant.status == "ACTIVE",
+            ProductVariant.is_deleted.is_(False),
+            ProductVariant.sku != "CUSTOM-BUNDLE",
+        ).exists()
+
+    def _catalog(self, db: Session, *, include_sellability: bool) -> tuple[tuple[CatalogProduct, ...], set[str]]:
+        statement = select(
             Product.id, Product.product_code, Product.name, Category.category_code,
         ).outerjoin(Category, Category.id == Product.category_id).where(
             Product.status == "ACTIVE", Product.is_deleted.is_(False),
-        ).order_by(Product.id)))
+        ).order_by(Product.id)
+        if include_sellability:
+            statement = statement.add_columns(self._has_commercial_variant())
+        products = list(db.execute(statement))
         rows = db.execute(select(ProductIngredient.product_id, Ingredient.ingredient_code).join(
             Ingredient, Ingredient.id == ProductIngredient.ingredient_id,
         ).join(Product, Product.id == ProductIngredient.product_id).where(
@@ -63,15 +83,17 @@ class V1RecommendationRepository:
         for product_id, code in rows:
             if code and code.strip():
                 ingredients[product_id].add(code.strip())
-        return tuple(CatalogProduct(p, code, name, category,
-                                    tuple(sorted(ingredients[p]))) for p, code, name, category in products)
+        catalog = tuple(CatalogProduct(p, code, name, category, tuple(sorted(ingredients[p])))
+                        for p, code, name, category, *_ in products)
+        sellable = {row[0] for row in products if include_sellability and row[4]}
+        return catalog, sellable
 
     def popularity(self, db: Session, purchased: set[str], limit: int,
                    eligible_ids: set[str] | None = None):
         popularity = func.coalesce(func.sum(CustomerInteraction.total_purchase_count), 0).label("popularity")
         statement = select(Product.id, Product.product_code, Product.name, popularity).outerjoin(
             CustomerInteraction, CustomerInteraction.product_id == Product.id,
-        ).where(Product.status == "ACTIVE", Product.is_deleted.is_(False))
+        ).where(Product.status == "ACTIVE", Product.is_deleted.is_(False), self._has_commercial_variant())
         if purchased:
             statement = statement.where(Product.id.not_in(purchased))
         if eligible_ids is not None:

@@ -9,14 +9,15 @@ export function createCustomerReturnQcDraft(line: CustomerReturnInspectionLine):
     };
 }
 
-export function getCustomerReturnQcLocations(result: CustomerReturnQcResult, locations: CustomerReturnQcLocation[]) {
-    if (result === "WRITE_OFF") return [];
+export function getCustomerReturnQcLocations(result: CustomerReturnQcResult | "", locations: CustomerReturnQcLocation[]) {
+    if (!result || result === "WRITE_OFF") return [];
     if (result === "DAMAGED" || result === "QUARANTINE") return locations.filter((location) => location.type === result);
     return locations.filter((location) => location.type !== "DAMAGED" && location.type !== "QUARANTINE");
 }
 
-export function getCustomerReturnQcError(line: CustomerReturnInspectionLine, draft: CustomerReturnQcDraft, locations: CustomerReturnQcLocation[]) {
+export function getCustomerReturnQcError(line: Pick<Partial<CustomerReturnInspectionLine>, "result">, draft: CustomerReturnQcDraft, locations: CustomerReturnQcLocation[]) {
     if (!draft.actualCondition) return "Vui lòng chọn tình trạng thực tế sau khi kiểm tra hàng.";
+    if (!draft.result) return "Vui lòng chọn phương án xử lý.";
     if (draft.result === "RESTOCK" && draft.actualCondition !== "SEALED") {
         return "Chỉ được nhập lại kho khi tình trạng thực tế còn nguyên seal.";
     }

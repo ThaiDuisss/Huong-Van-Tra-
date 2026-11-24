@@ -3,10 +3,14 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
+from app.schemas.taste_catalog import ADDED_SWEETNESS, NOT_APPLICABLE, SPLIT_SWEETNESS_VERSIONS, Profile
 from app.schemas.taste_recommendation import HardMatch, SoftResult
 
 if TYPE_CHECKING:
     from app.service.taste_catalog_sync_service import RankableVariant
+
+
+EXACT_POLICY_VERSION = "hvtra-taste-exact-v1"
 
 
 @dataclass(frozen=True)
@@ -14,6 +18,7 @@ class TasteCriteria:
     hard: dict[str, tuple[str, ...]]
     soft: dict[str, dict[str, int]]
     digest: str
+    not_applicable: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -46,11 +51,18 @@ def rank_variants(
     ))
 
 
-def _match_variant(candidate: RankableVariant, criteria: TasteCriteria) -> VariantMatch | None:
-    sensory = {
+def observed_taste_values(profile: Profile) -> dict[str, set[str]]:
+    observed = {
         attribute: set(values) - {"UNKNOWN"}
-        for attribute, values in candidate.profile.sensoryValues.items()
+        for attribute, values in profile.sensoryValues.items()
     }
+    if profile.taxonomyVersion in SPLIT_SWEETNESS_VERSIONS and ADDED_SWEETNESS in observed:
+        observed[ADDED_SWEETNESS].discard(NOT_APPLICABLE)
+    return observed
+
+
+def _match_variant(candidate: RankableVariant, criteria: TasteCriteria) -> VariantMatch | None:
+    sensory = observed_taste_values(candidate.profile)
     matched_hard = []
     for attribute, allowed in criteria.hard.items():
         overlap = sorted(sensory.get(attribute, set()).intersection(allowed))

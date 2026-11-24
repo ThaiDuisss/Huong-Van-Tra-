@@ -157,7 +157,7 @@ def authorize(environment, *, read_file=_read_owned_file, now=None):
     if target["writer_role"] != "recommendation-kafka-worker":
         raise LaunchDenied(77, "WRITER_ROLE_NOT_AUTHORIZED")
     if (target["environment"] not in {"production", "development", "test"}
-            or target["kafka_auto_offset_reset"] not in {"earliest", "latest", "error"}
+            or target["kafka_auto_offset_reset"] != "error"
             or target["kafka_order_completed_topic"] == target["kafka_return_completed_topic"]):
         raise LaunchDenied(64, "CONFIGURATION_INVALID")
     if not re.fullmatch(r"[1-9][0-9]{0,4}", target["mysql_port"]) or int(target["mysql_port"]) > 65535:

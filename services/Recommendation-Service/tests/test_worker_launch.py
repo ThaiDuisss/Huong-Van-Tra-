@@ -32,7 +32,7 @@ def target():
                 kafka_bootstrap_servers="broker.example.invalid:19092",
                 kafka_group_id="fixture-existing-group", kafka_order_completed_topic="order.completed",
                 kafka_return_completed_topic="notification.return.completed",
-                kafka_auto_offset_reset="earliest", mysql_host="db.example.invalid", mysql_port="3306",
+                kafka_auto_offset_reset="error", mysql_host="db.example.invalid", mysql_port="3306",
                 mysql_database="fixture_rec", mysql_user="fixture_account")
 
 
@@ -118,13 +118,25 @@ class LaunchDecisionTests(unittest.TestCase):
         self.assertEqual(code, 77)
         worker.assert_not_called()
 
-    def test_different_valid_db_port_or_reset_policy_is_denied(self):
-        for key, value in (("MYSQL_PORT", "3307"), ("KAFKA_AUTO_OFFSET_RESET", "latest")):
-            values = environment()
-            values[key] = value
-            code, _, worker = self.invoke(values)
-            self.assertEqual(code, 77)
-            worker.assert_not_called()
+    def test_different_valid_db_port_is_denied(self):
+        values = environment()
+        values["MYSQL_PORT"] = "3307"
+        code, _, worker = self.invoke(values)
+        self.assertEqual(code, 77)
+        worker.assert_not_called()
+
+    def test_offset_reset_fallback_is_denied_even_if_binding_matches(self):
+        for policy in ("earliest", "latest"):
+            with self.subTest(policy=policy):
+                values = environment()
+                values["KAFKA_AUTO_OFFSET_RESET"] = policy
+                approved = binding()
+                approved["target"]["kafka_auto_offset_reset"] = policy
+                files = reader(approved)
+                code, reason, worker = self.invoke(values, files)
+                self.assertEqual((code, reason), (64, "CONFIGURATION_INVALID\n"))
+                files.assert_not_called()
+                worker.assert_not_called()
 
     def test_missing_each_required_configuration_is_denied(self):
         for key in (*guard.TARGET_FIELDS.values(), "KAFKA_ENABLE_AUTO_COMMIT"):

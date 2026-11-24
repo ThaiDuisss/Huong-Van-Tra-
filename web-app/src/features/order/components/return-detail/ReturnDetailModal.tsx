@@ -29,8 +29,6 @@ import type { CustomerReturnInspection } from "../../../inventory/types/customer
 import { ConfirmDialog } from "../../../product/components/ConfirmDialog";
 import {
     cancelOrderReturn,
-    getCustomerReturnQcSummary,
-    getOrderReturnDetail,
     receiveOrderReturn
 } from "../../services/order-return.api";
 import type {
@@ -41,7 +39,6 @@ import type {
 } from "../../types/order-return.types";
 import { formatCurrency, formatDateTime } from "../../utils/order-formatters";
 import {
-    canInspectCustomerReturn,
     formatReturnQuantity,
     getBlockReasonLabel,
     getCustomerReturnQcProgressStatus,
@@ -55,7 +52,6 @@ import {
 } from "../../utils/order-return.utils";
 import { OrderStatusBadge } from "../OrderStatusBadge";
 import { ReturnBusinessProgress } from "../ReturnBusinessProgress";
-import { ReturnInspectionModal } from "../ReturnInspectionModal";
 import { ReturnStatusBadge } from "../ReturnStatusBadge";
 import {
     type DetailTab,
@@ -92,7 +88,7 @@ export function ReturnDetailModal({
     initialTab = "overview"
 }: ReturnDetailModalProps) {
     const data = useReturnDetailData(baseRow);
-    const { returnItem, qcSummary, inspections, loading, error, reload } = data;
+    const { returnItem, qcSummary, loading, error, reload } = data;
     const navigate = useNavigate();
     const {
         canDisposition: canExecuteQc,
@@ -108,13 +104,7 @@ export function ReturnDetailModal({
     const [confirm, setConfirm] = useState<"receive" | "cancel" | null>(null);
     const [confirmError, setConfirmError] = useState("");
     const [transitioning, setTransitioning] = useState(false);
-    const [inspectionSource, setInspectionSource] = useState<{
-        returnItem: OrderReturnListRow;
-        qcSummary: NonNullable<ReturnDetailData["qcSummary"]>;
-    } | null>(null);
-    const [openingInspection, setOpeningInspection] = useState(false);
-    const [warehouseInspection, setWarehouseInspection] = useState<CustomerReturnInspection | null>(null);
-    const [submittedInspection, setSubmittedInspection] = useState(false);
+    const [inspectionSelection, setInspectionSelection] = useState<{ id?: string } | null>(null);
     const panelRef = useRef<HTMLDivElement>(null);
     const titleId = useId();
     const isAwaitingReceipt = returnItem.status === "CREATED";
@@ -123,7 +113,7 @@ export function ReturnDetailModal({
         ? canReceiveReturn
         : allowCancel && canCreate && isAwaitingReceipt;
     const childModalOpen = Boolean((confirm && canConfirmTransition) ||
-        (canExecuteQc && (inspectionSource || warehouseInspection)));
+        (canExecuteQc && inspectionSelection));
 
     // Trả focus về phần tử trước đó khi đóng. Escape do ModalShell xử lý (tắt khi có hộp thoại con).
     useEffect(() => {
@@ -143,15 +133,10 @@ export function ReturnDetailModal({
         postedQcQuantity: postedFromQc ?? returnItem.postedQcQuantity ?? undefined,
         remainingQcQuantity: remainingFromQc ?? returnItem.remainingQcQuantity ?? undefined,
         qcStatus: qcSummary?.qcStatus ?? returnItem.qcStatus ?? null,
-        isPendingDisposition: returnItem.isPendingDisposition || submittedInspection,
         items
     };
     const quantities = resolveCustomerReturnQuantities(qcSource);
     const qcProgress = getCustomerReturnQcProgressStatus(qcSource);
-    const openInspection = inspections.find((inspection) => inspection.status === "CREATED" || inspection.status === "PROCESSING");
-    const canStartInspection = !loading && !error && canExecuteQc && !openInspection
-        && canInspectCustomerReturn(qcSource)
-        && summaryLines.some((line) => toReturnNumber(line.remainingQcQuantity) > 0);
     const refundBlockReason = data.refundDetail?.refundEligible === false
         && data.refundDetail.refundBlockReason
         && data.refundDetail.refundBlockReason !== "NONE"
@@ -185,29 +170,6 @@ export function ReturnDetailModal({
             .finally(() => setTransitioning(false));
     }
 
-    function startInspection() {
-        if (!canExecuteQc) return;
-        if (openInspection) {
-            setWarehouseInspection(openInspection);
-            return;
-        }
-        if (!canStartInspection) return;
-        // Lấy số liệu mới nhất trước khi mở form để tránh kiểm trùng số lượng.
-        setOpeningInspection(true);
-        Promise.all([getOrderReturnDetail(returnItem.id), getCustomerReturnQcSummary(returnItem.id)])
-            .then(([latest, summary]) => {
-                const latestRow: OrderReturnListRow = { ...returnItem, ...latest };
-                if (!canInspectCustomerReturn({ ...latestRow, qcStatus: summary.qcStatus })) {
-                    onToast("Phiếu chưa sẵn sàng để kiểm hàng. Vui lòng tải lại để xem tiến độ.");
-                    reload();
-                    return;
-                }
-                setInspectionSource({ returnItem: latestRow, qcSummary: summary });
-            })
-            .catch((loadError: unknown) => onToast(getReturnErrorMessage(loadError)))
-            .finally(() => setOpeningInspection(false));
-    }
-
     const headerActions: ReactNode[] = [];
     if (isAwaitingReceipt) {
         if (allowCancel && canCreate) {
@@ -224,20 +186,23 @@ export function ReturnDetailModal({
                 Xác nhận nhận hàng
             </Button>
         );
-    } else if (canExecuteQc && (openInspection || canStartInspection)) {
-        headerActions.push(
-            <Button disabled={openingInspection} key="inspect" onClick={startInspection} variant="primary">
-                <ClipboardCheck size={17} aria-hidden="true" />
-                {openingInspection ? "Đang mở..." : openInspection ? "Tiếp tục kiểm hàng" : "Kiểm hàng"}
-            </Button>
-        );
-    } else if (isPendingRefund && canReadSales) {
-        headerActions.push(
-            <Button key="refund" onClick={goToRefund} variant="primary">
-                Đi tới hoàn tiền
-                <ArrowRight size={17} aria-hidden="true" />
-            </Button>
-        );
+    } else {
+        if (canExecuteQc && (returnItem.status === "RECEIVED" || returnItem.status === "COMPLETED")) {
+            headerActions.push(
+                <Button key="inspect" onClick={() => setInspectionSelection({})} variant="primary">
+                    <ClipboardCheck size={17} aria-hidden="true" />
+                    {returnItem.status === "COMPLETED" ? "Xem kết quả kiểm định" : "Kiểm định"}
+                </Button>
+            );
+        }
+        if (isPendingRefund && canReadSales) {
+            headerActions.push(
+                <Button key="refund" onClick={goToRefund} variant="primary">
+                    Đi tới hoàn tiền
+                    <ArrowRight size={17} aria-hidden="true" />
+                </Button>
+            );
+        }
     }
 
     const tabs = getVisibleReturnDetailTabs(items.length, returnDetailOverviewOnly);
@@ -323,7 +288,7 @@ export function ReturnDetailModal({
                     {!returnDetailOverviewOnly && activeTab === "inspection" ? (
                         <InspectionTab
                             data={data}
-                            onOpenInspection={canExecuteQc ? setWarehouseInspection : undefined}
+                            onOpenInspection={canExecuteQc ? (inspection) => setInspectionSelection({ id: inspection.id }) : undefined}
                             qcProgress={qcProgress}
                             quantities={quantities}
                         />
@@ -353,27 +318,15 @@ export function ReturnDetailModal({
                 />
             ) : null}
 
-            {inspectionSource && canExecuteQc ? (
-                <ReturnInspectionModal
-                    isOpen
-                    onClose={() => setInspectionSource(null)}
-                    onRefresh={() => notifyChanged()}
-                    onSuccess={(updated) => {
-                        setSubmittedInspection(true);
-                        notifyChanged(updated);
-                    }}
-                    onToast={onToast}
-                    qcSummary={inspectionSource.qcSummary}
-                    returnItem={inspectionSource.returnItem}
-                />
-            ) : null}
-
-            {warehouseInspection && canExecuteQc ? (
+            {inspectionSelection && canExecuteQc ? (
                 <CustomerReturnWarehouseInspectionModal
-                    inspectionId={warehouseInspection.id}
+                    inspectionId={inspectionSelection.id}
                     isOpen
-                    key={warehouseInspection.id}
-                    onClose={() => setWarehouseInspection(null)}
+                    key={inspectionSelection.id ?? returnItem.id}
+                    onClose={() => {
+                        setInspectionSelection(null);
+                        notifyChanged();
+                    }}
                     onSuccess={() => notifyChanged()}
                     returnCode={returnItem.returnCode}
                     returnId={returnItem.id}

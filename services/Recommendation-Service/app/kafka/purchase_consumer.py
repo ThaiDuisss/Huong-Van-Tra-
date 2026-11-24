@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from app.core.config import Settings, get_settings
 from app.database.session import SessionLocal
 from app.kafka.offset_commit import commit_message_offset
-from app.kafka.signed_order_event import load_keyring, verify_order_event
+from app.kafka.signed_order_event import OrderIngressError, load_keyring, verify_order_event
 from app.models.interaction_event import InteractionEvent
 from app.repositories.customer_interaction_repository import CustomerInteractionRepository
 from app.repositories.interaction_event_repository import InteractionEventRepository
@@ -24,6 +24,8 @@ def create_kafka_consumer(settings: Settings | None = None) -> Consumer:
     cfg = settings or get_settings()
     if cfg.kafka_enable_auto_commit:
         raise ValueError("Kafka auto-commit must be disabled for transactional ingestion")
+    if cfg.kafka_auto_offset_reset != "error":
+        raise ValueError("Kafka auto.offset.reset must be 'error' for durable ingestion")
     return Consumer({
         "bootstrap.servers": cfg.kafka_bootstrap_servers,
         "group.id": cfg.kafka_group_id,
@@ -66,12 +68,21 @@ class OrderKafkaConsumer:
         key = self.signing_keys[event.key_id, event.key_version]
         with self.session_factory() as db:
             with db.begin():
-                events = self.inbox.stage(db, event, key)
+                events, receipt = self.inbox.stage(db, event, key)
+                replayable = receipt.receipt.get("replay_level") == "POLICY_PROJECTION"
+                status, error_code = receipt.status, receipt.error_code
             for interaction in events:
                 db.refresh(interaction)
 
+        if not replayable:
+            raise OrderIngressError("RECEIPT_DIAGNOSTIC_ONLY")
         if self.consumer is not None:
             commit_message_offset(self.consumer, msg)
+            if status == "UNRESOLVED":
+                logger.warning(
+                    "Acknowledged durable unresolved receipt topic=%s partition=%s offset=%s reason=%s",
+                    event.topic, event.partition, event.offset, error_code,
+                )
         return events
 
 

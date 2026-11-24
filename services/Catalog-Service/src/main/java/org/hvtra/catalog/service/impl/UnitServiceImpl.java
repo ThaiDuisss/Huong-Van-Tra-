@@ -138,7 +138,7 @@ public class UnitServiceImpl implements UnitService {
     public UnitResponse create(UnitRequest request) {
         validateSymbol(request.symbol(), null);
         Unit unit = new Unit();
-        Unit baseUnit = resolveBaseUnit(request);
+        Unit baseUnit = resolveBaseUnit(request, null);
         mapper.update(unit, request, baseUnit);
         return mapper.toResponse(repository.save(unit));
     }
@@ -149,7 +149,7 @@ public class UnitServiceImpl implements UnitService {
         lockComposition();
         validateSymbol(request.symbol(), id);
         Unit unit = get(id);
-        Unit baseUnit = resolveBaseUnit(request);
+        Unit baseUnit = resolveBaseUnit(request, id);
         mapper.update(unit, request, baseUnit);
         Unit saved = repository.save(unit);
         updateComposition(Set.of(id));
@@ -191,13 +191,21 @@ public class UnitServiceImpl implements UnitService {
     /**
      * Resolve entity đơn vị gốc từ request.
      */
-    private Unit resolveBaseUnit(UnitRequest request) {
+    private Unit resolveBaseUnit(UnitRequest request, UUID unitId) {
         if (request.baseUnitId() != null) {
             if (request.conversionRate() == null || request.conversionRate().compareTo(new BigDecimal("0.0001")) < 0) {
                 throw new BadRequestException("Tỷ lệ quy đổi phải lớn hơn hoặc bằng 0.0001");
             }
-            return repository.findById(request.baseUnitId())
+            Unit baseUnit = repository.findById(request.baseUnitId())
                     .orElseThrow(() -> new ResourceNotFoundException("Unit (base)", request.baseUnitId()));
+            Set<UUID> visited = new HashSet<>();
+            for (Unit current = baseUnit; current != null; current = current.getBaseUnit()) {
+                UUID currentId = current.getId();
+                if (!visited.add(currentId) || (unitId != null && unitId.equals(currentId))) {
+                    throw new BadRequestException("Chuỗi quy đổi đơn vị không được có vòng lặp");
+                }
+            }
+            return baseUnit;
         }
         return null;
     }

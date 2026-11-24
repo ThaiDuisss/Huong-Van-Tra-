@@ -11,7 +11,6 @@ from sqlalchemy.exc import SQLAlchemyError
 from app.clients.taste_catalog_client import TasteCatalogClient
 from app.core.config import get_settings
 from app.core.settings import Settings
-from app.database.session import engine
 from app.repositories.taste_catalog_projection_repository import TasteCatalogProjectionRepository
 from app.schemas.taste_catalog import Payload, Product, Profile, SnapshotError, Variant, verify_payload
 
@@ -139,6 +138,8 @@ class TasteCatalogSyncService:
 
 @lru_cache
 def get_taste_catalog_sync() -> TasteCatalogSyncService:
+    from app.database.session import engine
+
     return TasteCatalogSyncService(get_settings(), TasteCatalogProjectionRepository(engine))
 
 
