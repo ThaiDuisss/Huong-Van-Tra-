@@ -17,6 +17,14 @@ class TasteManifest {
     private static final int MAX_BYTES = 256 * 1024;
     private static final Set<String> REQUIRED = Set.of(
             "BITTERNESS", "SWEETNESS", "AFTERTASTE", "ASTRINGENCY", "FLAVOR", "TEA_TYPE");
+    private static final String SPLIT_VERSION = "hvtra-tea-v2";
+    private static final String LEVEL_ONE_VERSION = "hvtra-tea-v3";
+    private static final String AFTERTASTE_CHARACTER = "AFTERTASTE_CHARACTER";
+    private static final String ADDED_SWEETNESS = "ADDED_SWEETNESS";
+    private static final String NOT_APPLICABLE = "NOT_APPLICABLE";
+    private static final Set<String> ORDINAL_ATTRIBUTES = Set.of(
+            "BITTERNESS", "NATURAL_SWEETNESS", ADDED_SWEETNESS, "AFTERTASTE", "ASTRINGENCY");
+    private static final Set<String> ORDINAL_LEVELS = Set.of("NONE", "LOW", "MEDIUM", "HIGH");
     private final TasteDocuments documents;
 
     Release normalize(String version, JsonNode value, boolean publish) {
@@ -33,6 +41,8 @@ class TasteManifest {
         }
         Map<String, Attribute> definitions = new TreeMap<>();
         Map<String, ObjectNode> entries = new TreeMap<>();
+        boolean levelOne = LEVEL_ONE_VERSION.equals(version);
+        boolean splitSweetness = levelOne || SPLIT_VERSION.equals(version);
         for (JsonNode item : attributes) {
             if (!(item instanceof ObjectNode attribute)) {
                 throw TasteFailure.invalid("Thuộc tính taxonomy phải là JSON object");
@@ -52,7 +62,12 @@ class TasteManifest {
             }) {
                 throw TasteFailure.invalid("Selection kind hoặc maxSelections không hợp lệ");
             }
-            if (definitions.putIfAbsent(code, new Attribute(maximum, Set.copyOf(values.keySet()))) != null) {
+            boolean allowsNotApplicable = splitSweetness && ADDED_SWEETNESS.equals(code);
+            if (splitSweetness) {
+                validateSplitAttribute(code, attribute, kind, maximum, values.keySet(), allowsNotApplicable, levelOne);
+            }
+            if (definitions.putIfAbsent(code, new Attribute(maximum, Set.copyOf(values.keySet()),
+                    allowsNotApplicable)) != null) {
                 throw TasteFailure.invalid("Trùng mã thuộc tính taxonomy");
             }
             ObjectNode normalized = attribute.deepCopy();
@@ -60,8 +75,11 @@ class TasteManifest {
             values.values().forEach(orderedValues::add);
             entries.put(code, normalized);
         }
-        if (publish && !definitions.keySet().containsAll(REQUIRED)) {
-            throw TasteFailure.invalid("Manifest phải có đủ sáu thuộc tính khẩu vị bắt buộc");
+        int requiredSplitAttributes = ORDINAL_ATTRIBUTES.size() + (levelOne ? 3 : 2);
+        if (publish && (splitSweetness
+                ? definitions.size() != requiredSplitAttributes
+                : !definitions.keySet().containsAll(REQUIRED))) {
+            throw TasteFailure.invalid("Manifest chưa đủ các thuộc tính khẩu vị bắt buộc của phiên bản");
         }
         ObjectNode ordered = manifest.deepCopy();
         ArrayNode orderedAttributes = ordered.putArray("attributes");
@@ -87,7 +105,9 @@ class TasteManifest {
             Set<String> codes = new HashSet<>();
             for (JsonNode option : options) {
                 String code = option.textValue();
-                if (!TasteDocuments.isCode(code) || !attribute.values().contains(code) || !codes.add(code)) {
+                if (!TasteDocuments.isCode(code)
+                        || !(attribute.values().contains(code) || attribute.allowsNotApplicable() && NOT_APPLICABLE.equals(code))
+                        || !codes.add(code)) {
                     throw TasteFailure.invalid("Mã cảm quan lạ, trùng hoặc UNKNOWN");
                 }
             }
@@ -98,6 +118,23 @@ class TasteManifest {
             codes.stream().sorted().forEach(array::add);
         });
         return documents.canonical(normalized);
+    }
+
+    private void validateSplitAttribute(String code, ObjectNode attribute, String kind, int maximum,
+                                        Set<String> values, boolean allowsNotApplicable, boolean levelOne) {
+        boolean valid = switch (code) {
+            case "FLAVOR" -> "ENUM_MULTI".equals(kind) && maximum == 3
+                    && (!levelOne || values.containsAll(Set.of("FRUITY", "PEACH")));
+            case "TEA_TYPE" -> "ENUM_SINGLE".equals(kind);
+            case AFTERTASTE_CHARACTER -> levelOne && "ENUM_SINGLE".equals(kind) && values.equals(Set.of("CLEAN"));
+            default -> ORDINAL_ATTRIBUTES.contains(code) && "ORDINAL_SINGLE".equals(kind) && values.equals(ORDINAL_LEVELS);
+        };
+        if (!valid || values.contains(NOT_APPLICABLE) || values.contains("UNANSWERED")
+                || (allowsNotApplicable ? !attribute.path("allowsNotApplicable").isBoolean()
+                        || !attribute.path("allowsNotApplicable").booleanValue() : attribute.has("allowsNotApplicable"))) {
+            throw TasteFailure.invalid("Thuộc tính không đúng hợp đồng khẩu vị "
+                    + (levelOne ? LEVEL_ONE_VERSION : SPLIT_VERSION));
+        }
     }
 
     private Map<String, JsonNode> values(JsonNode options) {
@@ -138,7 +175,7 @@ class TasteManifest {
         return value.intValue();
     }
 
-    record Attribute(int maximum, Set<String> values) {
+    record Attribute(int maximum, Set<String> values, boolean allowsNotApplicable) {
     }
 
     record Release(JsonNode manifest, String digest, Map<String, Attribute> attributes) {

@@ -37,6 +37,7 @@ class SoftGroup(StrictDocument):
 class TasteCriteriaDocument(StrictDocument):
     hardGroups: list[HardGroup] = Field(default_factory=list, max_length=32)
     softGroups: list[SoftGroup] = Field(default_factory=list, max_length=32)
+    notApplicableAttributes: list[TasteCode] = Field(default_factory=list, max_length=32)
 
 
 class TastePreviewRequest(TasteCriteriaDocument):
@@ -73,6 +74,9 @@ class CompatibleVariant(StrictDocument):
     unmatchedSoft: list[SoftResult]
     unknownAttributes: list[TasteCode]
     reason: str
+    sensoryValues: dict[TasteCode, list[TasteCode]] = Field(
+        default_factory=dict, description="Values recorded in the approved profile for this preparation."
+    )
 
 
 class TasteProduct(StrictDocument):

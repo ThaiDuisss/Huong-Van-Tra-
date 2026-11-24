@@ -26,10 +26,11 @@ class RecommendationService:
                   mode: RecommendationMode | None = None) -> RecommendationResponse:
         history = self.repository.customer_history(db, customer_id)
         products, eligible = None, None
+        sellable = set()
         if mode is not None:
             limit = min(limit, 5)
             exclude_purchased = mode == RecommendationMode.DISCOVERY
-            products = self.repository.active_catalog(db)
+            products, sellable = self.repository.serving_catalog(db)
             catalog = {p.product_id for p in products}
             bought = set(history.product_counts)
             eligible = catalog - bought if exclude_purchased else catalog & bought
@@ -43,7 +44,7 @@ class RecommendationService:
 
         # Catalog queries stay outside model error handling: never swallow DB errors.
         if products is None:
-            products = self.repository.active_catalog(db)
+            products, sellable = self.repository.serving_catalog(db)
         try:
             artifact = self.artifact_store.load()
             if artifact.catalog_sha256 != catalog_fingerprint(products):
@@ -60,7 +61,7 @@ class RecommendationService:
             return self._popularity(db, customer_id, limit, purchased, history,
                                     exclude_purchased, "V1_MODEL_NOT_AVAILABLE", mode, eligible)
         views = {p.product_id: p for p in products}
-        ranked = sorted(scores, key=lambda p: (-scores[p], p))[:limit]
+        ranked = sorted((p for p in scores if p in sellable), key=lambda p: (-scores[p], p))[:limit]
         return RecommendationResponse(
             customer_id=customer_id, source="HYBRID", model_type=MODEL_TYPE,
             model_contract_version=CONTRACT_VERSION, trained_at=artifact.created_at,

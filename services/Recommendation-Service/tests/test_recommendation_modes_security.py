@@ -30,7 +30,7 @@ from app.recommendation.v1_model import build_artifact, hybrid_scores
 from app.repositories.v1_recommendation_repository import V1RecommendationRepository, CustomerPurchaseHistory
 from app.schemas.recommendation import RecommendationMode as Mode
 from app.service.recommendation_service import RecommendationService
-from tests.test_v1_recommendations import catalog, artifact
+from tests.test_v1_recommendations import artifact, catalog, with_sellability
 
 
 USER = '11111111-1111-4111-8111-111111111111'
@@ -64,6 +64,7 @@ class ModeFixture:
     def setUp(self):
         self.repo = MagicMock(spec=V1RecommendationRepository)
         self.repo.active_catalog.return_value = catalog()
+        self.repo.serving_catalog.side_effect = lambda db: with_sellability(self.repo.active_catalog(db))
         self.store = MagicMock(spec=V1ArtifactStore)
         self.store.load.return_value = artifact()
         self.service = RecommendationService(self.store, self.repo)

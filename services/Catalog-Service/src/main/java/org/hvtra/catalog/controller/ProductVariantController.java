@@ -53,8 +53,9 @@ public class ProductVariantController {
             @RequestParam(name = "productId", required = false) UUID productId,
             @RequestParam(name = "categoryId", required = false) UUID categoryId,
             @RequestParam(name = "status", required = false) Status status,
+            @RequestParam(name = "sellableOnly", defaultValue = "false") boolean sellableOnly,
             @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
-        return service.findAll(keyword, sku, variantName, barcode, productId, categoryId, status, pageable);
+        return service.findAll(keyword, sku, variantName, barcode, productId, categoryId, status, sellableOnly, pageable);
     }
 
     @GetMapping("/{id}")

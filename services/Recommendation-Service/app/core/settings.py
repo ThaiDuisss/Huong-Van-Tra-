@@ -64,6 +64,7 @@ class Settings(BaseSettings):
 
     model_artifact_path: str = "artifacts/lightfm_model.pkl"  # Legacy research training only.
     v1_artifact_path: str = "artifacts/v1_hybrid_model.npz"
+    taste_ranking_activation_manifest: str | None = None
     recommendation_default_limit: int = 10
     recommendation_max_limit: int = 50
 
@@ -71,7 +72,7 @@ class Settings(BaseSettings):
     kafka_group_id: str = "recommendation-service-order-completed"
     kafka_order_completed_topic: str = "order.completed"
     kafka_return_completed_topic: str = "notification.return.completed"
-    kafka_auto_offset_reset: str = "earliest"
+    kafka_auto_offset_reset: str = "error"
     kafka_enable_auto_commit: bool = False
     order_kafka_verification_keys: SecretStr = SecretStr("")
 

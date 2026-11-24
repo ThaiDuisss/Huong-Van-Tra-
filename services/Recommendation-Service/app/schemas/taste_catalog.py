@@ -17,6 +17,14 @@ Revision = Annotated[int, Field(ge=1, le=9223372036854775807)]
 CODE = re.compile(r"[A-Z][A-Z0-9_]{0,39}")
 UTC_TIME = re.compile(r"\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(?:\.\d{1,6})?Z")
 REQUIRED_ATTRIBUTES = {"BITTERNESS", "SWEETNESS", "AFTERTASTE", "ASTRINGENCY", "FLAVOR", "TEA_TYPE"}
+SPLIT_TASTE_VERSION = "hvtra-tea-v2"
+LEVEL_ONE_TASTE_VERSION = "hvtra-tea-v3"
+SPLIT_SWEETNESS_VERSIONS = frozenset({SPLIT_TASTE_VERSION, LEVEL_ONE_TASTE_VERSION})
+AFTERTASTE_CHARACTER = "AFTERTASTE_CHARACTER"
+ADDED_SWEETNESS = "ADDED_SWEETNESS"
+NOT_APPLICABLE = "NOT_APPLICABLE"
+ORDINAL_ATTRIBUTES = {"BITTERNESS", "NATURAL_SWEETNESS", ADDED_SWEETNESS, "AFTERTASTE", "ASTRINGENCY"}
+ORDINAL_LEVELS = {"NONE", "LOW", "MEDIUM", "HIGH"}
 ESCAPE = re.compile(r'["\\\x00-\x1f\ud800-\udfff\U00010000-\U0010ffff]')
 SHORT_ESCAPES = {'"': r'\"', '\\': r'\\', '\t': r'\t', '\n': r'\n', '\b': r'\b', '\f': r'\f', '\r': r'\r'}
 
@@ -200,6 +208,8 @@ def _manifest(taxonomy: Taxonomy) -> dict[str, tuple[int, set[str]]]:
              and manifest.get("versionCode") == taxonomy.versionCode and type(manifest.get("schemaVersion")) is int
              and manifest["schemaVersion"] == 1 and isinstance(attributes, list) and 1 <= len(attributes) <= 64)
     definitions = {}
+    level_one = taxonomy.versionCode == LEVEL_ONE_TASTE_VERSION
+    split_sweetness = taxonomy.versionCode in SPLIT_SWEETNESS_VERSIONS
     for attribute in attributes:
         _require(isinstance(attribute, dict) and _label_and_order(attribute))
         code, limit = attribute.get("attributeCode"), attribute.get("maxSelections")
@@ -213,8 +223,31 @@ def _manifest(taxonomy: Taxonomy) -> dict[str, tuple[int, set[str]]]:
             _require(isinstance(value, dict) and _label_and_order(value) and _code(value.get("valueCode")))
             codes.append(value["valueCode"])
         _require(codes == sorted(set(codes)))
-        definitions[code] = (limit, set(codes))
-    _require(REQUIRED_ATTRIBUTES <= definitions.keys() and list(definitions) == sorted(definitions))
+        profile_codes = set(codes)
+        if split_sweetness:
+            _require(not profile_codes.intersection({NOT_APPLICABLE, "UNANSWERED"}))
+            if code in ORDINAL_ATTRIBUTES:
+                _require(kind == "ORDINAL_SINGLE" and profile_codes == ORDINAL_LEVELS)
+            elif code == "FLAVOR":
+                _require(kind == "ENUM_MULTI" and limit == 3)
+                if level_one:
+                    _require({"FRUITY", "PEACH"} <= profile_codes)
+            elif level_one and code == AFTERTASTE_CHARACTER:
+                _require(kind == "ENUM_SINGLE" and profile_codes == {"CLEAN"})
+            else:
+                _require(code == "TEA_TYPE" and kind == "ENUM_SINGLE")
+            if code == ADDED_SWEETNESS:
+                _require(attribute.get("allowsNotApplicable") is True)
+                profile_codes.add(NOT_APPLICABLE)
+            else:
+                _require("allowsNotApplicable" not in attribute)
+        definitions[code] = (limit, profile_codes)
+    split_attributes = ORDINAL_ATTRIBUTES | {"FLAVOR", "TEA_TYPE"}
+    if level_one:
+        split_attributes.add(AFTERTASTE_CHARACTER)
+    required = (definitions.keys() == split_attributes
+                if split_sweetness else REQUIRED_ATTRIBUTES <= definitions.keys())
+    _require(required and list(definitions) == sorted(definitions))
     return definitions
 
 

@@ -38,10 +38,19 @@ def _node(value):
         return _text(b"s", value)
     if isinstance(value, (int, Decimal)):
         number = Decimal(value)
-        if not number.is_finite() or abs(number.as_tuple().exponent) > 32 or len(number.as_tuple().digits) > 32:
+        if not number.is_finite():
             raise OrderIngressError("CANONICAL_NUMBER_OUT_OF_BOUNDS")
-        fixed = format(number, "f") if number else "0"
-        return _text(b"d", fixed.rstrip("0").rstrip(".") if "." in fixed else fixed)
+        if not number:
+            return _text(b"d", "0")
+        # Match Java BigDecimal.stripTrailingZeros without Decimal context rounding.
+        sign, digits, exponent = number.as_tuple()
+        precision = len(digits)
+        while digits[precision - 1] == 0:
+            precision -= 1
+            exponent += 1
+        if abs(exponent) > 32 or precision > 32:
+            raise OrderIngressError("CANONICAL_NUMBER_OUT_OF_BOUNDS")
+        return _text(b"d", format(Decimal((sign, digits[:precision], exponent)), "f"))
     if isinstance(value, list):
         return _count(b"a", len(value)) + b"".join(_node(child) for child in value)
     if isinstance(value, dict):

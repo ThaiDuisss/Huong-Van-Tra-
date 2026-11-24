@@ -5,11 +5,12 @@ from decimal import Decimal
 
 from sqlalchemy import select
 from sqlalchemy.dialects import mysql, sqlite
+from sqlalchemy.orm import Session
 
 from app.kafka.purchase_event_adapter import PurchaseEventAdapter, PurchaseEventValidationError
 from app.kafka.receipt_projection import ApprovedReceipt, project_receipt, replay_projection
 from app.kafka.return_event_adapter import ReturnEventAdapter, ReturnEventValidationError
-from app.kafka.signed_order_event import OrderIngressError, require_uuid
+from app.kafka.signed_order_event import OrderIngressError, SignedOrderEvent, require_uuid
 from app.models.business_report import CompletedPurchaseOrder
 from app.models.interaction_event import InteractionEvent
 from app.models.order_event_inbox import OrderEventDelivery, OrderEventInbox, OrderEventStream, OrderReturnLine
@@ -59,7 +60,10 @@ class OrderInboxService:
         self.purchase_adapter = purchase_adapter or PurchaseEventAdapter()
         self.return_adapter = return_adapter or ReturnEventAdapter()
 
-    def stage(self, db, verified, key):
+    def stage(
+        self, db: Session, verified: SignedOrderEvent, key: bytes,
+    ) -> tuple[list[InteractionEvent], OrderEventInbox]:
+        """Stage effects and return the receipt used for the post-commit ACK decision."""
         body = verified.payload
         order_id, event_id = body["orderId"], body["eventId"]
         _lock_order(db, order_id)
@@ -75,7 +79,7 @@ class OrderInboxService:
         if prior is not None:
             if record is None:
                 db.add(delivery)
-            return []
+            return [], prior
 
         approved = project_receipt(verified.raw, verified.headers, keys={verified.key_version: key},
                                    key_version=verified.key_version)
@@ -89,12 +93,12 @@ class OrderInboxService:
         db.flush()
         db.add(delivery)
         if approved.replay_level != "POLICY_PROJECTION":
-            return []
+            return [], row
 
         sanitized = replay_projection(approved)
         if row.event_type == "ORDER_COMPLETED":
-            return self._purchase(db, row, sanitized)
-        return self._return(db, row, sanitized)
+            return self._purchase(db, row, sanitized), row
+        return self._return(db, row, sanitized), row
 
     def _purchase(self, db, row, payload):
         try:

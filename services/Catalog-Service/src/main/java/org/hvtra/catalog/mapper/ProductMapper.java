@@ -128,6 +128,9 @@ public class ProductMapper {
     }
 
     private boolean isSellable(ProductVariant variant) {
-        return variant.getStatus() == Status.ACTIVE && variant.getProduct().getStatus() == Status.ACTIVE;
+        Product product = variant.getProduct();
+        return product != null && !variant.isCustomBundle() && !Boolean.TRUE.equals(variant.getIsDeleted())
+                && !Boolean.TRUE.equals(product.getIsDeleted())
+                && variant.getStatus() == Status.ACTIVE && product.getStatus() == Status.ACTIVE;
     }
 }

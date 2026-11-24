@@ -114,6 +114,10 @@ public interface InventoryBalanceRepository
     Optional<InventoryBalance> findForUpdate(
             @Param("itemId") UUID itemId, @Param("locationId") UUID locationId);
 
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    List<InventoryBalance> findByInventoryItem_IdAndLocation_IdAndIsDeletedFalseOrderById(
+            UUID inventoryItemId, UUID locationId);
+
     /** FEFO trên nhiều vị trí cùng lúc (vd. mọi kệ của một kho): lô hết hạn sớm nhất trước, khóa dòng để trừ. */
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("""

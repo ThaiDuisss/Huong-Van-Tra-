@@ -30,6 +30,16 @@ public interface CatalogClient {
             @RequestParam(name = "size", required = false, defaultValue = "100") int size
     );
 
+    @GetMapping("/api/catalog/product-variants")
+    PageResponse<CatalogVariantResponse> findSellableVariants(
+            @RequestParam(name = "keyword", required = false) String keyword,
+            @RequestParam(name = "sku", required = false) String sku,
+            @RequestParam(name = "productId", required = false) UUID productId,
+            @RequestParam(name = "sellableOnly") boolean sellableOnly,
+            @RequestParam(name = "page") int page,
+            @RequestParam(name = "size") int size
+    );
+
     @GetMapping("/api/catalog/product-variants/{id}")
     CatalogVariantResponse findById(@PathVariable("id") UUID id);
 

@@ -19,6 +19,7 @@ import java.util.stream.StreamSupport;
 
 @Component
 class CatalogTasteTaxonomyAuthority implements TasteTaxonomyAuthority {
+    private static final Set<String> SPLIT_SWEETNESS_VERSIONS = Set.of("hvtra-tea-v2", "hvtra-tea-v3");
     private static final int MAX_MANIFEST_BYTES = 256 * 1024;
     private static final int MAX_ATTRIBUTES = 64;
     private static final int MAX_VALUES = 128;
@@ -127,7 +128,10 @@ class CatalogTasteTaxonomyAuthority implements TasteTaxonomyAuthority {
                 case "ENUM_MULTI" -> max.intValue();
                 default -> throw TasteSurveyErrors.unavailableTaxonomy();
             };
-            if (limit != max.intValue() || attributes.putIfAbsent(code, new Attribute(limit, Set.copyOf(allowed))) != null) {
+            boolean allowsNotApplicable = SPLIT_SWEETNESS_VERSIONS.contains(version) && "ADDED_SWEETNESS".equals(code)
+                    && entry.path("allowsNotApplicable").isBoolean() && entry.path("allowsNotApplicable").booleanValue();
+            if (limit != max.intValue() || attributes.putIfAbsent(code,
+                    new Attribute(limit, Set.copyOf(allowed), allowsNotApplicable)) != null) {
                 throw TasteSurveyErrors.unavailableTaxonomy();
             }
             ObjectNode attribute = entry.deepCopy();

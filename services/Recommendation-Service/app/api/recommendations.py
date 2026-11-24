@@ -1,6 +1,6 @@
 from functools import lru_cache
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Query, Response
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, Response
 from uuid import UUID
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import SQLAlchemyError
@@ -43,17 +43,19 @@ def get_personalized_taste_features() -> PersonalizedTasteFeatures:
     return PersonalizedTasteFeatures(CustomerTasteClient(get_settings()), get_taste_catalog_sync().read)
 
 
-@lru_cache
-def get_explore_recommendation_service() -> ExploreRecommendationService:
+def get_explore_recommendation_service(request: Request) -> ExploreRecommendationService:
+    rerankers = getattr(request.app.state, "taste_rerankers", {})
     return ExploreRecommendationService(
         get_recommendation_service().artifact_store, taste_features=get_personalized_taste_features(),
+        taste_reranker=rerankers.get("EXPLORE"),
     )
 
 
-@lru_cache
-def get_familiar_recommendation_service() -> FamiliarRecommendationService:
+def get_familiar_recommendation_service(request: Request) -> FamiliarRecommendationService:
+    rerankers = getattr(request.app.state, "taste_rerankers", {})
     return FamiliarRecommendationService(
         get_recommendation_service().artifact_store, taste_features=get_personalized_taste_features(),
+        taste_reranker=rerankers.get("FAMILIAR"),
     )
 
 

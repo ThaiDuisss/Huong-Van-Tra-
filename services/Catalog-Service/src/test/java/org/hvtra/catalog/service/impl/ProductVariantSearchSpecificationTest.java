@@ -76,7 +76,7 @@ class ProductVariantSearchSpecificationTest {
 
     private Page<ProductVariant> search(String keyword) {
         return repository.findAll(
-                ProductVariantServiceImpl.searchSpecification(keyword, null, null, null, null, null, null),
+                ProductVariantServiceImpl.searchSpecification(keyword, null, null, null, null, null, null, false),
                 PageRequest.of(0, 20));
     }
 

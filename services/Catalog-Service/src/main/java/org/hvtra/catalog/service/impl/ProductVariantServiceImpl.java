@@ -114,9 +114,10 @@ public class ProductVariantServiceImpl implements ProductVariantService {
             UUID productId,
             UUID categoryId,
             Status status,
+            boolean sellableOnly,
             Pageable pageable) {
         Specification<ProductVariant> spec =
-                searchSpecification(keyword, sku, variantName, barcode, productId, categoryId, status);
+                searchSpecification(keyword, sku, variantName, barcode, productId, categoryId, status, sellableOnly);
         return PageResponse.from(repository.findAll(spec, pageable).map(mapper::toVariantSummary));
     }
 
@@ -128,7 +129,8 @@ public class ProductVariantServiceImpl implements ProductVariantService {
             String barcode,
             UUID productId,
             UUID categoryId,
-            Status status) {
+            Status status,
+            boolean sellableOnly) {
         return (root, query, cb) -> {
             Class<?> resultType = query.getResultType();
             boolean isCountQuery = Long.class.equals(resultType) || long.class.equals(resultType);
@@ -146,6 +148,11 @@ public class ProductVariantServiceImpl implements ProductVariantService {
             var predicates = new ArrayList<Predicate>();
             predicates.add(cb.isFalse(root.get("customBundle")));
             predicates.add(cb.isFalse(root.get("isDeleted")));
+            if (sellableOnly) {
+                predicates.add(cb.equal(root.get("status"), Status.ACTIVE));
+                predicates.add(cb.equal(productJoin.get("status"), Status.ACTIVE));
+                predicates.add(cb.isFalse(productJoin.get("isDeleted")));
+            }
             if (keyword != null && !keyword.isBlank()) {
                 String pattern = "%" + keyword.toLowerCase() + "%";
                 predicates.add(cb.or(

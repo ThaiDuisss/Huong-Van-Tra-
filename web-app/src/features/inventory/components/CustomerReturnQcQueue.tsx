@@ -14,24 +14,18 @@ import { Button } from "@/components/ui/Button";
 import { useTimeFilter } from "@/components/shared/useTimeFilter";
 import { ConfirmDialog } from "../../product/components/ConfirmDialog";
 import { ReturnDetailModal } from "../../order/components/return-detail/ReturnDetailModal";
-import { ReturnInspectionModal } from "../../order/components/ReturnInspectionModal";
 import { OrderStatusBadge } from "../../order/components/OrderStatusBadge";
 import {
-    getCustomerReturnQcSummary,
-    getOrderReturnDetail,
     getOrderReturnList,
     getOrderReturnStatusCounts,
     receiveOrderReturn
 } from "../../order/services/order-return.api";
 import type {
-    CustomerReturnQcSummaryResponse,
     OrderReturnListRow
 } from "../../order/types/order-return.types";
 import {
-    canInspectCustomerReturn,
     getCustomerReturnUiStatus,
-    getReturnErrorMessage,
-    toReturnNumber
+    getReturnErrorMessage
 } from "../../order/utils/order-return.utils";
 import { formatDateTime } from "../../order/utils/order-formatters";
 import styles from "../pages/CustomerReturnListPage.module.css";
@@ -71,7 +65,7 @@ export function CustomerReturnQcQueue({
     /** Tăng giá trị để tải lại danh sách (nút Làm mới ở header). */
     reloadSignal?: number;
 } = {}) {
-    const { canReceive, canDisposition } = useOrderReturnAccess();
+    const { canReceive } = useOrderReturnAccess();
     const [searchTerm, setSearchTerm] = useState("");
     const debouncedSearchTerm = useDebouncedValue(searchTerm.trim(), 350);
 
@@ -95,13 +89,6 @@ export function CustomerReturnQcQueue({
     const [totalElements, setTotalElements] = useState(0);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
-
-    // Inspection modal state
-    const [selectedId, setSelectedId] = useState<string | null>(null);
-    const [selectedReturn, setSelectedReturn] = useState<OrderReturnListRow | null>(null);
-    const [qcSummary, setQcSummary] = useState<CustomerReturnQcSummaryResponse | null>(null);
-    const [selectionLoading, setSelectionLoading] = useState(false);
-    const [selectionError, setSelectionError] = useState("");
 
     // Detail modal state
     const [detailModalItem, setDetailModalItem] = useState<OrderReturnListRow | null>(null);
@@ -179,52 +166,6 @@ export function CustomerReturnQcQueue({
         return () => { active = false; };
     }, [page, reloadKey, status, debouncedSearchTerm, timeRange?.fromDate, timeRange?.toDate]);
 
-    useEffect(() => {
-        if (!selectedId) return;
-        let active = true;
-        queueMicrotask(() => {
-            if (!active) return;
-            setSelectionLoading(true);
-            setSelectionError("");
-            setSelectedReturn(null);
-            setQcSummary(null);
-            Promise.all([
-                getOrderReturnDetail(selectedId),
-                getCustomerReturnQcSummary(selectedId)
-            ])
-                .then(([detail, summary]) => {
-                    if (!active) return;
-                    if (detail.status !== "RECEIVED" || summary.returnStatus !== "RECEIVED") {
-                        setSelectionError("Phiếu hoàn không còn ở trạng thái đã nhận hàng. Vui lòng tải lại danh sách.");
-                        return;
-                    }
-                    if (!canInspectCustomerReturn({ ...detail, qcStatus: summary.qcStatus })) {
-                        setSelectionError(detail.hasFailedDisposition || detail.inventoryProcessingStatus === "FAILED"
-                            ? "Yêu cầu xử lý kho có lỗi và cần đối soát trước khi kiểm định lại. Vui lòng liên hệ quản lý."
-                            : "Phiếu chưa sẵn sàng cho yêu cầu kiểm định mới. Vui lòng làm mới để xem tiến độ tại kho.");
-                        return;
-                    }
-                    if (detail.remainingQuantity != null && toReturnNumber(detail.remainingQuantity) <= 0) {
-                        setSelectionError("Phiếu hoàn không còn số lượng khả dụng để xử lý kho. Vui lòng tải lại danh sách.");
-                        return;
-                    }
-                    if (!(summary.lines ?? []).some((line) => toReturnNumber(line.remainingQcQuantity) > 0)) {
-                        setSelectionError("Phiếu hoàn không còn số lượng cần xử lý kho. Vui lòng tải lại danh sách.");
-                        return;
-                    }
-                    setSelectedReturn(detail);
-                    setQcSummary(summary);
-                })
-                .catch((loadError: unknown) => {
-                    if (active) setSelectionError(getReturnErrorMessage(loadError));
-                })
-                .finally(() => {
-                    if (active) setSelectionLoading(false);
-                });
-        });
-        return () => { active = false; };
-    }, [selectedId]);
-
     const reload = () => {
         setReloadKey((key) => key + 1);
         onInspectionCreated?.();
@@ -235,13 +176,6 @@ export function CustomerReturnQcQueue({
             if (open) return rowId;
             return current === rowId ? null : current;
         });
-    };
-
-    const closeSelection = () => {
-        setSelectedId(null);
-        setSelectedReturn(null);
-        setQcSummary(null);
-        setSelectionError("");
     };
 
     const handleConfirmReceive = (row: OrderReturnListRow) => {
@@ -382,7 +316,6 @@ export function CustomerReturnQcQueue({
                                 <CustomerReturnActionMenu
                                     isOpen={openActionId === row.id}
                                     isReceiving={receivingId === row.id}
-                                    onInspect={() => { if (canDisposition) setSelectedId(row.id); }}
                                     onOpenChange={(open) => handleActionMenuChange(row.id, open)}
                                     onReceive={() => {
                                         if (!canReceive) return;
@@ -390,7 +323,7 @@ export function CustomerReturnQcQueue({
                                         setConfirmReceiveRow(row);
                                     }}
                                     onViewDetail={() => setDetailModalItem(row)}
-                                    onViewInspection={() => {
+                                    onInspect={() => {
                                         setOpenActionId(null);
                                         setWarehouseInspectionItem(row);
                                     }}
@@ -428,27 +361,6 @@ export function CustomerReturnQcQueue({
                 />
             </OrderListWorkspace>
 
-            {selectedId && (selectionLoading || selectionError) ? (
-                <div className="rounded-xl border border-[#e8eef0] bg-white p-4 text-sm font-semibold">
-                    <p>{selectionLoading ? "Đang tải dữ liệu kiểm hàng..." : selectionError}</p>
-                    <Button className="mt-2" onClick={closeSelection} size="sm">Đóng</Button>
-                </div>
-            ) : null}
-
-            {/* Inspection Form Modal */}
-            {selectedReturn && qcSummary && canDisposition ? (
-                <ReturnInspectionModal
-                    isOpen
-                    onClose={closeSelection}
-                    onRefresh={reload}
-                    onSuccess={reload}
-                    onToast={setNotice}
-                    qcSummary={qcSummary}
-                    returnItem={selectedReturn}
-                />
-            ) : null}
-
-            {/* Chi tiết phiếu hoàn */}
             {detailModalItem ? (
                 <ReturnDetailModal
                     key={detailModalItem.id}
@@ -462,7 +374,10 @@ export function CustomerReturnQcQueue({
             {warehouseInspectionItem ? (
                 <CustomerReturnWarehouseInspectionModal
                     isOpen
-                    onClose={() => setWarehouseInspectionItem(null)}
+                    onClose={() => {
+                        setWarehouseInspectionItem(null);
+                        setReloadKey((key) => key + 1);
+                    }}
                     returnCode={warehouseInspectionItem.returnCode}
                     returnId={warehouseInspectionItem.id}
                     returnItem={warehouseInspectionItem}

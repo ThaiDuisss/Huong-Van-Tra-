@@ -1,0 +1,126 @@
+{
+  "versionCode": "hvtra-tea-v3",
+  "manifest": {
+    "schemaVersion": 1,
+    "versionCode": "hvtra-tea-v3",
+    "attributes": [
+      {
+        "attributeCode": "BITTERNESS",
+        "label": "Độ đắng",
+        "displayOrder": 1,
+        "selectionKind": "ORDINAL_SINGLE",
+        "matchingSemantics": "EXACT",
+        "maxSelections": 1,
+        "values": [
+          { "valueCode": "NONE", "label": "Không đắng", "displayOrder": 1 },
+          { "valueCode": "LOW", "label": "Nhẹ", "displayOrder": 2 },
+          { "valueCode": "MEDIUM", "label": "Vừa", "displayOrder": 3 },
+          { "valueCode": "HIGH", "label": "Đậm", "displayOrder": 4 }
+        ]
+      },
+      {
+        "attributeCode": "NATURAL_SWEETNESS",
+        "label": "Độ ngọt tự nhiên (gồm hậu ngọt)",
+        "displayOrder": 2,
+        "selectionKind": "ORDINAL_SINGLE",
+        "matchingSemantics": "EXACT",
+        "maxSelections": 1,
+        "values": [
+          { "valueCode": "NONE", "label": "Không có độ ngọt tự nhiên", "displayOrder": 1 },
+          { "valueCode": "LOW", "label": "Nhẹ", "displayOrder": 2 },
+          { "valueCode": "MEDIUM", "label": "Vừa", "displayOrder": 3 },
+          { "valueCode": "HIGH", "label": "Đậm", "displayOrder": 4 }
+        ]
+      },
+      {
+        "attributeCode": "ADDED_SWEETNESS",
+        "label": "Độ ngọt bổ sung (đường, mật ong…)",
+        "displayOrder": 3,
+        "selectionKind": "ORDINAL_SINGLE",
+        "matchingSemantics": "EXACT",
+        "maxSelections": 1,
+        "values": [
+          { "valueCode": "NONE", "label": "Không thêm chất tạo ngọt", "displayOrder": 1 },
+          { "valueCode": "LOW", "label": "Nhẹ", "displayOrder": 2 },
+          { "valueCode": "MEDIUM", "label": "Vừa", "displayOrder": 3 },
+          { "valueCode": "HIGH", "label": "Đậm", "displayOrder": 4 }
+        ],
+        "allowsNotApplicable": true
+      },
+      {
+        "attributeCode": "AFTERTASTE",
+        "label": "Độ lưu hậu vị",
+        "displayOrder": 4,
+        "selectionKind": "ORDINAL_SINGLE",
+        "matchingSemantics": "EXACT",
+        "maxSelections": 1,
+        "values": [
+          { "valueCode": "NONE", "label": "Không rõ hậu vị", "displayOrder": 1 },
+          { "valueCode": "LOW", "label": "Ngắn", "displayOrder": 2 },
+          { "valueCode": "MEDIUM", "label": "Vừa", "displayOrder": 3 },
+          { "valueCode": "HIGH", "label": "Dài", "displayOrder": 4 }
+        ]
+      },
+      {
+        "attributeCode": "ASTRINGENCY",
+        "label": "Độ chát",
+        "displayOrder": 5,
+        "selectionKind": "ORDINAL_SINGLE",
+        "matchingSemantics": "EXACT",
+        "maxSelections": 1,
+        "values": [
+          { "valueCode": "NONE", "label": "Không chát", "displayOrder": 1 },
+          { "valueCode": "LOW", "label": "Nhẹ", "displayOrder": 2 },
+          { "valueCode": "MEDIUM", "label": "Vừa", "displayOrder": 3 },
+          { "valueCode": "HIGH", "label": "Đậm", "displayOrder": 4 }
+        ]
+      },
+      {
+        "attributeCode": "FLAVOR",
+        "label": "Hương vị",
+        "displayOrder": 6,
+        "selectionKind": "ENUM_MULTI",
+        "matchingSemantics": "EXACT",
+        "maxSelections": 3,
+        "values": [
+          { "valueCode": "FLORAL", "label": "Hương hoa", "displayOrder": 1 },
+          { "valueCode": "HERBAL", "label": "Thảo mộc", "displayOrder": 2 },
+          { "valueCode": "FRUITY", "label": "Trái cây", "displayOrder": 3 },
+          { "valueCode": "ROASTED", "label": "Hương rang", "displayOrder": 4 },
+          { "valueCode": "NUTTY", "label": "Hương hạt", "displayOrder": 5 },
+          { "valueCode": "EARTHY", "label": "Hương đất", "displayOrder": 6 },
+          { "valueCode": "HONEY", "label": "Mật ong", "displayOrder": 7 },
+          { "valueCode": "PEACH", "label": "Hương đào", "displayOrder": 8 }
+        ]
+      },
+      {
+        "attributeCode": "TEA_TYPE",
+        "label": "Nhóm trà",
+        "displayOrder": 7,
+        "selectionKind": "ENUM_SINGLE",
+        "matchingSemantics": "EXACT",
+        "maxSelections": 1,
+        "values": [
+          { "valueCode": "GREEN_TEA", "label": "Trà xanh", "displayOrder": 1 },
+          { "valueCode": "OOLONG", "label": "Ô long", "displayOrder": 2 },
+          { "valueCode": "BLACK_TEA", "label": "Trà đen", "displayOrder": 3 },
+          { "valueCode": "WHITE_TEA", "label": "Bạch trà", "displayOrder": 4 },
+          { "valueCode": "DARK_TEA", "label": "Trà hậu lên men", "displayOrder": 5 },
+          { "valueCode": "HERBAL", "label": "Trà thảo mộc", "displayOrder": 6 },
+          { "valueCode": "BLEND", "label": "Trà phối trộn", "displayOrder": 7 }
+        ]
+      },
+      {
+        "attributeCode": "AFTERTASTE_CHARACTER",
+        "label": "Tính chất hậu vị",
+        "displayOrder": 8,
+        "selectionKind": "ENUM_SINGLE",
+        "matchingSemantics": "EXACT",
+        "maxSelections": 1,
+        "values": [
+          { "valueCode": "CLEAN", "label": "Hậu vị thanh", "displayOrder": 1 }
+        ]
+      }
+    ]
+  }
+}

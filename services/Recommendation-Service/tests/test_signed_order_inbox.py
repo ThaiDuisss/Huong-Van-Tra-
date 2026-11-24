@@ -8,6 +8,7 @@ from unittest import TestCase
 from unittest.mock import MagicMock, patch
 from uuid import uuid4
 
+from confluent_kafka import KafkaError
 from pydantic import SecretStr
 from sqlalchemy import create_engine, event, select, text
 from sqlalchemy.exc import SQLAlchemyError
@@ -83,6 +84,89 @@ class Record:
 
     def key(self):
         return self.record_key.encode()
+
+
+class SignedOrderIngressBoundaryTests(TestCase):
+    def setUp(self):
+        self.session = MagicMock()
+        self.db = self.session.return_value.__enter__.return_value
+        self.db.get_bind.return_value.dialect.name = "mysql"
+        self.db.get.return_value = None
+        self.kafka = MagicMock()
+        self.settings = SimpleNamespace(
+            order_kafka_verification_keys=SecretStr(json.dumps({KEY_ID: {"1": base64.b64encode(KEY).decode()}})),
+            kafka_order_completed_topic=TOPIC, kafka_return_completed_topic=RETURN_TOPIC,
+            kafka_bootstrap_servers="unused", kafka_group_id="offline-test",
+        )
+        self.purchase = PurchaseKafkaConsumer(consumer=self.kafka, session_factory=self.session,
+                                              settings=self.settings)
+        order_id = guid()
+        self.record = Record(dict(eventId=guid(), eventKey=order_id, orderId=order_id, customerId=None,
+                                  eventType="ORDER_COMPLETED", sourceService="order-service", eventVersion=1), 0)
+
+    def test_diagnostic_only_receipt_commits_without_ack_even_on_redelivery(self):
+        body = {name: value for name, value in self.record.body.items() if name != "kafkaAuth"}
+        message = Record(dict(body, unsupportedField="synthetic"), self.record.offset())
+        transaction = self.db.begin.return_value
+
+        with self.assertRaisesRegex(OrderIngressError, "RECEIPT_DIAGNOSTIC_ONLY"):
+            self.purchase.consume_message(message)
+        transaction.__exit__.assert_called_once_with(None, None, None)
+        receipt, delivery = (call.args[0] for call in self.db.add.call_args_list)
+        self.assertEqual(receipt.receipt["replay_level"], "DIAGNOSTIC_ONLY")
+        self.assertEqual(receipt.error_code, "RECEIPT_DIAGNOSTIC_ONLY")
+        self.assertEqual(delivery.event_id, receipt.event_id)
+
+        self.db.add.reset_mock()
+        self.db.get.side_effect = (receipt, delivery)
+        with self.assertRaisesRegex(OrderIngressError, "RECEIPT_DIAGNOSTIC_ONLY"):
+            self.purchase.consume_message(message)
+        self.db.add.assert_not_called()
+        self.kafka.commit.assert_not_called()
+
+    def test_ack_requires_successful_database_commit(self):
+        receipt = SimpleNamespace(receipt={"replay_level": "POLICY_PROJECTION"}, status="APPLIED", error_code=None)
+        transaction = self.db.begin.return_value
+
+        def check_commit_order(**_):
+            transaction.__exit__.assert_called_once_with(None, None, None)
+            return [SimpleNamespace(topic=TOPIC, partition=0, offset=1, error=None)]
+
+        self.kafka.commit.side_effect = check_commit_order
+        with patch.object(self.purchase.inbox, "stage", return_value=([], receipt)):
+            transaction.__exit__.side_effect = RuntimeError("fixture commit failure")
+            with self.assertRaisesRegex(RuntimeError, "fixture commit failure"):
+                self.purchase.consume_message(self.record)
+            self.kafka.commit.assert_not_called()
+            transaction.reset_mock(side_effect=True)
+            transaction.__exit__.return_value = False
+            self.assertEqual(self.purchase.consume_message(self.record), [])
+        self.kafka.commit.assert_called_once_with(message=self.record, asynchronous=False)
+
+    def test_unavailable_offset_stops_mocked_poll_without_processing_later_record(self):
+        worker = KafkaWorker(consumer=self.kafka, purchase_consumer=self.purchase,
+                             return_consumer=MagicMock(), settings=self.settings)
+        error_record = MagicMock()
+        error_record.error.return_value = KafkaError(KafkaError._AUTO_OFFSET_RESET)
+        self.kafka.poll.side_effect = (error_record, self.record)
+        with patch.object(worker, "setup_signals"), self.assertLogs("app.kafka.worker", "ERROR"):
+            with self.assertRaisesRegex(RuntimeError, "KAFKA_OFFSET_REVIEW_REQUIRED"):
+                worker.run()
+        self.kafka.poll.assert_called_once()
+        self.kafka.commit.assert_not_called()
+        self.kafka.close.assert_called_once()
+        self.session.assert_not_called()
+        self.assertFalse(worker.running)
+
+    def test_canonical_numbers_match_java_normalization_before_bounds(self):
+        for wire, canonical in (("1.00" + "0" * 36, "1"), ("-0E-40", "0"),
+                                ("12345678901234567890123456789012.00", "12345678901234567890123456789012"),
+                                ("1E+32", "1" + "0" * 32), ("1" + "0" * 32, "1" + "0" * 32)):
+            with self.subTest(wire=wire):
+                self.assertEqual(_node(Decimal(wire)), _text(b"d", canonical))
+        for wire in ("1E+33", "1E-33", "123456789012345678901234567890123"):
+            with self.subTest(wire=wire), self.assertRaisesRegex(OrderIngressError, "CANONICAL_NUMBER_OUT_OF_BOUNDS"):
+                _node(Decimal(wire))
 
 
 class SignedOrderInboxTests(TestCase):
