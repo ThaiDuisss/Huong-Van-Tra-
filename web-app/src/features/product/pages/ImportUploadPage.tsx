@@ -4,11 +4,18 @@ import { useRef, useState } from "react";
 import { Link } from "react-router-dom";
 
 import { Button } from "../../../components/ui/Button";
+import { Field, NativeSelect } from "../../../components/ui/Field";
 import { routePaths } from "../../../routes/path";
 import { ImportBatchPanel, type ImportItemsListProps } from "../components/ImportBatchPanel";
 import { IMPORT_ITEMS_LIST_REGISTRY } from "../import-batch-registry";
 import { importBatchApi as defaultImportBatchApi, type ImportBatchApi } from "../services/importBatch.api";
-import type { ImportPreviewResponse, ImportType } from "../types/import-batch.types";
+import type { ImportMode, ImportPreviewResponse, ImportType } from "../types/import-batch.types";
+
+interface ExtraDownload {
+    label: string;
+    fileName: string;
+    download(): Promise<Blob>;
+}
 
 interface ImportUploadPageProps {
     importType: ImportType;
@@ -16,6 +23,8 @@ interface ImportUploadPageProps {
     description: string;
     templateFileName: string;
     downloadTemplate(): Promise<Blob>;
+    supportsUpdate?: boolean;
+    updateDownloads?: ExtraDownload[];
     /** API import-batch dùng cho trang này — mặc định trỏ Catalog, service khác truyền bộ riêng qua createImportBatchApi(). */
     api?: ImportBatchApi;
     /** Registry hiển thị danh sách dòng theo loại import — mặc định là registry của Catalog (Sản phẩm/Mặt hàng). */
@@ -32,6 +41,8 @@ export function ImportUploadPage({
     description,
     templateFileName,
     downloadTemplate,
+    supportsUpdate = false,
+    updateDownloads = [],
     api = defaultImportBatchApi,
     itemsListRegistry = IMPORT_ITEMS_LIST_REGISTRY,
     backTo = routePaths.importExcelRequests,
@@ -40,17 +51,18 @@ export function ImportUploadPage({
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
+    const [mode, setMode] = useState<ImportMode>("CREATE");
     const [uploading, setUploading] = useState(false);
     const [error, setError] = useState("");
     const [previewData, setPreviewData] = useState<ImportPreviewResponse | null>(null);
 
-    async function handleDownloadTemplate() {
+    async function handleDownload(download: () => Promise<Blob>, fileName: string) {
         try {
-            const blob = await downloadTemplate();
+            const blob = await download();
             const url = URL.createObjectURL(blob);
             const a = document.createElement("a");
             a.href = url;
-            a.download = templateFileName;
+            a.download = fileName;
             document.body.appendChild(a);
             a.click();
             a.remove();
@@ -68,7 +80,7 @@ export function ImportUploadPage({
         setError("");
         setUploading(true);
         try {
-            const preview = await api.preview(importType, selectedFile);
+            const preview = await api.preview(importType, selectedFile, supportsUpdate ? mode : "CREATE");
             setPreviewData(preview);
         } catch (err) {
             setError(err instanceof Error ? err.message : "Tải file lên thất bại.");
@@ -108,7 +120,7 @@ export function ImportUploadPage({
             {previewData ? (
                 <>
                     <div className="flex items-center justify-between rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm font-bold text-amber-800">
-                        <span>Đã phân tích xong file Excel ({previewData.totalRows} dòng, {previewData.validRows} hợp lệ, {previewData.errorRows} lỗi) — kiểm tra/sửa danh sách bên dưới trước khi lưu nháp hoặc gửi duyệt.</span>
+                        <span>{supportsUpdate ? `Kiểu import: ${mode === "UPDATE" ? "Cập nhật" : "Tạo mới"} — ` : ""}Đã phân tích xong file Excel ({previewData.totalRows} dòng, {previewData.validRows} hợp lệ, {previewData.errorRows} lỗi) — kiểm tra/sửa danh sách bên dưới trước khi lưu nháp hoặc gửi duyệt.</span>
                         <Button onClick={handleImportAnother} size="sm">
                             Nhập file khác
                         </Button>
@@ -122,10 +134,32 @@ export function ImportUploadPage({
                 </>
             ) : (
                 <div className="grid gap-4 rounded-xl border border-[#e8eef0] bg-white p-5 shadow-pos-card">
-                    <Button className="w-fit" onClick={() => void handleDownloadTemplate()}>
-                        <Download size={16} aria-hidden="true" />
-                        Tải file mẫu
-                    </Button>
+                    <div className="flex flex-wrap items-end gap-2">
+                        {supportsUpdate ? (
+                            <Field className="w-full max-w-sm" label="Kiểu import" required>
+                                <NativeSelect onChange={(e) => setMode(e.target.value as ImportMode)} value={mode}>
+                                    <option value="CREATE">Tạo mới</option>
+                                    <option value="UPDATE">Cập nhật (theo SKU)</option>
+                                </NativeSelect>
+                            </Field>
+                        ) : null}
+                        {mode === "CREATE" || !supportsUpdate ? (
+                            <Button className="w-fit" onClick={() => void handleDownload(downloadTemplate, templateFileName)}>
+                                <Download size={16} aria-hidden="true" />
+                                Tải file mẫu
+                            </Button>
+                        ) : null}
+                        {(supportsUpdate && mode === "UPDATE" ? updateDownloads : []).map((extra) => (
+                            <Button
+                                className="w-fit"
+                                key={extra.label}
+                                onClick={() => void handleDownload(extra.download, extra.fileName)}
+                            >
+                                <Download size={16} aria-hidden="true" />
+                                {extra.label}
+                            </Button>
+                        ))}
+                    </div>
 
                     <label className="grid gap-1.5">
                         <span className="text-xs font-bold text-[#536078]">Chọn file Excel (.xlsx)</span>

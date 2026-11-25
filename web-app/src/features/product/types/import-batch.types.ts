@@ -2,6 +2,8 @@ export type ImportBatchStatus = "DRAFT" | "PENDING_APPROVAL" | "APPROVED" | "REJ
 
 export type ImportType = "PRODUCT" | "PRODUCT_VARIANT" | "INGREDIENT" | "GOODS_RECEIPT" | "UNIT";
 
+export type ImportMode = "CREATE" | "UPDATE";
+
 export interface ValidationError {
     field: string;
     message: string;
@@ -20,6 +22,7 @@ export interface ImportBatchItem {
 export interface ImportBatch {
     id: string;
     importType: ImportType;
+    importMode: ImportMode;
     batchCode: string;
     status: ImportBatchStatus;
     version: number;
@@ -56,6 +59,7 @@ export interface ImportPreviewItem {
 
 export interface ImportPreviewResponse {
     importType: ImportType;
+    importMode: ImportMode;
     sourceFileName: string | null;
     totalRows: number;
     validRows: number;
@@ -71,6 +75,7 @@ export interface SaveImportDraftItemRequest {
 
 export interface SaveImportDraftRequest {
     type: ImportType;
+    mode?: ImportMode;
     sourceFileName?: string | null;
     fileId?: string | null;
     items: SaveImportDraftItemRequest[];

@@ -64,6 +64,18 @@ export interface UserSnapshot {
     role: StockDocumentRole;
 }
 
+export const inventoryAuditLabels = {
+    CREATE: "Tạo",
+    SUBMIT: "Gửi duyệt",
+    RECEIVE: "Nhận hàng",
+    APPROVE: "Duyệt",
+    REJECT: "Từ chối",
+    POST: "Đã nhập kho",
+    CANCEL: "Hủy",
+    APPROVE_EXCEPTION: "Duyệt ngoại lệ",
+    INSPECT: "Kiểm định",
+} as const;
+
 export interface InventoryAuditEvent {
     id: string;
     type:
