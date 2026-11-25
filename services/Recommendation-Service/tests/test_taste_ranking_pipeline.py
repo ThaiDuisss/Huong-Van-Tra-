@@ -16,7 +16,7 @@ from pydantic import ValidationError
 from app.recommendation.taste_ranking_artifact import (
     LogisticModel, TasteRankingArtifact, TasteReranker, load_approved_rerankers,
 )
-from app.recommendation.taste_ranking_features import feature_names, vector
+from app.recommendation.taste_ranking_features import feature_names, taste_column_indices, vector
 from app.recommendation.taste_rules import EXACT_POLICY_VERSION
 from app.recommendation.v1_model import CONTRACT_VERSION, CatalogProduct, PurchaseCount, build_artifact, fingerprint
 from app.repositories.explore_history_repository import ExploreHistory
@@ -26,8 +26,8 @@ from app.service.explore_recommendation_service import ExploreRecommendationServ
 from app.service.personalized_taste_features import PersonalizedTasteFeatures, TasteFeatureBatch
 from app.service.taste_recommendation_service import normalize_criteria
 from app.training.taste_ranking_dataset import DatasetBlocked, EvidenceBundle, build_dataset, _projection
-from app.training.taste_ranking_evaluation import evaluate
-from app.training.train_taste_ranking import main, train_and_evaluate
+from app.training.taste_ranking_evaluation import evaluate, summarize_rankings
+from app.training.train_taste_ranking import main, select_logistic, train_and_evaluate
 
 BASE = datetime(2026, 1, 1, tzinfo=timezone.utc)
 ATTRIBUTES = tuple(sorted(REQUIRED_ATTRIBUTES))
@@ -120,7 +120,7 @@ def evidence_json():
             "customer_roster_as_of": stamp(cutoff), "customers": customers,
         })
     freeze = windows[-1]["outcome_freeze"]
-    return {"schema_version": 1, "source_kind": "VERIFIED_SOURCE_EXPORT",
+    return {"schema_version": 1, "source_kind": "TEST_FIXTURE",
             "purchase_history_complete_from_inception": True, "receipt_source": "fixture", "return_source": "fixture",
             "interaction_source": "fixture", "taxonomy_version": TAXONOMY, "taxonomy_sha256": taxonomy_sha,
             "receipts_complete_through": freeze, "returns_complete_through": freeze,
@@ -133,6 +133,43 @@ def build(raw):
 
 
 class TasteRankingPipelineTests(TestCase):
+    def test_selection_only_materializes_train_validation_and_masks_taste_in_behavioral_arm(self):
+        evidence = EvidenceBundle.model_validate_json(json.dumps(evidence_json()))
+        full = build_dataset(evidence)
+        selection_data = build_dataset(evidence, splits=("TRAIN", "VALIDATION"))
+        self.assertEqual(selection_data.fingerprint, full.fingerprint)
+        self.assertEqual(selection_data.queries, tuple(q for q in full.queries if q.split != "TEST"))
+        train, validation = (tuple(q for q in selection_data.queries if q.mode == "EXPLORE" and q.split == split)
+                             for split in ("TRAIN", "VALIDATION"))
+        behavioral = select_logistic("EXPLORE", train, validation, full.attributes, "BEHAVIORAL_ONLY")
+        combined = select_logistic("EXPLORE", train, validation, full.attributes, "BEHAVIORAL_PLUS_TASTE")
+        self.assertEqual(behavioral.training_rows, combined.training_rows)
+        self.assertEqual(behavioral.training_positive_rows, combined.training_positive_rows)
+        self.assertEqual(behavioral.model.categories, combined.model.categories)
+        self.assertTrue(all(row["converged"] for row in behavioral.validation_grid))
+        columns = taste_column_indices(behavioral.model.feature_names)
+        self.assertTrue(columns)
+        self.assertTrue(all(behavioral.model.coefficients[index] == 0 for index in columns))
+        example = next(sample.features for q in train for sample in q.samples if sample.features.has_taste)
+        self.assertEqual(behavioral.model.score([example]), behavioral.model.score([replace(example, taste=None)]))
+        test = next(q for q in full.queries if q.mode == "EXPLORE" and q.split == "TEST")
+        with self.assertRaisesRegex(DatasetBlocked, "INVALID_TRAIN_OR_VALIDATION_SELECTION_INPUT"):
+            select_logistic("EXPLORE", train, (*validation, test), full.attributes)
+
+    def test_ranking_coverage_counts_queries_without_outcomes_and_fixed_k_precision(self):
+        valid = next(q for q in build(evidence_json()).queries if q.mode == "EXPLORE"
+                     and any(row.label for row in q.samples))
+        relevant_product = next(row.features.product_id for row in valid.samples if row.label)
+        unlabeled = replace(valid, samples=tuple(replace(row, label=False) for row in valid.samples))
+        metrics = summarize_rankings((valid, unlabeled), [(relevant_product,), ()])
+        self.assertEqual(metrics["eligible_queries"], 2)
+        self.assertEqual(metrics["evaluable_queries"], 1)
+        self.assertEqual(metrics["queries_without_positive"], 1)
+        self.assertEqual(metrics["nonempty_rankings"], 1)
+        self.assertEqual(metrics["average_returned_k"], 0.5)
+        self.assertEqual(metrics["precision_at_5"], 0.2)
+        self.assertEqual(metrics["recommendation_coverage"], 0.5)
+
     def test_objectives_are_separate_and_use_only_cutoff_features(self):
         raw = evidence_json()
         receipt = raw["receipts"][4]
@@ -183,7 +220,7 @@ class TasteRankingPipelineTests(TestCase):
                 with self.assertRaisesRegex((DatasetBlocked, ValidationError), error):
                     build(raw)
 
-    def test_feature_schema_and_multi_variant_guard(self):
+    def test_multiple_sellable_variants_allow_available_profile(self):
         raw = evidence_json()
         snapshot = raw["windows"][0]["taste_catalog"]
         variant = dict(snapshot["payload"]["variants"][2], id=uid(99), sku="SECOND")
@@ -194,9 +231,9 @@ class TasteRankingPipelineTests(TestCase):
         dataset = build(raw)
         query = dataset.queries[0]
         self.assertTrue(query.has_taste)
-        self.assertFalse(query.can_rerank)
-        with self.assertRaisesRegex(ValueError, "VARIANT_PREPARATION_AGGREGATION_UNAVAILABLE"):
-            vector(query.samples[0].features, dataset.attributes, ())
+        self.assertTrue(query.can_rerank)
+        self.assertEqual(len(vector(query.samples[0].features, dataset.attributes, ())),
+                         len(feature_names(dataset.attributes, ())))
 
     def test_labels_use_retained_outcome_quantity_without_changing_cutoff_features(self):
         raw = evidence_json()
@@ -308,7 +345,7 @@ class TasteRankingPipelineTests(TestCase):
             source.write_bytes(raw)
             with patch("sys.argv", ["train_taste_ranking", "--evidence", str(source), "--evidence-sha256",
                                     hashlib.sha256(raw).hexdigest(), "--mode", "FAMILIAR",
-                                    "--model-version", "test-1", "--output", str(output)]):
+                                    "--model-version", "test-1", "--output", str(output), "--test-fixture"]):
                 with redirect_stdout(StringIO()) as stdout:
                     self.assertEqual(main(), 0)
             result = json.loads(stdout.getvalue())
@@ -318,6 +355,7 @@ class TasteRankingPipelineTests(TestCase):
             self.assertEqual(result["artifact_sha256"], hashlib.sha256(serialized).hexdigest())
             self.assertEqual(model.evaluation_sha256, fingerprint(report))
             self.assertEqual(model.activation_status, "INACTIVE")
+            self.assertEqual(model.training_provenance, "TEST_FIXTURE")
 
     def test_activation_checksums_and_serving_fallback(self):
         evidence = EvidenceBundle.model_validate_json(json.dumps(evidence_json()))
@@ -337,7 +375,7 @@ class TasteRankingPipelineTests(TestCase):
             manifest_path.write_text(json.dumps({"schema_version": 1, "approvals": [approval]}), encoding="utf-8")
             self.assertIsNone(load_approved_rerankers(None)["EXPLORE"].artifact)
             gates = load_approved_rerankers(str(manifest_path))
-            self.assertIsNotNone(gates["EXPLORE"].artifact)
+            self.assertIsNone(gates["EXPLORE"].artifact)
             self.assertIsNone(gates["FAMILIAR"].artifact)
             artifact_path.write_bytes(raw + b" ")
             self.assertIsNone(load_approved_rerankers(str(manifest_path))["EXPLORE"].artifact)
@@ -349,15 +387,20 @@ class TasteRankingPipelineTests(TestCase):
         history = ExploreHistory(5, {uid(1): 4, uid(2): 1}, {uid(1), uid(2)})
         histories = Mock()
         histories.history.return_value = history
-        histories.commercial_product_ids.return_value = {product.product_id for product in products}
+        variants = {uid(index + 10): product.product_id for index, product in enumerate(products, 1)}
+        histories.commercial_variants.return_value = variants
+        availability = Mock()
+        availability.available_variants.side_effect = lambda mirror: mirror
         catalog = Mock()
         catalog.active_catalog.return_value = products
         store = Mock()
         store.load.return_value = v1
         taste_client = Mock()
         taste_client.latest.return_value = window.customers[0].survey
-        fallback = ExploreRecommendationService(store, histories, catalog).recommend(None, uid(100), 5)
-        service = ExploreRecommendationService(store, histories, catalog, taste_reranker=gates["EXPLORE"],
+        fallback = ExploreRecommendationService(store, histories, catalog, availability=availability
+                                                ).recommend(None, uid(100), 5)
+        service = ExploreRecommendationService(store, histories, catalog, taste_reranker=TasteReranker(artifact=learned),
+            availability=availability,
             taste_features=PersonalizedTasteFeatures(taste_client, lambda: _projection(window)))
         active = service.recommend(None, uid(100), 5)
         self.assertNotEqual(active.product.model_contract_version, CONTRACT_VERSION)

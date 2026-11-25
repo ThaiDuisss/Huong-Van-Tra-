@@ -36,6 +36,7 @@ public final class TasteSurveyDto {
             TasteSurveyStatus status,
             long rowVersion,
             Instant submittedAt,
+            Instant effectiveLinkedAt,
             String taxonomyVersion,
             String taxonomySha256,
             String criteriaSha256,

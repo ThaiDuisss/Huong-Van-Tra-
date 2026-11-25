@@ -233,10 +233,15 @@ class TasteSurveyService {
     @Transactional(readOnly = true)
     public Optional<TasteSurveyDto.RecommendationSurvey> latestForRecommendation(UUID customerId) {
         requireExistingCustomer(customerId);
-        return latestSubmitted(customerId).map(survey -> new TasteSurveyDto.RecommendationSurvey(
-                survey.getCustomerId(), survey.getStatus(), survey.getRowVersion(), utc(survey.getSubmittedAt()),
-                survey.getTaxonomyVersion(), survey.getTaxonomySha256(), survey.getCriteriaSha256(),
-                survey.getCriteria()));
+        return latestSubmitted(customerId).map(survey -> {
+            var submittedAt = utc(survey.getSubmittedAt());
+            var linkedAt = utc(survey.getLinkedAt());
+            // A draft created for a customer already has identity binding when it is submitted.
+            var effectiveLinkedAt = linkedAt == null || linkedAt.isBefore(submittedAt) ? submittedAt : linkedAt;
+            return new TasteSurveyDto.RecommendationSurvey(survey.getCustomerId(), survey.getStatus(),
+                    survey.getRowVersion(), submittedAt, effectiveLinkedAt, survey.getTaxonomyVersion(),
+                    survey.getTaxonomySha256(), survey.getCriteriaSha256(), survey.getCriteria());
+        });
     }
 
     private Optional<TasteSurvey> latestSubmitted(UUID customerId) {

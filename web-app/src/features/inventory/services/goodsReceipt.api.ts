@@ -300,7 +300,7 @@ function mapDocToDetail(doc: InventoryDocumentBackendResponse): GoodsReceiptDeta
             id: `create-${doc.id}`,
             note: doc.note || "Tạo phiếu nhập",
             roleSnapshot: "INVENTORY_STAFF",
-            type: "Tạo"
+            type: "CREATE"
         });
     }
     if (doc.approvedAt) {
@@ -314,7 +314,7 @@ function mapDocToDetail(doc: InventoryDocumentBackendResponse): GoodsReceiptDeta
             id: `approve-${doc.id}`,
             note: doc.approvalNote || "Duyệt phiếu nhập",
             roleSnapshot: "MANAGER",
-            type: "Duyệt"
+            type: "APPROVE"
         });
     }
     if (doc.rejectedAt) {
@@ -329,7 +329,7 @@ function mapDocToDetail(doc: InventoryDocumentBackendResponse): GoodsReceiptDeta
             note: doc.rejectionReason || "Từ chối phiếu nhập",
             reason: doc.rejectionReason,
             roleSnapshot: "MANAGER",
-            type: "Từ chối"
+            type: "REJECT"
         });
     }
     if (doc.receivedAt) {
@@ -343,7 +343,7 @@ function mapDocToDetail(doc: InventoryDocumentBackendResponse): GoodsReceiptDeta
             id: `receive-${doc.id}`,
             note: "Kiểm đếm thực tế hoàn tất",
             roleSnapshot: "INVENTORY_STAFF",
-            type: "Nhận hàng"
+            type: "RECEIVE"
         });
     }
     if (doc.qcAt) {
@@ -357,7 +357,7 @@ function mapDocToDetail(doc: InventoryDocumentBackendResponse): GoodsReceiptDeta
             id: `qc-${doc.id}`,
             note: "Kiểm tra chất lượng QC hoàn tất",
             roleSnapshot: "QC",
-            type: "Kiểm định"
+            type: "INSPECT"
         });
     }
     if (doc.exceptionApprovedAt) {
@@ -373,7 +373,7 @@ function mapDocToDetail(doc: InventoryDocumentBackendResponse): GoodsReceiptDeta
                 ? `Duyệt ngoại lệ: ${doc.exceptionApprovalNote}`
                 : "Duyệt ngoại lệ (thừa / thiếu / hỏng)",
             roleSnapshot: "MANAGER",
-            type: "Duyệt ngoại lệ"
+            type: "APPROVE_EXCEPTION"
         });
     }
     if (doc.postedAt) {
@@ -385,7 +385,7 @@ function mapDocToDetail(doc: InventoryDocumentBackendResponse): GoodsReceiptDeta
             id: `post-${doc.id}`,
             note: "Ghi sổ nhập kho thành công - Cập nhật tồn khả dụng",
             roleSnapshot: "INVENTORY_STAFF",
-            type: "Đã nhập kho"
+            type: "POST"
         });
     }
 

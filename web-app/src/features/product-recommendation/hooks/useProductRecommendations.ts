@@ -7,7 +7,7 @@ import {
 import { RecommendationRequestScope } from "../services/recommendationLifecycle";
 import type {
   ProductRecommendations,
-  RecommendationMode,
+  ProductRecommendationMode,
   RecommendedProductView,
 } from "../types/productRecommendation.types";
 
@@ -24,7 +24,7 @@ function errorMessage(error: unknown) {
 }
 
 /** Mount per invoice/customer/generation/mode/refresh; cleanup invalidates late responses. */
-export function useProductRecommendations(customerId: string | null, mode: RecommendationMode) {
+export function useProductRecommendations(customerId: string | null, mode: ProductRecommendationMode) {
   const [key] = useState(() => crypto.randomUUID());
   const [state, setState] = useState<RecommendationState>({
     loading: true,
@@ -36,12 +36,9 @@ export function useProductRecommendations(customerId: string | null, mode: Recom
     const scope = new RecommendationRequestScope(key);
     void (async () => {
       try {
-        const result = await productRecommendationApi.get(
-          customerId,
-          mode,
-          scope.key,
-          scope.controller.signal,
-        );
+        const result = mode === "EXPLORE" || mode === "FAMILIAR"
+          ? await productRecommendationApi.getPersonalized(customerId ?? "", mode, scope.controller.signal)
+          : await productRecommendationApi.get(customerId, mode, scope.key, scope.controller.signal);
         if (!scope.isCurrent()) return;
         const products = await loadRecommendedProducts(result, scope.controller.signal);
         if (scope.isCurrent()) setState({ loading: false, result, products, error: "" });

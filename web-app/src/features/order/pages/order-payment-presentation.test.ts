@@ -33,6 +33,9 @@ vi.mock("react", async original => {
   };
 });
 vi.mock("react-router-dom", async original => ({ ...await original<typeof import("react-router-dom")>(), useNavigate: () => vi.fn() }));
+vi.mock("@/auth/useAuthorization", () => ({
+  useAuthorization: () => ({ roles: ["ROLE_SUPER_ADMIN"], permissions: [] }),
+}));
 vi.mock("../services/order.api", () => ({
   getOrders: fixture.list, getOrderStats: fixture.stats, getOrderById: fixture.detail,
   exportOrders: fixture.ordersExport, exportInvoices: fixture.invoicesExport,

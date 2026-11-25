@@ -105,6 +105,34 @@ spring:
             filters:
               - StripPrefix=2
 
+          - id: personalized-product-eligibility
+            uri: ${RECOMMENDATION_SERVICE_URL:http://localhost:8090}
+            predicates:
+              - name: Path
+                args:
+                  patterns: /api/recommendation/recommendations/{customerId}/eligibility
+                  matchTrailingSlash: false
+              - Method=GET
+            filters:
+              - StripPrefix=2
+
+          - id: isolated-recommendation-training-start
+            uri: ${RECOMMENDATION_SERVICE_URL:http://localhost:8090}
+            predicates:
+              - Path=/api/recommendation/recommendations/training/jobs,/api/recommendation/recommendations/training/jobs/approval
+              - Method=POST
+            filters:
+              - StripPrefix=2
+              - RequestSize=2KB
+
+          - id: isolated-recommendation-training-status
+            uri: ${RECOMMENDATION_SERVICE_URL:http://localhost:8090}
+            predicates:
+              - Path=/api/recommendation/recommendations/training/jobs,/api/recommendation/recommendations/training/jobs/{jobId}
+              - Method=GET
+            filters:
+              - StripPrefix=2
+
           - id: file-service
             uri: lb://file-service
             predicates:

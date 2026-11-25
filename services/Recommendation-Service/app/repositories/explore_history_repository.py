@@ -1,6 +1,6 @@
 ﻿from collections import Counter, defaultdict
 from collections.abc import Iterable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from decimal import Decimal, InvalidOperation
 
@@ -19,11 +19,22 @@ class ExploreHistoryError(RuntimeError):
 
 
 @dataclass(frozen=True, slots=True)
+class ProductPurchaseHistory:
+    retained_order_times: tuple[datetime, ...]
+    net_quantity: Decimal
+    purchased_lines: int
+    returned_lines: int
+    return_reasons: dict[str, int]
+    unknown_reason_returns: int
+
+
+@dataclass(frozen=True, slots=True)
 class ExploreHistory:
     valid_order_count: int
     product_counts: dict[str, int]
     purchased_ids: set[str]
     last_retained_purchase: dict[str, datetime] | None = None
+    product_history: dict[str, ProductPurchaseHistory] = field(default_factory=dict)
 
 
 def _quantity(value: object) -> Decimal:
@@ -60,7 +71,7 @@ class ExploreHistoryRepository:
             return_order_id = return_order_id.collate("utf8mb4_0900_ai_ci")
         returns = db.execute(select(
             InteractionEvent.return_item_id, InteractionEvent.order_id, InteractionEvent.order_item_id,
-            InteractionEvent.product_variant_id, InteractionEvent.quantity,
+            InteractionEvent.product_variant_id, InteractionEvent.quantity, InteractionEvent.return_reason,
         ).join(CompletedPurchaseOrder, CompletedPurchaseOrder.id == return_order_id).where(
             InteractionEvent.customer_id == customer_id,
             CompletedPurchaseOrder.customer_id == customer_id,
@@ -72,7 +83,7 @@ class ExploreHistoryRepository:
         ))
         signed_returns = db.execute(select(
             OrderReturnLine.return_item_id, OrderReturnLine.order_id, OrderReturnLine.order_item_id,
-            OrderReturnLine.product_variant_id, OrderReturnLine.quantity,
+            OrderReturnLine.product_variant_id, OrderReturnLine.quantity, OrderReturnLine.reason,
         ).where(
             OrderReturnLine.customer_id == customer_id,
             OrderReturnLine.purchase_type == "PRODUCT",
@@ -81,12 +92,12 @@ class ExploreHistoryRepository:
         ))
         return build_history(customer_id, orders, purchases, signed_returns, returns)
 
-    def commercial_product_ids(self, db: Session) -> set[str]:
-        return set(db.scalars(select(ProductVariant.product_id).where(
+    def commercial_variants(self, db: Session) -> dict[str, str]:
+        return dict(db.execute(select(ProductVariant.id, ProductVariant.product_id).where(
             ProductVariant.status == "ACTIVE",
             ProductVariant.is_deleted.is_(False),
             ProductVariant.sku != "CUSTOM-BUNDLE",
-        ).distinct()))
+        )).tuples().all())
 
 
 def receipt_products(customer_id: str, occurred_at: datetime, expected_hash: str,
@@ -120,28 +131,47 @@ def build_history(customer_id: str, orders: Iterable, purchases: Iterable[str],
                   signed_returns: Iterable, legacy_returns: Iterable = ()) -> ExploreHistory:
     purchased_ids = set(purchases)
     returned_units: dict[tuple[str, str], dict[str, Decimal]] = defaultdict(dict)
+    line_reasons: dict[tuple[str, str], Counter] = defaultdict(Counter)
     observed_returns = {}
-    for return_id, order_id, line_id, variant_id, quantity in (
-        entry for result in (signed_returns, legacy_returns) for entry in result
-    ):
+    for entry in (entry for result in (signed_returns, legacy_returns) for entry in result):
+        return_id, order_id, line_id, variant_id, quantity, *reasons = entry
         if not return_id or not order_id or not line_id or not variant_id:
             raise ExploreHistoryError
         identity = (order_id, line_id, variant_id)
         quantity = _quantity(quantity)
+        reason = reasons[0] if reasons else None
         previous = observed_returns.get(return_id)
         if previous is not None:
-            if previous != (identity, quantity):
+            if previous[:2] != (identity, quantity) or (
+                previous[2] and reason and previous[2] != reason
+            ):
                 raise ExploreHistoryError
+            if reason and not previous[2]:
+                line_reasons[order_id, line_id][None] -= 1
+                line_reasons[order_id, line_id][reason] += 1
+                observed_returns[return_id] = identity, quantity, reason
             continue
-        observed_returns[return_id] = identity, quantity
+        observed_returns[return_id] = identity, quantity, reason
         matching_line = returned_units[order_id, line_id]
         matching_line[variant_id] = matching_line.get(variant_id, Decimal(0)) + quantity
+        line_reasons[order_id, line_id][reason] += 1
 
     strengths = Counter()
     recency = {}
+    purchase_lines, returned_lines = Counter(), Counter()
+    retained_orders: dict[str, list[datetime]] = defaultdict(list)
+    quantities: dict[str, Decimal] = defaultdict(Decimal)
+    product_reasons: dict[str, Counter] = defaultdict(Counter)
+    seen_orders = {}
     valid_orders = 0
     for order_id, occurred_at, expected_hash, lines in orders:
-        has_retained_line = False
+        identity = (occurred_at, expected_hash, lines)
+        if order_id in seen_orders:
+            if seen_orders[order_id] != identity:
+                raise ExploreHistoryError
+            continue
+        seen_orders[order_id] = identity
+        retained_products = set()
         for line_id, product_id, variant_id, purchased_quantity in receipt_products(
             customer_id, occurred_at, expected_hash, lines
         ):
@@ -151,11 +181,25 @@ def build_history(customer_id: str, orders: Iterable, purchases: Iterable[str],
                 raise ExploreHistoryError
             # A return can remove preference evidence without making a past purchase novel.
             purchased_ids.add(product_id)
+            purchase_lines[product_id] += 1
+            returned_lines[product_id] += int(returned > 0)
+            product_reasons[product_id].update(line_reasons[order_id, line_id])
+            quantities[product_id] += purchased_quantity - returned
             if returned < purchased_quantity:
                 strengths[product_id] += 1
                 recency[product_id] = max(occurred_at, recency.get(product_id, occurred_at))
-                has_retained_line = True
-        if has_retained_line:
+                retained_products.add(product_id)
+        for product_id in retained_products:
+            retained_orders[product_id].append(occurred_at)
+        if retained_products:
             valid_orders += 1
 
-    return ExploreHistory(valid_orders, dict(strengths), purchased_ids, recency)
+    product_history = {
+        product_id: ProductPurchaseHistory(tuple(sorted(retained_orders[product_id])), quantities[product_id],
+                                           count, returned_lines[product_id],
+                                           {reason: count for reason, count in product_reasons[product_id].items()
+                                            if reason is not None},
+                                           product_reasons[product_id][None])
+        for product_id, count in purchase_lines.items()
+    }
+    return ExploreHistory(valid_orders, dict(strengths), purchased_ids, recency, product_history)

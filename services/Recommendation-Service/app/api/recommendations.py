@@ -9,13 +9,16 @@ from app.clients.customer_taste_client import CustomerTasteClient
 from app.core.config import get_settings
 from app.database.session import get_db
 from app.repositories.explore_history_repository import ExploreHistoryError
-from app.schemas.explore_recommendation import ExploreRecommendationResponse, FamiliarRecommendationResponse
+from app.schemas.explore_recommendation import (
+    ExploreRecommendationResponse, FamiliarRecommendationResponse, Level2Eligibility,
+)
 from app.schemas.recommendation import (
     GuestRecommendationResponse, RecommendationItem, RecommendationMode, RecommendationResponse,
 )
 from app.core.recommendation_auth import authorize_customer, authorize_pos_actor
 from app.repositories.v1_recommendation_repository import V1RecommendationRepository
 from app.service.explore_recommendation_service import ExploreRecommendationService, FamiliarRecommendationService
+from app.service.level2_availability import Level2Availability
 from app.service.personalized_taste_features import PersonalizedTasteFeatures
 from app.service.recommendation_service import RecommendationService
 from app.recommendation.v1_artifact import V1ArtifactStore
@@ -47,6 +50,7 @@ def get_explore_recommendation_service(request: Request) -> ExploreRecommendatio
     rerankers = getattr(request.app.state, "taste_rerankers", {})
     return ExploreRecommendationService(
         get_recommendation_service().artifact_store, taste_features=get_personalized_taste_features(),
+        availability=Level2Availability(get_settings()),
         taste_reranker=rerankers.get("EXPLORE"),
     )
 
@@ -55,13 +59,34 @@ def get_familiar_recommendation_service(request: Request) -> FamiliarRecommendat
     rerankers = getattr(request.app.state, "taste_rerankers", {})
     return FamiliarRecommendationService(
         get_recommendation_service().artifact_store, taste_features=get_personalized_taste_features(),
+        availability=Level2Availability(get_settings()),
         taste_reranker=rerankers.get("FAMILIAR"),
     )
+
+
+@router.get("/{customer_id}/eligibility", response_model=Level2Eligibility)
+def level2_eligibility(
+    request: Request,
+    response: Response,
+    verified_customer: str = Depends(authorize_customer),
+    db: Session = Depends(get_db),
+) -> Level2Eligibility:
+    response.headers["Cache-Control"] = "private, no-store"
+    demo = getattr(request.app.state, "level2_demo", None)
+    if demo is None:
+        return Level2Eligibility(customer_id=verified_customer, enabled=False)
+    try:
+        count = demo.valid_orders(db, verified_customer)
+    except (ExploreHistoryError, SQLAlchemyError):
+        raise HTTPException(503, "Personalized purchase evidence unavailable",
+                            headers={"Cache-Control": "private, no-store"}) from None
+    return Level2Eligibility(customer_id=verified_customer, enabled=True, valid_order_count=count)
 
 
 @router.get("/{customer_id}/explore", response_model=ExploreRecommendationResponse)
 def explore_products(
     customer_id: str,
+    request: Request,
     response: Response,
     limit: int = Query(default=5, ge=1, le=5),
     verified_customer: str = Depends(authorize_customer),
@@ -70,6 +95,11 @@ def explore_products(
 ) -> ExploreRecommendationResponse:
     response.headers["Cache-Control"] = "private, no-store"
     try:
+        demo = getattr(request.app.state, "level2_demo", None)
+        if demo is not None:
+            if request_id := request.headers.get("X-Request-ID"):
+                response.headers["X-Request-ID"] = request_id
+            return demo.recommend(ExploreRecommendationResponse, verified_customer, "EXPLORE", limit, db=db)
         return service.recommend(db, verified_customer, limit)
     except (SQLAlchemyError, ExploreHistoryError):
         raise HTTPException(503, "Personalized purchase evidence unavailable",
@@ -79,6 +109,7 @@ def explore_products(
 @router.get("/{customer_id}/familiar", response_model=FamiliarRecommendationResponse)
 def familiar_products(
     customer_id: str,
+    request: Request,
     response: Response,
     limit: int = Query(default=5, ge=1, le=5),
     verified_customer: str = Depends(authorize_customer),
@@ -87,6 +118,11 @@ def familiar_products(
 ) -> FamiliarRecommendationResponse:
     response.headers["Cache-Control"] = "private, no-store"
     try:
+        demo = getattr(request.app.state, "level2_demo", None)
+        if demo is not None:
+            if request_id := request.headers.get("X-Request-ID"):
+                response.headers["X-Request-ID"] = request_id
+            return demo.recommend(FamiliarRecommendationResponse, verified_customer, "FAMILIAR", limit, db=db)
         return service.recommend(db, verified_customer, limit)
     except (SQLAlchemyError, ExploreHistoryError):
         raise HTTPException(503, "Personalized purchase evidence unavailable",

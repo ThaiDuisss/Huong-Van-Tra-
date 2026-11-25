@@ -82,6 +82,11 @@ class MemoryRepository:
         self._no_database(db)
         return self.products
 
+    def serving_catalog(self, db):
+        # The frozen V1 evaluation vocabulary is the historical candidate set.
+        products = self.active_catalog(db)
+        return products, {product.product_id for product in products}
+
     def popularity(self, db, purchased, limit, eligible_ids=None):
         self._no_database(db)
         candidates = (p for p in self.products if p.product_id not in purchased

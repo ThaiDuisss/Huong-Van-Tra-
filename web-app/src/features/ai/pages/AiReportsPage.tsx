@@ -7,18 +7,21 @@ import { AiReportEditDialog } from "../components/AiReportEditDialog";
 import { AiReportImportDialog } from "../components/AiReportImportDialog";
 import { AiReportExportDialog } from "../components/AiReportExportDialog";
 import { AiReportTable, type AiReportListState } from "../components/AiReportTable";
+import { AiTrainingPanel } from "../components/AiTrainingPanel";
 import { getAiReportApi, type AiReportApi } from "../services/aiReport.api";
 import type { AiReport } from "../types/ai-report.types";
 import { AI_REPORT_PENDING_MESSAGE } from "../utils/ai-report.validation";
 import { aiReportErrorMessage } from "../utils/ai-report.errors";
 import { useAuth } from "../../../auth/auth-context";
+import { hasAnyRole } from "@/auth/auth.utils";
+import { ROLES } from "@/auth/roles";
 import { Pagination } from "../../manufacturing/components/shared/Pagination";
 
 export function AiReportsPage({ api = getAiReportApi() }: { api?: AiReportApi | null }) {
   const [reloadKey, setReloadKey] = useState(0);
   const [page, setPage] = useState(0);
   const [size, setSize] = useState(20);
-  const { keycloakSubject } = useAuth();
+  const { keycloakSubject, roles } = useAuth();
   const request = useMemo(() => ({ api, reloadKey, page, size, actor: keycloakSubject }), [api, reloadKey, page, size, keycloakSubject]);
   const [result, setResult] = useState<{
     request: typeof request;
@@ -158,6 +161,9 @@ export function AiReportsPage({ api = getAiReportApi() }: { api?: AiReportApi | 
           {fileError}
         </p>
       ) : null}
+      {keycloakSubject && hasAnyRole(roles, [ROLES.SUPER_ADMIN]) && (
+        <AiTrainingPanel key={keycloakSubject} />
+      )}
       <AiReportTable
         busy={fileBusy}
         fileActionsAvailable={Boolean(api)}

@@ -1,10 +1,11 @@
 import { apiClient } from "@/api/api-client";
-import type { ApiClient } from "@/lib/api-client";
+import { ApiError, type ApiClient } from "@/lib/api-client";
 import { posProductApi } from "../../sales/services/posProduct.api";
 import { resolvePosVariant } from "../../sales/services/posProductSelection";
 import type {
   ProductRecommendations,
   ProductRecommendation,
+  PersonalizedMode,
   RecommendationMode,
   RecommendedProductView,
 } from "../types/productRecommendation.types";
@@ -48,6 +49,50 @@ function validateResponse(value: unknown, customerId: string | null): ProductRec
 
 export function createProductRecommendationApi(client: ApiClient = apiClient) {
   return {
+    async eligibility(customerId: string, signal: AbortSignal) {
+      if (!uuid.test(customerId)) throw new Error("Không xác định được khách hàng.");
+      let value: unknown;
+      try {
+        value = await client.get<unknown>(
+          `/recommendation/recommendations/${customerId}/eligibility`,
+          { ...recommendationRequestOptions, signal },
+        );
+      } catch (error) {
+        // During a staggered deployment the old Gateway may lack the capability route.
+        if (error instanceof ApiError && error.status === 404) return false;
+        throw error;
+      }
+      if (!isRecord(value) || value.customerId !== customerId || typeof value.enabled !== "boolean") {
+        throw new Error("Phản hồi điều kiện gợi ý không hợp lệ.");
+      }
+      if (!value.enabled) return false;
+      if (typeof value.validOrderCount !== "number" || !Number.isInteger(value.validOrderCount) ||
+          value.validOrderCount < 0) {
+        throw new Error("Không xác định được số đơn hợp lệ.");
+      }
+      return value.validOrderCount >= 5;
+    },
+    async getPersonalized(customerId: string, mode: PersonalizedMode, signal: AbortSignal) {
+      if (!uuid.test(customerId)) throw new Error("Không xác định được khách hàng.");
+      const value = await client.get<unknown>(
+        `/recommendation/recommendations/${customerId}/${mode.toLowerCase()}`,
+        { ...recommendationRequestOptions, signal, query: { limit: 5 } },
+      );
+      if (!isRecord(value) || value.customerId !== customerId || value.mode !== mode ||
+          value.status !== "ELIGIBLE" || !isRecord(value.product)) {
+        throw new Error("Điều kiện gợi ý đã thay đổi. Vui lòng mở lại gợi ý.");
+      }
+      const product = value.product;
+      if (!["PERSONALIZED", "NO_CANDIDATES"].includes(String(product.status))) {
+        throw new Error("Không có dữ liệu để xếp hạng sản phẩm lúc này.");
+      }
+      const serving = isRecord(product.serving) ? product.serving : undefined;
+      return validateResponse({
+        customerId,
+        source: serving?.fallbackApplied === true ? "FALLBACK" : "MODEL",
+        items: product.items,
+      }, customerId);
+    },
     async get(
       customerId: string | null,
       mode: RecommendationMode,

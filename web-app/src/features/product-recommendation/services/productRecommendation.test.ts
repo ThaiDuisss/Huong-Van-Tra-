@@ -65,6 +65,47 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
+describe("POS Level 2 recommendation client", () => {
+  it.each([[4, false], [5, true]] as const)("maps %s valid orders to eligibility %s", async (count, eligible) => {
+    const fetch = vi.fn(async () => Response.json({ customerId: customer, enabled: true, validOrderCount: count }));
+    vi.stubGlobal("fetch", fetch);
+    expect(await client().api.eligibility(customer, new AbortController().signal)).toBe(eligible);
+    const [url] = fetch.mock.calls[0] as unknown as [string];
+    expect(new URL(url).pathname).toBe(`/api/recommendation/recommendations/${customer}/eligibility`);
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps Level 1 available before the eligibility route is deployed", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response("Not found", { status: 404 })));
+    expect(await client().api.eligibility(customer, new AbortController().signal)).toBe(false);
+  });
+
+  it.each(["EXPLORE", "FAMILIAR"] as const)("loads only the selected %s mode and preserves short lists", async (mode) => {
+    const fetch = vi.fn(async () => Response.json({
+      customerId: customer, mode, status: "ELIGIBLE",
+      product: { status: "PERSONALIZED", items: [item], serving: { fallbackApplied: true } },
+    }));
+    vi.stubGlobal("fetch", fetch);
+    const result = await client().api.getPersonalized(customer, mode, new AbortController().signal);
+    const [url, options] = fetch.mock.calls[0] as unknown as [string, RequestInit];
+    expect(new URL(url).pathname).toBe(`/api/recommendation/recommendations/${customer}/${mode.toLowerCase()}`);
+    expect(new Headers(options.headers).has("Idempotency-Key")).toBe(false);
+    expect(result).toMatchObject({ customerId: customer, source: "FALLBACK", items: [item] });
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("rejects a response from any other customer or mode", async () => {
+    const signal = new AbortController().signal;
+    const fetch = vi.fn(async () => Response.json({
+      customerId: customer, mode: "EXPLORE", status: "ELIGIBLE",
+      product: { status: "PERSONALIZED", items: [item] },
+    }));
+    vi.stubGlobal("fetch", fetch);
+    await expect(client().api.getPersonalized(customer, "FAMILIAR", signal)).rejects.toThrow();
+    await expect(client().api.getPersonalized(variantId, "EXPLORE", signal)).rejects.toThrow();
+  });
+});
+
 describe("Product V1 shared client", () => {
   it.each(["DISCOVERY", "REPEAT"] as const)(
     "uses shared JWT, member UUID, %s and UUID key",

@@ -14,13 +14,13 @@ import {
   resolveRecommendedVariant,
 } from "../services/productRecommendation.api";
 import type {
-  RecommendationMode,
+  ProductRecommendationMode,
   RecommendedProductView,
 } from "../types/productRecommendation.types";
 
 export interface RecommendationResultProps {
   customerId: string | null;
-  mode: RecommendationMode;
+  mode: ProductRecommendationMode;
   disabled?: boolean;
   onAdd?(product: SaleProductPreview): Promise<boolean>;
 }
