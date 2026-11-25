@@ -66,6 +66,7 @@ interface DeliveryCheckoutPanelProps {
   onCustomerLoadMore?(): void;
   onAddToCart?(product: SaleProductPreview): Promise<boolean>;
   recommendationEntry?: ReactNode;
+  tasteSurveyScope?: string;
   state: DeliveryCheckoutState;
   totals: SaleTotals;
   onCustomerChange(customerId: string): void;
@@ -93,6 +94,7 @@ export function DeliveryCheckoutPanel({
   onCustomerLoadMore,
   onAddToCart,
   recommendationEntry,
+  tasteSurveyScope,
   state,
   totals,
   onCustomerChange,
@@ -207,6 +209,7 @@ export function DeliveryCheckoutPanel({
             onCreated={onCustomerCreated}
             onClear={onCustomerClear}
             onAddToCart={onAddToCart}
+            tasteSurveyScope={tasteSurveyScope}
           />
           <div className="mt-3">{recommendationEntry}</div>
           <label className="mt-3 flex items-center justify-between rounded-lg border border-[#dbe4ee] bg-[#f8fafc] px-3 py-2 text-sm font-bold text-[#172317]">

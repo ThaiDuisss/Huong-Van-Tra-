@@ -4,7 +4,7 @@ import {
   Coffee,
   Sparkles
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { toast } from "@/components/ui/Toast";
@@ -17,59 +17,28 @@ import {
 } from "../components/CatalogResourceManagement";
 import { usePagedApiResource } from "../hooks/useApiResource";
 import { useCatalogPageState } from "../hooks/useCatalogPageState";
-import { productVariantApi } from "../services/productVariant.api";
 import { variantTasteApi } from "../services/variantTaste.api";
-import {
-  PREPARATION_CODE_OPTIONS,
-  type VariantTasteProfileResponse
-} from "../types/variantTaste.types";
+import { PREPARATION_CODE_OPTIONS } from "../types/variantTaste.types";
 import { formatCurrency } from "../utils/product-formatters";
 
 export function TasteProfileListPage() {
   const navigate = useNavigate();
   const state = useCatalogPageState();
 
-  // Load variants with standard catalog resource hook
-  const loadVariants = useCallback(
+  const loadVariantProfiles = useCallback(
     () =>
-      productVariantApi.list({
+      variantTasteApi.listVariantProfiles({
         page: state.page - 1,
         size: state.pageSize,
         keyword: state.query || undefined,
-        status: state.status === "ALL" ? undefined : state.status
+        status: state.status === "ALL" ? undefined : state.status,
+        profileStatuses: ["APPROVED", "DRAFT"]
       }),
     [state.page, state.pageSize, state.query, state.status]
   );
 
-  const resource = usePagedApiResource(loadVariants);
-  const variants = resource.data?.content ?? [];
-
-  // Profiles cache for visible variants
-  const [profilesMap, setProfilesMap] = useState<Record<string, VariantTasteProfileResponse[]>>({});
-
-  useEffect(() => {
-    let active = true;
-    if (variants.length === 0) return;
-
-    Promise.all(
-      variants.map(async (v) => {
-        try {
-          const profs = await variantTasteApi.getVariantProfiles(String(v.id));
-          return [String(v.id), profs.content || []] as [string, VariantTasteProfileResponse[]];
-        } catch {
-          return [String(v.id), []] as [string, VariantTasteProfileResponse[]];
-        }
-      })
-    ).then((entries) => {
-      if (active) {
-        setProfilesMap((prev) => ({ ...prev, ...Object.fromEntries(entries) }));
-      }
-    });
-
-    return () => {
-      active = false;
-    };
-  }, [variants]);
+  const resource = usePagedApiResource(loadVariantProfiles);
+  const items = resource.data?.content ?? [];
 
   // Multi-select state for bulk actions
   const [selectedVariantIds, setSelectedVariantIds] = useState<Set<string | number>>(new Set());
@@ -86,27 +55,27 @@ export function TasteProfileListPage() {
     });
   };
 
-  const isAllSelected = variants.length > 0 && variants.every((v) => selectedVariantIds.has(v.id));
+  const isAllSelected = items.length > 0 && items.every((item) => selectedVariantIds.has(item.id));
 
   const handleToggleSelectAll = () => {
     if (isAllSelected) {
       setSelectedVariantIds((prev) => {
         const next = new Set(prev);
-        variants.forEach((v) => next.delete(v.id));
+        items.forEach((item) => next.delete(item.id));
         return next;
       });
     } else {
       setSelectedVariantIds((prev) => {
         const next = new Set(prev);
-        variants.forEach((v) => next.add(v.id));
+        items.forEach((item) => next.add(item.id));
         return next;
       });
     }
   };
 
   const selectedVariants = useMemo(() => {
-    return variants.filter((v) => selectedVariantIds.has(v.id));
-  }, [variants, selectedVariantIds]);
+    return items.filter((item) => selectedVariantIds.has(item.id)).map((item) => item.variant);
+  }, [items, selectedVariantIds]);
 
   const columns: Column[] = [
     { key: "variant", label: "Mặt hàng / Biến thể" },
@@ -124,7 +93,7 @@ export function TasteProfileListPage() {
         searchPlaceholder="Tìm theo tên sản phẩm, tên mặt hàng, SKU..."
         totalItemsLabel="Tổng số Mặt hàng"
         columns={columns}
-        items={variants}
+        items={items}
         loading={resource.loading}
         error={resource.error}
         query={state.query}
@@ -139,17 +108,17 @@ export function TasteProfileListPage() {
         onPageSizeChange={state.setPageSize}
         editLabel="Gán khẩu vị"
         editIcon={<Sparkles size={14} />}
-        onEdit={(variant) => {
-          navigate(`/system/taste-profiles/edit/${variant.id}`, {
-            state: { variant }
+        onEdit={(item) => {
+          navigate(`/system/taste-profiles/edit/${item.variant.id}`, {
+            state: { variant: item.variant }
           });
         }}
         onRefresh={() => {
           resource.refresh();
         }}
         onSubmit={async () => {}}
-        renderDetail={(variant) => {
-          const profs = profilesMap[String(variant.id)] || [];
+        renderDetail={(item) => {
+          const { variant, profiles: profs } = item;
           const approved = profs.find((p) => p.status === "APPROVED");
           const draft = profs.find((p) => p.status === "DRAFT");
           const profile = approved || draft;
@@ -272,8 +241,8 @@ export function TasteProfileListPage() {
             </ActionButton>
           </>
         }
-        renderCells={(variant) => {
-          const profs = profilesMap[String(variant.id)] || [];
+        renderCells={(item) => {
+          const { variant, profiles: profs } = item;
           const approvedProfile = profs.find((p) => p.status === "APPROVED");
           const draftProfile = profs.find((p) => p.status === "DRAFT");
           const currentProfile = approvedProfile || draftProfile || null;

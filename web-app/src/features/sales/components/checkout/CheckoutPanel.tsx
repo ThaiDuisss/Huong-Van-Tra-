@@ -1,6 +1,5 @@
 import { useEffect, useState, type ReactNode } from "react";
 
-import { AddDebtAction } from "./AddDebtAction";
 import { CashReceivedInput } from "./CashReceivedInput";
 import { CompletePaymentButton } from "./CompletePaymentButton";
 import { CustomerSelector } from "./CustomerCard";
@@ -8,7 +7,6 @@ import { DiscountSelector } from "./DiscountSelector";
 import { OrderTotals } from "./OrderTotals";
 import { PaymentMethodGrid } from "./PaymentMethodGrid";
 import { QuickCashButtons } from "./QuickCashButtons";
-import { ReturnMoneyAction } from "./ReturnMoneyAction";
 import { BankTransferDialog } from "../dialogs/BankTransferDialog";
 import { CombinedPaymentDialog } from "../dialogs/CombinedPaymentDialog";
 import type { PaymentStatusValue } from "../dialogs/PaymentStatus";
@@ -55,6 +53,7 @@ interface CheckoutPanelProps {
     onCustomerLoadMore?(): void;
     onAddToCart?(product: SaleProductPreview): Promise<boolean>;
     recommendationEntry?: ReactNode;
+    tasteSurveyScope?: string;
     /** Số tiền phải thu ở lần này (tiền cọc của đơn chờ hàng). Mặc định là tổng tiền. */
     amountDue?: number;
     /** Thông báo đơn chờ hàng kèm lựa chọn thu đủ / đặt cọc. */
@@ -106,6 +105,7 @@ export function CheckoutPanel({
     onCustomerLoadMore,
     onAddToCart,
     recommendationEntry,
+    tasteSurveyScope,
     amountDue,
     backorderNotice,
     paymentBlocked = false,
@@ -165,6 +165,7 @@ export function CheckoutPanel({
                 onCreated={onCustomerCreated}
                 onClear={onCustomerClear}
                 invoiceId={bankTransferReferenceCode}
+                tasteSurveyScope={tasteSurveyScope}
                 onAddToCart={onAddToCart}
             />
 
@@ -237,11 +238,6 @@ export function CheckoutPanel({
                     }
                 }}
             />
-
-            <div className="grid grid-cols-2 gap-3">
-                <ReturnMoneyAction onClick={() => undefined} />
-                <AddDebtAction onClick={() => undefined} />
-            </div>
 
             {checkoutError ? (
                 <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700">

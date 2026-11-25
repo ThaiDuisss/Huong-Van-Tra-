@@ -1,3 +1,5 @@
+import type { ProductVariant } from "./product.types";
+
 export type VariantTasteProfileStatus = "DRAFT" | "APPROVED" | "STALE" | "RETIRED";
 
 export interface PreparationProtocol {
@@ -46,6 +48,12 @@ export interface VariantTasteProfileResponse {
   rowVersion: number;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface VariantTasteProfilesPageItem {
+  id: string;
+  variant: ProductVariant;
+  profiles: VariantTasteProfileResponse[];
 }
 
 export const PREPARATION_CODE_OPTIONS = [

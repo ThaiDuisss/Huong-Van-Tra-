@@ -2,11 +2,13 @@ import { ChevronDown, Sparkles, User, X } from "lucide-react";
 import { useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 
+import { Button } from "../../../../components/ui/Button";
 import { Dialog } from "../../../../components/ui/dialog";
 import { CustomerCreateDialog } from "../../../customer/components/CustomerCreateDialog";
 import { CustomerSearchDialog } from "../dialogs/CustomerSearchDialog";
 import { CustomerTasteSurveyDialog } from "../../../customer/components/CustomerTasteSurveyDialog";
 import { tasteSurveyApi } from "../../../customer/services/tasteSurvey.api";
+import { useGuestTasteSurvey } from "../../../customer/services/guestTasteSurvey";
 import { toSaleCustomer } from "../../services/posCustomer.api";
 import type { SaleCustomer, SaleProductPreview } from "../../types/sale.types";
 
@@ -17,6 +19,7 @@ interface CustomerSelectorProps {
   error: string;
   disabled?: boolean;
   invoiceId?: string;
+  tasteSurveyScope?: string;
   onSearch?(query: string): void;
   onLoadMore?(): void;
   hasMore?: boolean;
@@ -34,6 +37,7 @@ export function CustomerSelector({
   error,
   disabled,
   invoiceId,
+  tasteSurveyScope,
   onSearch,
   onLoadMore,
   hasMore,
@@ -46,7 +50,7 @@ export function CustomerSelector({
   const [open, setOpen] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const [openSurveyContext, setOpenSurveyContext] = useState<string | null>(null);
-  const surveyContext = selectedCustomer ? `${invoiceId ?? ""}:${selectedCustomer.id}` : null;
+  const surveyContext = `${invoiceId ?? ""}:${selectedCustomer?.id ?? "guest"}`;
   const triggerRef = useRef<HTMLButtonElement>(null);
 
   // Check customer taste survey history
@@ -56,8 +60,9 @@ export function CustomerSelector({
     enabled: !!selectedCustomer?.id
   });
 
-  const hasSurvey = (surveyHistory?.totalElements || 0) > 0;
-  const isNewOrNoSurvey = !selectedCustomer || selectedCustomer.orderCount === 0 || !hasSurvey;
+  const guestSurvey = useGuestTasteSurvey(selectedCustomer ? undefined : tasteSurveyScope);
+  const hasSurvey = selectedCustomer ? (surveyHistory?.totalElements || 0) > 0 : guestSurvey !== null;
+  const isNewOrNoSurvey = !hasSurvey;
 
   function openCreateDialog() {
     setOpen(false);
@@ -72,12 +77,12 @@ export function CustomerSelector({
   }
 
   return (
-    <section className="relative grid shrink-0 gap-2.5 border-b border-pos-border pb-3">
+    <section className="relative grid min-w-0 shrink-0 grid-cols-1 gap-2.5 border-b border-pos-border pb-3">
       <h2 className="text-base font-bold text-gray-500">
         Khách hàng
       </h2>
       <div
-        className={`flex min-h-14 items-center gap-2 rounded-xl border px-3 focus-within:outline focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-hvt-green-700 ${
+        className={`flex min-h-14 min-w-0 items-center gap-2 rounded-xl border px-3 focus-within:outline focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-hvt-green-700 ${
           open
             ? "border-hvt-green-800"
             : "border-pos-border hover:border-hvt-green-400"
@@ -102,13 +107,25 @@ export function CustomerSelector({
             <strong className="block truncate text-sm text-gray-500">
               {selectedCustomer?.name ?? "Chọn khách hàng"}
             </strong>
-            <span className="text-xs text-[#53678f]">
+            <span className="block truncate text-xs text-[#53678f]">
               {selectedCustomer
                 ? selectedCustomer.phone || selectedCustomer.customerCode
                 : "Tìm theo tên, SĐT hoặc mã KH"}
             </span>
           </div>
         </button>
+
+        <Button
+          className="shrink-0 whitespace-nowrap"
+          disabled={disabled}
+          onClick={() => setOpenSurveyContext(surveyContext)}
+          size="sm"
+          title={isNewOrNoSurvey ? "Khảo sát khẩu vị khách hàng" : "Cập nhật khẩu vị khách hàng"}
+          variant={isNewOrNoSurvey ? "primary" : "secondary"}
+        >
+          <Sparkles size={14} aria-hidden="true" />
+          {isNewOrNoSurvey ? "Khảo sát" : "Cập nhật"}
+        </Button>
 
         {selectedCustomer ? (
           <button
@@ -128,40 +145,6 @@ export function CustomerSelector({
           />
         )}
       </div>
-
-      {/* Taste Survey Trigger Action */}
-      {selectedCustomer && (
-        <div className="flex items-center justify-between gap-2 rounded-xl border border-emerald-100 bg-emerald-50/60 p-2.5 transition">
-          <div className="flex items-center gap-2 min-w-0">
-            <div className="grid size-7 shrink-0 place-items-center rounded-lg bg-emerald-100 text-emerald-700">
-              <Sparkles size={16} aria-hidden="true" />
-            </div>
-            <div className="min-w-0">
-              <p className="truncate text-xs font-semibold text-emerald-950">
-                {isNewOrNoSurvey ? "Khách mới / Chưa có hồ sơ" : "Đã có hồ sơ khẩu vị"}
-              </p>
-              <p className="truncate text-[11px] text-emerald-700">
-                {isNewOrNoSurvey
-                  ? `${selectedCustomer.orderCount} đơn hàng · Khảo sát để tư vấn trà`
-                  : `${surveyHistory?.totalElements ?? 1} lần khảo sát · Cập nhật sở thích`}
-              </p>
-            </div>
-          </div>
-
-          <button
-            type="button"
-            disabled={disabled}
-            onClick={() => setOpenSurveyContext(surveyContext)}
-            className={`shrink-0 rounded-lg px-2.5 py-1.5 text-xs font-bold transition shadow-xs ${
-              isNewOrNoSurvey
-                ? "bg-emerald-600 text-white hover:bg-emerald-700 active:scale-95"
-                : "border border-emerald-300 bg-white text-emerald-700 hover:bg-emerald-50 active:scale-95"
-            }`}
-          >
-            {isNewOrNoSurvey ? "Khảo sát khẩu vị" : "Cập nhật khẩu vị"}
-          </button>
-        </div>
-      )}
 
       <CustomerSearchDialog
         open={open && !disabled}
@@ -190,12 +173,13 @@ export function CustomerSelector({
       </Dialog>
 
       {/* Customer Taste Survey Modal */}
-      {selectedCustomer && surveyContext && openSurveyContext === surveyContext && (
+      {openSurveyContext === surveyContext && (
         <CustomerTasteSurveyDialog
           key={surveyContext}
           open
           customer={selectedCustomer}
           invoiceId={invoiceId}
+          guestScope={tasteSurveyScope}
           onClose={() => setOpenSurveyContext(null)}
           onAddToCart={onAddToCart}
           onSurveySubmitted={() => {

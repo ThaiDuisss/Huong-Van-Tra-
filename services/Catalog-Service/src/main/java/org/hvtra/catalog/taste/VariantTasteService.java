@@ -6,17 +6,27 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 import lombok.RequiredArgsConstructor;
+import org.hvtra.catalog.dto.response.PageResponse;
+import org.hvtra.catalog.dto.response.ProductResponse;
 import org.hvtra.catalog.entity.ProductVariant;
 import org.hvtra.catalog.enums.Status;
 import org.hvtra.catalog.repository.ProductVariantRepository;
+import org.hvtra.catalog.service.ProductVariantService;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.time.LocalDateTime;
+import java.util.HashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -25,9 +35,13 @@ class VariantTasteService {
     private final VariantTasteProfileRepository profiles;
     private final TasteTaxonomyRepository taxonomies;
     private final ProductVariantRepository variants;
+    private final ProductVariantService productVariants;
     private final TasteComposition composition;
     private final TasteManifest manifests;
     private final TasteDocuments documents;
+
+    private static final Set<VariantTasteProfile.State> DEFAULT_LIST_STATUSES =
+            Set.of(VariantTasteProfile.State.APPROVED, VariantTasteProfile.State.DRAFT);
 
     public Page<Response> history(UUID variantId, int page, int size) {
         TasteAccess.readTaxonomy();
@@ -38,6 +52,57 @@ class VariantTasteService {
         Eligibility eligibility = eligibility(variant);
         return profiles.findByVariantIdOrderByProfileRevisionDesc(variantId, PageRequest.of(page, size))
                 .map(profile -> response(profile, eligibility));
+    }
+
+    public PageResponse<VariantProfilesResponse> listVariantProfiles(
+            String keyword,
+            Status status,
+            Set<VariantTasteProfile.State> profileStatuses,
+            Pageable pageable) {
+        TasteAccess.readTaxonomy();
+        PageResponse<ProductResponse.VariantSummaryResponse> page =
+                productVariants.findAll(keyword, null, null, null, null, null, status, false, pageable);
+        if (page.content().isEmpty()) {
+            return new PageResponse<>(
+                    List.of(), page.page(), page.size(), page.totalElements(), page.totalPages(), page.first(), page.last());
+        }
+
+        Set<UUID> variantIds = page.content().stream()
+                .map(ProductResponse.VariantSummaryResponse::id)
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+        Set<VariantTasteProfile.State> effectiveStatuses =
+                profileStatuses == null || profileStatuses.isEmpty() ? DEFAULT_LIST_STATUSES : profileStatuses;
+
+        List<VariantTasteProfile> found =
+                profiles.findByVariantIdInAndStatusInOrderByVariantIdAscProfileRevisionDesc(variantIds, effectiveStatuses);
+
+        Set<UUID> approvedVariantIds = found.stream()
+                .filter(p -> p.getStatus() == VariantTasteProfile.State.APPROVED)
+                .map(VariantTasteProfile::getVariantId)
+                .collect(Collectors.toSet());
+        Map<UUID, Eligibility> eligibilityByVariant = new HashMap<>();
+        if (!approvedVariantIds.isEmpty()) {
+            for (ProductVariant variant : variants.findAllByIdWithDetails(approvedVariantIds)) {
+                Eligibility eligibility = eligibility(variant);
+                if (eligibility != null) {
+                    eligibilityByVariant.put(variant.getId(), eligibility);
+                }
+            }
+        }
+
+        Map<UUID, List<Response>> profilesByVariant = found.stream()
+                .collect(Collectors.groupingBy(
+                        VariantTasteProfile::getVariantId,
+                        Collectors.mapping(
+                                p -> response(p, eligibilityByVariant.get(p.getVariantId())),
+                                Collectors.toList())));
+
+        List<VariantProfilesResponse> items = page.content().stream()
+                .map(v -> new VariantProfilesResponse(v.id(), v, profilesByVariant.getOrDefault(v.id(), List.of())))
+                .toList();
+
+        return new PageResponse<>(
+                items, page.page(), page.size(), page.totalElements(), page.totalPages(), page.first(), page.last());
     }
 
     public Response detail(UUID id) {
@@ -271,6 +336,9 @@ class VariantTasteService {
                     JsonNode sensoryValues, String sourceMethod, UUID assessedBy, Instant assessedAt,
                     UUID approvedBy, Instant approvedAt, String profileSha256, VariantTasteProfile.State status,
                     boolean rankable, long rowVersion, Instant createdAt, Instant updatedAt) {
+    }
+
+    record VariantProfilesResponse(UUID id, ProductResponse.VariantSummaryResponse variant, List<Response> profiles) {
     }
 
     private record Eligibility(long revision, String digest) {

@@ -1,10 +1,12 @@
 import { apiClient } from "@/api/api-client";
 import type { PageResponse } from "../../customer/types/customer.types";
 import type { TasteTaxonomy } from "../../customer/services/tasteSurvey.api";
+import type { CatalogQuery, PageResult } from "../types/product.types";
 import type {
   AssessmentPayload,
   CreateTasteProfileDraft,
-  VariantTasteProfileResponse
+  VariantTasteProfileResponse,
+  VariantTasteProfilesPageItem
 } from "../types/variantTaste.types";
 
 export interface BomItemDetail {
@@ -33,6 +35,23 @@ export const variantTasteApi = {
     return apiClient.get<PageResponse<VariantTasteProfileResponse>>(
       `/catalog/product-variants/${encodeURIComponent(variantId)}/taste-profiles`,
       { query: { page, size } }
+    );
+  },
+
+  listVariantProfiles(
+    query: CatalogQuery & { profileStatuses?: string[] } = {}
+  ) {
+    return apiClient.get<PageResult<VariantTasteProfilesPageItem>>(
+      "/catalog/taste-profiles",
+      {
+        query: {
+          page: query.page,
+          size: query.size,
+          keyword: query.keyword,
+          status: query.status,
+          profileStatuses: query.profileStatuses
+        }
+      }
     );
   },
 

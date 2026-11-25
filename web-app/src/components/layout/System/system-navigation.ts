@@ -131,13 +131,6 @@ export const systemNavigationItems: SystemNavigationItem[] = [
         roles: PRODUCT_ROLES,
       },
       {
-        key: "taste-profiles",
-        label: "Tiêu chuẩn khẩu vị",
-        to: routePaths.tasteProfiles,
-        icon: Sparkles,
-        roles: TASTE_PROFILE_ROLES,
-      },
-      {
         key: "catalog-categories",
         label: "Danh mục sản phẩm",
         to: routePaths.categories,
@@ -407,6 +400,13 @@ export const systemNavigationItems: SystemNavigationItem[] = [
         to: routePaths.productRecommendations,
         icon: Sparkles,
         roles: POS_WORKSPACE_ROLES,
+      },
+      {
+        key: "taste-profiles",
+        label: "Tiêu chuẩn khẩu vị",
+        to: routePaths.tasteProfiles,
+        icon: Sparkles,
+        roles: TASTE_PROFILE_ROLES,
       },
     ],
   },
