@@ -39,7 +39,7 @@ export interface TasteSurvey {
 }
 
 interface TasteSurveySubmission {
-    customerId: string;
+    customerId: string | null;
     originInvoiceId: string;
     taxonomyVersion: string;
     taxonomySha256: string;
@@ -70,7 +70,7 @@ export const tasteSurveyApi = {
         const draft = await apiClient.post<TasteSurvey>(surveyPath, input, {
             headers: { "Idempotency-Key": keys.create }
         });
-        if (!draft.id || !draft.sessionId || draft.customerId !== input.customerId ||
+        if (!draft.id || !draft.sessionId || (draft.customerId ?? null) !== (input.customerId ?? null) ||
             draft.originInvoiceId !== input.originInvoiceId || draft.taxonomyVersion !== input.taxonomyVersion ||
             draft.taxonomySha256 !== input.taxonomySha256) {
             throw new Error("Bản khảo sát không khớp khách hàng, hóa đơn hoặc bộ tiêu chí.");
@@ -87,7 +87,7 @@ export const tasteSurveyApi = {
             }
         );
         if (submitted.status !== "SUBMITTED" || submitted.id !== draft.id ||
-            submitted.customerId !== input.customerId || submitted.taxonomyVersion !== input.taxonomyVersion ||
+            (submitted.customerId ?? null) !== (input.customerId ?? null) || submitted.taxonomyVersion !== input.taxonomyVersion ||
             submitted.taxonomySha256 !== input.taxonomySha256 || !submitted.submittedAt) {
             throw new Error("Máy chủ chưa xác nhận khảo sát đã gửi.");
         }

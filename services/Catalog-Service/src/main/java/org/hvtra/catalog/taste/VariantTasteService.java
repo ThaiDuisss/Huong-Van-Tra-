@@ -5,18 +5,35 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.Size;
 import lombok.RequiredArgsConstructor;
+import org.hvtra.catalog.dto.response.PageResponse;
+import org.hvtra.catalog.dto.response.ProductResponse;
 import org.hvtra.catalog.entity.ProductVariant;
 import org.hvtra.catalog.enums.Status;
+import org.hvtra.catalog.mapper.ProductMapper;
 import org.hvtra.catalog.repository.ProductVariantRepository;
+import org.hvtra.catalog.service.ProductVariantService;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.Instant;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -25,9 +42,15 @@ class VariantTasteService {
     private final VariantTasteProfileRepository profiles;
     private final TasteTaxonomyRepository taxonomies;
     private final ProductVariantRepository variants;
+    private final ProductVariantService productVariants;
+    private final ProductMapper productMapper;
     private final TasteComposition composition;
     private final TasteManifest manifests;
     private final TasteDocuments documents;
+    private final PlatformTransactionManager transactionManager;
+
+    private static final Set<VariantTasteProfile.State> DEFAULT_LIST_STATUSES =
+            Set.of(VariantTasteProfile.State.APPROVED, VariantTasteProfile.State.DRAFT);
 
     public Page<Response> history(UUID variantId, int page, int size) {
         TasteAccess.readTaxonomy();
@@ -38,6 +61,54 @@ class VariantTasteService {
         Eligibility eligibility = eligibility(variant);
         return profiles.findByVariantIdOrderByProfileRevisionDesc(variantId, PageRequest.of(page, size))
                 .map(profile -> response(profile, eligibility));
+    }
+
+    public PageResponse<VariantProfilesResponse> listVariantProfiles(
+            String keyword,
+            Status status,
+            Set<VariantTasteProfile.State> profileStatuses,
+            Pageable pageable) {
+        TasteAccess.readTaxonomy();
+        Page<ProductVariant> page = productVariants.findAllEntities(keyword, status, pageable);
+        List<ProductVariant> loadedVariants = page.getContent();
+        if (loadedVariants.isEmpty()) {
+            return new PageResponse<>(
+                    List.of(), page.getNumber(), page.getSize(), page.getTotalElements(),
+                    page.getTotalPages(), page.isFirst(), page.isLast());
+        }
+
+        Set<UUID> variantIds = loadedVariants.stream()
+                .map(ProductVariant::getId)
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+        Set<VariantTasteProfile.State> effectiveStatuses =
+                profileStatuses == null || profileStatuses.isEmpty() ? DEFAULT_LIST_STATUSES : profileStatuses;
+
+        List<VariantTasteProfile> found =
+                profiles.findByVariantIdInAndStatusInOrderByVariantIdAscProfileRevisionDesc(variantIds, effectiveStatuses);
+
+        Set<UUID> approvedVariantIds = found.stream()
+                .filter(p -> p.getStatus() == VariantTasteProfile.State.APPROVED)
+                .map(VariantTasteProfile::getVariantId)
+                .collect(Collectors.toSet());
+        Map<UUID, Eligibility> eligibilityByVariant = eligibilities(loadedVariants, approvedVariantIds);
+
+        Map<UUID, List<Response>> profilesByVariant = found.stream()
+                .collect(Collectors.groupingBy(
+                        VariantTasteProfile::getVariantId,
+                        Collectors.mapping(
+                                p -> response(p, eligibilityByVariant.get(p.getVariantId())),
+                                Collectors.toList())));
+
+        List<VariantProfilesResponse> items = loadedVariants.stream()
+                .map(v -> new VariantProfilesResponse(
+                        v.getId(),
+                        productMapper.toVariantSummary(v),
+                        profilesByVariant.getOrDefault(v.getId(), List.of())))
+                .toList();
+
+        return new PageResponse<>(
+                items, page.getNumber(), page.getSize(), page.getTotalElements(),
+                page.getTotalPages(), page.isFirst(), page.isLast());
     }
 
     public Response detail(UUID id) {
@@ -52,6 +123,125 @@ class VariantTasteService {
         UUID actor = TasteAccess.assess();
         composition.lockWrites();
         return create(availableVariant(variantId), request, actor);
+    }
+
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    public BulkDraftResponse bulkDraft(BulkDraft request) {
+        UUID actor = TasteAccess.assess();
+        TasteTaxonomy taxonomy = taxonomies.findByVersionCode(request.taxonomyVersion())
+                .orElseThrow(() -> TasteFailure.notFound("TASTE_TAXONOMY_NOT_FOUND", "Không tìm thấy taxonomy"));
+        TasteManifest.Release release = published(taxonomy);
+
+        Set<UUID> uniqueIds = new LinkedHashSet<>(request.variantIds());
+        Map<UUID, List<VariantTasteProfile>> profilesByVariant = profiles
+                .findByVariantIdInAndStatusInOrderByVariantIdAscProfileRevisionDesc(uniqueIds, DEFAULT_LIST_STATUSES)
+                .stream()
+                .collect(Collectors.groupingBy(VariantTasteProfile::getVariantId));
+
+        TransactionTemplate itemTx = new TransactionTemplate(transactionManager);
+        itemTx.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+
+        List<BulkDraftItemResult> results = new ArrayList<>(uniqueIds.size());
+        int successCount = 0;
+        int errorCount = 0;
+
+        for (UUID variantId : uniqueIds) {
+            try {
+                VariantTasteProfile existing = pickEditableProfile(
+                        profilesByVariant.getOrDefault(variantId, List.of()), taxonomy.getManifestSha256());
+                Assessment merged = mergeBulkAssessment(request, existing);
+                Response saved = itemTx.execute(status -> {
+                    composition.lockWrites();
+                    if (existing != null && existing.getStatus() == VariantTasteProfile.State.DRAFT) {
+                        VariantTasteProfile managed = editable(existing.getId(), existing.getRowVersion());
+                        ProductVariant variant = availableVariant(managed.getVariantId());
+                        requireCurrentBasis(managed, variant, false);
+                        assess(managed, merged, release, actor);
+                        return response(profiles.saveAndFlush(managed), null);
+                    }
+                    return create(availableVariant(variantId), new Draft(request.taxonomyVersion(), merged), actor);
+                });
+                results.add(new BulkDraftItemResult(variantId, true, null, saved));
+                successCount++;
+            } catch (RuntimeException ex) {
+                results.add(new BulkDraftItemResult(variantId, false, ex.getMessage(), null));
+                errorCount++;
+            }
+        }
+        return new BulkDraftResponse(uniqueIds.size(), successCount, errorCount, results);
+    }
+
+    private VariantTasteProfile pickEditableProfile(List<VariantTasteProfile> list, String taxonomySha256) {
+        VariantTasteProfile approved = null;
+        for (VariantTasteProfile profile : list) {
+            if (!taxonomySha256.equals(profile.getTaxonomy().getManifestSha256())) {
+                continue;
+            }
+            if (profile.getStatus() == VariantTasteProfile.State.DRAFT) {
+                return profile;
+            }
+            if (approved == null && profile.getStatus() == VariantTasteProfile.State.APPROVED) {
+                approved = profile;
+            }
+        }
+        return approved;
+    }
+
+    private Assessment mergeBulkAssessment(BulkDraft request, VariantTasteProfile existing) {
+        String prepCode = request.updatePreparationCode()
+                && request.preparationCode() != null && !request.preparationCode().isBlank()
+                ? request.preparationCode()
+                : (existing != null ? existing.getPreparationCode() : "HOT_BREW");
+
+        ObjectNode sensoryNode = documents.object();
+        if (existing != null && existing.getSensoryValues() != null && existing.getSensoryValues().isObject()) {
+            existing.getSensoryValues().fields().forEachRemaining(entry -> sensoryNode.set(entry.getKey(), entry.getValue()));
+        }
+        Set<String> enabledAttrs = request.enabledAttributes() != null ? request.enabledAttributes() : Set.of();
+        Map<String, List<String>> requestedSensory = request.sensoryValues() != null ? request.sensoryValues() : Map.of();
+        for (String attrCode : enabledAttrs) {
+            List<String> values = requestedSensory.get(attrCode);
+            if (values != null && !values.isEmpty()) {
+                var array = sensoryNode.putArray(attrCode);
+                values.forEach(array::add);
+            } else {
+                sensoryNode.remove(attrCode);
+            }
+        }
+
+        ObjectNode protocolNode = documents.object();
+        if (existing != null && existing.getPreparationProtocol() != null && existing.getPreparationProtocol().isObject()) {
+            existing.getPreparationProtocol().fields().forEachRemaining(entry -> protocolNode.set(entry.getKey(), entry.getValue()));
+        }
+        if (request.updateWaterTemperatureCelsius()) {
+            if (request.waterTemperatureCelsius() != null) {
+                protocolNode.put("waterTemperatureCelsius", request.waterTemperatureCelsius());
+            } else {
+                protocolNode.remove("waterTemperatureCelsius");
+            }
+        }
+        if (request.updateSteepTimeSeconds()) {
+            if (request.steepTimeSeconds() != null) {
+                protocolNode.put("steepTimeSeconds", request.steepTimeSeconds());
+            } else {
+                protocolNode.remove("steepTimeSeconds");
+            }
+        }
+        if (request.updateDescription()) {
+            if (request.description() != null && !request.description().isBlank()) {
+                protocolNode.put("description", request.description());
+            } else {
+                protocolNode.remove("description");
+            }
+        }
+        if (!protocolNode.hasNonNull("instructions") || protocolNode.path("instructions").asText("").isBlank()) {
+            protocolNode.put("instructions", protocolNode.path("description").asText("Pha theo tiêu chuẩn"));
+        }
+        if (!protocolNode.hasNonNull("servingBasis") || protocolNode.path("servingBasis").asText("").isBlank()) {
+            protocolNode.put("servingBasis", "100ml");
+        }
+
+        return new Assessment(prepCode, protocolNode, sensoryNode, request.sourceMethod());
     }
 
     @Transactional
@@ -221,6 +411,28 @@ class VariantTasteService {
                 ? new Eligibility(variant.getCompositionRevision(), basis.digest()) : null;
     }
 
+    private Map<UUID, Eligibility> eligibilities(List<ProductVariant> loadedVariants, Set<UUID> approvedVariantIds) {
+        if (approvedVariantIds.isEmpty()) {
+            return Map.of();
+        }
+        List<ProductVariant> eligibleVariants = loadedVariants.stream()
+                .filter(v -> approvedVariantIds.contains(v.getId()))
+                .filter(v -> sellableVariant(v) && v.getCompositionRevision() > 0)
+                .toList();
+        if (eligibleVariants.isEmpty()) {
+            return Map.of();
+        }
+        Map<UUID, TasteComposition.Basis> bases = composition.inspectAll(eligibleVariants);
+        Map<UUID, Eligibility> result = new HashMap<>(eligibleVariants.size());
+        for (ProductVariant variant : eligibleVariants) {
+            TasteComposition.Basis basis = bases.get(variant.getId());
+            if (basis != null && basis.valid() && basis.digest().equals(variant.getCompositionSha256())) {
+                result.put(variant.getId(), new Eligibility(variant.getCompositionRevision(), basis.digest()));
+            }
+        }
+        return result;
+    }
+
     private VariantTasteProfile editable(UUID id, long version) {
         VariantTasteProfile profile = get(id);
         TasteFailure.matchVersion(profile, version);
@@ -271,6 +483,31 @@ class VariantTasteService {
                     JsonNode sensoryValues, String sourceMethod, UUID assessedBy, Instant assessedAt,
                     UUID approvedBy, Instant approvedAt, String profileSha256, VariantTasteProfile.State status,
                     boolean rankable, long rowVersion, Instant createdAt, Instant updatedAt) {
+    }
+
+    record VariantProfilesResponse(UUID id, ProductResponse.VariantSummaryResponse variant, List<Response> profiles) {
+    }
+
+    record BulkDraft(
+            @NotNull @Size(min = 1, max = 100) List<UUID> variantIds,
+            @NotNull @Pattern(regexp = TasteDocuments.VERSION_CODE) String taxonomyVersion,
+            @Pattern(regexp = "[A-Z][A-Z0-9_]{0,79}") String preparationCode,
+            boolean updatePreparationCode,
+            Map<String, List<String>> sensoryValues,
+            Set<String> enabledAttributes,
+            Integer waterTemperatureCelsius,
+            boolean updateWaterTemperatureCelsius,
+            Integer steepTimeSeconds,
+            boolean updateSteepTimeSeconds,
+            String description,
+            boolean updateDescription,
+            @NotNull @Pattern(regexp = "[A-Z][A-Z0-9_]{0,29}") String sourceMethod) {
+    }
+
+    record BulkDraftItemResult(UUID variantId, boolean success, String error, Response profile) {
+    }
+
+    record BulkDraftResponse(int total, int successCount, int errorCount, List<BulkDraftItemResult> results) {
     }
 
     private record Eligibility(long revision, String digest) {

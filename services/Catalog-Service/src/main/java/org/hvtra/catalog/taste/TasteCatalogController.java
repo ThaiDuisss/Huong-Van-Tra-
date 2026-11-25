@@ -3,6 +3,10 @@ package org.hvtra.catalog.taste;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.hvtra.catalog.dto.response.PageResponse;
+import org.hvtra.catalog.enums.Status;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.http.CacheControl;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseEntity;
@@ -18,6 +22,8 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.net.URI;
+import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 @RestController
@@ -79,11 +85,27 @@ public class TasteCatalogController {
         return created(profile.create(variantId, body));
     }
 
+    @PostMapping(PROFILES + "/bulk-draft")
+    public ResponseEntity<VariantTasteService.BulkDraftResponse> bulkDraft(
+            @Valid @RequestBody VariantTasteService.BulkDraft body) {
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(profile.bulkDraft(body));
+    }
+
     @GetMapping(VARIANT_PROFILES)
     public ResponseEntity<PageResponse<VariantTasteService.Response>> history(@PathVariable UUID variantId,
             @RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "20") int size) {
         return ResponseEntity.ok().cacheControl(CacheControl.noStore())
                 .body(PageResponse.from(profile.history(variantId, page, size)));
+    }
+
+    @GetMapping(PROFILES)
+    public ResponseEntity<PageResponse<VariantTasteService.VariantProfilesResponse>> listVariantProfiles(
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) Status status,
+            @RequestParam(required = false) Set<VariantTasteProfile.State> profileStatuses,
+            @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore())
+                .body(profile.listVariantProfiles(keyword, status, profileStatuses, pageable));
     }
 
     @GetMapping(PROFILES + "/{profileId}")

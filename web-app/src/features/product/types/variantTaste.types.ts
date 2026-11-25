@@ -1,3 +1,5 @@
+import type { ProductVariant } from "./product.types";
+
 export type VariantTasteProfileStatus = "DRAFT" | "APPROVED" | "STALE" | "RETIRED";
 
 export interface PreparationProtocol {
@@ -46,6 +48,42 @@ export interface VariantTasteProfileResponse {
   rowVersion: number;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface VariantTasteProfilesPageItem {
+  id: string;
+  variant: ProductVariant;
+  profiles: VariantTasteProfileResponse[];
+}
+
+export interface BulkDraftPayload {
+  variantIds: string[];
+  taxonomyVersion: string;
+  preparationCode?: string;
+  updatePreparationCode: boolean;
+  sensoryValues: Record<string, string[]>;
+  enabledAttributes: string[];
+  waterTemperatureCelsius?: number;
+  updateWaterTemperatureCelsius: boolean;
+  steepTimeSeconds?: number;
+  updateSteepTimeSeconds: boolean;
+  description?: string;
+  updateDescription: boolean;
+  sourceMethod: string;
+}
+
+export interface BulkDraftItemResult {
+  variantId: string;
+  success: boolean;
+  error?: string;
+  profile?: VariantTasteProfileResponse;
+}
+
+export interface BulkDraftResponse {
+  total: number;
+  successCount: number;
+  errorCount: number;
+  results: BulkDraftItemResult[];
 }
 
 export const PREPARATION_CODE_OPTIONS = [

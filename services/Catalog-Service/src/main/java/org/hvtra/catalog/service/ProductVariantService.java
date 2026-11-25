@@ -7,7 +7,9 @@ import org.hvtra.catalog.dto.response.LookupResponse;
 import org.hvtra.catalog.dto.response.PageResponse;
 import org.hvtra.catalog.dto.response.ProductResponse;
 import org.hvtra.catalog.dto.response.SellableQuantityAdjustmentResponse;
+import org.hvtra.catalog.entity.ProductVariant;
 import org.hvtra.catalog.enums.Status;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
 import java.util.UUID;
@@ -20,6 +22,7 @@ public interface ProductVariantService {
     PageResponse<ProductResponse.VariantSummaryResponse> findAll(
             String keyword, String sku, String variantName, String barcode, UUID productId, UUID categoryId,
             Status status, boolean sellableOnly, Pageable pageable);
+    Page<ProductVariant> findAllEntities(String keyword, Status status, Pageable pageable);
     PageResponse<LookupResponse> lookup(String search, Pageable pageable);
     ProductResponse.VariantResponse findById(UUID id);
     ProductResponse.VariantResponse findByBarcode(String barcode);

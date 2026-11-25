@@ -17,13 +17,15 @@ import {
   type TasteCriteria,
   type TasteSurvey
 } from "../services/tasteSurvey.api";
+import { useGuestTasteSurvey, useSaveGuestTasteSurvey } from "../services/guestTasteSurvey";
 import { PREPARATION_CODE_OPTIONS } from "../../product/types/variantTaste.types";
 import type { SaleCustomer, SaleProductPreview } from "../../sales/types/sale.types";
 
 interface CustomerTasteSurveyDialogProps {
   open: boolean;
-  customer: SaleCustomer;
+  customer: SaleCustomer | null;
   invoiceId?: string;
+  guestScope?: string;
   onClose(): void;
   onAddToCart?(product: SaleProductPreview): Promise<boolean>;
   onSurveySubmitted?(): void;
@@ -39,6 +41,7 @@ export function CustomerTasteSurveyDialog({
   open,
   customer,
   invoiceId,
+  guestScope,
   onClose,
   onSurveySubmitted
 }: CustomerTasteSurveyDialogProps) {
@@ -55,13 +58,15 @@ export function CustomerTasteSurveyDialog({
 
   // Load survey history
   const historyQuery = useQuery({
-    queryKey: ["customer-taste-surveys", customer.id],
-    queryFn: () => tasteSurveyApi.history(customer.id, 0),
+    queryKey: ["customer-taste-surveys", customer?.id],
+    queryFn: () => tasteSurveyApi.history(customer?.id ?? "", 0),
     retry: false,
-    enabled: open && !!customer.id
+    enabled: open && !!customer?.id
   });
 
-  const [preparationCode, setPreparationCode] = useState<string>("DAILY");
+  const guestSurvey = useGuestTasteSurvey(customer ? undefined : guestScope);
+  const saveGuestSurvey = useSaveGuestTasteSurvey();
+  const [preparationCode, setPreparationCode] = useState<string>(guestSurvey?.preparationCode ?? "DAILY");
   const [selections, setSelections] = useState<Record<string, Selection>>({});
   const [submitting, setSubmitting] = useState(false);
   const sending = useRef(false);
@@ -80,8 +85,12 @@ export function CustomerTasteSurveyDialog({
   // Pre-fill latest survey when available
   useEffect(() => {
     if (!taxonomy || edited.current) return;
-    const latest = historyQuery.data?.content.find((survey) => survey.status === "SUBMITTED" &&
-      survey.taxonomyVersion === taxonomy.versionCode && survey.taxonomySha256 === taxonomy.manifestSha256);
+    const latest = customer
+      ? historyQuery.data?.content.find((survey) => survey.status === "SUBMITTED" &&
+        survey.taxonomyVersion === taxonomy.versionCode && survey.taxonomySha256 === taxonomy.manifestSha256)
+      : guestSurvey?.taxonomyVersion === taxonomy.versionCode && guestSurvey.taxonomySha256 === taxonomy.manifestSha256
+        ? guestSurvey
+        : undefined;
     if (latest) {
       const initialSel: Record<string, Selection> = {};
       latest.criteria.hardGroups?.forEach((g) => {
@@ -98,7 +107,7 @@ export function CustomerTasteSurveyDialog({
       });
       setSelections(initialSel);
     }
-  }, [historyQuery.data, taxonomy]);
+  }, [customer, guestSurvey, historyQuery.data, taxonomy]);
 
   function toggleValue(attr: TasteAttribute, valueCode: string) {
     edited.current = true;
@@ -173,10 +182,28 @@ export function CustomerTasteSurveyDialog({
       return;
     }
 
+    if (!customer) {
+      if (!guestScope) {
+        toast.error("Không xác định được hóa đơn để lưu tạm khảo sát.");
+        return;
+      }
+      saveGuestSurvey(guestScope, {
+        taxonomyVersion: taxonomy.versionCode,
+        taxonomySha256: taxonomy.manifestSha256,
+        preparationCode,
+        criteria,
+        savedAt: new Date().toISOString()
+      });
+      toast.success("Đã lưu tạm khảo sát cho khách vãng lai. Mở \"AI gợi ý sản phẩm\" để xem trà phù hợp.");
+      onSurveySubmitted?.();
+      onClose();
+      return;
+    }
+
     sending.current = true;
     setSubmitting(true);
     try {
-      const input = JSON.stringify([customer.id, invoiceId, taxonomy.versionCode, taxonomy.manifestSha256, criteria]);
+      const input = JSON.stringify([customer?.id ?? null, invoiceId, taxonomy.versionCode, taxonomy.manifestSha256, criteria]);
       const submission = attempt.current?.input === input ? attempt.current : {
         input,
         invoiceId: invoiceId || crypto.randomUUID(),
@@ -185,7 +212,7 @@ export function CustomerTasteSurveyDialog({
       attempt.current = submission;
       await tasteSurveyApi.submit(
         {
-          customerId: customer.id,
+          customerId: customer?.id ?? null,
           originInvoiceId: submission.invoiceId,
           taxonomyVersion: taxonomy.versionCode,
           taxonomySha256: taxonomy.manifestSha256,
@@ -208,15 +235,26 @@ export function CustomerTasteSurveyDialog({
     }
   }
 
-  const isNewCustomer = customer.orderCount === 0;
+  const isNewCustomer = !customer || customer.orderCount === 0;
+
+  function attributeLabel(code: string) {
+    return attributes.find((attr) => attr.attributeCode === code)?.label ?? code;
+  }
+
+  function valueLabels(code: string, values: string[]) {
+    const attr = attributes.find((item) => item.attributeCode === code);
+    return values
+      .map((value) => attr?.values.find((option) => option.valueCode === value)?.label ?? value)
+      .join(", ");
+  }
 
   return (
     <Dialog open={open} onOpenChange={(val) => !val && onClose()}>
-      <DialogContent className="max-w-2xl p-0 overflow-hidden">
+      <DialogContent size="wide" className="p-0 overflow-hidden">
         <div className="flex flex-col h-[85vh] max-h-[85vh]">
           {/* Header */}
           <div className="border-b border-neutral-200 bg-neutral-50/80 px-6 py-4 shrink-0">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-wrap items-center justify-between gap-3 pr-10">
             <div className="flex items-center gap-3">
               <div className="grid h-10 w-10 place-items-center rounded-xl bg-emerald-600 text-white shadow-sm">
                 <Sparkles className="h-5 w-5" />
@@ -243,6 +281,7 @@ export function CustomerTasteSurveyDialog({
               >
                 Khảo sát khẩu vị
               </button>
+              {customer ? (
               <button
                 type="button"
                 onClick={() => setActiveTab("history")}
@@ -255,10 +294,17 @@ export function CustomerTasteSurveyDialog({
                 <History className="h-3.5 w-3.5" />
                 Lịch sử ({historyQuery.data?.totalElements ?? 0})
               </button>
+              ) : null}
             </div>
           </div>
 
-          {/* Customer info pill */}
+          {!customer ? (
+            <div className="mt-3 flex flex-wrap items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+              <User className="h-3.5 w-3.5 text-amber-600" />
+              <strong className="font-semibold">Khách vãng lai</strong>
+              <span>· Chỉ lưu tạm trên hóa đơn này để gợi ý trà, không lưu vào hệ thống</span>
+            </div>
+          ) : (
           <div className="mt-3 flex flex-wrap items-center gap-2 rounded-lg border border-neutral-200 bg-white px-3 py-2 text-xs text-neutral-700">
             <User className="h-3.5 w-3.5 text-emerald-600" />
             <strong className="font-semibold text-neutral-900">{customer.name}</strong>
@@ -279,6 +325,7 @@ export function CustomerTasteSurveyDialog({
               </span>
             )}
           </div>
+          )}
         </div>
 
         {/* Content Body */}
@@ -289,7 +336,7 @@ export function CustomerTasteSurveyDialog({
                   <label className="block text-xs font-bold uppercase tracking-wider text-neutral-700 mb-2">
                     1. Cách thức thưởng thức / Mục đích sử dụng
                   </label>
-                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
                     {PREPARATION_CODE_OPTIONS.map((opt) => {
                       const isSelected = preparationCode === opt.value;
                       return (
@@ -333,6 +380,7 @@ export function CustomerTasteSurveyDialog({
                     </div>
                   )}
 
+                  <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                   {attributes.map((attr) => {
                     const sel = selections[attr.attributeCode] || { values: [], hard: false };
                     const isMulti = attr.selectionKind === "ENUM_MULTI";
@@ -387,13 +435,14 @@ export function CustomerTasteSurveyDialog({
                       </div>
                     );
                   })}
+                  </div>
                 </div>
               </div>
         ) : (
           /* History Tab */
           <div className="flex-1 min-h-0 overflow-y-auto p-6 space-y-4">
             <h3 className="text-sm font-bold text-neutral-900">
-              Lịch sử khảo sát khẩu vị của {customer.name}
+              Lịch sử khảo sát khẩu vị của {customer?.name}
             </h3>
 
             {historyQuery.isLoading ? (
@@ -430,7 +479,7 @@ export function CustomerTasteSurveyDialog({
                             <ul className="mt-1 list-disc pl-5 text-neutral-600">
                               {survey.criteria.hardGroups.map((g) => (
                                 <li key={g.attribute}>
-                                  <strong>{g.attribute}:</strong> {g.allowedValues.join(", ")}
+                                  <strong>{attributeLabel(g.attribute)}:</strong> {valueLabels(g.attribute, g.allowedValues)}
                                 </li>
                               ))}
                             </ul>
@@ -443,11 +492,20 @@ export function CustomerTasteSurveyDialog({
                             <ul className="mt-1 list-disc pl-5 text-neutral-600">
                               {survey.criteria.softGroups.map((g) => (
                                 <li key={g.attribute}>
-                                  <strong>{g.attribute}:</strong>{" "}
-                                  {g.priorities.map((p) => p.value).join(", ")}
+                                  <strong>{attributeLabel(g.attribute)}:</strong>{" "}
+                                  {valueLabels(g.attribute, g.priorities.map((p) => p.value))}
                                 </li>
                               ))}
                             </ul>
+                          </div>
+                        )}
+
+                        {(survey.criteria.notApplicableAttributes?.length ?? 0) > 0 && (
+                          <div>
+                            <span className="font-semibold text-neutral-800">Không áp dụng:</span>{" "}
+                            <span className="text-neutral-600">
+                              {survey.criteria.notApplicableAttributes?.map(attributeLabel).join(", ")}
+                            </span>
                           </div>
                         )}
                       </div>
