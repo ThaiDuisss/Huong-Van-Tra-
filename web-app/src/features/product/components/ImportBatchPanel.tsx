@@ -371,6 +371,7 @@ export function ImportBatchPanel({
 
                 const createdBatch = await api.saveDraft({
                     type: previewData.importType,
+                    mode: previewData.importMode ?? "CREATE",
                     sourceFileName,
                     fileId,
                     items: previewItems.map((it) => ({
@@ -409,6 +410,7 @@ export function ImportBatchPanel({
                 // Lưu nháp vào DB trước (backend sẽ tự động attach fileId qua Feign), sau đó submit
                 const createdBatch = await api.saveDraft({
                     type: previewData.importType,
+                    mode: previewData.importMode ?? "CREATE",
                     sourceFileName,
                     fileId,
                     items: previewItems.map((it) => ({

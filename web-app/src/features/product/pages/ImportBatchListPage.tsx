@@ -43,6 +43,7 @@ const DEFAULT_DETAIL_ROUTE_BY_TYPE: Partial<Record<ImportType, string>> = {
 const columns: Column[] = [
     // { key: "batchCode", label: "Mã phiếu" },
     { key: "importType", label: "Loại dữ liệu" },
+    { key: "importMode", label: "Kiểu import" },
     { key: "sourceFileName", label: "File nguồn" },
     { key: "status", label: "Trạng thái" },
     { key: "createdAt", label: "Ngày tạo" }
@@ -173,6 +174,7 @@ export function ImportBatchListPage({
                 <>
                     {/* <TableCell strong>{item.batchCode}</TableCell> */}
                     <TableCell>{typeLabels[item.importType] ?? item.importType}</TableCell>
+                    <TableCell>{item.importMode === "UPDATE" ? "Cập nhật" : "Tạo mới"}</TableCell>
                     <TableCell>
                         {item.sourceFileName ? (
                             item.sourceFileName.startsWith("http") ? (
@@ -206,6 +208,10 @@ export function ImportBatchListPage({
                     <div className="flex justify-between py-2 border-b border-dashed border-neutral-200">
                         <dt className="text-gray-500 font-bold uppercase text-xs">Loại dữ liệu</dt>
                         <dd className="text-gray-900 font-semibold">{typeLabels[item.importType] ?? item.importType}</dd>
+                    </div>
+                    <div className="flex justify-between py-2 border-b border-dashed border-neutral-200">
+                        <dt className="text-gray-500 font-bold uppercase text-xs">Kiểu import</dt>
+                        <dd className="text-gray-900 font-semibold">{item.importMode === "UPDATE" ? "Cập nhật" : "Tạo mới"}</dd>
                     </div>
                     <div className="flex justify-between py-2 border-b border-dashed border-neutral-200">
                         <dt className="text-gray-500 font-bold uppercase text-xs">File nguồn</dt>

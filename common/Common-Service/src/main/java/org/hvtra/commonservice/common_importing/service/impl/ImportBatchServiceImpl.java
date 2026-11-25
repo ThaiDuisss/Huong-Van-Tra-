@@ -7,6 +7,7 @@ import jakarta.persistence.criteria.Predicate;
 import org.hvtra.commonservice.common_core.exception.BusinessException;
 import org.hvtra.commonservice.common_core.exception.ResourceNotFoundException;
 import org.hvtra.commonservice.common_importing.enums.ImportBatchStatus;
+import org.hvtra.commonservice.common_importing.enums.ImportMode;
 import org.hvtra.commonservice.common_importing.enums.ImportType;
 import org.hvtra.commonservice.common_importing.dto.request.SaveImportDraftRequest;
 import org.hvtra.commonservice.common_importing.dto.response.ImportBatchItemResponse;
@@ -75,9 +76,9 @@ public class ImportBatchServiceImpl implements ImportBatchService {
     }
 
     @Override
-    public ImportPreviewResponse preview(ImportType type, MultipartFile file) {
+    public ImportPreviewResponse preview(ImportType type, ImportMode mode, MultipartFile file) {
         ImportTypeHandler handler = handlerFor(type);
-        List<ParsedImportRow> rows = handler.parseExcel(file);
+        List<ParsedImportRow> rows = handler.parseExcel(file, mode != null ? mode : ImportMode.CREATE);
         if (rows.isEmpty()) {
             throw new BusinessException("EMPTY_IMPORT_FILE", "File Excel không có dòng dữ liệu hợp lệ nào để import.");
         }
@@ -108,6 +109,7 @@ public class ImportBatchServiceImpl implements ImportBatchService {
 
         return new ImportPreviewResponse(
                 type,
+                mode != null ? mode : ImportMode.CREATE,
                 file.getOriginalFilename(),
                 rows.size(),
                 validCount,
@@ -126,6 +128,7 @@ public class ImportBatchServiceImpl implements ImportBatchService {
 
         ImportBatch batch = new ImportBatch();
         batch.setImportType(request.type());
+        batch.setImportMode(request.mode() != null ? request.mode() : ImportMode.CREATE);
         batch.setBatchCode(generateBatchCode());
         batch.setStatus(ImportBatchStatus.DRAFT);
         batch.setSourceFileName(request.sourceFileName());
@@ -161,15 +164,16 @@ public class ImportBatchServiceImpl implements ImportBatchService {
 
     @Override
     @Transactional
-    public ImportBatchResponse createFromExcel(ImportType type, MultipartFile file) {
+    public ImportBatchResponse createFromExcel(ImportType type, ImportMode mode, MultipartFile file) {
         ImportTypeHandler handler = handlerFor(type);
-        List<ParsedImportRow> rows = handler.parseExcel(file);
+        List<ParsedImportRow> rows = handler.parseExcel(file, mode != null ? mode : ImportMode.CREATE);
         if (rows.isEmpty()) {
             throw new BusinessException("EMPTY_IMPORT_FILE", "File Excel không có dòng dữ liệu hợp lệ nào để import.");
         }
 
         ImportBatch batch = new ImportBatch();
         batch.setImportType(type);
+        batch.setImportMode(mode != null ? mode : ImportMode.CREATE);
         batch.setBatchCode(generateBatchCode());
         batch.setStatus(ImportBatchStatus.DRAFT);
         batch.setSourceFileName(file.getOriginalFilename());
@@ -504,6 +508,7 @@ public class ImportBatchServiceImpl implements ImportBatchService {
         return new ImportBatchResponse(
                 batch.getId(),
                 batch.getImportType(),
+                batch.getImportMode(),
                 batch.getBatchCode(),
                 batch.getStatus(),
                 batch.getVersion(),

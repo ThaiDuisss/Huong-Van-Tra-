@@ -1,6 +1,7 @@
 package org.hvtra.commonservice.common_importing.dto.response;
 
 import org.hvtra.commonservice.common_importing.enums.ImportBatchStatus;
+import org.hvtra.commonservice.common_importing.enums.ImportMode;
 import org.hvtra.commonservice.common_importing.enums.ImportType;
 
 import java.time.Instant;
@@ -10,6 +11,7 @@ import java.util.UUID;
 public record ImportBatchResponse(
         UUID id,
         ImportType importType,
+        ImportMode importMode,
         String batchCode,
         ImportBatchStatus status,
         Long version,

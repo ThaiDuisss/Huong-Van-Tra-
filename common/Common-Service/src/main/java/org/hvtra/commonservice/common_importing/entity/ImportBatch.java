@@ -5,6 +5,7 @@ import lombok.Getter;
 import lombok.Setter;
 import org.hvtra.commonservice.common_core.domain.entity.BaseEntity;
 import org.hvtra.commonservice.common_importing.enums.ImportBatchStatus;
+import org.hvtra.commonservice.common_importing.enums.ImportMode;
 import org.hvtra.commonservice.common_importing.enums.ImportType;
 
 import java.time.Instant;
@@ -24,6 +25,10 @@ public class ImportBatch extends BaseEntity {
     @Enumerated(EnumType.STRING)
     @Column(name = "import_type", nullable = false, length = 50)
     private ImportType importType;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "import_mode", nullable = false, length = 20)
+    private ImportMode importMode = ImportMode.CREATE;
 
     @Column(name = "batch_code", nullable = false, length = 100)
     private String batchCode;

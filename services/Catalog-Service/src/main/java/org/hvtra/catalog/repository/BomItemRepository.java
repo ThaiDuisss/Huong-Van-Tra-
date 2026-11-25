@@ -18,6 +18,12 @@ public interface BomItemRepository extends JpaRepository<BomItem, UUID> {
             + "WHERE bi.productVariantId = :variantId AND bi.isDeleted = false")
     List<BomItem> findByProductVariantId(@Param("variantId") UUID variantId);
 
+    @Query("SELECT bi FROM BomItem bi "
+            + "JOIN FETCH bi.ingredient i "
+            + "JOIN FETCH bi.unit "
+            + "WHERE bi.isDeleted = false")
+    List<BomItem> findAllWithDetails();
+
     @Modifying
     @Query("DELETE FROM BomItem bi WHERE bi.productVariantId = :variantId")
     void deleteByProductVariantId(@Param("variantId") UUID variantId);

@@ -1,5 +1,7 @@
 package org.hvtra.commonservice.common_importing.handler;
 
+import org.hvtra.commonservice.common_core.exception.BusinessException;
+import org.hvtra.commonservice.common_importing.enums.ImportMode;
 import org.hvtra.commonservice.common_importing.enums.ImportType;
 import org.hvtra.commonservice.common_importing.dto.response.ValidationErrorResponse;
 import org.springframework.web.multipart.MultipartFile;
@@ -19,6 +21,14 @@ public interface ImportTypeHandler {
 
     /** Đọc file Excel, KHÔNG ghi DB — chỉ trả về danh sách dòng đã parse (có thể còn thiếu/sai). */
     List<org.hvtra.commonservice.common_importing.handler.ParsedImportRow> parseExcel(MultipartFile file);
+
+    default List<ParsedImportRow> parseExcel(MultipartFile file, ImportMode mode) {
+        if (mode == ImportMode.UPDATE) {
+            throw new BusinessException("IMPORT_MODE_NOT_SUPPORTED",
+                    "Loại import " + type() + " chưa hỗ trợ kiểu Cập nhật, chỉ hỗ trợ Tạo mới.");
+        }
+        return parseExcel(file);
+    }
 
     /** Validate lại 1 payload, trả về danh sách lỗi (rỗng nếu hợp lệ). */
     List<ValidationErrorResponse> validate(Map<String, Object> payload);

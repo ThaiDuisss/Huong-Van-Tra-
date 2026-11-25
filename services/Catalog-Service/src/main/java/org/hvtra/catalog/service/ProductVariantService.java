@@ -27,6 +27,7 @@ public interface ProductVariantService {
     /** Variant hệ thống "Trà đóng theo yêu cầu" dùng làm dòng bundle trong đơn bán. */
     ProductResponse.VariantResponse findCustomBundleVariant();
     ProductResponse.VariantResponse create(UUID productId, ProductVariantRequest request);
+    ProductResponse.VariantResponse create(UUID productId, ProductVariantRequest request, String sku);
     ProductResponse.VariantResponse update(UUID id, ProductVariantRequest request);
     ProductResponse.VariantResponse updateStatus(UUID id, Status status);
     ProductResponse.VariantResponse updateSellableConfig(UUID id, SellableConfigRequest request);
@@ -34,6 +35,7 @@ public interface ProductVariantService {
     SellableQuantityAdjustmentResponse restoreSellableQuantity(UUID id, SellableQuantityAdjustmentRequest request);
     byte[] exportToExcel(UUID productId);
     byte[] getImportTemplate();
+    byte[] getImportUpdateTemplate(boolean missingBomOnly);
     List<ProductResponse.VariantResponse> findAllByIds(List<UUID> ids);
     List<UUID> searchVariantIds(String keyword, String sku, String productCode, String productName, String categoryCode, UUID categoryId, UUID unitId);
     List<ProductVariantProductRefResponse> findRefsByProductIds(List<UUID> productIds);

@@ -1,6 +1,7 @@
 package org.hvtra.commonservice.common_importing.service;
 
 import org.hvtra.commonservice.common_importing.enums.ImportBatchStatus;
+import org.hvtra.commonservice.common_importing.enums.ImportMode;
 import org.hvtra.commonservice.common_importing.enums.ImportType;
 import org.hvtra.commonservice.common_importing.dto.request.SaveImportDraftRequest;
 import org.hvtra.commonservice.common_importing.dto.response.ImportBatchResponse;
@@ -14,12 +15,20 @@ import java.util.UUID;
 
 public interface ImportBatchService {
     /** Phân tích file Excel và validate với Database, KHÔNG lưu vào DB, KHÔNG sinh batchCode. */
-    ImportPreviewResponse preview(ImportType type, MultipartFile file);
+    default ImportPreviewResponse preview(ImportType type, MultipartFile file) {
+        return preview(type, ImportMode.CREATE, file);
+    }
+
+    ImportPreviewResponse preview(ImportType type, ImportMode mode, MultipartFile file);
 
     /** Lưu bản nháp (DRAFT) vào DB từ danh sách dòng do người dùng xác nhận trên UI. */
     ImportBatchResponse saveDraft(SaveImportDraftRequest request);
 
-    ImportBatchResponse createFromExcel(ImportType type, MultipartFile file);
+    default ImportBatchResponse createFromExcel(ImportType type, MultipartFile file) {
+        return createFromExcel(type, ImportMode.CREATE, file);
+    }
+
+    ImportBatchResponse createFromExcel(ImportType type, ImportMode mode, MultipartFile file);
 
     ImportBatchResponse findById(UUID id);
 
