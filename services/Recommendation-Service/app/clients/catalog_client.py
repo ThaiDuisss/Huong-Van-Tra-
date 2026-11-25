@@ -101,8 +101,9 @@ class CatalogClient:
         data = self.fetch_all_pages("/api/catalog/products")
         return [ProductResponse.model_validate(item) for item in data]
 
-    def get_product_variants(self) -> list[ProductVariantResponse]:
-        data = self.fetch_all_pages("/api/catalog/product-variants")
+    def get_product_variants(self, *, sellable_only: bool = False) -> list[ProductVariantResponse]:
+        params = {"sellableOnly": "true"} if sellable_only else None
+        data = self.fetch_all_pages("/api/catalog/product-variants", params=params)
         return [ProductVariantResponse.model_validate(item) for item in data]
 
     def get_ingredients(self) -> list[IngredientResponse]:

@@ -7,9 +7,11 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from app.recommendation.taste_ranking_artifact import MODEL_CONTRACT, TasteReranker
-from app.recommendation.taste_ranking_features import MIN_VALID_ORDERS, Mode, eligible_products, ranking_features
+from app.recommendation.taste_ranking_features import (
+    MIN_VALID_ORDERS, Mode, eligible_products, has_behavior_signal, level2_hybrid_scores, ranking_features,
+)
 from app.recommendation.v1_artifact import V1ArtifactStore
-from app.recommendation.v1_model import CONTRACT_VERSION, V1ModelError, catalog_fingerprint, hybrid_scores
+from app.recommendation.v1_model import CONTRACT_VERSION, V1ModelError, catalog_fingerprint
 from app.repositories.explore_history_repository import ExploreHistory, ExploreHistoryRepository
 from app.repositories.v1_recommendation_repository import V1RecommendationRepository
 from app.schemas.explore_recommendation import (
@@ -17,6 +19,7 @@ from app.schemas.explore_recommendation import (
     PersonalizedRecommendationResponse,
 )
 from app.schemas.recommendation import RecommendationItem
+from app.service.level2_availability import AvailabilityUnavailable, Level2Availability, variants_by_product
 from app.service.personalized_taste_features import PersonalizedTasteFeatures, TasteFeatureBatch
 
 MIN_EXPLORE_VALID_ORDERS = MIN_VALID_ORDERS
@@ -48,12 +51,14 @@ class PersonalizedRecommendationService:
                  catalog_repository: V1RecommendationRepository | None = None, *,
                  taste_features: PersonalizedTasteFeatures | None = None,
                  taste_reranker: TasteReranker | None = None,
+                 availability: Level2Availability | None = None,
                  ranker: Callable[[CandidateFeatures, int], list[BehavioralCandidate]] = rank_by_behavior) -> None:
         self.artifact_store = artifact_store
         self.history_repository = history_repository or ExploreHistoryRepository()
         self.catalog_repository = catalog_repository or V1RecommendationRepository()
         self.taste_features = taste_features
         self.taste_reranker = taste_reranker or TasteReranker()
+        self.availability = availability
         self.ranker = ranker
 
     def _recommend(self, db: Session, customer_id: str, limit: int,
@@ -74,9 +79,20 @@ class PersonalizedRecommendationService:
     def _products(self, db: Session, history: ExploreHistory, limit: int, *,
                   customer_id: str, as_of: datetime, familiar: bool) -> ExploreProducts:
         products = self.catalog_repository.active_catalog(db)
-        commercial_ids = self.history_repository.commercial_product_ids(db)
         mode: Mode = "FAMILIAR" if familiar else "EXPLORE"
-        candidate_ids = eligible_products(mode, commercial_ids, history)
+        mirror = self.history_repository.commercial_variants(db)
+        metadata_ids = eligible_products(mode, set(mirror.values()), history) & {p.product_id for p in products}
+        if not metadata_ids:
+            return ExploreProducts(status="NO_CANDIDATES")
+        try:
+            if self.availability is None:
+                raise AvailabilityUnavailable("INVENTORY_NOT_CONFIGURED")
+            available = variants_by_product(self.availability.available_variants({
+                variant: product for variant, product in mirror.items() if product in metadata_ids
+            }))
+        except AvailabilityUnavailable:
+            return ExploreProducts(status="AVAILABILITY_UNAVAILABLE")
+        candidate_ids = eligible_products(mode, set(available), history)
         candidates = {product.product_id: product for product in products if product.product_id in candidate_ids}
         if not candidates:
             return ExploreProducts(status="NO_CANDIDATES")
@@ -85,12 +101,11 @@ class PersonalizedRecommendationService:
             if artifact.catalog_sha256 != catalog_fingerprint(products):
                 raise V1ModelError("Catalog differs from trained artifact")
             content, cf = artifact.components(history.product_counts)
-            scores, both_flat = hybrid_scores(content, cf, tuple(candidates))
+            scores, has_signal = level2_hybrid_scores(content, cf, tuple(candidates))
         except V1ModelError:
             return ExploreProducts(status="MODEL_UNAVAILABLE")
 
-        # A flat normalized model cannot establish a personalized ranking in this candidate set.
-        if both_flat:
+        if not has_signal:
             return ExploreProducts(status="NO_PERSONALIZED_SIGNAL")
         try:
             taste = (self.taste_features.prepare(customer_id, as_of, set(scores))
@@ -98,14 +113,14 @@ class PersonalizedRecommendationService:
         except (SQLAlchemyError, RuntimeError, ValueError):
             taste = TasteFeatureBatch("CATALOG_UNAVAILABLE")
         features = CandidateFeatures(
-            tuple(BehavioralCandidate(p, score, content[p] > 0 or cf[p] > 0) for p, score in scores.items()),
+            tuple(BehavioralCandidate(p, score, has_behavior_signal(content[p], cf[p])) for p, score in scores.items()),
             taste,
         )
         top_k = min(limit, 5)
         model_contract, trained_at = CONTRACT_VERSION, artifact.created_at
         learned = self.taste_reranker.artifact
         if learned and learned.mode == mode:
-            rows = tuple(ranking_features(candidates[p], history, as_of, score, content[p], cf[p], taste)
+            rows = tuple(ranking_features(candidates[p], history, as_of, score, content[p], cf[p], taste, available[p])
                          for p, score in scores.items())
             result = self.taste_reranker.score(rows, taste)
             logger.debug("taste_ranking mode=%s status=%s", mode, result.status)

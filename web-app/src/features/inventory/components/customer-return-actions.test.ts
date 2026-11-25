@@ -124,11 +124,11 @@ describe("CustomerReturnActionMenu - 12 Lifecycle & QC Scenarios", () => {
         onOpenChange: vi.fn(),
         onViewDetail: vi.fn(),
         onReceive: vi.fn(),
-        onInspect: vi.fn(),
-        onViewInspection: vi.fn()
+        onInspect: vi.fn()
+
     };
 
-    it("Scenario 1: Command chưa tồn tại -> Hiển thị Bắt đầu kiểm định", () => {
+    it("Scenario 1: Command chưa tồn tại -> Mở Kiểm định", () => {
         const row: OrderReturnListRow = {
             id: "ret-case-a",
             returnCode: "RET-001",
@@ -139,11 +139,11 @@ describe("CustomerReturnActionMenu - 12 Lifecycle & QC Scenarios", () => {
             physicalDone: false
         };
         const html = renderToStaticMarkup(createElement(CustomerReturnActionMenu, { ...dummyProps, row }));
-        expect(html).toContain("Bắt đầu kiểm định");
+        expect(html).toContain(">Kiểm định<");
         expect(html).toContain("Xem chi tiết");
     });
 
-    it("Scenario 2: Command PENDING, inspectionId=null -> Chờ, không hiển thị Bắt đầu kiểm định (không gửi trùng)", () => {
+    it("Scenario 2: Command PENDING -> Mở Kiểm định để xem trạng thái", () => {
         const row: OrderReturnListRow = {
             id: "ret-case-b",
             returnCode: "RET-002",
@@ -156,10 +156,10 @@ describe("CustomerReturnActionMenu - 12 Lifecycle & QC Scenarios", () => {
         const html = renderToStaticMarkup(createElement(CustomerReturnActionMenu, { ...dummyProps, row }));
         expect(html).not.toContain("Bắt đầu kiểm định");
         expect(html).not.toContain("Kiểm định hàng");
-        expect(html).toContain("Xem phiếu kiểm định kho");
+        expect(html).toContain(">Kiểm định<");
     });
 
-    it("Scenario 3 & 4: Inspection CREATED (chưa post) -> Hiển thị Mở phiếu kiểm định", () => {
+    it("Scenario 3 & 4: Inspection CREATED -> Dùng chung điểm vào Kiểm định", () => {
         const row: OrderReturnListRow = {
             id: "ret-case-c",
             returnCode: "RET-003",
@@ -170,11 +170,11 @@ describe("CustomerReturnActionMenu - 12 Lifecycle & QC Scenarios", () => {
             isPendingDisposition: false
         };
         const html = renderToStaticMarkup(createElement(CustomerReturnActionMenu, { ...dummyProps, row }));
-        expect(html).toContain("Mở phiếu kiểm định");
+        expect(html).toContain(">Kiểm định<");
         expect(html).not.toContain("Bắt đầu kiểm định");
     });
 
-    it("Scenario 5: Inspection đang xử lý (PROCESSING) -> Hiển thị Tiếp tục kiểm định", () => {
+    it("Scenario 5: Inspection PROCESSING -> Dùng chung điểm vào Kiểm định", () => {
         const row: OrderReturnListRow = {
             id: "ret-case-d",
             returnCode: "RET-004",
@@ -186,7 +186,7 @@ describe("CustomerReturnActionMenu - 12 Lifecycle & QC Scenarios", () => {
             isPendingDisposition: false
         };
         const html = renderToStaticMarkup(createElement(CustomerReturnActionMenu, { ...dummyProps, row }));
-        expect(html).toContain("Tiếp tục kiểm định");
+        expect(html).toContain(">Kiểm định<");
         expect(html).not.toContain("Bắt đầu kiểm định");
     });
 
@@ -209,7 +209,7 @@ describe("CustomerReturnActionMenu - 12 Lifecycle & QC Scenarios", () => {
         expect(html).not.toContain("Tiếp tục kiểm định");
     });
 
-    it("Scenario 7: Command FAILED -> Không auto-retry, hiển thị Xem phiếu kiểm định kho", () => {
+    it("Scenario 7: Command FAILED -> Mở Kiểm định để xem lỗi", () => {
         const row: OrderReturnListRow = {
             id: "ret-case-f",
             returnCode: "RET-006",
@@ -221,7 +221,7 @@ describe("CustomerReturnActionMenu - 12 Lifecycle & QC Scenarios", () => {
         };
         const html = renderToStaticMarkup(createElement(CustomerReturnActionMenu, { ...dummyProps, row }));
         expect(html).toContain("Xem chi tiết");
-        expect(html).toContain("Xem phiếu kiểm định kho");
+        expect(html).toContain(">Kiểm định<");
     });
 
     it("renders action menu trigger button for a customer return row", () => {
@@ -243,7 +243,7 @@ describe("CustomerReturnActionMenu - 12 Lifecycle & QC Scenarios", () => {
         expect(html).toContain("Mở thao tác cho phiếu RET-001");
     });
 
-    it("renders Nhận hàng action when row status is CREATED", () => {
+    it("renders Nhận hàng to QC for a CREATED return", () => {
         const row: OrderReturnListRow = {
             id: "ret-2",
             returnCode: "RET-002",
@@ -260,7 +260,7 @@ describe("CustomerReturnActionMenu - 12 Lifecycle & QC Scenarios", () => {
         );
 
         expect(html).toContain("Xem chi tiết");
-        expect(html).toContain("Nhận hàng");
+        expect(html).toContain(">Nhận hàng<");
         expect(html).not.toContain("Bắt đầu kiểm định");
     });
 
@@ -298,7 +298,7 @@ describe("CustomerReturnActionMenu - 12 Lifecycle & QC Scenarios", () => {
         expect(html).not.toContain("Tiếp tục kiểm định");
     });
 
-    it("Regression Test: Inspection is POSTED but return is PARTIAL -> Renders 'Tiếp tục kiểm định' for remaining", () => {
+    it("Regression Test: POSTED nhưng return PARTIAL -> Mở Kiểm định cho phần còn lại", () => {
         const partialPostedRow: OrderReturnListRow = {
             id: "ret-partially-posted-1",
             returnCode: "RET-PARTIAL-002",
@@ -323,7 +323,7 @@ describe("CustomerReturnActionMenu - 12 Lifecycle & QC Scenarios", () => {
         );
 
         expect(html).toContain("Xem chi tiết");
-        expect(html).toContain("Tiếp tục kiểm định");
-        expect(html).toContain("Xem kết quả kiểm định");
+        expect(html).toContain(">Kiểm định<");
+        expect(html).not.toContain(">Xem kết quả kiểm định<");
     });
 });

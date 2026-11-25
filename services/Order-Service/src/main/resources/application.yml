@@ -165,6 +165,17 @@ clients:
   inventory-service:
     url: ${INVENTORY_SERVICE_URL:http://localhost:8084}
 order:
+  outbox:
+    publisher:
+      mode: ${ORDER_OUTBOX_PUBLISHER_MODE:CDC}
+      cdc-fenced: ${ORDER_OUTBOX_PUBLISHER_CDC_FENCED:false}
+      bootstrap-servers: ${ORDER_OUTBOX_PUBLISHER_BOOTSTRAP_SERVERS:${KAFKA_BOOTSTRAP_SERVERS:}}
+      interval-ms: ${ORDER_OUTBOX_PUBLISHER_INTERVAL_MS:1000}
+      batch-size: ${ORDER_OUTBOX_PUBLISHER_BATCH_SIZE:25}
+      ack-timeout-ms: ${ORDER_OUTBOX_PUBLISHER_ACK_TIMEOUT_MS:12000}
+      lease-ms: ${ORDER_OUTBOX_PUBLISHER_LEASE_MS:30000}
+      retry-initial-ms: ${ORDER_OUTBOX_PUBLISHER_RETRY_INITIAL_MS:1000}
+      retry-max-ms: ${ORDER_OUTBOX_PUBLISHER_RETRY_MAX_MS:120000}
   payment:
     events:
       topics:

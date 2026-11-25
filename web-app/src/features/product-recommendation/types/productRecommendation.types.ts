@@ -1,6 +1,8 @@
 import type { SaleProductPreview } from "../../sales/types/sale.types";
 
 export type RecommendationMode = "DISCOVERY" | "REPEAT";
+export type PersonalizedMode = "EXPLORE" | "FAMILIAR";
+export type ProductRecommendationMode = RecommendationMode | PersonalizedMode;
 export interface ProductRecommendation {
   rank: number;
   productId: string;

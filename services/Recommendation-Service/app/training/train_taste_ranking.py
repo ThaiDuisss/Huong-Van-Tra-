@@ -1,8 +1,8 @@
 """Train and evaluate one inactive reranker from a pinned, verified evidence export."""
 import argparse
+from dataclasses import dataclass
 from datetime import datetime, timezone
 import hashlib
-import hmac
 import json
 from pathlib import Path
 import sys
@@ -10,11 +10,12 @@ import tempfile
 
 import numpy as np
 from pydantic import ValidationError
-from scipy.optimize import minimize
-from scipy.special import expit
 
 from app.recommendation.taste_ranking_artifact import ActivationManifest, LogisticModel, TasteRankingArtifact
-from app.recommendation.taste_ranking_features import FEATURE_COLUMNS, MODES, FeatureError, Mode, feature_names, vector
+from app.recommendation.taste_ranking_features import (
+    FEATURE_COLUMNS, MODES, RANKING_FEATURE_SETS, FeatureError, Mode, RankingFeatureSet,
+    feature_names, taste_column_indices, vector,
+)
 from app.recommendation.taste_rules import EXACT_POLICY_VERSION
 from app.recommendation.v1_model import V1ModelError, fingerprint
 from app.repositories.explore_history_repository import ExploreHistoryError
@@ -22,62 +23,66 @@ from app.schemas.taste_catalog import SnapshotError
 from app.training.taste_ranking_dataset import (
     OUTCOME_LABEL_POLICY, Dataset, DatasetBlocked, EvidenceBundle, RankingQuery, build_dataset,
 )
+from app.training.level2_evidence_export import read_checked, verify_source_packets
+from app.training.logistic_fit import fit_logistic_parameters
 from app.training.taste_ranking_evaluation import evaluate, learned_top5
 from offline_benchmark.metrics.ranking_metrics import ranking_metrics
 
 REGULARIZATION_GRID = (0.001, 0.01, 0.1)
+SIMULATED_REGISTRY_DIRECTORY = "isolated-simulation-registry"
 
 
-def _informative(query: RankingQuery) -> bool:
-    labels = {row.label for row in query.samples if row.features.has_signal}
-    return query.can_rerank and len(labels) == 2
+@dataclass(frozen=True, slots=True)
+class LogisticSelection:
+    model: LogisticModel
+    training_rows: int
+    training_positive_rows: int
+    training_customers: int
+    validation_grid: tuple[dict, ...]
 
 
 def _fit(matrix: np.ndarray, labels: np.ndarray, penalty: float, attributes: tuple[str, ...],
-         categories: tuple[str, ...]) -> LogisticModel:
-    centers = matrix.mean(axis=0)
-    scales = matrix.std(axis=0)
-    scales[scales < 1e-12] = 1
-    design = (matrix - centers) / scales
-
-    def objective(parameters):
-        weights, intercept = parameters[:-1], parameters[-1]
-        logits = design @ weights + intercept
-        loss = np.mean(np.logaddexp(0, logits) - labels * logits) + penalty * np.dot(weights, weights) / 2
-        residual = expit(logits) - labels
-        gradient = np.append(design.T @ residual / len(labels) + penalty * weights, residual.mean())
-        return loss, gradient
-
-    result = minimize(objective, np.zeros(matrix.shape[1] + 1), method="L-BFGS-B", jac=True)
+         categories: tuple[str, ...]) -> tuple[LogisticModel, dict]:
+    centers, scales, result = fit_logistic_parameters(matrix, labels, penalty)
     if not result.success or not np.isfinite(result.x).all():
         raise DatasetBlocked("LOGISTIC_FIT_DID_NOT_CONVERGE")
-    return LogisticModel(
+    model = LogisticModel(
         attributes=list(attributes), categories=list(categories), feature_names=list(feature_names(attributes, categories)),
         centers=centers.tolist(), scales=scales.tolist(), coefficients=result.x[:-1].tolist(),
         intercept=float(result.x[-1]), regularization=penalty,
     )
+    return model, {
+        "converged": bool(result.success), "optimizer_status": int(result.status),
+        "iterations": int(result.nit), "function_evaluations": int(result.nfev),
+        "penalized_objective": float(result.fun), "gradient_infinity_norm": float(np.linalg.norm(result.jac, np.inf)),
+    }
 
 
-def train_and_evaluate(dataset: Dataset, mode: Mode, model_version: str) -> tuple[TasteRankingArtifact, dict]:
-    if dataset.matching_policy_version != EXACT_POLICY_VERSION:
-        raise DatasetBlocked("MATCHING_POLICY_INCOMPATIBLE")
-    train = tuple(query for query in dataset.queries if query.mode == mode and query.split == "TRAIN")
-    validation = tuple(query for query in dataset.queries if query.mode == mode and query.split == "VALIDATION")
-    test = tuple(query for query in dataset.queries if query.mode == mode and query.split == "TEST")
-    informative_train = tuple(query for query in train if _informative(query))
-    informative_validation = tuple(query for query in validation if _informative(query))
+def select_logistic(
+    mode: Mode, train: tuple[RankingQuery, ...], validation: tuple[RankingQuery, ...],
+    attributes: tuple[str, ...], feature_set: RankingFeatureSet = "BEHAVIORAL_PLUS_TASTE",
+) -> LogisticSelection:
+    """Fit the fixed grid from TRAIN rows and rank it on the common VALIDATION cohort."""
+    if (any(q.mode != mode or q.split != "TRAIN" for q in train)
+            or any(q.mode != mode or q.split != "VALIDATION" for q in validation)
+            or feature_set not in RANKING_FEATURE_SETS):
+        raise DatasetBlocked("INVALID_TRAIN_OR_VALIDATION_SELECTION_INPUT")
+    informative_train = tuple(query for query in train if query.informative)
+    informative_validation = tuple(query for query in validation if query.informative)
     if len({query.customer_id for query in informative_train}) < 2 or not informative_validation:
         raise DatasetBlocked(f"INSUFFICIENT_{mode}_TRAIN_OR_VALIDATION_SIGNAL")
     rows = [row for query in train if query.can_rerank for row in query.samples if row.features.has_signal]
     categories = tuple(sorted({row.features.category for row in rows if row.features.category
                                and row.features.category.strip()}))
-    matrix = np.asarray([vector(row.features, dataset.attributes, categories) for row in rows], dtype=float)
+    matrix = np.asarray([vector(row.features, attributes, categories) for row in rows], dtype=float)
     labels = np.asarray([row.label for row in rows], dtype=float)
     # Require variation in observed compatibility values, beyond mere survey/profile presence.
     first_taste_column = len(FEATURE_COLUMNS) + len(categories)
     values, missing = matrix[:, first_taste_column::2], matrix[:, first_taste_column + 1::2]
     if not any(len(set(values[missing[:, index] == 0, index])) > 1 for index in range(values.shape[1])):
         raise DatasetBlocked(f"INSUFFICIENT_{mode}_TASTE_VARIATION")
+    if feature_set == "BEHAVIORAL_ONLY":
+        matrix[:, taste_column_indices(feature_names(attributes, categories))] = 0
 
     def validation_score(model: LogisticModel) -> float:
         scores = []
@@ -89,11 +94,29 @@ def train_and_evaluate(dataset: Dataset, mode: Mode, model_version: str) -> tupl
             scores.append(ranking_metrics(top5, relevant).ndcg_at_5)
         return sum(scores) / len(scores)
 
-    models = [_fit(matrix, labels, penalty, dataset.attributes, categories) for penalty in REGULARIZATION_GRID]
-    selection = [(validation_score(model), model) for model in models]
-    _, model = max(selection, key=lambda candidate: (candidate[0], candidate[1].regularization))
+    selection = []
+    for penalty in REGULARIZATION_GRID:
+        model, convergence = _fit(matrix, labels, penalty, attributes, categories)
+        selection.append((model, {"regularization": penalty, "ndcg_at_5": validation_score(model), **convergence}))
+    model, _ = max(selection, key=lambda item: (item[1]["ndcg_at_5"], item[0].regularization))
+    return LogisticSelection(model, len(rows), int(labels.sum()), len({q.customer_id for q in train if q.can_rerank}),
+                             tuple(details for _, details in selection))
+
+
+def train_and_evaluate(
+    dataset: Dataset, mode: Mode, model_version: str, feature_set: RankingFeatureSet = "BEHAVIORAL_PLUS_TASTE",
+) -> tuple[TasteRankingArtifact, dict]:
+    if dataset.matching_policy_version != EXACT_POLICY_VERSION:
+        raise DatasetBlocked("MATCHING_POLICY_INCOMPATIBLE")
+    if feature_set == "BEHAVIORAL_ONLY" and dataset.provenance != "SIMULATED_DEMO":
+        raise DatasetBlocked("BEHAVIORAL_ABLATION_REQUIRES_SIMULATION")
+    train = tuple(query for query in dataset.queries if query.mode == mode and query.split == "TRAIN")
+    validation = tuple(query for query in dataset.queries if query.mode == mode and query.split == "VALIDATION")
+    test = tuple(query for query in dataset.queries if query.mode == mode and query.split == "TEST")
+    selection = select_logistic(mode, train, validation, dataset.attributes, feature_set)
+    model = selection.model
     trained_at = datetime.now(timezone.utc)
-    if not any(_informative(query) for query in test):
+    if not any(query.informative for query in test):
         raise DatasetBlocked(f"INSUFFICIENT_{mode}_TEST_SIGNAL")
     test_metrics = evaluate(mode, test, model, matching_policy_version=dataset.matching_policy_version)
     if not test_metrics["cohorts"]["WITH_TASTE"]["reranked_queries"]:
@@ -106,11 +129,12 @@ def train_and_evaluate(dataset: Dataset, mode: Mode, model_version: str) -> tupl
         "taxonomy_sha256": dataset.taxonomy_sha256,
         "matching_policy_version": dataset.matching_policy_version,
         "outcome_label_policy": OUTCOME_LABEL_POLICY,
-        "training_rows": len(rows),
-        "training_customers": len({query.customer_id for query in train if query.can_rerank}),
-        "training_positive_rows": int(labels.sum()),
-        "validation_selection": [{"regularization": candidate.regularization, "ndcg_at_5": score}
-                                 for score, candidate in selection],
+        "training_provenance": dataset.provenance,
+        "training_feature_set": feature_set,
+        "training_rows": selection.training_rows,
+        "training_customers": selection.training_customers,
+        "training_positive_rows": selection.training_positive_rows,
+        "validation_selection": list(selection.validation_grid),
         "validation": evaluate(mode, validation, model, matching_policy_version=dataset.matching_policy_version),
         "test": test_metrics,
     }
@@ -122,6 +146,7 @@ def train_and_evaluate(dataset: Dataset, mode: Mode, model_version: str) -> tupl
         selection_cutoff=max(query.outcome_freeze for query in validation),
         evaluation_cutoff=max(query.outcome_freeze for query in test),
         trained_at=trained_at, evaluated_at=datetime.now(timezone.utc), evaluation_status="EVALUATED",
+        training_provenance=dataset.provenance, training_feature_set=feature_set,
         evaluation_sha256=fingerprint(report), model=model, model_sha256=fingerprint(model.model_dump(mode="json")),
     )
     return artifact, report
@@ -133,21 +158,43 @@ def _write_json(path: Path, document: dict) -> str:
     return hashlib.sha256(raw).hexdigest()
 
 
+def load_training_evidence(
+    path: Path, sha256: str, capture_directory: Path | None, *, test_fixture: bool = False,
+    simulated_demo: bool = False,
+) -> EvidenceBundle:
+    if test_fixture and simulated_demo:
+        raise DatasetBlocked("EXPLICIT_TRAINING_EVIDENCE_MODE_REQUIRED")
+    evidence = EvidenceBundle.model_validate_json(read_checked(path, sha256))
+    required = "SIMULATED_DEMO" if simulated_demo else "TEST_FIXTURE" if test_fixture else "VERIFIED_COMMERCIAL"
+    if evidence.provenance != required:
+        raise DatasetBlocked("TRAINING_EVIDENCE_PROVENANCE_REQUIRED")
+    if not test_fixture:
+        if not capture_directory:
+            code = "SIMULATION_SOURCE_PACKETS_REQUIRED" if simulated_demo else "COMMERCIAL_SOURCE_PACKETS_REQUIRED"
+            raise DatasetBlocked(code)
+        verify_source_packets(evidence, capture_directory)
+    # Simulation timestamps belong to a separate clock. The physical generation time is in its manifest.
+    if not simulated_demo and evidence.exported_at > datetime.now(timezone.utc):
+        raise DatasetBlocked("EVIDENCE_EXPORT_IN_FUTURE")
+    return evidence
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(
         description=__doc__,
-        epilog="Use --schema evidence for the export contract. Pin the reviewed export's SHA-256. "
-               "Use report_purchase_orders with original lines and evidence hashes, order_return_lines "
-               "and legacy RETURN interactions for ordinary product lines, and PURCHASE interactions "
-               "with event_time and created_at mapped to occurred_at and observed_at. Supply a cutoff "
-               "customer roster with latest submitted surveys or proven absence, and verified active "
-               "catalog and Taste snapshots with their observation times. "
+        epilog="Use --schema evidence for the export contract. Pin the reviewed export's SHA-256 and "
+               "provide --capture-directory for the audited commercial source packets. "
                "Run separately per objective. Use --schema activation for the operator approval manifest.",
     )
     parser.add_argument("--schema", choices=("evidence", "activation"))
     parser.add_argument("--evidence", type=Path)
     parser.add_argument("--evidence-sha256")
+    provenance = parser.add_mutually_exclusive_group()
+    provenance.add_argument("--test-fixture", action="store_true", help="Accept explicitly labelled fixture evidence only")
+    provenance.add_argument("--simulated-demo", action="store_true", help="Use only isolated simulation evidence")
+    parser.add_argument("--capture-directory", type=Path, help="Operator-approved commercial source captures")
     parser.add_argument("--mode", choices=MODES)
+    parser.add_argument("--feature-set", choices=RANKING_FEATURE_SETS, default="BEHAVIORAL_PLUS_TASTE")
     parser.add_argument("--model-version")
     parser.add_argument("--output", type=Path, help="New output directory outside the repository")
     args = parser.parse_args()
@@ -159,16 +206,18 @@ def main() -> int:
         parser.error("Training requires --evidence, --evidence-sha256, --mode, --model-version and --output")
     source = Path(__file__).resolve()
     repository = next((parent for parent in source.parents if (parent / ".git").exists()), source.parents[2])
-    if args.output.resolve().is_relative_to(repository) or args.output.exists():
+    output = args.output.resolve()
+    if output.is_relative_to(repository) or output.exists():
         parser.error("--output must be a new directory outside the repository")
+    in_simulated_registry = any(part.casefold() == SIMULATED_REGISTRY_DIRECTORY for part in output.parent.parts)
+    if args.simulated_demo != in_simulated_registry:
+        parser.error("Only --simulated-demo may write in isolated-simulation-registry, and it must write there")
+    if args.feature_set == "BEHAVIORAL_ONLY" and not args.simulated_demo:
+        parser.error("--feature-set BEHAVIORAL_ONLY requires --simulated-demo")
     try:
-        raw = args.evidence.read_bytes()
-        if not hmac.compare_digest(hashlib.sha256(raw).hexdigest(), args.evidence_sha256):
-            raise DatasetBlocked("EVIDENCE_FILE_CHECKSUM_MISMATCH")
-        evidence = EvidenceBundle.model_validate_json(raw)
-        if evidence.exported_at > datetime.now(timezone.utc):
-            raise DatasetBlocked("EVIDENCE_EXPORT_IN_FUTURE")
-        artifact, report = train_and_evaluate(build_dataset(evidence), args.mode, args.model_version)
+        evidence = load_training_evidence(args.evidence, args.evidence_sha256, args.capture_directory,
+                                          test_fixture=args.test_fixture, simulated_demo=args.simulated_demo)
+        artifact, report = train_and_evaluate(build_dataset(evidence), args.mode, args.model_version, args.feature_set)
     except DatasetBlocked as failure:
         print(f"DATASET_BLOCKED {failure}", file=sys.stderr)
         return 2

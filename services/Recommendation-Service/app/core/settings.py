@@ -24,6 +24,8 @@ class Settings(BaseSettings):
     mysql_echo_sql: bool = False
 
     catalog_service_url: str = "http://localhost:8081"
+    level2_inventory_service_url: str | None = None
+    level2_stock_timeout_seconds: float = Field(default=3.0, gt=0, le=15)
     customer_service_url: str | None = None
     customer_taste_read_secret: SecretStr | None = None
     customer_taste_timeout_seconds: float = Field(default=1.0, gt=0, le=5)
@@ -65,6 +67,14 @@ class Settings(BaseSettings):
     model_artifact_path: str = "artifacts/lightfm_model.pkl"  # Legacy research training only.
     v1_artifact_path: str = "artifacts/v1_hybrid_model.npz"
     taste_ranking_activation_manifest: str | None = None
+    level2_demo_manifest: str | None = None
+    level2_demo_manifest_sha256: str | None = None
+    level2_demo_scoring_enabled: bool = False
+    level2_demo_training_directory: str | None = None
+    level2_demo_live_enabled: bool = False
+    level2_demo_mysql_server_uuid: str | None = None
+    level2_lifecycle_test_directory: str | None = None
+    level2_lifecycle_approval_secret: SecretStr | None = None
     recommendation_default_limit: int = 10
     recommendation_max_limit: int = 50
 

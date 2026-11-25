@@ -32,6 +32,8 @@ class SubmittedTasteSurvey(StrictDocument):
     status: Literal["SUBMITTED"]
     rowVersion: int = Field(ge=0, le=9223372036854775807)
     submittedAt: str
+    # Runtime linkage is carried separately in the historical evidence contract.
+    effectiveLinkedAt: str | None = Field(default=None, exclude=True)
     taxonomyVersion: Version
     taxonomySha256: Digest
     criteriaSha256: Digest

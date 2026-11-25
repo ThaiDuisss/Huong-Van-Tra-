@@ -92,6 +92,10 @@ def evaluate_tfidf(snapshot, splits, products):
     class SnapshotRepository:
         def customer_history(self, db, customer_id): return histories[customer_id]
         def active_catalog(self, db): return products
+        def serving_catalog(self, db):
+            # Preserve the candidate universe of the frozen exact-parity benchmark.
+            return products, {product.product_id for product in products}
+
         def popularity(self, db, purchased, limit):
             ranked = sorted(zip(products, model.popularity), key=lambda pair: (-pair[1], pair[0].product_id))
             return [(p.product_id, p.product_code, p.name, float(n)) for p, n in ranked

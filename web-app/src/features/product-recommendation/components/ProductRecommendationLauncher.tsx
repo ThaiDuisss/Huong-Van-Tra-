@@ -12,6 +12,8 @@ import {
   ProductRecommendationResults,
   type RecommendationResultProps,
 } from "./ProductRecommendationResults";
+import { productRecommendationApi } from "../services/productRecommendation.api";
+import type { PersonalizedMode } from "../types/productRecommendation.types";
 
 /** Parent keys this launcher by actual tab, customer, actor and invoice generation. */
 export function ProductRecommendationLauncher({
@@ -20,7 +22,6 @@ export function ProductRecommendationLauncher({
   onAdd,
 }: Omit<RecommendationResultProps, "mode">) {
   const [open, setOpen] = useState(false);
-  const [refresh, setRefresh] = useState(0);
   const trigger = useRef<HTMLButtonElement>(null);
   const body = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -77,35 +78,71 @@ export function ProductRecommendationLauncher({
                     : "Khách lẻ — sản phẩm phổ biến."}
                 </DialogDescription>
               </DialogHeader>
-              <div className="grid max-h-[70vh] gap-3 overflow-y-auto px-5 pb-5">
-                <Button
-                  className="justify-self-start"
-                  disabled={disabled}
-                  onClick={() => setRefresh((value) => value + 1)}
-                  size="sm"
-                >
-                  Tải lại gợi ý
-                </Button>
-                <ProductRecommendationResults
-                  key={refresh}
-                  customerId={customerId}
-                  mode="DISCOVERY"
-                  disabled={disabled}
-                  onAdd={
-                    onAdd
-                      ? (product) => {
-                          // Hand off to POS, whose backorder/stock dialogs and errors must stay visible.
-                          changeOpen(false);
-                          return onAdd(product);
-                        }
-                      : undefined
-                  }
-                />
-              </div>
+              <RecommendationChoices
+                customerId={customerId}
+                disabled={disabled}
+                onAdd={onAdd ? (product) => {
+                  // Keep the POS stock and backorder prompts visible.
+                  changeOpen(false);
+                  return onAdd(product);
+                } : undefined}
+              />
             </div>
           </DialogContent>
         )}
       </Dialog>
     </section>
+  );
+}
+
+export function RecommendationChoices({ customerId, disabled, onAdd }: Omit<RecommendationResultProps, "mode">) {
+  const [eligibility, setEligibility] = useState<"loading" | "level1" | "level2" | "error">(
+    customerId ? "loading" : "level1",
+  );
+  const [mode, setMode] = useState<PersonalizedMode | null>(null);
+  const [refresh, setRefresh] = useState(0);
+  const [retry, setRetry] = useState(0);
+  useEffect(() => {
+    if (!customerId) return;
+    const request = new AbortController();
+    void productRecommendationApi.eligibility(customerId, request.signal).then(
+      (eligible) => { if (!request.signal.aborted) setEligibility(eligible ? "level2" : "level1"); },
+      () => { if (!request.signal.aborted) setEligibility("error"); },
+    );
+    return () => request.abort();
+  }, [customerId, retry]);
+
+  const selected = eligibility === "level1" ? "DISCOVERY" : eligibility === "level2" ? mode : null;
+  return (
+    <div className="grid max-h-[70vh] gap-3 overflow-y-auto px-5 pb-5">
+      {eligibility === "loading" && <p role="status">Đang kiểm tra điều kiện gợi ý...</p>}
+      {eligibility === "error" && (
+        <div>
+          <p role="alert">Không kiểm tra được điều kiện gợi ý của khách hàng.</p>
+          <Button size="sm" disabled={disabled} onClick={() => {
+            setEligibility("loading");
+            setRetry((value) => value + 1);
+          }}>Thử lại</Button>
+        </div>
+      )}
+      {eligibility === "level2" && (
+        <div className="flex flex-wrap gap-2" role="group" aria-label="Chọn cách gợi ý">
+          <Button aria-pressed={mode === "EXPLORE"} disabled={disabled}
+            variant={mode === "EXPLORE" ? "primary" : "secondary"}
+            onClick={() => setMode("EXPLORE")}>Muốn đổi vị</Button>
+          <Button aria-pressed={mode === "FAMILIAR"} disabled={disabled}
+            variant={mode === "FAMILIAR" ? "primary" : "secondary"}
+            onClick={() => setMode("FAMILIAR")}>Không muốn đổi vị</Button>
+        </div>
+      )}
+      {selected && (
+        <>
+          <Button className="justify-self-start" size="sm" disabled={disabled}
+            onClick={() => setRefresh((value) => value + 1)}>Tải lại gợi ý</Button>
+          <ProductRecommendationResults key={`${selected}:${refresh}`} customerId={customerId}
+            mode={selected} disabled={disabled} onAdd={onAdd} />
+        </>
+      )}
+    </div>
   );
 }

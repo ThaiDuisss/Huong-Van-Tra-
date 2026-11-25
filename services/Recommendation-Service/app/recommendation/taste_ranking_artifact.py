@@ -12,7 +12,8 @@ from pydantic import AwareDatetime, Field, FiniteFloat, model_validator
 from scipy.special import expit
 
 from app.recommendation.taste_ranking_features import (
-    CATALOG_CONTRACT, FEATURE_SCHEMA, MODES, FeatureError, Mode, RankingFeatures, feature_names, vector,
+    CATALOG_CONTRACT, FEATURE_SCHEMA, MODES, FeatureError, Mode, RankingFeatures, RankingFeatureSet,
+    feature_names, taste_column_indices, vector,
 )
 from app.recommendation.taste_rules import EXACT_POLICY_VERSION
 from app.recommendation.v1_model import CONTRACT_VERSION, fingerprint
@@ -81,16 +82,28 @@ class TasteRankingArtifact(StrictDocument):
     evaluation_status: Literal["EVALUATED"]
     evaluation_sha256: Digest
     activation_status: Literal["INACTIVE"] = "INACTIVE"
+    training_provenance: Literal[
+        "VERIFIED_COMMERCIAL", "TEST_FIXTURE", "UNVERIFIED_SOURCE", "SIMULATED_DEMO"
+    ] = "UNVERIFIED_SOURCE"
+    training_feature_set: RankingFeatureSet = "BEHAVIORAL_PLUS_TASTE"
     model_sha256: Digest
     model: LogisticModel
 
     @model_validator(mode="after")
     def validate_artifact(self):
         if not (self.training_cutoff < self.selection_cutoff < self.evaluation_cutoff
-                <= self.trained_at <= self.evaluated_at):
+                and self.trained_at <= self.evaluated_at):
+            raise ValueError("Invalid training and evaluation chronology")
+        # Simulated cutoffs use a virtual clock. The artifact creation times use the real clock.
+        if self.training_provenance != "SIMULATED_DEMO" and self.evaluation_cutoff > self.trained_at:
             raise ValueError("Invalid training and evaluation chronology")
         if not hmac.compare_digest(self.model_sha256, fingerprint(self.model.model_dump(mode="json"))):
             raise ValueError("Model checksum mismatch")
+        if self.training_feature_set == "BEHAVIORAL_ONLY" and (
+            self.training_provenance != "SIMULATED_DEMO"
+            or any(self.model.coefficients[index] != 0 for index in taste_column_indices(self.model.feature_names))
+        ):
+            raise ValueError("Behavioral ablation requires an isolated artifact with masked Taste coefficients")
         return self
 
 
@@ -145,11 +158,9 @@ class TasteReranker:
         if taste.matching_policy_version != artifact.matching_policy_version:
             return RerankingResult("MATCHING_POLICY_INCOMPATIBLE")
         scored = [row for row in rows if row.has_signal]
-        if not any(row.has_taste for row in scored):
-            return RerankingResult("NO_OBSERVED_TASTE_FOR_RANKED_CANDIDATES")
-        if any(row.needs_aggregation for row in scored):
-            return RerankingResult("VARIANT_PREPARATION_AGGREGATION_UNAVAILABLE")
         try:
+            if not any(row.has_taste for row in scored):
+                return RerankingResult("NO_OBSERVED_TASTE_FOR_RANKED_CANDIDATES")
             scores = artifact.model.score(scored)
         except (FeatureError, ArithmeticError, ValueError):
             return RerankingResult("RERANKER_INFERENCE_FAILED")
@@ -179,7 +190,8 @@ def load_approved_rerankers(manifest_path: str | None) -> dict[Mode, TasteRerank
             if not hmac.compare_digest(approval.artifact_sha256, hashlib.sha256(raw).hexdigest()):
                 raise ValueError("Artifact file checksum mismatch")
             artifact = TasteRankingArtifact.model_validate_json(raw)
-            if (artifact.mode != approval.mode or artifact.model_version != approval.model_version
+            if (artifact.training_provenance != "VERIFIED_COMMERCIAL"
+                    or artifact.mode != approval.mode or artifact.model_version != approval.model_version
                     or artifact.evaluation_sha256 != approval.evaluation_sha256
                     or not approval.approval_reference.strip()
                     or not artifact.evaluated_at <= approval.approved_at <= datetime.now(timezone.utc)):

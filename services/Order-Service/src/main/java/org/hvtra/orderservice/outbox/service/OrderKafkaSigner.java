@@ -3,6 +3,7 @@ package org.hvtra.orderservice.outbox.service;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
@@ -12,6 +13,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.security.GeneralSecurityException;
+import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Base64;
@@ -40,37 +42,88 @@ public class OrderKafkaSigner {
         this.encodedSecret = encodedSecret;
     }
 
+    public enum Verification { VALID, INVALID, KEY_UNAVAILABLE }
+
     public void sign(String topic, String recordKey, Map<String, Object> payload) {
-        if (!keyId.matches(KEY_TOKEN_PATTERN) || !keyVersion.matches(KEY_TOKEN_PATTERN)
-                || payload.containsKey("kafkaAuth")) {
+        if (payload.containsKey("kafkaAuth")) {
+            throw new IllegalStateException("Invalid Kafka signing configuration");
+        }
+        byte[] secret = signingKey();
+        try {
+            JsonNode business = mapper.reader().with(DeserializationFeature.USE_BIG_DECIMAL_FOR_FLOATS)
+                    .readTree(mapper.writeValueAsBytes(payload));
+            String signature = HexFormat.of().formatHex(mac(secret, topic, recordKey, business));
+            payload.put("kafkaAuth", Map.of("keyId", keyId, "keyVersion", keyVersion, "signature", signature));
+        } catch (IOException | GeneralSecurityException exception) {
+            throw new IllegalStateException("Kafka event signing failed", exception);
+        } finally {
+            Arrays.fill(secret, (byte) 0);
+        }
+    }
+
+    public void requireConfiguredKey() {
+        Arrays.fill(signingKey(), (byte) 0);
+    }
+
+    public Verification verify(String topic, String recordKey, ObjectNode payload) {
+        JsonNode auth = payload.path("kafkaAuth");
+        String id = auth.path("keyId").textValue();
+        String version = auth.path("keyVersion").textValue();
+        String signature = auth.path("signature").textValue();
+        if (!auth.isObject() || auth.size() != 3 || !validToken(id) || !validToken(version)
+                || signature == null || !signature.matches("[0-9a-f]{64}")) {
+            return Verification.INVALID;
+        }
+        if (!keyId.equals(id) || !keyVersion.equals(version)) {
+            return Verification.KEY_UNAVAILABLE;
+        }
+        ObjectNode business = payload.deepCopy();
+        business.remove("kafkaAuth");
+        byte[] secret = signingKey();
+        try {
+            byte[] signatureBytes = HexFormat.of().parseHex(signature);
+            return MessageDigest.isEqual(signatureBytes, mac(secret, topic, recordKey, business))
+                    ? Verification.VALID : Verification.INVALID;
+        } catch (IllegalStateException exception) {
+            return Verification.INVALID;
+        } catch (GeneralSecurityException exception) {
+            throw new IllegalStateException("Kafka event verification failed", exception);
+        } finally {
+            Arrays.fill(secret, (byte) 0);
+        }
+    }
+
+    private byte[] signingKey() {
+        if (!validToken(keyId) || !validToken(keyVersion)) {
             throw new IllegalStateException("Invalid Kafka signing configuration");
         }
         byte[] secret;
         try {
             secret = Base64.getDecoder().decode(encodedSecret);
         } catch (IllegalArgumentException exception) {
-            throw new IllegalStateException("Invalid Kafka signing key encoding");
+            throw new IllegalStateException("Invalid Kafka signing key encoding", exception);
         }
-        try {
-            if (secret.length < 32) {
-                throw new IllegalStateException("Kafka signing key is missing or too short");
-            }
-            JsonNode business = mapper.reader().with(DeserializationFeature.USE_BIG_DECIMAL_FOR_FLOATS)
-                    .readTree(mapper.writeValueAsBytes(payload));
-            ByteArrayOutputStream frame = new ByteArrayOutputStream();
-            for (String part : List.of(POLICY, topic, recordKey, keyId, keyVersion)) {
-                writeText(frame, 's', part);
-            }
-            writeNode(frame, business);
-            Mac mac = Mac.getInstance("HmacSHA256");
-            mac.init(new SecretKeySpec(secret, "HmacSHA256"));
-            payload.put("kafkaAuth", Map.of("keyId", keyId, "keyVersion", keyVersion,
-                    "signature", HexFormat.of().formatHex(mac.doFinal(frame.toByteArray()))));
-        } catch (IOException | GeneralSecurityException exception) {
-            throw new IllegalStateException("Kafka event signing failed", exception);
-        } finally {
+        if (secret.length < 32) {
             Arrays.fill(secret, (byte) 0);
+            throw new IllegalStateException("Kafka signing key is missing or too short");
         }
+        return secret;
+    }
+
+    private static boolean validToken(String value) {
+        return value != null && value.matches(KEY_TOKEN_PATTERN);
+    }
+
+    private byte[] mac(byte[] secret, String topic, String recordKey, JsonNode payload)
+            throws GeneralSecurityException {
+        ByteArrayOutputStream frame = new ByteArrayOutputStream();
+        for (String part : List.of(POLICY, topic, recordKey, keyId, keyVersion)) {
+            writeText(frame, 's', part);
+        }
+        writeNode(frame, payload);
+        Mac mac = Mac.getInstance("HmacSHA256");
+        mac.init(new SecretKeySpec(secret, "HmacSHA256"));
+        return mac.doFinal(frame.toByteArray());
     }
 
     private static void writeNode(ByteArrayOutputStream frame, JsonNode node) {

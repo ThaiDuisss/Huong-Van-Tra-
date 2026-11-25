@@ -30,11 +30,14 @@ class GuestRecommendationTests(unittest.TestCase):
         self.db = Session(engine)
         self.addCleanup(self.db.close)
         self.db.execute(text("CREATE TABLE products(id TEXT,product_code TEXT,name TEXT,status TEXT,is_deleted BOOLEAN)"))
+        self.db.execute(text("CREATE TABLE product_variants(id TEXT,product_id TEXT,sku TEXT,status TEXT,is_deleted BOOLEAN)"))
         self.db.execute(text("CREATE TABLE customer_interactions(customer_id TEXT,product_id TEXT,total_purchase_count INTEGER)"))
         for index in range(8):
             product_id = f"00000000-0000-4000-8000-{index:012d}"
             self.db.execute(text("INSERT INTO products VALUES(:id,:code,'Tea','ACTIVE',0)"),
                             {"id": product_id, "code": f"TEA-{index}"})
+            self.db.execute(text("INSERT INTO product_variants VALUES(:variant,:id,:sku,'ACTIVE',0)"),
+                            {"variant": f"variant-{index}", "id": product_id, "sku": f"VAR-{index}"})
             self.db.execute(text("INSERT INTO customer_interactions VALUES('demo-a',:id,:count)"),
                             {"id": product_id, "count": index})
         self.db.execute(text("INSERT INTO products VALUES('inactive','OFF','Off','INACTIVE',0)"))
