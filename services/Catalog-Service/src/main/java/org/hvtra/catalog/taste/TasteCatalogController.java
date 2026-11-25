@@ -85,6 +85,12 @@ public class TasteCatalogController {
         return created(profile.create(variantId, body));
     }
 
+    @PostMapping(PROFILES + "/bulk-draft")
+    public ResponseEntity<VariantTasteService.BulkDraftResponse> bulkDraft(
+            @Valid @RequestBody VariantTasteService.BulkDraft body) {
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(profile.bulkDraft(body));
+    }
+
     @GetMapping(VARIANT_PROFILES)
     public ResponseEntity<PageResponse<VariantTasteService.Response>> history(@PathVariable UUID variantId,
             @RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "20") int size) {

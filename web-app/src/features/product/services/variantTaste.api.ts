@@ -4,6 +4,8 @@ import type { TasteTaxonomy } from "../../customer/services/tasteSurvey.api";
 import type { CatalogQuery, PageResult } from "../types/product.types";
 import type {
   AssessmentPayload,
+  BulkDraftPayload,
+  BulkDraftResponse,
   CreateTasteProfileDraft,
   VariantTasteProfileResponse,
   VariantTasteProfilesPageItem
@@ -64,6 +66,13 @@ export const variantTasteApi = {
   createProfile(variantId: string, payload: CreateTasteProfileDraft) {
     return apiClient.post<VariantTasteProfileResponse>(
       `/catalog/product-variants/${encodeURIComponent(variantId)}/taste-profiles`,
+      payload
+    );
+  },
+
+  bulkDraft(payload: BulkDraftPayload) {
+    return apiClient.post<BulkDraftResponse>(
+      "/catalog/taste-profiles/bulk-draft",
       payload
     );
   },

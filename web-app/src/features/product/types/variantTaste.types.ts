@@ -56,6 +56,36 @@ export interface VariantTasteProfilesPageItem {
   profiles: VariantTasteProfileResponse[];
 }
 
+export interface BulkDraftPayload {
+  variantIds: string[];
+  taxonomyVersion: string;
+  preparationCode?: string;
+  updatePreparationCode: boolean;
+  sensoryValues: Record<string, string[]>;
+  enabledAttributes: string[];
+  waterTemperatureCelsius?: number;
+  updateWaterTemperatureCelsius: boolean;
+  steepTimeSeconds?: number;
+  updateSteepTimeSeconds: boolean;
+  description?: string;
+  updateDescription: boolean;
+  sourceMethod: string;
+}
+
+export interface BulkDraftItemResult {
+  variantId: string;
+  success: boolean;
+  error?: string;
+  profile?: VariantTasteProfileResponse;
+}
+
+export interface BulkDraftResponse {
+  total: number;
+  successCount: number;
+  errorCount: number;
+  results: BulkDraftItemResult[];
+}
+
 export const PREPARATION_CODE_OPTIONS = [
   { code: "GIFT", value: "GIFT", label: "Quà biếu / Quà tặng", desc: "Hộp quà, set quà biếu cao cấp, bao bì sang trọng", description: "Hộp quà, set quà biếu cao cấp, bao bì sang trọng" },
   { code: "DAILY", value: "DAILY", label: "Thưởng thức hàng ngày", desc: "Uống trà thư giãn, thanh lọc cơ thể tại nhà", description: "Uống trà thư giãn, thanh lọc cơ thể tại nhà" },

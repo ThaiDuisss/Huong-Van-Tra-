@@ -20,12 +20,18 @@ import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.UUID;
+import java.util.function.Function;
 
 @Service
 @RequiredArgsConstructor
@@ -121,16 +127,55 @@ public class TasteComposition {
         return read(variant, false);
     }
 
+    @Transactional(readOnly = true, propagation = Propagation.MANDATORY)
+    public Map<UUID, Basis> inspectAll(Collection<ProductVariant> targets) {
+        if (targets == null || targets.isEmpty()) {
+            return Map.of();
+        }
+        List<byte[]> variantBytes = targets.stream()
+                .map(ProductVariant::getId)
+                .distinct()
+                .map(TasteComposition::bytes)
+                .toList();
+        String placeholders = String.join(",", Collections.nCopies(variantBytes.size(), "?"));
+
+        Map<UUID, List<RecipeLine>> recipesByVariant = new HashMap<>();
+        jdbc.query("""
+                select b.product_variant_id, i.id, i.type, i.unit_id, i.status, i.is_deleted, b.quantity, b.waste_rate, b.unit_id
+                from bom_items b join ingredients i on i.id = b.ingredient_id
+                where b.product_variant_id in (%s) and b.is_deleted = 0 and i.type <> 0
+                """.formatted(placeholders),
+                rs -> {
+                    UUID variantId = uuid(rs.getBytes(1));
+                    RecipeLine line = new RecipeLine(
+                            uuid(rs.getBytes(2)), rs.getInt(3), uuid(rs.getBytes(4)),
+                            rs.getString(5), rs.getBoolean(6), rs.getBigDecimal(7),
+                            rs.getBigDecimal(8), uuid(rs.getBytes(9)));
+                    recipesByVariant.computeIfAbsent(variantId, k -> new ArrayList<>()).add(line);
+                },
+                variantBytes.toArray());
+
+        Map<UUID, RawUnit> unitCache = new HashMap<>();
+        jdbc.query("select id, type, base_unit_id, conversion_rate, status, is_deleted from units",
+                rs -> {
+                    unitCache.put(uuid(rs.getBytes(1)), new RawUnit(
+                            rs.getString(2), uuid(rs.getBytes(3)), rs.getBigDecimal(4),
+                            rs.getString(5), rs.getBoolean(6)));
+                });
+
+        Map<UUID, Basis> result = new HashMap<>(targets.size());
+        for (ProductVariant variant : targets) {
+            List<RecipeLine> recipe = recipesByVariant.getOrDefault(variant.getId(), List.of());
+            result.put(variant.getId(), buildBasis(variant, new ArrayList<>(recipe), unitCache::get));
+        }
+        return result;
+    }
+
     Basis inspectForApproval(ProductVariant variant) {
         return read(variant, true);
     }
 
     private Basis read(ProductVariant variant, boolean current) {
-        ObjectNode basis = documents.object().put("ruleVersion", 1).put("variantId", variant.getId().toString())
-                .put("quantity", TasteDocuments.decimal(variant.getQuantity()));
-        UnitBasis output = unit(variant.getUnit().getId(), current);
-        basis.set("unit", output.document());
-        boolean valid = output.valid() && variant.getQuantity() != null && variant.getQuantity().signum() > 0;
         List<RecipeLine> recipe = jdbc.query("""
                 select i.id, i.type, i.unit_id, i.status, i.is_deleted, b.quantity, b.waste_rate, b.unit_id
                 from bom_items b join ingredients i on i.id = b.ingredient_id
@@ -138,11 +183,21 @@ public class TasteComposition {
                 """ + lockClause(current), (rs, row) -> new RecipeLine(uuid(rs.getBytes(1)), rs.getInt(2),
                 uuid(rs.getBytes(3)), rs.getString(4), rs.getBoolean(5), rs.getBigDecimal(6),
                 rs.getBigDecimal(7), uuid(rs.getBytes(8))), bytes(variant.getId()));
+        return buildBasis(variant, recipe, id -> fetchUnit(id, current));
+    }
+
+    private Basis buildBasis(ProductVariant variant, List<RecipeLine> recipe, Function<UUID, RawUnit> unitLoader) {
+        ObjectNode basis = documents.object().put("ruleVersion", 1).put("variantId", variant.getId().toString())
+                .put("quantity", TasteDocuments.decimal(variant.getQuantity()));
+        UUID variantUnitId = variant.getUnit() != null ? variant.getUnit().getId() : null;
+        UnitBasis output = unit(variantUnitId, unitLoader);
+        basis.set("unit", output.document());
+        boolean valid = output.valid() && variant.getQuantity() != null && variant.getQuantity().signum() > 0;
         recipe.sort(Comparator.comparing(RecipeLine::ingredientId).thenComparing(RecipeLine::unitId));
         ArrayNode ingredients = basis.putArray("ingredients");
         for (RecipeLine line : recipe) {
-            UnitBasis ingredientUnit = unit(line.ingredientUnitId(), current);
-            UnitBasis measurement = unit(line.unitId(), current);
+            UnitBasis ingredientUnit = unit(line.ingredientUnitId(), unitLoader);
+            UnitBasis measurement = unit(line.unitId(), unitLoader);
             ObjectNode item = ingredients.addObject().put("ingredientId", line.ingredientId().toString())
                     .put("kind", line.kind()).put("status", line.status()).put("deleted", line.deleted())
                     .put("quantity", TasteDocuments.decimal(line.quantity()))
@@ -158,7 +213,14 @@ public class TasteComposition {
         return new Basis(canonical, documents.hash(canonical), valid && !recipe.isEmpty());
     }
 
-    private UnitBasis unit(UUID start, boolean current) {
+    private RawUnit fetchUnit(UUID id, boolean current) {
+        return jdbc.query("""
+                select type, base_unit_id, conversion_rate, status, is_deleted from units where id = ?
+                """ + lockClause(current), (rs, index) -> new RawUnit(rs.getString(1), uuid(rs.getBytes(2)),
+                rs.getBigDecimal(3), rs.getString(4), rs.getBoolean(5)), bytes(id)).stream().findFirst().orElse(null);
+    }
+
+    private UnitBasis unit(UUID start, Function<UUID, RawUnit> unitLoader) {
         ArrayNode chain = documents.object().putArray("chain");
         Set<UUID> seen = new HashSet<>();
         UUID root = start;
@@ -166,10 +228,7 @@ public class TasteComposition {
         UUID next = start;
         while (next != null && seen.add(next)) {
             UUID id = next;
-            RawUnit row = jdbc.query("""
-                    select type, base_unit_id, conversion_rate, status, is_deleted from units where id = ?
-                    """ + lockClause(current), (rs, index) -> new RawUnit(rs.getString(1), uuid(rs.getBytes(2)),
-                    rs.getBigDecimal(3), rs.getString(4), rs.getBoolean(5)), bytes(id)).stream().findFirst().orElse(null);
+            RawUnit row = unitLoader.apply(id);
             ObjectNode entry = chain.addObject().put("unitId", id.toString());
             if (row == null) {
                 entry.put("missing", true);

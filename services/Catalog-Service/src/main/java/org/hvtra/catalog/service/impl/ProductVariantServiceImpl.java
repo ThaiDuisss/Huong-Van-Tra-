@@ -56,6 +56,7 @@ import org.apache.poi.xssf.usermodel.DefaultIndexedColorMap;
 import org.apache.poi.xssf.usermodel.XSSFCellStyle;
 import org.apache.poi.xssf.usermodel.XSSFColor;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
@@ -138,6 +139,13 @@ public class ProductVariantServiceImpl implements ProductVariantService {
         Specification<ProductVariant> spec =
                 searchSpecification(keyword, sku, variantName, barcode, productId, categoryId, status, sellableOnly);
         return PageResponse.from(repository.findAll(spec, pageable).map(mapper::toVariantSummary));
+    }
+
+    @Override
+    public Page<ProductVariant> findAllEntities(String keyword, Status status, Pageable pageable) {
+        Specification<ProductVariant> spec =
+                searchSpecification(keyword, null, null, null, null, null, status, false);
+        return repository.findAll(spec, pageable);
     }
 
     /** Điều kiện tìm biến thể; keyword khớp SKU, tên biến thể, tên sản phẩm hoặc đúng mã vạch. */

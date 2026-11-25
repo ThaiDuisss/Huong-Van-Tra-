@@ -1,5 +1,5 @@
 import { ChevronLeft, ChevronRight } from "lucide-react";
-import type { ReactNode } from "react";
+import { type ReactNode, useEffect, useState } from "react";
 
 interface TablePaginationProps {
     /** Trang hiện tại, tính từ 0. */
@@ -33,9 +33,27 @@ export function TablePagination({
     const currentPage = Math.min(page + 1, pageCount);
     const visibleStart = totalItems > 0 ? (currentPage - 1) * pageSize + 1 : 0;
     const visibleEnd = Math.min(currentPage * pageSize, totalItems);
+    const [pageInput, setPageInput] = useState(String(currentPage));
+
+    useEffect(() => {
+        setPageInput(String(currentPage));
+    }, [currentPage]);
+
+    const commitPageInput = () => {
+        const parsed = Number.parseInt(pageInput.trim(), 10);
+        if (Number.isNaN(parsed)) {
+            setPageInput(String(currentPage));
+            return;
+        }
+        const target = Math.min(Math.max(parsed, 1), pageCount);
+        setPageInput(String(target));
+        if (target !== currentPage) {
+            onPageChange(target - 1);
+        }
+    };
 
     return (
-        <footer className="flex min-h-[54px] items-center justify-between gap-4 border-t border-[#e4ece8] bg-white px-4 py-2 text-xs font-extrabold text-[#657282] max-md:flex-col max-md:items-start">
+        <footer className="flex min-h-[54px] flex-wrap items-center justify-between gap-4 border-t border-[#e4ece8] bg-white px-4 py-2 text-xs font-extrabold text-[#657282] max-md:flex-col max-md:items-start">
             <span>
                 {summary ?? (
                     <>
@@ -44,25 +62,7 @@ export function TablePagination({
                     </>
                 )}
             </span>
-            <div className="flex flex-wrap items-center gap-1">
-                {pageSizeOptions && onPageSizeChange ? (
-                    <label className="mr-2 flex items-center gap-2">
-                        Hiển thị
-                        <select
-                            aria-label="Số dòng mỗi trang"
-                            className="h-8 rounded-lg border border-[#dce5e1] bg-white px-2 text-xs font-black text-[#536171] outline-none focus:border-[#159734]"
-                            disabled={disabled}
-                            onChange={(event) => onPageSizeChange(Number(event.currentTarget.value))}
-                            value={pageSize}
-                        >
-                            {[...new Set([...pageSizeOptions, pageSize])].sort((a, b) => a - b).map((option) => (
-                                <option key={option} value={option}>
-                                    {option} / trang
-                                </option>
-                            ))}
-                        </select>
-                    </label>
-                ) : null}
+            <div className="flex flex-wrap items-center justify-center gap-1">
                 <PageButton
                     ariaLabel="Trang trước"
                     disabled={disabled || currentPage <= 1}
@@ -92,7 +92,45 @@ export function TablePagination({
                 >
                     <ChevronRight size={15} aria-hidden="true" />
                 </PageButton>
+                <label className="ml-2 flex items-center gap-1.5">
+                    <span>Trang</span>
+                    <input
+                        aria-label="Nhập số trang"
+                        className="size-8 rounded-lg border border-[#dce5e1] bg-white text-center text-xs font-black text-[#536171] outline-none transition-colors focus:border-[#159734] disabled:cursor-not-allowed disabled:opacity-45"
+                        disabled={disabled || pageCount <= 1}
+                        inputMode="numeric"
+                        onBlur={commitPageInput}
+                        onChange={(event) => setPageInput(event.currentTarget.value.replace(/[^0-9]/g, ""))}
+                        onKeyDown={(event) => {
+                            if (event.key === "Enter") {
+                                event.preventDefault();
+                                commitPageInput();
+                            }
+                        }}
+                        type="text"
+                        value={pageInput}
+                    />
+                    <span>/ {pageCount}</span>
+                </label>
             </div>
+            {pageSizeOptions && onPageSizeChange ? (
+                <label className="flex items-center gap-2">
+                    Hiển thị
+                    <select
+                        aria-label="Số dòng mỗi trang"
+                        className="h-8 rounded-lg border border-[#dce5e1] bg-white px-2 text-xs font-black text-[#536171] outline-none focus:border-[#159734]"
+                        disabled={disabled}
+                        onChange={(event) => onPageSizeChange(Number(event.currentTarget.value))}
+                        value={pageSize}
+                    >
+                        {[...new Set([...pageSizeOptions, pageSize])].sort((a, b) => a - b).map((option) => (
+                            <option key={option} value={option}>
+                                {option} / trang
+                            </option>
+                        ))}
+                    </select>
+                </label>
+            ) : <div />}
         </footer>
     );
 }
