@@ -37,10 +37,12 @@ export function Dialog({
 
 export function DialogContent({
     children,
-    className
+    className,
+    size = "default"
 }: {
     children: ReactNode;
     className?: string;
+    size?: "default" | "wide";
 }) {
     const context = useDialogContext();
 
@@ -71,7 +73,8 @@ export function DialogContent({
             <div
                 aria-modal="true"
                 className={cn(
-                    "relative max-h-[90vh] w-[min(960px,calc(100vw-32px))] overflow-hidden rounded-2xl border border-[#dce5e1] bg-white p-0 text-[#172317] shadow-[0_24px_60px_rgba(24,39,28,0.18)]",
+                    "relative max-h-[90vh] overflow-hidden rounded-2xl border border-[#dce5e1] bg-white p-0 text-[#172317] shadow-[0_24px_60px_rgba(24,39,28,0.18)]",
+                    size === "wide" ? "w-[min(1200px,calc(100vw-32px))]" : "w-[min(960px,calc(100vw-32px))]",
                     className
                 )}
                 role="dialog"

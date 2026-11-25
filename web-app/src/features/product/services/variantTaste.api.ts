@@ -1,10 +1,14 @@
 import { apiClient } from "@/api/api-client";
 import type { PageResponse } from "../../customer/types/customer.types";
 import type { TasteTaxonomy } from "../../customer/services/tasteSurvey.api";
+import type { CatalogQuery, PageResult } from "../types/product.types";
 import type {
   AssessmentPayload,
+  BulkDraftPayload,
+  BulkDraftResponse,
   CreateTasteProfileDraft,
-  VariantTasteProfileResponse
+  VariantTasteProfileResponse,
+  VariantTasteProfilesPageItem
 } from "../types/variantTaste.types";
 
 export interface BomItemDetail {
@@ -36,6 +40,23 @@ export const variantTasteApi = {
     );
   },
 
+  listVariantProfiles(
+    query: CatalogQuery & { profileStatuses?: string[] } = {}
+  ) {
+    return apiClient.get<PageResult<VariantTasteProfilesPageItem>>(
+      "/catalog/taste-profiles",
+      {
+        query: {
+          page: query.page,
+          size: query.size,
+          keyword: query.keyword,
+          status: query.status,
+          profileStatuses: query.profileStatuses
+        }
+      }
+    );
+  },
+
   getProfileDetail(profileId: string) {
     return apiClient.get<VariantTasteProfileResponse>(
       `/catalog/taste-profiles/${encodeURIComponent(profileId)}`
@@ -45,6 +66,13 @@ export const variantTasteApi = {
   createProfile(variantId: string, payload: CreateTasteProfileDraft) {
     return apiClient.post<VariantTasteProfileResponse>(
       `/catalog/product-variants/${encodeURIComponent(variantId)}/taste-profiles`,
+      payload
+    );
+  },
+
+  bulkDraft(payload: BulkDraftPayload) {
+    return apiClient.post<BulkDraftResponse>(
+      "/catalog/taste-profiles/bulk-draft",
       payload
     );
   },

@@ -29,7 +29,6 @@ import type { ProductVariant } from "../types/product.types";
 import {
   PREPARATION_CODE_OPTIONS,
   type AssessmentPayload,
-  type PreparationProtocol,
   type VariantTasteProfileResponse
 } from "../types/variantTaste.types";
 import { formatCurrency } from "../utils/product-formatters";
@@ -131,11 +130,6 @@ export function TasteProfileEditPage() {
   // Processing state
   const [saving, setSaving] = useState(false);
   const [approvingExisting, setApprovingExisting] = useState(false);
-  const [bulkProgress, setBulkProgress] = useState<{
-    current: number;
-    total: number;
-    currentItemName: string;
-  } | null>(null);
 
   // Load taxonomy
   useEffect(() => {
@@ -383,78 +377,39 @@ export function TasteProfileEditPage() {
     }
 
     setSaving(true);
-    let successCount = 0;
-    let errorCount = 0;
+    try {
+      const enabledAttributes = Object.entries(bulkEnabledAttrs)
+        .filter(([, enabled]) => enabled)
+        .map(([code]) => code);
 
-    for (let i = 0; i < bulkVariants.length; i++) {
-      const v = bulkVariants[i];
-      setBulkProgress({
-        current: i + 1,
-        total: bulkVariants.length,
-        currentItemName: v.variantName
+      const response = await variantTasteApi.bulkDraft({
+        variantIds: bulkVariants.map((v) => String(v.id)),
+        taxonomyVersion: taxonomy.versionCode,
+        preparationCode: bulkUpdatePrepCode && bulkPrepCode ? bulkPrepCode : undefined,
+        updatePreparationCode: bulkUpdatePrepCode && Boolean(bulkPrepCode),
+        sensoryValues: bulkSensoryValues,
+        enabledAttributes,
+        waterTemperatureCelsius: bulkWaterTemp,
+        updateWaterTemperatureCelsius: bulkUpdateWaterTemp,
+        steepTimeSeconds: bulkSteepTime,
+        updateSteepTimeSeconds: bulkUpdateSteepTime,
+        description: bulkDescription,
+        updateDescription: bulkUpdateDescription,
+        sourceMethod: isQcOnly ? "EXPERT_TASTING" : "INTERNAL_PANEL"
       });
 
-      try {
-        const existingProfs = await variantTasteApi.getVariantProfiles(String(v.id));
-        const currentProfile = editableProfile(existingProfs.content, taxonomy);
-
-        // 1. Preparation code: overwrite if enabled, else retain
-        const prepCode =
-          bulkUpdatePrepCode && bulkPrepCode
-            ? bulkPrepCode
-            : currentProfile?.preparationCode || "HOT_BREW";
-
-        // 2. Sensory values: retain all existing attributes, overwrite only enabled attributes
-        const mergedSensoryValues: Record<string, string[]> = {
-          ...(currentProfile?.sensoryValues || {})
-        };
-        for (const attr of attributes) {
-          if (bulkEnabledAttrs[attr.attributeCode]) {
-            const vals = bulkSensoryValues[attr.attributeCode] || [];
-            if (vals.length > 0) {
-              mergedSensoryValues[attr.attributeCode] = vals;
-            } else {
-              delete mergedSensoryValues[attr.attributeCode];
-            }
-          }
-        }
-
-        // 3. Protocol: retain existing fields, overwrite only enabled ones
-        const mergedProtocol: PreparationProtocol = {
-          ...(currentProfile?.preparationProtocol || {})
-        };
-        if (bulkUpdateWaterTemp) mergedProtocol.waterTemperatureCelsius = bulkWaterTemp;
-        if (bulkUpdateSteepTime) mergedProtocol.steepTimeSeconds = bulkSteepTime;
-        if (bulkUpdateDescription) mergedProtocol.description = bulkDescription;
-
-        // 4. Save
-        const payload = {
-          preparationCode: prepCode,
-          preparationProtocol: mergedProtocol,
-          sensoryValues: mergedSensoryValues,
-          sourceMethod: isQcOnly ? "EXPERT_TASTING" : "INTERNAL_PANEL"
-        };
-
-        await saveDraft(String(v.id), taxonomy, currentProfile, payload);
-
-        successCount++;
-      } catch (err: unknown) {
-        console.error(`Lỗi cập nhật khẩu vị cho biến thể ${v.sku}:`, err);
-        errorCount++;
+      if (response.errorCount === 0) {
+        toast.success(`Đã lưu bản nháp cho ${response.successCount} mặt hàng.`);
+      } else {
+        toast.warning(
+          `Hoàn tất: ${response.successCount} thành công, ${response.errorCount} lỗi. Vui lòng kiểm tra lại.`
+        );
       }
-    }
-
-    setSaving(false);
-    setBulkProgress(null);
-
-    if (errorCount === 0) {
-      toast.success(`Đã lưu bản nháp cho ${successCount} mặt hàng.`);
       navigate(routePaths.tasteProfiles);
-    } else {
-      toast.warning(
-        `Hoàn tất: ${successCount} thành công, ${errorCount} lỗi. Vui lòng kiểm tra lại.`
-      );
-      navigate(routePaths.tasteProfiles);
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Không thể cập nhật khẩu vị hàng loạt");
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -528,28 +483,6 @@ export function TasteProfileEditPage() {
           </Link>
         </div>
       </header>
-
-      {/* TIẾN TRÌNH CẬP NHẬT HÀNG LOẠT */}
-      {bulkProgress && (
-        <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 shadow-pos-card">
-          <div className="flex items-center justify-between text-sm font-black text-emerald-900">
-            <span>
-              Đang cập nhật: <strong>{bulkProgress.currentItemName}</strong>
-            </span>
-            <span>
-              {bulkProgress.current} / {bulkProgress.total} mặt hàng
-            </span>
-          </div>
-          <div className="mt-2 h-2.5 w-full overflow-hidden rounded-full bg-emerald-200">
-            <div
-              className="h-full bg-emerald-600 transition-all duration-300"
-              style={{
-                width: `${(bulkProgress.current / bulkProgress.total) * 100}%`
-              }}
-            />
-          </div>
-        </div>
-      )}
 
       {/* THÔNG TIN CHUNG (CARD 1) */}
       {isSingleMode && singleVariant ? (

@@ -14,13 +14,17 @@ import {
 } from "./ProductRecommendationResults";
 import { ProductRecommendationBomList } from "./ProductRecommendationBomList";
 import type { RecommendationMode } from "../types/productRecommendation.types";
+import { useGuestTasteSurvey } from "../../customer/services/guestTasteSurvey";
+import { TasteSurveyRecommendations } from "./TastePreviewLauncher";
 
 /** Parent keys this launcher by actual tab, customer, actor and invoice generation. */
 export function ProductRecommendationLauncher({
   customerId,
   disabled,
   onAdd,
-}: Omit<RecommendationResultProps, "mode">) {
+  guestSurveyScope,
+}: Omit<RecommendationResultProps, "mode"> & { guestSurveyScope?: string }) {
+  const guestSurvey = useGuestTasteSurvey(customerId ? undefined : guestSurveyScope);
   const [open, setOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<"products" | "bom">("products");
   const [recommendationMode, setRecommendationMode] = useState<RecommendationMode>("DISCOVERY");
@@ -170,6 +174,18 @@ export function ProductRecommendationLauncher({
                         Tải lại gợi ý
                       </Button>
                     </div>
+
+                    {!customerId && guestSurvey && onAdd ? (
+                      <TasteSurveyRecommendations
+                        key={guestSurvey.savedAt}
+                        survey={guestSurvey}
+                        disabled={disabled}
+                        onAdd={(product) => {
+                          changeOpen(false);
+                          return onAdd(product);
+                        }}
+                      />
+                    ) : null}
 
                     {/* Top 5 Recommended Products */}
                     <ProductRecommendationResults

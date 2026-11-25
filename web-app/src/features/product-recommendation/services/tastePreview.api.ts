@@ -8,6 +8,8 @@ export interface TastePreviewRequest {
   requestSequence: number;
   limit: number;
   hardGroups: Array<{ attribute: string; allowedValues: string[] }>;
+  softGroups?: Array<{ attribute: string; priorities: Array<{ value: string; weight: number }> }>;
+  notApplicableAttributes?: string[];
 }
 
 export interface TastePreviewVariant {

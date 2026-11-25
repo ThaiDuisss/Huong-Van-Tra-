@@ -45,7 +45,6 @@ import { posCustomBundleApi } from "../services/posCustomBundle.api";
 import { formatCurrency } from "../services/money";
 import { usePosCustomerSearch } from "../hooks/usePosCustomerSearch";
 import { ProductRecommendationLauncher } from "../../product-recommendation/components/ProductRecommendationLauncher";
-import { TastePreviewLauncher } from "../../product-recommendation/components/TastePreviewLauncher";
 import { WorkspaceMutationLock } from "../../product-recommendation/services/recommendationLifecycle";
 import {
     buildLocalPosSale,
@@ -2937,19 +2936,15 @@ export function PosSalePage() {
     const recommendationContext = `${saleOwnerId ?? "signed-out"}:${invoiceTabs.activeId}:${selectedCustomerId ?? "guest"}:${recommendationGeneration}:DISCOVERY:${orderType}`;
     const customerLocked = addingProductId !== null || closingInvoice || quantityUpdating
         || customBundleSubmitting || unitSwitchSubmitting || checkoutLoading || Boolean(bankTransferPayment);
-    const tasteContextIsCurrent = () => recommendationVersion.current === recommendationGeneration
-        && activeInvoiceIdRef.current === invoiceTabs.activeId;
     const recommendationEntry = <>
         <ProductRecommendationLauncher key={recommendationContext}
             customerId={selectedCustomerId} disabled={customerLocked || !online}
+            guestSurveyScope={invoiceTabs.activeId}
             onAdd={async (product) => {
                 if (recommendationVersion.current !== recommendationGeneration
                     || activeInvoiceIdRef.current !== invoiceTabs.activeId) return false;
                 return addProduct(product);
             }} />
-        <TastePreviewLauncher key={`${recommendationContext}:taste`} disabled={customerLocked || !online}
-            onAdd={async (product) => tasteContextIsCurrent() && addProduct(product)}
-            onManualConsultation={() => { if (tasteContextIsCurrent()) openCustomBundle(); }} />
     </>;
 
     return (
@@ -2959,6 +2954,7 @@ export function PosSalePage() {
                 orderType === "DELIVERY" ? (
                     <DeliveryCheckoutPanel
                         recommendationEntry={recommendationEntry}
+                        tasteSurveyScope={invoiceTabs.activeId}
                         customerLocked={customerLocked}
                         customerHasMore={customerHasMore}
                         onCustomerSearch={searchCustomers}
@@ -2988,6 +2984,7 @@ export function PosSalePage() {
                 ) : (
                     <CheckoutPanel
                         recommendationEntry={recommendationEntry}
+                        tasteSurveyScope={invoiceTabs.activeId}
                         customerLocked={customerLocked}
                         customerHasMore={customerHasMore}
                         onCustomerSearch={searchCustomers}

@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/Button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { tasteSurveyApi, type TasteAttribute } from "../../customer/services/tasteSurvey.api";
+import type { GuestTasteSurvey } from "../../customer/services/guestTasteSurvey";
 import { PosVariantSelector } from "../../sales/components/product/PosVariantSelector";
 import { formatCurrency } from "../../sales/services/money";
 import { posProductApi } from "../../sales/services/posProduct.api";
@@ -186,6 +187,72 @@ function TastePreviewPanel({ disabled, onAdd, onManualConsultation }: TastePrevi
         disabled={disabled || adding} onClick={onManualConsultation}>
         Tư vấn pha chế theo yêu cầu
       </Button>
+    </div>
+  );
+}
+
+export function TasteSurveyRecommendations({ survey, disabled, onAdd }: {
+  survey: GuestTasteSurvey; disabled?: boolean; onAdd(product: SaleProductPreview): Promise<boolean>;
+}) {
+  const taxonomyQuery = useQuery({
+    queryKey: ["current-taste-taxonomy"], queryFn: tasteSurveyApi.currentTaxonomy, retry: false,
+  });
+  const attributes = taxonomyQuery.data?.manifest.attributes ?? [];
+  const previewQuery = useQuery({
+    queryKey: ["guest-taste-preview", survey.savedAt, survey.taxonomySha256, survey.preparationCode],
+    retry: false,
+    queryFn: ({ signal }) => fetchTastePreview({
+      taxonomyVersion: survey.taxonomyVersion,
+      taxonomySha256: survey.taxonomySha256,
+      preparationCode: survey.preparationCode,
+      requestSequence: 1,
+      limit: 5,
+      hardGroups: survey.criteria.hardGroups,
+      softGroups: survey.criteria.softGroups,
+      notApplicableAttributes: survey.criteria.notApplicableAttributes ?? [],
+    }, signal),
+  });
+  const [adding, setAdding] = useState(false);
+  const [addError, setAddError] = useState("");
+  const addRequest = useRef<AbortController | null>(null);
+
+  useEffect(() => () => addRequest.current?.abort(), []);
+
+  async function addVariant(productId: string, variantId: string) {
+    if (disabled || addRequest.current) return;
+    const request = new AbortController();
+    addRequest.current = request;
+    setAdding(true);
+    setAddError("");
+    try {
+      const product = await resolveRecommendedVariant(productId, variantId, request.signal);
+      if (!request.signal.aborted) await onAdd(product);
+    } catch {
+      if (!request.signal.aborted) setAddError("Không xác minh được biến thể đang bán. Vui lòng thử lại.");
+    } finally {
+      addRequest.current = null;
+      if (!request.signal.aborted) setAdding(false);
+    }
+  }
+
+  const result = previewQuery.data;
+  const statusMessage = result ? previewMessages[result.status] : "";
+  return (
+    <div className="grid gap-3">
+      <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800">
+        Gợi ý theo khảo sát khẩu vị của khách vãng lai (chỉ lưu tạm trên hóa đơn này).
+      </p>
+      {previewQuery.isPending && <p role="status" className="text-sm">Đang tìm sản phẩm phù hợp…</p>}
+      {previewQuery.isError && <div role="alert" className="flex items-center gap-3 text-sm text-amber-900">
+        <span>{tastePreviewError(previewQuery.error)}</span>
+        <Button type="button" size="sm" onClick={() => void previewQuery.refetch()}>Thử lại</Button>
+      </div>}
+      {statusMessage && <p role="status" className="text-sm text-slate-600">{statusMessage}</p>}
+      {addError && <p role="alert" className="text-sm text-amber-900">{addError}</p>}
+      {result?.items.map((product) => (
+        <TasteResultCard key={product.productId} product={product} attributes={attributes}
+          disabled={disabled || adding} onAdd={(variantId) => void addVariant(product.productId, variantId)} />
+      ))}
     </div>
   );
 }

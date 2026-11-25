@@ -11,7 +11,7 @@ interface PaginationProps {
     totalItemsLabel?: string;
 }
 
-const pageSizeOptions = [5, 10, 20] as const;
+const pageSizeOptions = [10, 20, 50, 100] as const;
 
 /** Phân trang của các màn danh sách; giao diện lấy từ `TablePagination` dùng chung. */
 export function Pagination({
