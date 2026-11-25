@@ -56,6 +56,8 @@ public class ProductServiceImpl implements ProductService {
 
     /** Sản phẩm hệ thống "Trà đóng theo yêu cầu" (migration V261019100000). */
     private static final String CUSTOM_BUNDLE_PRODUCT_CODE = "CUSTOM-BUNDLE";
+    private static final String[] IMPORT_PRODUCT_HEADERS = {"Mã danh mục *", "Tên sản phẩm *", "Trạng thái", "Mô tả", "Mã sản phẩm"};
+    private static final String[] IMPORT_UPDATE_PRODUCT_HEADERS = {"Mã danh mục", "Tên sản phẩm", "Trạng thái", "Mô tả", "Mã sản phẩm *"};
 
     private final ProductRepository productRepository;
     private final ProductVariantRepository productVariantRepository;
@@ -309,6 +311,51 @@ public class ProductServiceImpl implements ProductService {
     }
 
     @Override
+    public byte[] getImportUpdateTemplate() {
+        List<Product> products = productRepository.findAllWithCategory();
+        try (Workbook workbook = new XSSFWorkbook();
+             ByteArrayOutputStream out = new ByteArrayOutputStream()) {
+
+            buildImportInstructionSheet(workbook);
+            Sheet sheet = createImportDataSheet(workbook, IMPORT_UPDATE_PRODUCT_HEADERS);
+            int rowIdx = 1;
+            for (Product p : products) {
+                Row row = sheet.createRow(rowIdx++);
+                row.createCell(0).setCellValue(p.getCategory() != null ? p.getCategory().getCategoryCode() : "");
+                row.createCell(1).setCellValue(p.getName() != null ? p.getName() : "");
+                row.createCell(2).setCellValue(p.getStatus() == Status.INACTIVE ? "Ngừng hoạt động" : "Đang hoạt động");
+                row.createCell(3).setCellValue(p.getDescription() != null ? p.getDescription() : "");
+                row.createCell(4).setCellValue(p.getProductCode());
+            }
+            sheet.createFreezePane(0, 1);
+            sheet.setAutoFilter(new CellRangeAddress(0, Math.max(rowIdx - 1, 1), 0, IMPORT_UPDATE_PRODUCT_HEADERS.length - 1));
+            widenColumns(sheet, IMPORT_UPDATE_PRODUCT_HEADERS.length);
+            buildImportReferenceSheet(workbook);
+
+            workbook.write(out);
+            return out.toByteArray();
+        } catch (Exception e) {
+            throw new RuntimeException("Lỗi tạo file cập nhật Excel sản phẩm: " + e.getMessage(), e);
+        }
+    }
+
+    private Sheet createImportDataSheet(Workbook workbook, String[] headers) {
+        Sheet sheet = workbook.createSheet("Nhập thông tin sản phẩm");
+        CellStyle headerStyle = createGreenHeaderStyle(workbook);
+        Row headerRow = sheet.createRow(0);
+        headerRow.setHeightInPoints(22);
+        for (int i = 0; i < headers.length; i++) {
+            Cell cell = headerRow.createCell(i);
+            cell.setCellValue(headers[i]);
+            cell.setCellStyle(headerStyle);
+        }
+        CellStyle textStyle = workbook.createCellStyle();
+        textStyle.setDataFormat(workbook.createDataFormat().getFormat("@"));
+        sheet.setDefaultColumnStyle(4, textStyle);
+        return sheet;
+    }
+
+    @Override
     public byte[] getImportTemplate() {
         try (Workbook workbook = new XSSFWorkbook();
              ByteArrayOutputStream out = new ByteArrayOutputStream()) {
@@ -350,19 +397,26 @@ public class ProductServiceImpl implements ProductService {
                         "- \"Danh mục tham chiếu\": tra cứu mã của các dữ liệu tham chiếu để điền vào sheet nhập liệu."
                 },
                 {
-                        "2. Cách điền sheet \"Nhập thông tin sản phẩm\"",
-                        "- Mã danh mục (*): bắt buộc, lấy từ cột \"Danh mục\" ở sheet \"Danh mục tham chiếu\".",
-                        "- Tên sản phẩm (*): bắt buộc.",
+                        "2. Cách điền sheet \"Nhập thông tin sản phẩm\" (Kiểu import \"Tạo mới\")",
+                        "- Cột có dấu * là bắt buộc.",
+                        "- Mã danh mục *: lấy từ cột \"Mã danh mục\" ở sheet \"Danh mục tham chiếu\".",
+                        "- Tên sản phẩm *: bắt buộc.",
                         "- Trạng thái: \"Đang hoạt động\" hoặc \"Ngừng hoạt động\" (để trống sẽ mặc định là Đang hoạt động).",
-                        "- Mô tả: không bắt buộc."
+                        "- Mô tả: không bắt buộc.",
+                        "- Mã sản phẩm: không bắt buộc. Để trống thì hệ thống tự sinh; điền thì dùng đúng mã đó (không trùng mã đã có, tối đa 50 ký tự)."
                 },
                 {
-                        "3. Sau khi tải file lên hệ thống",
+                        "3. Cập nhật sản phẩm đã có (Kiểu import \"Cập nhật\")",
+                        "- Dùng file tải từ nút \"Xuất để cập nhật\": cột Mã sản phẩm * xác định sản phẩm cần sửa.",
+                        "- Các ô để trống (Mã danh mục, Tên, Trạng thái, Mô tả) giữ nguyên giá trị hiện tại. Ảnh sản phẩm không bị thay đổi."
+                },
+                {
+                        "4. Sau khi tải file lên hệ thống",
                         "- Dữ liệu được phân tích thành bản nháp để bạn kiểm tra/sửa trực tiếp trên hệ thống trước khi gửi duyệt.",
                         "- Dữ liệu chỉ được ghi chính thức vào hệ thống sau khi quản lý duyệt."
                 },
                 {
-                        "4. Lưu ý",
+                        "5. Lưu ý",
                         "- Không đổi tên các sheet, không đổi tên cột header ở dòng đầu tiên của sheet \"Nhập thông tin sản phẩm\".",
                         "- Không xoá dòng header."
                 }
@@ -411,17 +465,8 @@ public class ProductServiceImpl implements ProductService {
     }
 
     private void buildImportDataEntrySheet(Workbook workbook) {
-        Sheet sheet = workbook.createSheet("Nhập thông tin sản phẩm");
-        CellStyle headerStyle = createGreenHeaderStyle(workbook);
-
-        String[] headers = {"Mã danh mục", "Tên sản phẩm", "Trạng thái", "Mô tả"};
-        Row headerRow = sheet.createRow(0);
-        headerRow.setHeightInPoints(22);
-        for (int i = 0; i < headers.length; i++) {
-            Cell cell = headerRow.createCell(i);
-            cell.setCellValue(headers[i]);
-            cell.setCellStyle(headerStyle);
-        }
+        String[] headers = IMPORT_PRODUCT_HEADERS;
+        Sheet sheet = createImportDataSheet(workbook, headers);
 
         Row row1 = sheet.createRow(1);
         row1.createCell(0).setCellValue("CAT00001");

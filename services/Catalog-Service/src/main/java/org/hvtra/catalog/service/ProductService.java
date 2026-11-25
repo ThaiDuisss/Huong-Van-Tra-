@@ -22,6 +22,7 @@ public interface ProductService {
     ProductResponse updateStatus(UUID id, Status status);
     byte[] exportToExcel();
     byte[] getImportTemplate();
+    byte[] getImportUpdateTemplate();
     List<ProductResponse> findAllByIds(List<UUID> ids);
     void delete(UUID id);
 }

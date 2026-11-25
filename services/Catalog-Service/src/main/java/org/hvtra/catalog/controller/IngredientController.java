@@ -143,4 +143,14 @@ public class IngredientController {
                 .contentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
                 .body(resource);
     }
+
+    @GetMapping("/import/update-template")
+    public ResponseEntity<Resource> downloadUpdateTemplate() {
+        byte[] excelBytes = service.getImportUpdateTemplate();
+        ByteArrayResource resource = new ByteArrayResource(excelBytes);
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"cap_nhat_nguyen_lieu.xlsx\"")
+                .contentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
+                .body(resource);
+    }
 }

@@ -99,6 +99,8 @@ public interface ProductVariantRepository extends JpaRepository<ProductVariant, 
             """)
     List<ProductVariant> findAllBySkuInWithDetails(@Param("skus") Collection<String> skus);
 
+    List<ProductVariant> findAllByBarcodeIn(Collection<String> barcodes);
+
     @Query("select v.sku from ProductVariant v where v.sku in :skus")
     List<String> findSkusIn(@Param("skus") Collection<String> skus);
 

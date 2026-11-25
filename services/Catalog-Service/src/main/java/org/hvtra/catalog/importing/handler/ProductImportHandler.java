@@ -11,10 +11,13 @@ import org.apache.poi.ss.usermodel.Workbook;
 import org.apache.poi.ss.usermodel.WorkbookFactory;
 import org.hvtra.catalog.dto.request.ProductRequest;
 import org.hvtra.catalog.entity.Category;
+import org.hvtra.catalog.entity.Product;
 import org.hvtra.catalog.enums.Status;
 import org.hvtra.catalog.exception.BadRequestException;
 import org.hvtra.catalog.repository.CategoryRepository;
+import org.hvtra.catalog.repository.ProductRepository;
 import org.hvtra.catalog.service.ProductService;
+import org.hvtra.commonservice.common_importing.enums.ImportMode;
 import org.hvtra.commonservice.common_importing.enums.ImportType;
 import org.hvtra.commonservice.common_importing.dto.response.ValidationErrorResponse;
 import org.hvtra.commonservice.common_importing.handler.ImportTypeHandler;
@@ -23,6 +26,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -35,17 +39,22 @@ import java.util.stream.Collectors;
 @Component
 public class ProductImportHandler implements ImportTypeHandler {
 
+    private static final String CUSTOM_BUNDLE_PRODUCT_CODE = "CUSTOM-BUNDLE";
+
     private final CategoryRepository categoryRepository;
+    private final ProductRepository productRepository;
     private final ProductService productService;
     private final Validator validator;
     private final ObjectMapper objectMapper;
 
     public ProductImportHandler(
             CategoryRepository categoryRepository,
+            ProductRepository productRepository,
             ProductService productService,
             Validator validator,
             ObjectMapper objectMapper) {
         this.categoryRepository = categoryRepository;
+        this.productRepository = productRepository;
         this.productService = productService;
         this.validator = validator;
         this.objectMapper = objectMapper;
@@ -58,6 +67,11 @@ public class ProductImportHandler implements ImportTypeHandler {
 
     @Override
     public List<ParsedImportRow> parseExcel(MultipartFile file) {
+        return parseExcel(file, ImportMode.CREATE);
+    }
+
+    @Override
+    public List<ParsedImportRow> parseExcel(MultipartFile file, ImportMode mode) {
         try (Workbook workbook = WorkbookFactory.create(file.getInputStream())) {
             Sheet sheet = findDataSheet(workbook);
             int rowCount = sheet.getPhysicalNumberOfRows();
@@ -75,11 +89,14 @@ public class ProductImportHandler implements ImportTypeHandler {
             int colName = -1;
             int colStatus = -1;
             int colDescription = -1;
+            int colProductCode = -1;
 
             if (headerRow != null) {
                 for (int c = 0; c < headerRow.getLastCellNum(); c++) {
                     String normalized = normalize(getCellValueAsString(headerRow.getCell(c)));
-                    if (normalized.contains("ma danh muc") || normalized.contains("category code") || normalized.contains("danh muc")) {
+                    if (normalized.contains("ma san pham") || normalized.contains("product code")) {
+                        colProductCode = c;
+                    } else if (normalized.contains("ma danh muc") || normalized.contains("category code") || normalized.contains("danh muc")) {
                         colCategoryCode = c;
                     } else if (normalized.contains("ten san pham") || normalized.contains("product name") || normalized.contains("ten sp")) {
                         colName = c;
@@ -100,7 +117,8 @@ public class ProductImportHandler implements ImportTypeHandler {
                     .filter(c -> c.getCategoryCode() != null)
                     .collect(Collectors.toMap(c -> c.getCategoryCode().toUpperCase().trim(), c -> c, (a, b) -> a));
 
-            List<ParsedImportRow> rows = new ArrayList<>();
+            List<String[]> rawRows = new ArrayList<>();
+            List<Integer> rawRowIndexes = new ArrayList<>();
             for (int r = headerRowIndex + 1; r < rowCount; r++) {
                 Row row = sheet.getRow(r);
                 if (row == null) continue;
@@ -109,10 +127,27 @@ public class ProductImportHandler implements ImportTypeHandler {
                 String name = colName >= 0 ? getCellValueAsString(row.getCell(colName)) : "";
                 String statusStr = colStatus >= 0 ? getCellValueAsString(row.getCell(colStatus)) : "";
                 String description = colDescription >= 0 ? getCellValueAsString(row.getCell(colDescription)) : "";
+                String productCode = colProductCode >= 0 ? getCellValueAsString(row.getCell(colProductCode)).trim() : "";
 
-                if (name.isBlank() && categoryCode.isBlank()) {
+                if (name.isBlank() && categoryCode.isBlank() && productCode.isBlank()) {
                     continue;
                 }
+                rawRows.add(new String[]{categoryCode, name, statusStr, description, productCode});
+                rawRowIndexes.add(r + 1);
+            }
+
+            Map<String, Product> productsByCode = mode == ImportMode.UPDATE
+                    ? loadProductsByCode(rawRows.stream().map(raw -> raw[4]).filter(code -> !code.isBlank()).toList())
+                    : Map.of();
+
+            List<ParsedImportRow> rows = new ArrayList<>();
+            for (int i = 0; i < rawRows.size(); i++) {
+                String[] raw = rawRows.get(i);
+                String categoryCode = raw[0];
+                String name = raw[1];
+                String statusStr = raw[2];
+                String description = raw[3];
+                String productCode = raw[4];
 
                 Category category = categoryCode.isBlank() ? null : categoriesByCode.get(categoryCode.trim().toUpperCase());
                 Status status = "Ngừng hoạt động".equals(statusStr) || "INACTIVE".equalsIgnoreCase(statusStr)
@@ -123,8 +158,30 @@ public class ProductImportHandler implements ImportTypeHandler {
                 payload.put("name", name.trim());
                 payload.put("description", description.isBlank() ? null : description);
                 payload.put("status", status.name());
+                payload.put("productCode", productCode.isBlank() ? null : productCode);
+                payload.put("importMode", mode.name());
 
-                rows.add(new ParsedImportRow(r + 1, payload));
+                if (mode == ImportMode.UPDATE) {
+                    Product existing = productCode.isBlank() ? null : productsByCode.get(productCode.toUpperCase());
+                    payload.put("productId", existing != null ? existing.getId().toString() : null);
+                    if (existing != null) {
+                        payload.put("imageUrl", existing.getImageUrl());
+                        if (categoryCode.isBlank() && existing.getCategory() != null) {
+                            payload.put("categoryId", existing.getCategory().getId().toString());
+                        }
+                        if (name.isBlank()) {
+                            payload.put("name", existing.getName());
+                        }
+                        if (description.isBlank()) {
+                            payload.put("description", existing.getDescription());
+                        }
+                        if (statusStr.isBlank() && existing.getStatus() != null) {
+                            payload.put("status", existing.getStatus().name());
+                        }
+                    }
+                }
+
+                rows.add(new ParsedImportRow(rawRowIndexes.get(i), payload));
             }
 
             return mergeDuplicateRows(rows);
@@ -159,12 +216,22 @@ public class ProductImportHandler implements ImportTypeHandler {
                 String.valueOf(payload.get("categoryId")),
                 String.valueOf(payload.get("name")).trim().toLowerCase(),
                 String.valueOf(payload.get("description")),
-                String.valueOf(payload.get("status")));
+                String.valueOf(payload.get("status")),
+                String.valueOf(payload.get("productCode")).trim().toLowerCase());
+    }
+
+    private Map<String, Product> loadProductsByCode(Collection<String> codes) {
+        if (codes.isEmpty()) return Map.of();
+        return productRepository.findAllByProductCodeIn(codes).stream()
+                .filter(p -> p.getProductCode() != null)
+                .collect(Collectors.toMap(p -> p.getProductCode().toUpperCase(), p -> p, (a, b) -> a));
     }
 
     @Override
     public List<ValidationErrorResponse> validate(Map<String, Object> payload) {
-        return validate(payload, null);
+        List<ValidationErrorResponse> errors = validate(payload, null);
+        validateMode(payload, null, errors);
+        return errors;
     }
 
     @Override
@@ -185,7 +252,59 @@ public class ProductImportHandler implements ImportTypeHandler {
                 ? Set.of()
                 : categoryRepository.findAllById(categoryIds).stream().map(Category::getId).collect(Collectors.toSet());
 
-        return payloads.stream().map(payload -> validate(payload, existingCategoryIds)).toList();
+        Map<String, Integer> codeCounts = new HashMap<>();
+        for (Map<String, Object> payload : payloads) {
+            String code = readProductCode(payload);
+            if (code != null) {
+                codeCounts.merge(code.toUpperCase(), 1, Integer::sum);
+            }
+        }
+        Map<String, Product> productsByCode = loadProductsByCode(codeCounts.keySet());
+
+        return payloads.stream().map(payload -> {
+            List<ValidationErrorResponse> errors = validate(payload, existingCategoryIds);
+            validateMode(payload, productsByCode, errors);
+            String code = readProductCode(payload);
+            if (code != null && codeCounts.getOrDefault(code.toUpperCase(), 0) > 1) {
+                errors.add(new ValidationErrorResponse("productCode", "Mã sản phẩm " + code + " bị lặp trong file import"));
+            }
+            return errors;
+        }).toList();
+    }
+
+    private void validateMode(
+            Map<String, Object> payload,
+            Map<String, Product> preloadedByCode,
+            List<ValidationErrorResponse> errors) {
+        String code = readProductCode(payload);
+        Map<String, Product> byCode = preloadedByCode != null ? preloadedByCode
+                : code == null ? Map.of() : loadProductsByCode(List.of(code));
+        Product existing = code == null ? null : byCode.get(code.toUpperCase());
+
+        if (readMode(payload) == ImportMode.CREATE) {
+            if (code == null) return;
+            if (code.length() > 50) {
+                errors.add(new ValidationErrorResponse("productCode", "Mã sản phẩm tối đa 50 ký tự"));
+            }
+            if (existing != null) {
+                errors.add(new ValidationErrorResponse("productCode",
+                        "Mã sản phẩm " + code + " đã tồn tại — để trống để hệ thống tự sinh, hoặc chọn kiểu Cập nhật"));
+            }
+            return;
+        }
+
+        if (code == null) {
+            errors.add(new ValidationErrorResponse("productCode", "Kiểu import Cập nhật bắt buộc nhập Mã sản phẩm"));
+            return;
+        }
+        UUID productId = readUuid(payload.get("productId"));
+        if (existing == null || Boolean.TRUE.equals(existing.getIsDeleted()) || !existing.getId().equals(productId)) {
+            errors.add(new ValidationErrorResponse("productCode", "Mã sản phẩm " + code + " không tồn tại hoặc đã bị xoá"));
+            return;
+        }
+        if (CUSTOM_BUNDLE_PRODUCT_CODE.equalsIgnoreCase(code)) {
+            errors.add(new ValidationErrorResponse("productCode", "Không thể cập nhật sản phẩm hệ thống qua import"));
+        }
     }
 
     private List<ValidationErrorResponse> validate(Map<String, Object> payload, Set<UUID> preloadedExistingCategoryIds) {
@@ -211,11 +330,45 @@ public class ProductImportHandler implements ImportTypeHandler {
     @Override
     public UUID commit(Map<String, Object> payload) {
         ProductRequest request = toRequest(payload);
+        if (readMode(payload) == ImportMode.UPDATE) {
+            UUID productId = readUuid(payload.get("productId"));
+            if (productId == null) {
+                throw new BadRequestException("Mã sản phẩm " + readProductCode(payload) + " không tồn tại hoặc đã bị xoá");
+            }
+            return productService.update(productId, request).id();
+        }
         return productService.create(request).id();
     }
 
     private ProductRequest toRequest(Map<String, Object> payload) {
-        return objectMapper.convertValue(payload, ProductRequest.class);
+        Map<String, Object> fields = new HashMap<>();
+        fields.put("categoryId", payload.get("categoryId"));
+        fields.put("productCode", readProductCode(payload));
+        fields.put("name", payload.get("name"));
+        fields.put("description", payload.get("description"));
+        fields.put("imageUrl", payload.get("imageUrl"));
+        fields.put("status", payload.get("status"));
+        return objectMapper.convertValue(fields, ProductRequest.class);
+    }
+
+    private ImportMode readMode(Map<String, Object> payload) {
+        return ImportMode.UPDATE.name().equals(payload.get("importMode")) ? ImportMode.UPDATE : ImportMode.CREATE;
+    }
+
+    private String readProductCode(Map<String, Object> payload) {
+        Object value = payload.get("productCode");
+        if (value == null) return null;
+        String code = String.valueOf(value).trim();
+        return code.isEmpty() ? null : code;
+    }
+
+    private UUID readUuid(Object value) {
+        if (value == null) return null;
+        try {
+            return UUID.fromString(String.valueOf(value));
+        } catch (IllegalArgumentException e) {
+            return null;
+        }
     }
 
     private Sheet findDataSheet(Workbook workbook) {

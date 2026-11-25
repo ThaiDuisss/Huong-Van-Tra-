@@ -61,5 +61,8 @@ export const ingredientApi = {
     },
     downloadTemplate() {
         return apiClient.download("/catalog/ingredients/import/template");
+    },
+    downloadUpdateTemplate() {
+        return apiClient.download("/catalog/ingredients/import/update-template");
     }
 };

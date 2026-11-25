@@ -356,6 +356,58 @@ public class IngredientServiceImpl implements IngredientService {
         }
     }
 
+    private static final String[] IMPORT_INGREDIENT_HEADERS = {
+            "Tên nguyên liệu *", "Đơn vị", "Ngưỡng tối thiểu", "Trạng thái", "Mã nguyên liệu"
+    };
+    private static final String[] IMPORT_UPDATE_INGREDIENT_HEADERS = {
+            "Tên nguyên liệu", "Đơn vị", "Ngưỡng tối thiểu", "Trạng thái", "Mã nguyên liệu *"
+    };
+
+    @Override
+    public byte[] getImportUpdateTemplate() {
+        List<Ingredient> ingredients = repository.findAllActiveWithUnit();
+        try (Workbook workbook = new XSSFWorkbook();
+             ByteArrayOutputStream out = new ByteArrayOutputStream()) {
+
+            buildImportInstructionSheet(workbook);
+            Sheet sheet = createImportIngredientSheet(workbook, IMPORT_UPDATE_INGREDIENT_HEADERS);
+            int rowIdx = 1;
+            for (Ingredient i : ingredients) {
+                Row row = sheet.createRow(rowIdx++);
+                row.createCell(0).setCellValue(i.getName() != null ? i.getName() : "");
+                row.createCell(1).setCellValue(i.getUnit() != null ? i.getUnit().getName() : "");
+                row.createCell(2).setCellValue(i.getReorderPoint() != null ? i.getReorderPoint() : 0);
+                row.createCell(3).setCellValue(i.getStatus() == Status.INACTIVE ? "Ngừng hoạt động" : "Đang hoạt động");
+                row.createCell(4).setCellValue(i.getIngredientCode());
+            }
+            sheet.createFreezePane(0, 1);
+            sheet.setAutoFilter(new CellRangeAddress(0, Math.max(rowIdx - 1, 1), 0, IMPORT_UPDATE_INGREDIENT_HEADERS.length - 1));
+            widenColumns(sheet, IMPORT_UPDATE_INGREDIENT_HEADERS.length);
+            buildImportReferenceSheet(workbook);
+
+            workbook.write(out);
+            return out.toByteArray();
+        } catch (Exception e) {
+            throw new RuntimeException("Lỗi tạo file cập nhật Excel Nguyên liệu: " + e.getMessage(), e);
+        }
+    }
+
+    private Sheet createImportIngredientSheet(Workbook workbook, String[] headers) {
+        Sheet sheet = workbook.createSheet("Nguyên liệu");
+        CellStyle headerStyle = createGreenHeaderStyle(workbook);
+        Row headerRow = sheet.createRow(0);
+        headerRow.setHeightInPoints(22);
+        for (int i = 0; i < headers.length; i++) {
+            Cell cell = headerRow.createCell(i);
+            cell.setCellValue(headers[i]);
+            cell.setCellStyle(headerStyle);
+        }
+        CellStyle textStyle = workbook.createCellStyle();
+        textStyle.setDataFormat(workbook.createDataFormat().getFormat("@"));
+        sheet.setDefaultColumnStyle(4, textStyle);
+        return sheet;
+    }
+
     @Override
     public byte[] getImportTemplate() {
         try (Workbook workbook = new XSSFWorkbook();
@@ -398,19 +450,27 @@ public class IngredientServiceImpl implements IngredientService {
                         "- \"Tham chiếu\": tra cứu đơn vị để điền vào sheet \"Nguyên liệu\"."
                 },
                 {
-                        "2. Cách điền sheet \"Nguyên liệu\"",
-                        "- Tên nguyên liệu (*): bắt buộc. Mã nguyên liệu sẽ được hệ thống tự sinh, không cần nhập.",
+                        "2. Cách điền sheet \"Nguyên liệu\" (Kiểu import \"Tạo mới\")",
+                        "- Cột có dấu * là bắt buộc.",
+                        "- Tên nguyên liệu *: bắt buộc.",
+                        "- Mã nguyên liệu: không bắt buộc. Để trống thì hệ thống tự sinh; điền thì dùng đúng mã đó (không trùng mã đã có).",
                         "- Đơn vị: lấy từ cột \"Đơn vị\" ở sheet \"Tham chiếu\", để trống nếu chưa xác định.",
                         "- Ngưỡng tối thiểu: số nguyên, để trống sẽ mặc định là 0.",
                         "- Trạng thái: \"Đang hoạt động\" hoặc \"Ngừng hoạt động\" (mặc định Đang hoạt động)."
                 },
                 {
-                        "3. Sau khi tải file lên hệ thống",
+                        "3. Cập nhật nguyên liệu đã có (Kiểu import \"Cập nhật\")",
+                        "- Dùng file tải từ nút \"Xuất để cập nhật\": cột Mã nguyên liệu * xác định nguyên liệu cần sửa.",
+                        "- Các ô để trống (Tên, Đơn vị, Ngưỡng tối thiểu, Trạng thái) giữ nguyên giá trị hiện tại.",
+                        "- Ảnh, loại nguyên liệu và giá bán lẻ không bị thay đổi."
+                },
+                {
+                        "4. Sau khi tải file lên hệ thống",
                         "- Dữ liệu được phân tích thành bản nháp để bạn kiểm tra/sửa trực tiếp trên hệ thống trước khi gửi duyệt.",
                         "- Dữ liệu chỉ được ghi chính thức vào hệ thống sau khi quản lý duyệt."
                 },
                 {
-                        "4. Lưu ý",
+                        "5. Lưu ý",
                         "- Không đổi tên các sheet, không đổi tên cột header ở dòng đầu tiên của sheet \"Nguyên liệu\".",
                         "- Không xoá dòng header."
                 }
@@ -460,17 +520,8 @@ public class IngredientServiceImpl implements IngredientService {
     }
 
     private void buildImportIngredientSheet(Workbook workbook) {
-        Sheet sheet = workbook.createSheet("Nguyên liệu");
-        CellStyle headerStyle = createGreenHeaderStyle(workbook);
-
-        String[] headers = {"Tên nguyên liệu", "Đơn vị", "Ngưỡng tối thiểu", "Trạng thái"};
-        Row headerRow = sheet.createRow(0);
-        headerRow.setHeightInPoints(22);
-        for (int i = 0; i < headers.length; i++) {
-            Cell cell = headerRow.createCell(i);
-            cell.setCellValue(headers[i]);
-            cell.setCellStyle(headerStyle);
-        }
+        String[] headers = IMPORT_INGREDIENT_HEADERS;
+        Sheet sheet = createImportIngredientSheet(workbook, headers);
 
         Row row1 = sheet.createRow(1);
         row1.createCell(0).setCellValue("Lá trà tươi ô long");

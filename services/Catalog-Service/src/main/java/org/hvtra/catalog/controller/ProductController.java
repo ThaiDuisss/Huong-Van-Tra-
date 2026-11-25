@@ -124,6 +124,16 @@ public class ProductController {
                 .body(resource);
     }
 
+    @GetMapping("/import/update-template")
+    public ResponseEntity<Resource> downloadUpdateTemplate() {
+        byte[] excelBytes = service.getImportUpdateTemplate();
+        ByteArrayResource resource = new ByteArrayResource(excelBytes);
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"cap_nhat_san_pham.xlsx\"")
+                .contentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
+                .body(resource);
+    }
+
     @UserAction(value = "PRODUCT_DELETE", entityType = "Product", entityId = "#id")
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)

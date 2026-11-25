@@ -73,6 +73,7 @@ function ItemRow({
     const [unitId, setUnitId] = useState(item.payload.unitId ? String(item.payload.unitId) : "");
     const [inventoryPolicy, setInventoryPolicy] = useState(String(item.payload.inventoryPolicy ?? "TRACK_STOCK"));
     const [status, setStatus] = useState(String(item.payload.status ?? "ACTIVE"));
+    const [barcode, setBarcode] = useState(item.payload.barcode ? String(item.payload.barcode) : "");
     const [bomItems, setBomItems] = useState<BomLineInput[]>(toBomLineInputs(item.payload.bomItems));
     const [saving, setSaving] = useState(false);
 
@@ -84,6 +85,7 @@ function ItemRow({
         setUnitId(item.payload.unitId ? String(item.payload.unitId) : "");
         setInventoryPolicy(String(item.payload.inventoryPolicy ?? "TRACK_STOCK"));
         setStatus(String(item.payload.status ?? "ACTIVE"));
+        setBarcode(item.payload.barcode ? String(item.payload.barcode) : "");
         setBomItems(toBomLineInputs(item.payload.bomItems));
     }, [item]);
 
@@ -133,6 +135,7 @@ function ItemRow({
                 reorderPoint: null,
                 inventoryPolicy,
                 status,
+                barcode: barcode.trim() || null,
                 bomItems: bomItems.map((line) => ({
                     ingredientId: line.ingredientId || null,
                     quantity: line.quantity,
@@ -308,6 +311,19 @@ function ItemRow({
                                 <option value="ACTIVE">Đang hoạt động</option>
                                 <option value="INACTIVE">Ngừng hoạt động</option>
                             </NativeSelect>
+                        </div>
+
+                        <div className="grid gap-1.5">
+                            <label className="text-xs font-bold text-[#536078]">Barcode</label>
+                            <TextInput
+                                disabled={!editable}
+                                onChange={(e) => setBarcode(e.target.value)}
+                                placeholder={isUpdate ? "Để trống để giữ barcode hiện tại" : "Để trống để hệ thống tự sinh"}
+                                value={barcode}
+                            />
+                            {errorByField.get("barcode") ? (
+                                <p className="text-xs font-bold text-red-600">{errorByField.get("barcode")}</p>
+                            ) : null}
                         </div>
                     </div>
 

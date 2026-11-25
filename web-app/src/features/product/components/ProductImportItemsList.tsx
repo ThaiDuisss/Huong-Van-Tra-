@@ -43,6 +43,8 @@ function ItemRow({
     const [categoryId, setCategoryId] = useState(item.payload.categoryId ? String(item.payload.categoryId) : "");
     const [description, setDescription] = useState(String(item.payload.description ?? ""));
     const [status, setStatus] = useState(String(item.payload.status ?? "ACTIVE"));
+    const isUpdate = item.payload.importMode === "UPDATE";
+    const code = item.payload.productCode ? String(item.payload.productCode) : "";
     const [saving, setSaving] = useState(false);
 
     useEffect(() => {
@@ -60,6 +62,7 @@ function ItemRow({
         setSaving(true);
         try {
             await onSave({
+                ...item.payload,
                 categoryId: categoryId || null,
                 name,
                 description: description.trim() ? description : null,
@@ -85,6 +88,7 @@ function ItemRow({
                     </div>
                 </div>
                 <div className="flex shrink-0 items-center gap-1.5">
+                    <StatusBadge tone={isUpdate ? "info" : "neutral"}>{isUpdate ? "Cập nhật" : "Tạo mới"}</StatusBadge>
                     {item.occurrenceCount > 1 ? (
                         <StatusBadge tone="warning">
                             Trùng {item.occurrenceCount} dòng — đã gộp
@@ -98,6 +102,18 @@ function ItemRow({
 
             {expanded ? (
                 <div className="grid gap-3 border-t border-pos-border p-4">
+                    {code || errorByField.get("productCode") ? (
+                        <div
+                            className={`rounded-lg border p-3 text-xs font-bold ${
+                                errorByField.get("productCode")
+                                    ? "border-red-200 bg-red-50 text-red-600"
+                                    : "border-sky-200 bg-sky-50 text-sky-800"
+                            }`}
+                        >
+                            {code ? `Mã sản phẩm: ${code}` : null}
+                            {errorByField.get("productCode") ? <p>{errorByField.get("productCode")}</p> : null}
+                        </div>
+                    ) : null}
                     {item.occurrenceCount > 1 ? (
                         <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs font-bold text-amber-700">
                             Dòng này xuất hiện {item.occurrenceCount} lần giống hệt nhau trong file Excel gốc — hệ thống đã tự
