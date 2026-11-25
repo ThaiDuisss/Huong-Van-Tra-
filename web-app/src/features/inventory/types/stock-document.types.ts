@@ -64,21 +64,22 @@ export interface UserSnapshot {
     role: StockDocumentRole;
 }
 
-export const inventoryAuditLabels = {
-    CREATE: "Tạo",
-    SUBMIT: "Gửi duyệt",
-    RECEIVE: "Nhận hàng",
-    APPROVE: "Duyệt",
-    REJECT: "Từ chối",
-    POST: "Đã nhập kho",
-    CANCEL: "Hủy",
-    APPROVE_EXCEPTION: "Duyệt ngoại lệ",
-    INSPECT: "Kiểm định",
-} as const;
-
 export interface InventoryAuditEvent {
     id: string;
-    type: keyof typeof inventoryAuditLabels;
+    type:
+        | "Tạo"
+        | "Nhận hàng"
+        | "Duyệt"
+        | "Từ chối"
+        | "Đã nhập kho"
+        | "Hủy"
+        | "Duyệt ngoại lệ"
+        | "Kiểm định"
+        | "SUBMIT"
+        | "APPROVE"
+        | "REJECT"
+        | "POST"
+        | (string & {});
     actor: UserSnapshot;
     roleSnapshot: StockDocumentRole;
     happenedAt: string;

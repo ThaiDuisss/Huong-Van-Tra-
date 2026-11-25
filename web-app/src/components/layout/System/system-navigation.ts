@@ -48,6 +48,7 @@ import {
   ORDER_ROLES,
   PRICE_LIST_ROLES,
   PRODUCT_ROLES,
+  TASTE_PROFILE_ROLES,
   // REPORT_ROLES,
   SELLABLE_CONFIG_ROLES,
   SETTINGS_ROLES,
@@ -128,6 +129,13 @@ export const systemNavigationItems: SystemNavigationItem[] = [
         to: routePaths.productVariants,
         icon: Layers3,
         roles: PRODUCT_ROLES,
+      },
+      {
+        key: "taste-profiles",
+        label: "Tiêu chuẩn khẩu vị",
+        to: routePaths.tasteProfiles,
+        icon: Sparkles,
+        roles: TASTE_PROFILE_ROLES,
       },
       {
         key: "catalog-categories",
@@ -326,6 +334,13 @@ export const systemNavigationItems: SystemNavigationItem[] = [
         label: "Danh sách khách hàng",
         to: routePaths.customers,
         icon: User,
+        roles: CUSTOMER_ROLES,
+      },
+      {
+        key: "customers-taste-surveys",
+        label: "Khảo sát khẩu vị",
+        to: routePaths.customerTasteSurveys,
+        icon: Sparkles,
         roles: CUSTOMER_ROLES,
       },
       {

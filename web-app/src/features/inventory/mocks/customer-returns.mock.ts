@@ -71,7 +71,7 @@ export function customerReturnAudit(
 
 export const customerReturnMockData: CustomerReturnDetail[] = [
     {
-        auditEvents: [customerReturnAudit("SUBMIT", "SALE_STAFF", "Cashier tiếp nhận yêu cầu trả hàng.")],
+        auditEvents: [customerReturnAudit("Tạo", "SALE_STAFF", "Cashier tiếp nhận yêu cầu trả hàng.")],
         branch: customerReturnBranches[0],
         code: "CRT-20260802-001",
         customerName: "Nguyễn Thu Hà",
@@ -117,7 +117,7 @@ export const customerReturnMockData: CustomerReturnDetail[] = [
         totalValue: 128000
     },
     {
-        auditEvents: [customerReturnAudit("APPROVE", "QC", "QC không đạt, yêu cầu tiêu hủy.")],
+        auditEvents: [customerReturnAudit("Duyệt", "QC", "QC không đạt, yêu cầu tiêu hủy.")],
         branch: customerReturnBranches[1],
         code: "CRT-20260801-002",
         customerName: "Trần Quốc Bảo",

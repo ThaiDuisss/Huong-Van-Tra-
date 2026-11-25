@@ -2995,6 +2995,7 @@ export function PosSalePage() {
                         onCustomerChange={selectCustomer}
                         onCustomerCreated={addCreatedCustomer}
                         onCustomerClear={clearCustomer}
+                        onAddToCart={addProduct}
                         onDiscountChange={changeSelectedDiscount}
                         onDeliveryStateChange={setCurrentDeliveryState}
                         onQuoteRefresh={refreshDeliveryQuote}
@@ -3033,6 +3034,7 @@ export function PosSalePage() {
                         amountDue={amountDue}
                         paymentBlocked={depositInvalid || customerLocked}
                         offline={!online}
+                        onAddToCart={addProduct}
                         backorderNotice={
                             backorderEstimate ? (
                                 <BackorderCheckoutNotice

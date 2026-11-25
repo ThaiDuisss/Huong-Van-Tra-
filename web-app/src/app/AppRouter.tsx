@@ -17,6 +17,7 @@ import {
 import { AiReportsPage } from "../features/ai/pages/AiReportsPage";
 import { ProductRecommendationPage } from "../features/product-recommendation/pages/ProductRecommendationPage";
 import { CustomerListPage } from "../features/customer/pages/CustomerListPage";
+import { CustomerTasteSurveyPage } from "../features/customer/pages/CustomerTasteSurveyPage";
 import { CustomerTierManagementPage } from "../features/customer/pages/CustomerTierManagementPage";
 import { DashboardOverviewPage } from "../features/dashboard/pages/DashboardOverviewPage";
 import { CreateReturnPage } from "../features/order/pages/CreateReturnPage";
@@ -74,6 +75,8 @@ import { UnitImportPage } from "../features/product/pages/UnitImportPage";
 import { ProductImportReviewPage } from "../features/product/pages/ProductImportReviewPage";
 import { ImportBatchListPage } from "../features/product/pages/ImportBatchListPage";
 import { ProductVariantListPage } from "../features/product/pages/ProductVariantListPage";
+import { TasteProfileListPage } from "../features/product/pages/TasteProfileListPage";
+import { TasteProfileEditPage } from "../features/product/pages/TasteProfileEditPage";
 import { ProductVariantDetailPage } from "../features/product/pages/ProductVariantDetailPage";
 import { SellableConfigPage } from "../features/product/pages/SellableConfigPage";
 import { routePaths } from "../routes/path";
@@ -99,6 +102,7 @@ import {
   POS_WORKSPACE_ROLES,
   PRICE_LIST_ROLES,
   PRODUCT_ROLES,
+  TASTE_PROFILE_ROLES,
   REPORT_ROLES,
   SELLABLE_CONFIG_ROLES,
   SETTINGS_ROLES,
@@ -331,6 +335,11 @@ export function AppRouter() {
           <Route path="product-variants/import" element={<ProductVariantImportPage />} />
           <Route path="product-variants/:id" element={<ProductVariantDetailPage />} />
         </Route>
+        <Route element={<RoleGate roles={TASTE_PROFILE_ROLES} />}>
+          <Route path="taste-profiles" element={<TasteProfileListPage />} />
+          <Route path="taste-profiles/edit" element={<TasteProfileEditPage />} />
+          <Route path="taste-profiles/edit/:variantId" element={<TasteProfileEditPage />} />
+        </Route>
         <Route element={<RoleGate roles={PRICE_LIST_ROLES} />}>
           <Route path="price-lists" element={<PriceListPage />} />
         </Route>
@@ -383,6 +392,7 @@ export function AppRouter() {
         </Route>
         <Route element={<RoleGate roles={CUSTOMER_ROLES} />}>
           <Route path="customers" element={<CustomerListPage />} />
+          <Route path="customer-taste-surveys" element={<CustomerTasteSurveyPage />} />
           <Route path="customers/tiers" element={<CustomerTierManagementPage />} />
         </Route>
         <Route element={<RoleGate roles={MARKETING_ROLES} />}>

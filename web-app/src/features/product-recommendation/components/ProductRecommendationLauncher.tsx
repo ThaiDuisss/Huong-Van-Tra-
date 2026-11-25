@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Sparkles } from "lucide-react";
+import { Coffee, Layers, RefreshCw, Sparkles } from "lucide-react";
 import { Button } from "../../../components/ui/Button";
 import {
   Dialog,
@@ -12,8 +12,8 @@ import {
   ProductRecommendationResults,
   type RecommendationResultProps,
 } from "./ProductRecommendationResults";
-import { productRecommendationApi } from "../services/productRecommendation.api";
-import type { PersonalizedMode } from "../types/productRecommendation.types";
+import { ProductRecommendationBomList } from "./ProductRecommendationBomList";
+import type { RecommendationMode } from "../types/productRecommendation.types";
 
 /** Parent keys this launcher by actual tab, customer, actor and invoice generation. */
 export function ProductRecommendationLauncher({
@@ -22,15 +22,21 @@ export function ProductRecommendationLauncher({
   onAdd,
 }: Omit<RecommendationResultProps, "mode">) {
   const [open, setOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState<"products" | "bom">("products");
+  const [recommendationMode, setRecommendationMode] = useState<RecommendationMode>("DISCOVERY");
+  const [refresh, setRefresh] = useState(0);
   const trigger = useRef<HTMLButtonElement>(null);
   const body = useRef<HTMLDivElement>(null);
+
   useEffect(() => {
     if (open) body.current?.querySelector<HTMLButtonElement>("button")?.focus();
   }, [open]);
+
   function changeOpen(value: boolean) {
     setOpen(value);
     if (!value) trigger.current?.focus();
   }
+
   return (
     <section
       className="shrink-0 rounded-xl border border-[#dceade] bg-[#f4faf5] p-3"
@@ -68,81 +74,128 @@ export function ProductRecommendationLauncher({
       </Button>
       <Dialog open={open} onOpenChange={changeOpen}>
         {open && (
-          <DialogContent className="max-w-2xl">
-            <div ref={body}>
-              <DialogHeader>
-                <DialogTitle>AI gợi ý sản phẩm</DialogTitle>
-                <DialogDescription>
-                  {customerId
-                    ? "Gợi ý cho khách hàng đang chọn trên hóa đơn."
-                    : "Khách lẻ — sản phẩm phổ biến."}
-                </DialogDescription>
+          <DialogContent className="max-w-3xl p-0 overflow-hidden">
+            <div ref={body} className="flex flex-col h-[85vh] max-h-[85vh]">
+              <DialogHeader className="shrink-0 p-5 border-b border-slate-100 bg-slate-50/50">
+                <div className="flex flex-wrap items-center justify-between gap-3 pr-6">
+                  <div>
+                    <DialogTitle className="flex items-center gap-2 text-lg font-bold text-slate-900">
+                      <Sparkles className="h-5 w-5 text-emerald-600" />
+                      AI gợi ý sản phẩm & Công thức
+                    </DialogTitle>
+                    <DialogDescription className="text-xs text-slate-500">
+                      {customerId
+                        ? "Gợi ý cá nhân hóa cho khách hàng đang chọn trên đơn."
+                        : "Gợi ý sản phẩm phổ biến và danh sách công thức pha chế."}
+                    </DialogDescription>
+                  </div>
+
+                  {/* 2 Tabs: Mặt hàng & Công thức */}
+                  <div className="flex items-center gap-1 rounded-xl bg-slate-100 p-1 text-xs">
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab("products")}
+                      className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 font-bold transition ${
+                        activeTab === "products"
+                          ? "bg-white text-emerald-800 shadow-2xs"
+                          : "text-slate-600 hover:text-slate-900"
+                      }`}
+                    >
+                      <Coffee className="h-4 w-4" />
+                      <span>Mặt hàng</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab("bom")}
+                      className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 font-bold transition ${
+                        activeTab === "bom"
+                          ? "bg-white text-emerald-800 shadow-2xs"
+                          : "text-slate-600 hover:text-slate-900"
+                      }`}
+                    >
+                      <Layers className="h-4 w-4" />
+                      <span>Công thức (BOM)</span>
+                    </button>
+                  </div>
+                </div>
               </DialogHeader>
-              <RecommendationChoices
-                customerId={customerId}
-                disabled={disabled}
-                onAdd={onAdd ? (product) => {
-                  // Keep the POS stock and backorder prompts visible.
-                  changeOpen(false);
-                  return onAdd(product);
-                } : undefined}
-              />
+
+              <div className="flex-1 min-h-0 overflow-y-auto p-5">
+                {activeTab === "products" ? (
+                  <div className="grid gap-3.5">
+                    {/* Filter Mode: Chưa mua vs Đã mua */}
+                    <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-slate-50 p-2.5 border border-slate-200">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-xs font-bold text-slate-700">Trạng thái mua:</span>
+                        <div className="flex items-center gap-1 rounded-lg bg-white p-0.5 border border-slate-200">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setRecommendationMode("DISCOVERY");
+                              setRefresh((v) => v + 1);
+                            }}
+                            className={`rounded-md px-3 py-1 text-xs font-bold transition ${
+                              recommendationMode === "DISCOVERY"
+                                ? "bg-emerald-600 text-white shadow-2xs"
+                                : "text-slate-600 hover:text-slate-900"
+                            }`}
+                          >
+                            Chưa mua (Khám phá)
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setRecommendationMode("REPEAT");
+                              setRefresh((v) => v + 1);
+                            }}
+                            className={`rounded-md px-3 py-1 text-xs font-bold transition ${
+                              recommendationMode === "REPEAT"
+                                ? "bg-emerald-600 text-white shadow-2xs"
+                                : "text-slate-600 hover:text-slate-900"
+                            }`}
+                          >
+                            Đã mua (Mua lại)
+                          </button>
+                        </div>
+                      </div>
+
+                      <Button
+                        variant="secondary"
+                        disabled={disabled}
+                        onClick={() => setRefresh((value) => value + 1)}
+                        size="sm"
+                        className="h-8 text-xs"
+                      >
+                        <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
+                        Tải lại gợi ý
+                      </Button>
+                    </div>
+
+                    {/* Top 5 Recommended Products */}
+                    <ProductRecommendationResults
+                      key={`${refresh}:${recommendationMode}`}
+                      customerId={customerId}
+                      mode={recommendationMode}
+                      disabled={disabled}
+                      onAdd={
+                        onAdd
+                          ? (product) => {
+                              changeOpen(false);
+                              return onAdd(product);
+                            }
+                          : undefined
+                      }
+                    />
+                  </div>
+                ) : (
+                  /* Tab 2: Công thức (BOM List) */
+                  <ProductRecommendationBomList />
+                )}
+              </div>
             </div>
           </DialogContent>
         )}
       </Dialog>
     </section>
-  );
-}
-
-export function RecommendationChoices({ customerId, disabled, onAdd }: Omit<RecommendationResultProps, "mode">) {
-  const [eligibility, setEligibility] = useState<"loading" | "level1" | "level2" | "error">(
-    customerId ? "loading" : "level1",
-  );
-  const [mode, setMode] = useState<PersonalizedMode | null>(null);
-  const [refresh, setRefresh] = useState(0);
-  const [retry, setRetry] = useState(0);
-  useEffect(() => {
-    if (!customerId) return;
-    const request = new AbortController();
-    void productRecommendationApi.eligibility(customerId, request.signal).then(
-      (eligible) => { if (!request.signal.aborted) setEligibility(eligible ? "level2" : "level1"); },
-      () => { if (!request.signal.aborted) setEligibility("error"); },
-    );
-    return () => request.abort();
-  }, [customerId, retry]);
-
-  const selected = eligibility === "level1" ? "DISCOVERY" : eligibility === "level2" ? mode : null;
-  return (
-    <div className="grid max-h-[70vh] gap-3 overflow-y-auto px-5 pb-5">
-      {eligibility === "loading" && <p role="status">Đang kiểm tra điều kiện gợi ý...</p>}
-      {eligibility === "error" && (
-        <div>
-          <p role="alert">Không kiểm tra được điều kiện gợi ý của khách hàng.</p>
-          <Button size="sm" disabled={disabled} onClick={() => {
-            setEligibility("loading");
-            setRetry((value) => value + 1);
-          }}>Thử lại</Button>
-        </div>
-      )}
-      {eligibility === "level2" && (
-        <div className="flex flex-wrap gap-2" role="group" aria-label="Chọn cách gợi ý">
-          <Button aria-pressed={mode === "EXPLORE"} disabled={disabled}
-            variant={mode === "EXPLORE" ? "primary" : "secondary"}
-            onClick={() => setMode("EXPLORE")}>Muốn đổi vị</Button>
-          <Button aria-pressed={mode === "FAMILIAR"} disabled={disabled}
-            variant={mode === "FAMILIAR" ? "primary" : "secondary"}
-            onClick={() => setMode("FAMILIAR")}>Không muốn đổi vị</Button>
-        </div>
-      )}
-      {selected && (
-        <>
-          <Button className="justify-self-start" size="sm" disabled={disabled}
-            onClick={() => setRefresh((value) => value + 1)}>Tải lại gợi ý</Button>
-          <ProductRecommendationResults key={`${selected}:${refresh}`} customerId={customerId}
-            mode={selected} disabled={disabled} onAdd={onAdd} />
-        </>
-      )}
-    </div>
   );
 }

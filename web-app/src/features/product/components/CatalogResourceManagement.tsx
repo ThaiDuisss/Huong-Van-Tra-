@@ -72,7 +72,7 @@ export interface CatalogFilter {
 export interface CatalogResourceManagementProps<T extends RowBase, S extends string = string> {
     title: string;
     description: string;
-    createLabel: string;
+    createLabel?: string;
     searchPlaceholder?: string;
     columns: Column[];
     items: T[];
@@ -107,6 +107,9 @@ export interface CatalogResourceManagementProps<T extends RowBase, S extends str
     extraHeaderActions?: ReactNode;
     totalItemsLabel?: string;
     filters?: CatalogFilter[];
+    editLabel?: string | ((item: T) => string);
+    editIcon?: ReactNode;
+    onEdit?(item: T): void;
     /** Mục bổ sung cho menu ⋮ của từng dòng (đứng sau các mục mặc định). */
     extraRowActions?(item: T): RowAction[];
     onDelete?(item: T): Promise<void>;
@@ -158,6 +161,9 @@ export function CatalogResourceManagement<T extends RowBase, S extends string = 
     extraHeaderActions,
     totalItemsLabel,
     filters,
+    editLabel,
+    editIcon,
+    onEdit,
     extraRowActions,
     onDelete,
     customForm,
@@ -237,6 +243,9 @@ export function CatalogResourceManagement<T extends RowBase, S extends string = 
     }
 
     function getRowActions(item: T): RowAction[] {
+        const resolvedEditLabel =
+            typeof editLabel === "function" ? editLabel(item) : (editLabel || "Chỉnh sửa");
+
         const actions: RowAction[] = [
             {
                 label: "Xem chi tiết",
@@ -250,12 +259,16 @@ export function CatalogResourceManagement<T extends RowBase, S extends string = 
                 }
             },
             {
-                label: "Chỉnh sửa",
-                icon: <Pencil size={14} />,
+                label: resolvedEditLabel,
+                icon: editIcon || <Pencil size={14} />,
                 onSelect: () => {
-                    setEditingItem(item);
-                    setActionError("");
-                    setShowForm(true);
+                    if (onEdit) {
+                        onEdit(item);
+                    } else {
+                        setEditingItem(item);
+                        setActionError("");
+                        setShowForm(true);
+                    }
                 }
             }
         ];
@@ -335,17 +348,19 @@ export function CatalogResourceManagement<T extends RowBase, S extends string = 
                 actions={
                     <>
                         {extraHeaderActions}
-                        <ActionButton
-                            variant="primary"
-                            onClick={() => {
-                                setEditingItem(null);
-                                setActionError("");
-                                setShowForm(true);
-                            }}
-                        >
-                            <Plus size={17} aria-hidden="true" />
-                            {createLabel}
-                        </ActionButton>
+                        {createLabel ? (
+                            <ActionButton
+                                variant="primary"
+                                onClick={() => {
+                                    setEditingItem(null);
+                                    setActionError("");
+                                    setShowForm(true);
+                                }}
+                            >
+                                <Plus size={17} aria-hidden="true" />
+                                {createLabel}
+                            </ActionButton>
+                        ) : null}
                     </>
                 }
                 description={description}
@@ -633,15 +648,22 @@ export function CatalogResourceManagement<T extends RowBase, S extends string = 
                                     </Button>
                                     <Button
                                         onClick={() => {
-                                            setEditingItem(selectedItem);
-                                            setActionError("");
-                                            setShowForm(true);
-                                            setSelectedItem(null);
+                                            if (onEdit) {
+                                                onEdit(selectedItem);
+                                                setSelectedItem(null);
+                                            } else {
+                                                setEditingItem(selectedItem);
+                                                setActionError("");
+                                                setShowForm(true);
+                                                setSelectedItem(null);
+                                            }
                                         }}
                                         variant="primary"
                                     >
-                                        <Pencil size={16} aria-hidden="true" />
-                                        Chỉnh sửa
+                                        {editIcon ?? <Pencil size={16} aria-hidden="true" />}
+                                        {typeof editLabel === "function"
+                                            ? editLabel(selectedItem)
+                                            : (editLabel || "Chỉnh sửa")}
                                     </Button>
                                 </div>
                             </footer>
@@ -655,7 +677,7 @@ export function CatalogResourceManagement<T extends RowBase, S extends string = 
                     customForm(editingItem, () => setShowForm(false))
                 ) : (
                     <FormDialog
-                        title={editingItem ? `Chỉnh sửa ${title}` : createLabel}
+                        title={editingItem ? `Chỉnh sửa ${title}` : (createLabel || `Tạo ${title}`)}
                         fields={
                             typeof formFields === "function"
                                 ? formFields!(editingItem)

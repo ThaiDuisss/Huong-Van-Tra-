@@ -19,6 +19,7 @@ import type {
     SaleManualDiscount,
     SaleOrderType,
     SalePaymentMethod,
+    SaleProductPreview,
     SaleTotals
 } from "../../types/sale.types";
 
@@ -52,6 +53,7 @@ interface CheckoutPanelProps {
     customerHasMore?: boolean;
     onCustomerSearch?(query: string): void;
     onCustomerLoadMore?(): void;
+    onAddToCart?(product: SaleProductPreview): Promise<boolean>;
     recommendationEntry?: ReactNode;
     /** Số tiền phải thu ở lần này (tiền cọc của đơn chờ hàng). Mặc định là tổng tiền. */
     amountDue?: number;
@@ -102,6 +104,7 @@ export function CheckoutPanel({
     customerHasMore,
     onCustomerSearch,
     onCustomerLoadMore,
+    onAddToCart,
     recommendationEntry,
     amountDue,
     backorderNotice,
@@ -161,6 +164,8 @@ export function CheckoutPanel({
                 onSelect={onCustomerChange}
                 onCreated={onCustomerCreated}
                 onClear={onCustomerClear}
+                invoiceId={bankTransferReferenceCode}
+                onAddToCart={onAddToCart}
             />
 
             {recommendationEntry}
