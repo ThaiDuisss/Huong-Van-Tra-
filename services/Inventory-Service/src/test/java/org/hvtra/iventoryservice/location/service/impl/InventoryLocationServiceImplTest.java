@@ -155,6 +155,7 @@ class InventoryLocationServiceImplTest {
         InventoryLocationRequest request = new InventoryLocationRequest(
                 null, "Kho Lưu Trữ", InventoryLocationType.WAREHOUSE, InventoryStatus.ACTIVE);
 
+        when(repository.findDistinctBranchIds()).thenReturn(List.of(branchId));
         when(repository.existsByCode(anyString())).thenReturn(false);
         when(repository.save(any(InventoryLocation.class))).thenAnswer(invocation -> {
             InventoryLocation saved = invocation.getArgument(0);
@@ -165,6 +166,7 @@ class InventoryLocationServiceImplTest {
         InventoryLocationResponse response = service.create(request);
 
         assertThat(response).isNotNull();
+        assertThat(response.branchId()).isEqualTo(branchId);
         assertThat(response.name()).isEqualTo("Kho Lưu Trữ");
         assertThat(response.type()).isEqualTo(InventoryLocationType.WAREHOUSE);
         assertThat(response.code()).contains("KLT-");

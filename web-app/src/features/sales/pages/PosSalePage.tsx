@@ -1269,7 +1269,7 @@ export function PosSalePage() {
         patchCurrentDeliveryState({
             addresses: [],
             addressError: "",
-            addressLoading: Boolean(nextCustomer),
+            addressLoading: orderType === "DELIVERY" && Boolean(nextCustomer),
             selectedAddressId: null,
             addressSuggestionReason: null,
             useManualAddress: false,
@@ -2374,7 +2374,7 @@ export function PosSalePage() {
     }
 
     useEffect(() => {
-        if (!selectedCustomerId) {
+        if (orderType !== "DELIVERY" || !selectedCustomerId) {
             return undefined;
         }
 
@@ -2382,31 +2382,13 @@ export function PosSalePage() {
         const timeoutId = window.setTimeout(() => {
             patchCurrentDeliveryState({
                 addressLoading: true,
-                addressError: "",
-                addresses: [],
-                selectedAddressId: null,
-                addressSuggestionReason: null,
-                selectedDeliveryMode: "INTERNAL",
-                deliveryModeSelectionSource: "RECOMMENDED",
-                recommendedDeliveryMode: null,
-                deliveryModeRecommendationReason: "",
-                internalDeliveryOption: null,
-                thirdPartyQuotes: [],
-                selectedThirdPartyProvider: "ALL",
-                selectedThirdPartyQuoteId: null,
-                shippingFee: 0,
-                deliveryOptions: [],
-                selectedDeliveryOptionId: null,
-                selectedDeliveryQuoteId: null,
-                recommendedDeliveryOptionId: null,
-                deliverySelectionSource: "RECOMMENDED",
-                customerAcceptedDeliveryWait: false,
-                quoteError: ""
+                addressError: ""
             });
 
             void deliveryApi
                 .getCustomerAddresses(selectedCustomerId, abortController.signal)
                 .then((addresses) => {
+                    if (abortController.signal.aborted) return;
                     const suggestedAddress = selectSuggestedAddress(
                         addresses,
                         currentBranchLocation
@@ -2417,7 +2399,7 @@ export function PosSalePage() {
                         addressLoading: false,
                         selectedAddressId: suggestedAddress?.address.id ?? null,
                         addressSuggestionReason: suggestedAddress?.reason ?? null,
-                        useManualAddress: !suggestedAddress,
+                        useManualAddress: deliveryStateRef.current.useManualAddress || !suggestedAddress,
                         addressError: ""
                     });
                 })
@@ -2442,7 +2424,7 @@ export function PosSalePage() {
             window.clearTimeout(timeoutId);
             abortController.abort();
         };
-    }, [patchCurrentDeliveryState, selectedCustomerId]);
+    }, [invoiceTabs.activeId, orderType, patchCurrentDeliveryState, selectedCustomerId]);
 
     const deliverySnapshot = useMemo(
         () => {

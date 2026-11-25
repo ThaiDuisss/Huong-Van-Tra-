@@ -5,7 +5,7 @@ import {
   Sparkles,
   User
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 
 import { Button } from "@/components/ui/Button";
@@ -64,6 +64,13 @@ export function CustomerTasteSurveyDialog({
   const [preparationCode, setPreparationCode] = useState<string>("DAILY");
   const [selections, setSelections] = useState<Record<string, Selection>>({});
   const [submitting, setSubmitting] = useState(false);
+  const sending = useRef(false);
+  const edited = useRef(false);
+  const attempt = useRef<{
+    input: string;
+    invoiceId: string;
+    keys: { create: string; submit: string };
+  } | null>(null);
 
   const attributes = useMemo(() => {
     if (!taxonomy?.manifest?.attributes) return [];
@@ -72,8 +79,10 @@ export function CustomerTasteSurveyDialog({
 
   // Pre-fill latest survey when available
   useEffect(() => {
-    if (historyQuery.data?.content && historyQuery.data.content.length > 0) {
-      const latest = historyQuery.data.content[0];
+    if (!taxonomy || edited.current) return;
+    const latest = historyQuery.data?.content.find((survey) => survey.status === "SUBMITTED" &&
+      survey.taxonomyVersion === taxonomy.versionCode && survey.taxonomySha256 === taxonomy.manifestSha256);
+    if (latest) {
       const initialSel: Record<string, Selection> = {};
       latest.criteria.hardGroups?.forEach((g) => {
         initialSel[g.attribute] = { values: g.allowedValues, hard: true };
@@ -89,9 +98,10 @@ export function CustomerTasteSurveyDialog({
       });
       setSelections(initialSel);
     }
-  }, [historyQuery.data]);
+  }, [historyQuery.data, taxonomy]);
 
   function toggleValue(attr: TasteAttribute, valueCode: string) {
+    edited.current = true;
     setSelections((prev) => {
       const current = prev[attr.attributeCode] || { values: [], hard: false };
       const isMulti = attr.selectionKind === "ENUM_MULTI";
@@ -121,6 +131,7 @@ export function CustomerTasteSurveyDialog({
   }
 
   function toggleHard(attrCode: string, hard: boolean) {
+    edited.current = true;
     setSelections((prev) => {
       const current = prev[attrCode] || { values: [], hard: false };
       return {
@@ -132,7 +143,7 @@ export function CustomerTasteSurveyDialog({
 
   // Handle submit survey
   async function handleSubmitSurvey() {
-    if (!taxonomy) return;
+    if (!taxonomy || sending.current) return;
 
     const criteria: TasteCriteria = { hardGroups: [], softGroups: [] };
     const notApplicableAttributes: string[] = [];
@@ -162,23 +173,28 @@ export function CustomerTasteSurveyDialog({
       return;
     }
 
+    sending.current = true;
     setSubmitting(true);
     try {
-      const targetInvoiceId = invoiceId || crypto.randomUUID();
+      const input = JSON.stringify([customer.id, invoiceId, taxonomy.versionCode, taxonomy.manifestSha256, criteria]);
+      const submission = attempt.current?.input === input ? attempt.current : {
+        input,
+        invoiceId: invoiceId || crypto.randomUUID(),
+        keys: { create: crypto.randomUUID(), submit: crypto.randomUUID() }
+      };
+      attempt.current = submission;
       await tasteSurveyApi.submit(
         {
           customerId: customer.id,
-          originInvoiceId: targetInvoiceId,
+          originInvoiceId: submission.invoiceId,
           taxonomyVersion: taxonomy.versionCode,
           taxonomySha256: taxonomy.manifestSha256,
           criteria
         },
-        {
-          create: crypto.randomUUID(),
-          submit: crypto.randomUUID()
-        }
+        submission.keys
       );
 
+      attempt.current = null;
       toast.success("Đã ghi nhận khảo sát khẩu vị khách hàng thành công!");
       void historyQuery.refetch();
       onSurveySubmitted?.();
@@ -187,6 +203,7 @@ export function CustomerTasteSurveyDialog({
       const msg = err instanceof Error ? err.message : "Không lưu được khảo sát khẩu vị.";
       toast.error(msg);
     } finally {
+      sending.current = false;
       setSubmitting(false);
     }
   }

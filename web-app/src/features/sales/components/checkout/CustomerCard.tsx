@@ -45,7 +45,8 @@ export function CustomerSelector({
 }: CustomerSelectorProps) {
   const [open, setOpen] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
-  const [surveyOpen, setSurveyOpen] = useState(false);
+  const [openSurveyContext, setOpenSurveyContext] = useState<string | null>(null);
+  const surveyContext = selectedCustomer ? `${invoiceId ?? ""}:${selectedCustomer.id}` : null;
   const triggerRef = useRef<HTMLButtonElement>(null);
 
   // Check customer taste survey history
@@ -150,7 +151,7 @@ export function CustomerSelector({
           <button
             type="button"
             disabled={disabled}
-            onClick={() => setSurveyOpen(true)}
+            onClick={() => setOpenSurveyContext(surveyContext)}
             className={`shrink-0 rounded-lg px-2.5 py-1.5 text-xs font-bold transition shadow-xs ${
               isNewOrNoSurvey
                 ? "bg-emerald-600 text-white hover:bg-emerald-700 active:scale-95"
@@ -189,12 +190,13 @@ export function CustomerSelector({
       </Dialog>
 
       {/* Customer Taste Survey Modal */}
-      {selectedCustomer && surveyOpen && (
+      {selectedCustomer && surveyContext && openSurveyContext === surveyContext && (
         <CustomerTasteSurveyDialog
-          open={surveyOpen}
+          key={surveyContext}
+          open
           customer={selectedCustomer}
           invoiceId={invoiceId}
-          onClose={() => setSurveyOpen(false)}
+          onClose={() => setOpenSurveyContext(null)}
           onAddToCart={onAddToCart}
           onSurveySubmitted={() => {
             void refetchSurveyHistory();
