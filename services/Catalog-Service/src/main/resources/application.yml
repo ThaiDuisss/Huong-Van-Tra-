@@ -78,3 +78,11 @@ kafka-producer-config:
   linger-ms: 5
   request-timeout-ms: 60000
   retry-count: 5
+
+catalog:
+  outbox:
+    item-sync:
+      mode: ${CATALOG_ITEM_SYNC_MODE:CDC}
+      cdc-fenced: ${CATALOG_ITEM_SYNC_CDC_FENCED:false}
+      activation-id: ${CATALOG_ITEM_SYNC_ACTIVATION_ID:}
+      bootstrap-servers: ${CATALOG_ITEM_SYNC_BOOTSTRAP_SERVERS:}

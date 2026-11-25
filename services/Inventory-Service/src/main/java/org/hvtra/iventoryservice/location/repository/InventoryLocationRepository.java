@@ -42,10 +42,9 @@ public interface InventoryLocationRepository
     @Query("""
             SELECT DISTINCT location.branchId
             FROM InventoryLocation location
-            WHERE location.status = :status
-              AND location.isDeleted = false
+            WHERE location.isDeleted = false
             """)
-    List<UUID> findDistinctBranchIdsByStatus(@Param("status") InventoryStatus status);
+    List<UUID> findDistinctBranchIds();
 
     /** Dropdown chọn vị trí/kho — chỉ id + name, tìm theo tên hoặc mã, lọc theo loại/trạng thái nếu có. */
     @Query("""
