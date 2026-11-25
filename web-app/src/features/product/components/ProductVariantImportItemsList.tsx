@@ -90,6 +90,8 @@ function ItemRow({
     const errorByField = new Map(item.validationErrors.map((e) => [e.field, e.message]));
     const isValid = item.validationErrors.length === 0;
     const productName = productId ? productNameById[productId] : undefined;
+    const sku = item.payload.sku ? String(item.payload.sku) : "";
+    const isUpdate = item.payload.importMode === "UPDATE";
     // Dropdown đơn vị: lookup phân trang dùng chung cho đơn vị bán và các dòng định mức, chỉ tải khi dòng đang mở để sửa
     const unitDropdown = useLookupDropdown(unitApi.lookup, {
         enabled: expanded && editable,
@@ -122,6 +124,7 @@ function ItemRow({
         setSaving(true);
         try {
             await onSave({
+                ...item.payload,
                 productId: productId || null,
                 quantity,
                 sellingPrice,
@@ -156,11 +159,19 @@ function ItemRow({
                             {productName ? `${productName} — ${quantity || 0} ${unitLabel ?? ""}`.trim() : `Dòng ${item.rowIndex}`}
                         </div>
                         <div className="truncate text-xs text-[#697684]">
-                            {bomItems.length > 0 ? `${bomItems.length} dòng BOM` : "Không có BOM"}
+                            {sku ? `SKU ${sku} · ` : ""}
+                            {bomItems.length > 0
+                                ? isUpdate
+                                    ? `${bomItems.length} dòng BOM — thay toàn bộ BOM hiện có`
+                                    : `${bomItems.length} dòng BOM`
+                                : isUpdate
+                                  ? "Giữ nguyên BOM hiện có"
+                                  : "Không có BOM"}
                         </div>
                     </div>
                 </div>
                 <div className="flex shrink-0 items-center gap-1.5">
+                    <StatusBadge tone={isUpdate ? "info" : "neutral"}>{isUpdate ? "Cập nhật" : "Tạo mới"}</StatusBadge>
                     {item.occurrenceCount > 1 ? (
                         <StatusBadge tone="warning">
                             Trùng {item.occurrenceCount} dòng — đã gộp
@@ -178,6 +189,22 @@ function ItemRow({
                         <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs font-bold text-amber-700">
                             Dòng này xuất hiện {item.occurrenceCount} lần giống hệt nhau trong file Excel gốc — hệ thống đã tự
                             gộp thành 1 dòng duy nhất.
+                        </div>
+                    ) : null}
+
+                    {isUpdate ? (
+                        <div className="rounded-lg border border-sky-200 bg-sky-50 p-3 text-xs font-bold text-sky-800">
+                            Cập nhật mặt hàng SKU {sku || "(chưa có SKU)"}.{" "}
+                            {bomItems.length > 0
+                                ? "BOM hiện có sẽ được thay toàn bộ bằng các dòng bên dưới khi duyệt."
+                                : "Không có dòng BOM nên BOM hiện có được giữ nguyên."}
+                            {errorByField.get("sku") ? (
+                                <p className="mt-1 text-red-600">{errorByField.get("sku")}</p>
+                            ) : null}
+                        </div>
+                    ) : errorByField.get("sku") ? (
+                        <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-xs font-bold text-red-600">
+                            {errorByField.get("sku")}
                         </div>
                     ) : null}
 

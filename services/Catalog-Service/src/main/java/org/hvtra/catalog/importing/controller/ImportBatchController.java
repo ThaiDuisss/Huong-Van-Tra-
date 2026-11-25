@@ -3,6 +3,7 @@ package org.hvtra.catalog.importing.controller;
 import jakarta.validation.Valid;
 import org.hvtra.catalog.dto.response.PageResponse;
 import org.hvtra.commonservice.common_importing.enums.ImportBatchStatus;
+import org.hvtra.commonservice.common_importing.enums.ImportMode;
 import org.hvtra.commonservice.common_importing.enums.ImportType;
 import org.hvtra.commonservice.common_importing.dto.request.ApproveImportBatchRequest;
 import org.hvtra.commonservice.common_importing.dto.request.RejectImportBatchRequest;
@@ -34,8 +35,9 @@ public class ImportBatchController {
     @PostMapping(value = "/preview", consumes = "multipart/form-data")
     public ImportPreviewResponse preview(
             @RequestParam("file") MultipartFile file,
-            @RequestParam("type") ImportType type) {
-        return service.preview(type, file);
+            @RequestParam("type") ImportType type,
+            @RequestParam(name = "mode", defaultValue = "CREATE") ImportMode mode) {
+        return service.preview(type, mode, file);
     }
 
     @PostMapping("/draft")
@@ -48,8 +50,9 @@ public class ImportBatchController {
     @ResponseStatus(HttpStatus.CREATED)
     public ImportBatchResponse create(
             @RequestParam("file") MultipartFile file,
-            @RequestParam("type") ImportType type) {
-        return service.createFromExcel(type, file);
+            @RequestParam("type") ImportType type,
+            @RequestParam(name = "mode", defaultValue = "CREATE") ImportMode mode) {
+        return service.createFromExcel(type, mode, file);
     }
 
     @GetMapping

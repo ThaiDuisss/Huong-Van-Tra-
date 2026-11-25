@@ -2,6 +2,7 @@ package org.hvtra.commonservice.common_importing.dto.request;
 
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
+import org.hvtra.commonservice.common_importing.enums.ImportMode;
 import org.hvtra.commonservice.common_importing.enums.ImportType;
 
 import java.util.List;
@@ -11,6 +12,8 @@ import java.util.UUID;
 public record SaveImportDraftRequest(
         @NotNull(message = "Loại import không được để trống")
         ImportType type,
+
+        ImportMode mode,
 
         String sourceFileName,
 

@@ -14,15 +14,18 @@ import org.hvtra.catalog.dto.request.ProductVariantRequest;
 import org.hvtra.catalog.dto.response.ProductResponse;
 import org.hvtra.catalog.entity.Ingredient;
 import org.hvtra.catalog.entity.Product;
+import org.hvtra.catalog.entity.ProductVariant;
 import org.hvtra.catalog.entity.Unit;
 import org.hvtra.catalog.enums.InventoryPolicy;
 import org.hvtra.catalog.enums.Status;
 import org.hvtra.catalog.exception.BadRequestException;
 import org.hvtra.catalog.repository.IngredientRepository;
 import org.hvtra.catalog.repository.ProductRepository;
+import org.hvtra.catalog.repository.ProductVariantRepository;
 import org.hvtra.catalog.repository.UnitRepository;
 import org.hvtra.catalog.service.BomItemService;
 import org.hvtra.catalog.service.ProductVariantService;
+import org.hvtra.commonservice.common_importing.enums.ImportMode;
 import org.hvtra.commonservice.common_importing.enums.ImportType;
 import org.hvtra.commonservice.common_importing.dto.response.ValidationErrorResponse;
 import org.hvtra.commonservice.common_importing.handler.ImportTypeHandler;
@@ -50,7 +53,10 @@ import java.util.stream.Collectors;
 @Component
 public class ProductVariantImportHandler implements ImportTypeHandler {
 
+    private static final String CUSTOM_BUNDLE_SKU = "CUSTOM-BUNDLE";
+
     private final ProductRepository productRepository;
+    private final ProductVariantRepository productVariantRepository;
     private final UnitRepository unitRepository;
     private final IngredientRepository ingredientRepository;
     private final ProductVariantService productVariantService;
@@ -60,6 +66,7 @@ public class ProductVariantImportHandler implements ImportTypeHandler {
 
     public ProductVariantImportHandler(
             ProductRepository productRepository,
+            ProductVariantRepository productVariantRepository,
             UnitRepository unitRepository,
             IngredientRepository ingredientRepository,
             ProductVariantService productVariantService,
@@ -67,6 +74,7 @@ public class ProductVariantImportHandler implements ImportTypeHandler {
             Validator validator,
             ObjectMapper objectMapper) {
         this.productRepository = productRepository;
+        this.productVariantRepository = productVariantRepository;
         this.unitRepository = unitRepository;
         this.ingredientRepository = ingredientRepository;
         this.productVariantService = productVariantService;
@@ -82,6 +90,11 @@ public class ProductVariantImportHandler implements ImportTypeHandler {
 
     @Override
     public List<ParsedImportRow> parseExcel(MultipartFile file) {
+        return parseExcel(file, ImportMode.CREATE);
+    }
+
+    @Override
+    public List<ParsedImportRow> parseExcel(MultipartFile file, ImportMode mode) {
         try (Workbook workbook = WorkbookFactory.create(file.getInputStream())) {
             Sheet variantSheet = findSheetByName(workbook, "mat hang");
             if (variantSheet == null) {
@@ -103,7 +116,7 @@ public class ProductVariantImportHandler implements ImportTypeHandler {
             LinkedHashMap<String, Integer> rowIndexByRef = new LinkedHashMap<>();
 
             if (variantSheet != null) {
-                parseVariantSheet(variantSheet, productsByCode, units, payloadsByRef, rowIndexByRef);
+                parseVariantSheet(variantSheet, mode, productsByCode, units, payloadsByRef, rowIndexByRef);
             }
             if (bomSheet != null) {
                 parseBomSheet(bomSheet, ingredientsByCode, units, payloadsByRef);
@@ -121,6 +134,7 @@ public class ProductVariantImportHandler implements ImportTypeHandler {
 
     private void parseVariantSheet(
             Sheet sheet,
+            ImportMode mode,
             Map<String, Product> productsByCode,
             List<Unit> units,
             Map<String, Map<String, Object>> payloadsByRef,
@@ -131,12 +145,14 @@ public class ProductVariantImportHandler implements ImportTypeHandler {
         int headerRowIndex = findHeaderRowIndex(sheet, "ma san pham", "dinh luong");
         Row headerRow = sheet.getRow(headerRowIndex);
         int colRef = -1, colProductCode = -1, colQuantity = -1, colUnit = -1,
-                colSellingPrice = -1, colCostPrice = -1, colPolicy = -1, colStatus = -1;
+                colSellingPrice = -1, colCostPrice = -1, colPolicy = -1, colStatus = -1, colSku = -1;
 
         if (headerRow != null) {
             for (int c = 0; c < headerRow.getLastCellNum(); c++) {
                 String normalized = normalize(getCellValueAsString(headerRow.getCell(c)));
-                if (normalized.equals("ref") || normalized.contains("ref")) {
+                if (normalized.startsWith("sku")) {
+                    colSku = c;
+                } else if (normalized.equals("ref") || normalized.contains("ref")) {
                     colRef = c;
                 } else if (normalized.contains("ma san pham") || normalized.contains("ma sp")) {
                     colProductCode = c;
@@ -164,6 +180,8 @@ public class ProductVariantImportHandler implements ImportTypeHandler {
         if (colPolicy == -1) colPolicy = 6;
         if (colStatus == -1) colStatus = 7;
 
+        List<RawVariantRow> rawRows = new ArrayList<>();
+        Set<String> seenRefs = new HashSet<>();
         for (int r = headerRowIndex + 1; r < rowCount; r++) {
             Row row = sheet.getRow(r);
             if (row == null) continue;
@@ -171,30 +189,44 @@ public class ProductVariantImportHandler implements ImportTypeHandler {
             String ref = getCellValueAsString(row.getCell(colRef)).trim();
             String productCode = getCellValueAsString(row.getCell(colProductCode)).trim();
             String quantityStr = getCellValueAsString(row.getCell(colQuantity)).trim();
-            String unitName = getCellValueAsString(row.getCell(colUnit)).trim();
-            String sellingPriceStr = getCellValueAsString(row.getCell(colSellingPrice)).trim();
-            String costPriceStr = getCellValueAsString(row.getCell(colCostPrice)).trim();
-            String policyStr = getCellValueAsString(row.getCell(colPolicy)).trim();
-            String statusStr = getCellValueAsString(row.getCell(colStatus)).trim();
+            String sku = colSku == -1 ? "" : getCellValueAsString(row.getCell(colSku)).trim();
 
-            if (ref.isBlank() && productCode.isBlank() && quantityStr.isBlank()) {
+            if (ref.isBlank() && productCode.isBlank() && quantityStr.isBlank() && sku.isBlank()) {
                 continue;
             }
             if (ref.isBlank()) {
                 ref = "__row_" + (r + 1);
             }
-            if (payloadsByRef.containsKey(ref)) {
+            if (!seenRefs.add(ref)) {
                 continue;
             }
 
-            Product product = productCode.isBlank() ? null : productsByCode.get(productCode.toUpperCase());
-            Unit unit = resolveUnit(units, unitName);
-            BigDecimal quantity = parseDecimal(quantityStr);
-            BigDecimal sellingPrice = parseDecimal(sellingPriceStr);
-            BigDecimal costPrice = parseDecimal(costPriceStr);
-            InventoryPolicy policy = "Không theo dõi".equalsIgnoreCase(policyStr) || "DO_NOT_TRACK".equalsIgnoreCase(policyStr)
+            rawRows.add(new RawVariantRow(
+                    ref,
+                    r + 1,
+                    productCode,
+                    quantityStr,
+                    getCellValueAsString(row.getCell(colUnit)).trim(),
+                    getCellValueAsString(row.getCell(colSellingPrice)).trim(),
+                    getCellValueAsString(row.getCell(colCostPrice)).trim(),
+                    getCellValueAsString(row.getCell(colPolicy)).trim(),
+                    getCellValueAsString(row.getCell(colStatus)).trim(),
+                    sku));
+        }
+
+        Map<String, ProductVariant> variantsBySku = mode == ImportMode.UPDATE ? loadVariantsBySku(rawRows) : Map.of();
+
+        for (RawVariantRow raw : rawRows) {
+            ProductVariant existing = raw.sku().isBlank() ? null : variantsBySku.get(raw.sku().toUpperCase());
+
+            Product product = raw.productCode().isBlank() ? null : productsByCode.get(raw.productCode().toUpperCase());
+            Unit unit = resolveUnit(units, raw.unitName());
+            BigDecimal quantity = parseDecimal(raw.quantity());
+            BigDecimal sellingPrice = parseDecimal(raw.sellingPrice());
+            BigDecimal costPrice = parseDecimal(raw.costPrice());
+            InventoryPolicy policy = "Không theo dõi".equalsIgnoreCase(raw.policy()) || "DO_NOT_TRACK".equalsIgnoreCase(raw.policy())
                     ? InventoryPolicy.DO_NOT_TRACK : InventoryPolicy.TRACK_STOCK;
-            Status status = "Ngừng hoạt động".equalsIgnoreCase(statusStr) || "INACTIVE".equalsIgnoreCase(statusStr)
+            Status status = "Ngừng hoạt động".equalsIgnoreCase(raw.status()) || "INACTIVE".equalsIgnoreCase(raw.status())
                     ? Status.INACTIVE : Status.ACTIVE;
 
             Map<String, Object> payload = new HashMap<>();
@@ -207,10 +239,69 @@ public class ProductVariantImportHandler implements ImportTypeHandler {
             payload.put("inventoryPolicy", policy.name());
             payload.put("status", status.name());
             payload.put("bomItems", new ArrayList<Map<String, Object>>());
+            payload.put("importMode", mode.name());
 
-            payloadsByRef.put(ref, payload);
-            rowIndexByRef.put(ref, r + 1);
+            if (!raw.sku().isBlank()) {
+                payload.put("sku", raw.sku());
+            }
+            if (mode == ImportMode.UPDATE) {
+                payload.put("variantId", existing != null ? existing.getId().toString() : null);
+                if (existing != null) {
+                    fillBlankFromExisting(payload, raw, existing);
+                }
+            }
+
+            payloadsByRef.put(raw.ref(), payload);
+            rowIndexByRef.put(raw.ref(), raw.rowIndex());
         }
+    }
+
+    private Map<String, ProductVariant> loadVariantsBySku(List<RawVariantRow> rawRows) {
+        Set<String> skus = rawRows.stream()
+                .map(RawVariantRow::sku)
+                .filter(sku -> !sku.isBlank())
+                .collect(Collectors.toSet());
+        if (skus.isEmpty()) return Map.of();
+        return productVariantRepository.findAllBySkuInWithDetails(skus).stream()
+                .collect(Collectors.toMap(v -> v.getSku().toUpperCase(), v -> v, (a, b) -> a));
+    }
+
+    private void fillBlankFromExisting(Map<String, Object> payload, RawVariantRow raw, ProductVariant existing) {
+        payload.put("compositionRevision", existing.getCompositionRevision());
+        if (raw.productCode().isBlank()) {
+            payload.put("productId", existing.getProduct().getId().toString());
+        }
+        if (raw.quantity().isBlank()) {
+            payload.put("quantity", existing.getQuantity());
+        }
+        if (raw.unitName().isBlank() && existing.getUnit() != null) {
+            payload.put("unitId", existing.getUnit().getId().toString());
+        }
+        if (raw.sellingPrice().isBlank()) {
+            payload.put("sellingPrice", existing.getSellingPrice());
+        }
+        if (raw.costPrice().isBlank()) {
+            payload.put("costPrice", existing.getCostPrice());
+        }
+        if (raw.policy().isBlank() && existing.getInventoryPolicy() != null) {
+            payload.put("inventoryPolicy", existing.getInventoryPolicy().name());
+        }
+        if (raw.status().isBlank() && existing.getStatus() != null) {
+            payload.put("status", existing.getStatus().name());
+        }
+    }
+
+    private record RawVariantRow(
+            String ref,
+            int rowIndex,
+            String productCode,
+            String quantity,
+            String unitName,
+            String sellingPrice,
+            String costPrice,
+            String policy,
+            String status,
+            String sku) {
     }
 
     @SuppressWarnings("unchecked")
@@ -284,7 +375,9 @@ public class ProductVariantImportHandler implements ImportTypeHandler {
     @Override
     public List<ValidationErrorResponse> validate(Map<String, Object> payload) {
         // 1 item lẻ (vd sau khi user sửa 1 dòng) — tra cứu tồn tại trực tiếp, không cần gộp id vì chỉ có 1 dòng.
-        return validate(payload, null, null, null);
+        List<ValidationErrorResponse> errors = validate(payload, null, null, null);
+        validateUpdateTarget(payload, null, null, errors);
+        return errors;
     }
 
     @Override
@@ -294,7 +387,14 @@ public class ProductVariantImportHandler implements ImportTypeHandler {
         Set<UUID> productIds = new HashSet<>();
         Set<UUID> unitIds = new HashSet<>();
         Set<UUID> ingredientIds = new HashSet<>();
+        Set<UUID> variantIds = new HashSet<>();
+        Map<String, Integer> skuCounts = new HashMap<>();
         for (Map<String, Object> payload : payloads) {
+            addIfPresent(variantIds, readUuid(payload.get("variantId")));
+            String sku = readSku(payload);
+            if (sku != null) {
+                skuCounts.merge(sku.toUpperCase(), 1, Integer::sum);
+            }
             addIfPresent(productIds, readUuid(payload.get("productId")));
             addIfPresent(unitIds, readUuid(payload.get("unitId")));
             for (Map<String, Object> bomLine : readBomItems(payload)) {
@@ -306,10 +406,84 @@ public class ProductVariantImportHandler implements ImportTypeHandler {
         Set<UUID> existingProductIds = findExistingIds(productRepository, productIds);
         Set<UUID> existingUnitIds = findExistingIds(unitRepository, unitIds);
         Set<UUID> existingIngredientIds = findExistingIds(ingredientRepository, ingredientIds);
+        Map<UUID, ProductVariant> existingVariants = variantIds.isEmpty() ? Map.of()
+                : productVariantRepository.findAllById(variantIds).stream()
+                        .filter(v -> !Boolean.TRUE.equals(v.getIsDeleted()))
+                        .collect(Collectors.toMap(ProductVariant::getId, v -> v));
+        Set<String> createSkus = payloads.stream()
+                .filter(payload -> readMode(payload) == ImportMode.CREATE)
+                .map(this::readSku)
+                .filter(sku -> sku != null)
+                .collect(Collectors.toSet());
+        Set<String> takenSkus = createSkus.isEmpty() ? Set.of()
+                : productVariantRepository.findSkusIn(createSkus).stream()
+                        .map(String::toUpperCase)
+                        .collect(Collectors.toSet());
 
         return payloads.stream()
-                .map(payload -> validate(payload, existingProductIds, existingUnitIds, existingIngredientIds))
+                .map(payload -> {
+                    List<ValidationErrorResponse> errors =
+                            validate(payload, existingProductIds, existingUnitIds, existingIngredientIds);
+                    validateUpdateTarget(payload, existingVariants, takenSkus, errors);
+                    String sku = readSku(payload);
+                    if (sku != null && skuCounts.getOrDefault(sku.toUpperCase(), 0) > 1) {
+                        errors.add(new ValidationErrorResponse("sku", "SKU " + sku + " bị lặp trong file import"));
+                    }
+                    return errors;
+                })
                 .toList();
+    }
+
+    private void validateUpdateTarget(
+            Map<String, Object> payload,
+            Map<UUID, ProductVariant> preloadedVariants,
+            Set<String> preloadedTakenSkus,
+            List<ValidationErrorResponse> errors) {
+        String sku = readSku(payload);
+        if (readMode(payload) == ImportMode.CREATE) {
+            if (sku == null) return;
+            if (sku.length() > 100) {
+                errors.add(new ValidationErrorResponse("sku", "SKU không được dài quá 100 ký tự"));
+            }
+            boolean taken = preloadedTakenSkus != null
+                    ? preloadedTakenSkus.contains(sku.toUpperCase())
+                    : productVariantRepository.existsBySku(sku);
+            if (taken || CUSTOM_BUNDLE_SKU.equalsIgnoreCase(sku)) {
+                errors.add(new ValidationErrorResponse("sku",
+                        "SKU " + sku + " đã tồn tại — để trống để hệ thống tự sinh, hoặc chọn kiểu Cập nhật để sửa mặt hàng đó"));
+            }
+            return;
+        }
+        if (sku == null) {
+            errors.add(new ValidationErrorResponse("sku", "Kiểu import Cập nhật bắt buộc nhập SKU"));
+            return;
+        }
+
+        UUID variantId = readUuid(payload.get("variantId"));
+        ProductVariant variant = null;
+        if (variantId != null) {
+            variant = preloadedVariants != null
+                    ? preloadedVariants.get(variantId)
+                    : productVariantRepository.findById(variantId)
+                            .filter(v -> !Boolean.TRUE.equals(v.getIsDeleted()))
+                            .orElse(null);
+        }
+        if (variant == null || !variant.getSku().equalsIgnoreCase(sku)) {
+            errors.add(new ValidationErrorResponse("sku", "SKU " + sku + " không tồn tại hoặc đã bị xoá"));
+            return;
+        }
+        if (variant.isCustomBundle()) {
+            errors.add(new ValidationErrorResponse("sku", "Không thể cập nhật mặt hàng combo tự chọn qua import"));
+        }
+        UUID productId = readUuid(payload.get("productId"));
+        if (productId != null && !productId.equals(variant.getProduct().getId())) {
+            errors.add(new ValidationErrorResponse("productId", "Mã sản phẩm khác với sản phẩm hiện tại của SKU " + sku));
+        }
+        Long expectedRevision = readLong(payload.get("compositionRevision"));
+        if (expectedRevision != null && expectedRevision != variant.getCompositionRevision()) {
+            errors.add(new ValidationErrorResponse("sku",
+                    "Định lượng/BOM của SKU " + sku + " đã thay đổi sau khi import, vui lòng import lại"));
+        }
     }
 
     /**
@@ -405,7 +579,16 @@ public class ProductVariantImportHandler implements ImportTypeHandler {
     public UUID commit(Map<String, Object> payload) {
         UUID productId = readUuid(payload.get("productId"));
         ProductVariantRequest request = toVariantRequest(payload);
-        ProductResponse.VariantResponse response = productVariantService.create(productId, request);
+        ProductResponse.VariantResponse response;
+        if (readMode(payload) == ImportMode.UPDATE) {
+            UUID variantId = readUuid(payload.get("variantId"));
+            if (variantId == null) {
+                throw new BadRequestException("SKU " + readSku(payload) + " không tồn tại hoặc đã bị xoá");
+            }
+            response = productVariantService.update(variantId, request);
+        } else {
+            response = productVariantService.create(productId, request, readSku(payload));
+        }
 
         List<Map<String, Object>> bomItemMaps = readBomItems(payload);
         if (!bomItemMaps.isEmpty()) {
@@ -449,6 +632,27 @@ public class ProductVariantImportHandler implements ImportTypeHandler {
         try {
             return UUID.fromString(String.valueOf(value));
         } catch (IllegalArgumentException e) {
+            return null;
+        }
+    }
+
+    private ImportMode readMode(Map<String, Object> payload) {
+        return ImportMode.UPDATE.name().equals(payload.get("importMode")) ? ImportMode.UPDATE : ImportMode.CREATE;
+    }
+
+    private String readSku(Map<String, Object> payload) {
+        Object value = payload.get("sku");
+        if (value == null) return null;
+        String sku = String.valueOf(value).trim();
+        return sku.isEmpty() ? null : sku;
+    }
+
+    private Long readLong(Object value) {
+        if (value instanceof Number number) return number.longValue();
+        if (value == null || String.valueOf(value).isBlank()) return null;
+        try {
+            return Long.parseLong(String.valueOf(value).trim());
+        } catch (NumberFormatException e) {
             return null;
         }
     }

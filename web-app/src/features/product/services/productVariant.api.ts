@@ -100,6 +100,11 @@ export const productVariantApi = {
     downloadTemplate() {
         return apiClient.download("/catalog/product-variants/import/template");
     },
+    downloadUpdateTemplate(missingBomOnly: boolean) {
+        return apiClient.download("/catalog/product-variants/import/update-template", {
+            query: { missingBomOnly: String(missingBomOnly) }
+        });
+    },
     delete(id: string) {
         return apiClient.delete<void>(`/catalog/product-variants/${encodeURIComponent(id)}`);
     },

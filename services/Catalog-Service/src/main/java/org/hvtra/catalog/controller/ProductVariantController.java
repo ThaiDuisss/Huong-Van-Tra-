@@ -141,6 +141,17 @@ public class ProductVariantController {
                 .body(resource);
     }
 
+    @GetMapping("/import/update-template")
+    public ResponseEntity<Resource> downloadUpdateTemplate(
+            @RequestParam(name = "missingBomOnly", defaultValue = "false") boolean missingBomOnly) {
+        byte[] excelBytes = service.getImportUpdateTemplate(missingBomOnly);
+        ByteArrayResource resource = new ByteArrayResource(excelBytes);
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"cap_nhat_mat_hang.xlsx\"")
+                .contentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
+                .body(resource);
+    }
+
     @GetMapping("/lookup")
     public PageResponse<LookupResponse> lookup(
             @RequestParam(name = "search", required = false) String search,

@@ -784,7 +784,7 @@ export function GoodsReceiptAuditTimeline({
                     <div className="grid gap-1">
                         <div className="flex flex-wrap items-center gap-2">
                             <strong className="text-sm font-black text-[#172317]">
-                                {inventoryAuditLabels[event.type]}
+                                {inventoryAuditLabels[event.type as keyof typeof inventoryAuditLabels] ?? event.type}
                             </strong>
                             <span className="text-xs font-bold text-[#697684]">
                                 {formatVietnamDateTime(event.happenedAt)}

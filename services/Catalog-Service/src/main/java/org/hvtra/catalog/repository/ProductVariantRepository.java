@@ -91,6 +91,17 @@ public interface ProductVariantRepository extends JpaRepository<ProductVariant, 
             """)
     List<ProductVariant> findAllForExport(@Param("productId") UUID productId);
 
+    @Query("""
+            select v from ProductVariant v
+            join fetch v.product p
+            left join fetch v.unit
+            where v.sku in :skus and v.isDeleted = false
+            """)
+    List<ProductVariant> findAllBySkuInWithDetails(@Param("skus") Collection<String> skus);
+
+    @Query("select v.sku from ProductVariant v where v.sku in :skus")
+    List<String> findSkusIn(@Param("skus") Collection<String> skus);
+
     /** Batch theo id cho service khác (Feign) — fetch sẵn product/category/unit để tránh N+1 khi map. */
     @Query("""
             select distinct v from ProductVariant v

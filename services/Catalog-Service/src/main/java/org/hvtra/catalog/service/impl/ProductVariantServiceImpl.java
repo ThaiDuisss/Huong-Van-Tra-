@@ -19,6 +19,7 @@ import org.hvtra.catalog.dto.response.SellableQuantityAdjustmentResponse;
 import org.hvtra.catalog.dto.response.VariantCostResponse;
 import org.hvtra.catalog.dto.response.VariantInventorySummaryResponse;
 import org.hvtra.catalog.entity.Product;
+import org.hvtra.catalog.entity.BomItem;
 import org.hvtra.catalog.entity.Category;
 import org.hvtra.catalog.entity.Ingredient;
 import org.hvtra.catalog.entity.ProductVariant;
@@ -30,6 +31,7 @@ import org.hvtra.catalog.exception.BadRequestException;
 import org.hvtra.catalog.exception.ResourceNotFoundException;
 import org.hvtra.catalog.mapper.ProductMapper;
 import org.hvtra.catalog.outbox.publisher.CatalogOutboxPublisher;
+import org.hvtra.catalog.repository.BomItemRepository;
 import org.hvtra.catalog.repository.IngredientRepository;
 import org.hvtra.catalog.repository.ProductRepository;
 import org.hvtra.catalog.repository.ProductVariantRepository;
@@ -63,7 +65,10 @@ import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 import java.util.Objects;
 import org.hvtra.catalog.enums.InventoryPolicy;
 
@@ -73,6 +78,12 @@ import org.hvtra.catalog.enums.InventoryPolicy;
 public class ProductVariantServiceImpl implements ProductVariantService {
 
     private static final String CUSTOM_BUNDLE_SKU = "CUSTOM-BUNDLE";
+    private static final String[] IMPORT_VARIANT_HEADERS = {
+            "Ref", "Mã sản phẩm", "Định lượng", "Đơn vị", "Giá bán", "Giá vốn", "Chính sách tồn kho", "Trạng thái", "SKU"
+    };
+    private static final String[] IMPORT_BOM_HEADERS = {
+            "Ref mặt hàng", "Mã nguyên liệu", "Định lượng", "Đơn vị", "Tỷ lệ hao hụt (%)"
+    };
 
     private final ProductVariantRepository repository;
     private final ProductRepository productRepository;
@@ -83,6 +94,7 @@ public class ProductVariantServiceImpl implements ProductVariantService {
     private final SellableAdjustmentRepository adjustmentRepository;
     private final CatalogOutboxPublisher catalogOutboxPublisher;
     private final TasteComposition composition;
+    private final BomItemRepository bomItemRepository;
 
     public ProductVariantServiceImpl(
             ProductVariantRepository repository,
@@ -93,7 +105,8 @@ public class ProductVariantServiceImpl implements ProductVariantService {
             IngredientRepository ingredientRepository,
             SellableAdjustmentRepository adjustmentRepository,
             CatalogOutboxPublisher catalogOutboxPublisher,
-            TasteComposition composition) {
+            TasteComposition composition,
+            BomItemRepository bomItemRepository) {
         this.repository = repository;
         this.productRepository = productRepository;
         this.mapper = mapper;
@@ -103,6 +116,7 @@ public class ProductVariantServiceImpl implements ProductVariantService {
         this.adjustmentRepository = adjustmentRepository;
         this.catalogOutboxPublisher = catalogOutboxPublisher;
         this.composition = composition;
+        this.bomItemRepository = bomItemRepository;
     }
 
     @Override
@@ -266,6 +280,21 @@ public class ProductVariantServiceImpl implements ProductVariantService {
     @Override
     @Transactional
     public ProductResponse.VariantResponse create(UUID productId, ProductVariantRequest request) {
+        return create(productId, request, null);
+    }
+
+    @Override
+    @Transactional
+    public ProductResponse.VariantResponse create(UUID productId, ProductVariantRequest request, String sku) {
+        String requestedSku = sku == null || sku.isBlank() ? null : sku.trim();
+        if (requestedSku != null) {
+            if (requestedSku.length() > 100) {
+                throw new BadRequestException("SKU không được dài quá 100 ký tự: " + requestedSku);
+            }
+            if (CUSTOM_BUNDLE_SKU.equalsIgnoreCase(requestedSku) || repository.existsBySku(requestedSku)) {
+                throw new BadRequestException("SKU đã tồn tại: " + requestedSku);
+            }
+        }
         Product product = productRepository.findById(productId)
                 .orElseThrow(() -> new ResourceNotFoundException("Product", productId));
         ProductVariant variant = new ProductVariant();
@@ -274,8 +303,7 @@ public class ProductVariantServiceImpl implements ProductVariantService {
 
         Integer quantity = variant.getQuantity() != null ? variant.getQuantity().intValue() : null;
         String symbol = variant.getUnit() != null ? variant.getUnit().getSymbol() : null;
-        String generatedSku = generateSku(product, quantity, symbol);
-        variant.setSku(generatedSku);
+        variant.setSku(requestedSku != null ? requestedSku : generateSku(product, quantity, symbol));
 
         if (variant.getBarcode() == null || variant.getBarcode().isBlank()) {
             variant.setBarcode(generateBarcode());
@@ -627,6 +655,79 @@ public class ProductVariantServiceImpl implements ProductVariantService {
     }
 
     @Override
+    public byte[] getImportUpdateTemplate(boolean missingBomOnly) {
+        Map<UUID, List<BomItem>> bomByVariant = bomItemRepository.findAllWithDetails().stream()
+                .collect(Collectors.groupingBy(BomItem::getProductVariantId));
+        List<ProductVariant> variants = repository.findAllForExport(null).stream()
+                .filter(v -> !v.isCustomBundle())
+                .filter(v -> !missingBomOnly || !bomByVariant.containsKey(v.getId()))
+                .sorted((a, b) -> a.getSku().compareToIgnoreCase(b.getSku()))
+                .toList();
+
+        try (Workbook workbook = new XSSFWorkbook();
+             ByteArrayOutputStream out = new ByteArrayOutputStream()) {
+
+            buildImportInstructionSheet(workbook);
+
+            Sheet variantSheet = createImportSheet(workbook, "Mặt hàng", IMPORT_VARIANT_HEADERS);
+            int rowIdx = 1;
+            for (ProductVariant v : variants) {
+                Row row = variantSheet.createRow(rowIdx++);
+                row.createCell(0).setCellValue(v.getSku());
+                row.createCell(1).setCellValue(v.getProduct().getProductCode());
+                row.createCell(2).setCellValue(v.getQuantity() != null ? v.getQuantity().doubleValue() : 0.0);
+                row.createCell(3).setCellValue(v.getUnit() != null ? v.getUnit().getName() : "");
+                row.createCell(4).setCellValue(v.getSellingPrice() != null ? v.getSellingPrice().doubleValue() : 0.0);
+                row.createCell(5).setCellValue(v.getCostPrice() != null ? v.getCostPrice().doubleValue() : 0.0);
+                row.createCell(6).setCellValue(v.getInventoryPolicy() == InventoryPolicy.DO_NOT_TRACK ? "Không theo dõi" : "Theo dõi tồn kho");
+                row.createCell(7).setCellValue(v.getStatus() == Status.INACTIVE ? "Ngừng hoạt động" : "Đang hoạt động");
+                row.createCell(8).setCellValue(v.getSku());
+            }
+            finishImportSheet(variantSheet, rowIdx, IMPORT_VARIANT_HEADERS.length);
+
+            Sheet bomSheet = createImportSheet(workbook, "BOM", IMPORT_BOM_HEADERS);
+            rowIdx = 1;
+            for (ProductVariant v : variants) {
+                for (BomItem item : bomByVariant.getOrDefault(v.getId(), List.of())) {
+                    Row row = bomSheet.createRow(rowIdx++);
+                    row.createCell(0).setCellValue(v.getSku());
+                    row.createCell(1).setCellValue(item.getIngredient().getIngredientCode());
+                    row.createCell(2).setCellValue(item.getQuantity().doubleValue());
+                    row.createCell(3).setCellValue(item.getUnit().getName());
+                    row.createCell(4).setCellValue(item.getWasteRate().doubleValue());
+                }
+            }
+            finishImportSheet(bomSheet, rowIdx, IMPORT_BOM_HEADERS.length);
+
+            buildImportReferenceSheet(workbook);
+
+            workbook.write(out);
+            return out.toByteArray();
+        } catch (Exception e) {
+            throw new RuntimeException("Lỗi tạo file cập nhật Excel Mặt hàng: " + e.getMessage(), e);
+        }
+    }
+
+    private Sheet createImportSheet(Workbook workbook, String name, String[] headers) {
+        Sheet sheet = workbook.createSheet(name);
+        CellStyle headerStyle = createGreenHeaderStyle(workbook);
+        Row headerRow = sheet.createRow(0);
+        headerRow.setHeightInPoints(22);
+        for (int i = 0; i < headers.length; i++) {
+            Cell cell = headerRow.createCell(i);
+            cell.setCellValue(headers[i]);
+            cell.setCellStyle(headerStyle);
+        }
+        return sheet;
+    }
+
+    private void finishImportSheet(Sheet sheet, int rowCount, int columnCount) {
+        sheet.createFreezePane(0, 1);
+        sheet.setAutoFilter(new CellRangeAddress(0, Math.max(rowCount - 1, 1), 0, columnCount - 1));
+        widenColumns(sheet, columnCount);
+    }
+
+    @Override
     public byte[] getImportTemplate() {
         try (Workbook workbook = new XSSFWorkbook();
              ByteArrayOutputStream out = new ByteArrayOutputStream()) {
@@ -678,25 +779,36 @@ public class ProductVariantServiceImpl implements ProductVariantService {
                 {
                         "3. Cách điền sheet \"Mặt hàng\"",
                         "- Mã sản phẩm (*): bắt buộc, lấy từ cột \"Mã sản phẩm\" ở sheet \"Tham chiếu\".",
-                        "- Định lượng (*), Đơn vị (*): bắt buộc. Tên Mặt hàng và SKU sẽ được hệ thống tự sinh, không cần nhập.",
+                        "- Định lượng (*), Đơn vị (*): bắt buộc khi tạo mới. Tên Mặt hàng do hệ thống tự sinh.",
                         "- Giá bán, Giá vốn: để trống sẽ mặc định là 0.",
                         "- Chính sách tồn kho: \"Theo dõi tồn kho\" hoặc \"Không theo dõi\" (mặc định Theo dõi tồn kho).",
-                        "- Trạng thái: \"Đang hoạt động\" hoặc \"Ngừng hoạt động\" (mặc định Đang hoạt động)."
+                        "- Trạng thái: \"Đang hoạt động\" hoặc \"Ngừng hoạt động\" (mặc định Đang hoạt động).",
+                        "- SKU (khi tạo mới): không bắt buộc. Để trống thì hệ thống tự sinh; điền thì dùng đúng SKU đó (không được trùng SKU đã có, tối đa 100 ký tự).",
+                        "- Trên màn nhập Excel, chọn Kiểu import \"Tạo mới\" khi dùng file này để tạo mặt hàng mới."
                 },
                 {
-                        "4. Cách điền sheet \"BOM\"",
+                        "4. Cập nhật mặt hàng đã có (chọn Kiểu import \"Cập nhật\")",
+                        "- Dùng file tải từ nút \"Xuất để cập nhật\": cột SKU (bắt buộc) xác định mặt hàng cần sửa.",
+                        "- Các ô để trống (Mã sản phẩm, Định lượng, Đơn vị, Giá, Chính sách, Trạng thái) giữ nguyên giá trị hiện tại.",
+                        "- Mã sản phẩm nếu điền phải đúng sản phẩm hiện tại của SKU (không chuyển mặt hàng sang sản phẩm khác).",
+                        "- Nếu sheet \"BOM\" có dòng cho Ref của mặt hàng: thay TOÀN BỘ BOM hiện tại bằng các dòng trong file.",
+                        "- Nếu không có dòng BOM nào: giữ nguyên BOM hiện tại.",
+                        "- Kiểu \"Cập nhật\" dòng nào thiếu SKU hoặc SKU không tồn tại sẽ báo lỗi."
+                },
+                {
+                        "5. Cách điền sheet \"BOM\"",
                         "- Ref mặt hàng (*): phải khớp với 1 giá trị \"Ref\" ở sheet \"Mặt hàng\".",
                         "- Mã nguyên liệu (*): lấy từ cột \"Mã nguyên liệu\" ở sheet \"Tham chiếu\".",
                         "- Định lượng (*), Đơn vị (*): bắt buộc.",
                         "- Tỷ lệ hao hụt: để trống sẽ mặc định là 0."
                 },
                 {
-                        "5. Sau khi tải file lên hệ thống",
+                        "6. Sau khi tải file lên hệ thống",
                         "- Dữ liệu được phân tích thành bản nháp để bạn kiểm tra/sửa trực tiếp trên hệ thống trước khi gửi duyệt.",
                         "- Dữ liệu (mặt hàng + BOM) chỉ được ghi chính thức vào hệ thống sau khi quản lý duyệt."
                 },
                 {
-                        "6. Lưu ý",
+                        "7. Lưu ý",
                         "- Không đổi tên các sheet, không đổi tên cột header ở dòng đầu tiên của sheet \"Mặt hàng\" và \"BOM\".",
                         "- Không xoá dòng header."
                 }
@@ -745,17 +857,8 @@ public class ProductVariantServiceImpl implements ProductVariantService {
     }
 
     private void buildImportVariantSheet(Workbook workbook) {
-        Sheet sheet = workbook.createSheet("Mặt hàng");
-        CellStyle headerStyle = createGreenHeaderStyle(workbook);
-
-        String[] headers = {"Ref", "Mã sản phẩm", "Định lượng", "Đơn vị", "Giá bán", "Giá vốn", "Chính sách tồn kho", "Trạng thái"};
-        Row headerRow = sheet.createRow(0);
-        headerRow.setHeightInPoints(22);
-        for (int i = 0; i < headers.length; i++) {
-            Cell cell = headerRow.createCell(i);
-            cell.setCellValue(headers[i]);
-            cell.setCellStyle(headerStyle);
-        }
+        String[] headers = IMPORT_VARIANT_HEADERS;
+        Sheet sheet = createImportSheet(workbook, "Mặt hàng", headers);
 
         Row row1 = sheet.createRow(1);
         row1.createCell(0).setCellValue("MH1");
@@ -783,17 +886,8 @@ public class ProductVariantServiceImpl implements ProductVariantService {
     }
 
     private void buildImportBomSheet(Workbook workbook) {
-        Sheet sheet = workbook.createSheet("BOM");
-        CellStyle headerStyle = createGreenHeaderStyle(workbook);
-
-        String[] headers = {"Ref mặt hàng", "Mã nguyên liệu", "Định lượng", "Đơn vị", "Tỷ lệ hao hụt (%)"};
-        Row headerRow = sheet.createRow(0);
-        headerRow.setHeightInPoints(22);
-        for (int i = 0; i < headers.length; i++) {
-            Cell cell = headerRow.createCell(i);
-            cell.setCellValue(headers[i]);
-            cell.setCellStyle(headerStyle);
-        }
+        String[] headers = IMPORT_BOM_HEADERS;
+        Sheet sheet = createImportSheet(workbook, "BOM", headers);
 
         Row row1 = sheet.createRow(1);
         row1.createCell(0).setCellValue("MH1");
