@@ -79,6 +79,12 @@ public class CustomerController {
         return customerService.getById(id);
     }
 
+    @GetMapping("/addresses/{customerId}")
+    @Operation(summary = "Danh sách địa chỉ đã lưu cho POS cũ", description = "Luôn trả về danh sách rỗng vì sổ địa chỉ đã ngừng hỗ trợ.")
+    public List<?> getSavedAddresses(@PathVariable UUID customerId) {
+        return List.of();
+    }
+
     @UserAction(value = "CUSTOMER_CREATE", entityType = "Customer", entityId = "#result.id")
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)

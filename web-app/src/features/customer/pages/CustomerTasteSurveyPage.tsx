@@ -257,6 +257,7 @@ export function CustomerTasteSurveyPage() {
       {/* Survey Dialog */}
       {selectedCustomer && surveyDialogOpen && (
         <CustomerTasteSurveyDialog
+          key={selectedCustomer.id}
           open={surveyDialogOpen}
           customer={selectedCustomer}
           onClose={() => setSurveyDialogOpen(false)}

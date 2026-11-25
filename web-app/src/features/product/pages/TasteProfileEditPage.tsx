@@ -5,7 +5,6 @@ import {
   Clock,
   Coffee,
   Loader2,
-  Save,
   Sparkles
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
@@ -29,6 +28,7 @@ import {
 import type { ProductVariant } from "../types/product.types";
 import {
   PREPARATION_CODE_OPTIONS,
+  type AssessmentPayload,
   type PreparationProtocol,
   type VariantTasteProfileResponse
 } from "../types/variantTaste.types";
@@ -40,14 +40,38 @@ interface LocationState {
   variantIds?: (string | number)[];
 }
 
+function editableProfile(profiles: VariantTasteProfileResponse[], taxonomy: TasteTaxonomy) {
+  const current = profiles.filter((profile) => profile.taxonomyVersion === taxonomy.versionCode &&
+    profile.taxonomySha256 === taxonomy.manifestSha256);
+  return current.find((profile) => profile.status === "DRAFT") ??
+    current.find((profile) => profile.status === "APPROVED") ?? null;
+}
+
+function saveDraft(
+  variantId: string,
+  taxonomy: TasteTaxonomy,
+  existing: VariantTasteProfileResponse | null,
+  assessment: AssessmentPayload
+) {
+  if (existing?.status === "DRAFT") {
+    return variantTasteApi.updateProfile(existing.id, existing.rowVersion, assessment);
+  }
+  const draft = { taxonomyVersion: taxonomy.versionCode, assessment };
+  if (existing) {
+    return variantTasteApi.createRevision(existing.id, existing.rowVersion, draft);
+  }
+  return variantTasteApi.createProfile(variantId, draft);
+}
+
 export function TasteProfileEditPage() {
   const navigate = useNavigate();
   const params = useParams<{ variantId?: string }>();
   const location = useLocation();
   const state = (location.state as LocationState) || {};
 
-  const { isQc, isManager, isSuperAdmin } = useAuthorization();
+  const { isQc, isManager, isSuperAdmin, hasPermission } = useAuthorization();
   const isManagerOrAdmin = isManager() || isSuperAdmin();
+  const canAssess = isManagerOrAdmin || hasPermission("catalog:taste:assess");
   const isQcOnly = isQc() && !isManagerOrAdmin;
 
   // Detect mode: Single product or Bulk update
@@ -135,7 +159,7 @@ export function TasteProfileEditPage() {
 
   // Load single product details & existing profile
   useEffect(() => {
-    if (!isSingleMode || !targetSingleId) return;
+    if (!isSingleMode || !targetSingleId || !taxonomy) return;
 
     let active = true;
     setLoadingSingleData(true);
@@ -158,10 +182,7 @@ export function TasteProfileEditPage() {
 
         // Existing profiles
         const profilesPage = await variantTasteApi.getVariantProfiles(targetSingleId);
-        const profilesList = profilesPage.content || [];
-        const approved = profilesList.find((p) => p.status === "APPROVED");
-        const draft = profilesList.find((p) => p.status === "DRAFT");
-        const current = approved || draft || profilesList[0] || null;
+        const current = editableProfile(profilesPage.content, taxonomy);
 
         if (active && current) {
           setExistingProfile(current);
@@ -179,7 +200,11 @@ export function TasteProfileEditPage() {
           setSingleDescription("");
         }
       } catch (err: unknown) {
-        toast.error(err instanceof Error ? err.message : "Lỗi khi tải thông tin sản phẩm");
+        if (active) {
+          setSingleVariant(null);
+          setExistingProfile(null);
+          toast.error(err instanceof Error ? err.message : "Lỗi khi tải thông tin sản phẩm");
+        }
       } finally {
         if (active) setLoadingSingleData(false);
       }
@@ -190,7 +215,7 @@ export function TasteProfileEditPage() {
     return () => {
       active = false;
     };
-  }, [isSingleMode, targetSingleId, state.variant]);
+  }, [isSingleMode, targetSingleId, state.variant, taxonomy]);
 
   // Load bulk variants if only IDs were passed
   useEffect(() => {
@@ -303,17 +328,15 @@ export function TasteProfileEditPage() {
     bulkUpdateSteepTime ||
     bulkUpdateDescription;
 
-  // Single Save Handler:
-  // - If isManagerOrAdmin: approveAfterSave=true by default ("quản lý tạo thì ko cần duyệt")
-  // - If isQcOnly: approveAfterSave=false, notify submit to manager
-  const handleSingleSave = async (autoApprove: boolean, submitToManager = false) => {
-    if (!singleVariant || !taxonomy) return;
+  const handleSingleSave = async () => {
+    if (!canAssess || !singleVariant || !taxonomy) return;
 
     setSaving(true);
     try {
       const payload = {
         preparationCode: singlePrepCode || "HOT_BREW",
         preparationProtocol: {
+          ...existingProfile?.preparationProtocol,
           description: singleDescription || undefined,
           steepTimeSeconds: singleSteepTime ? Number(singleSteepTime) : undefined,
           waterTemperatureCelsius: singleWaterTemp ? Number(singleWaterTemp) : undefined
@@ -322,29 +345,8 @@ export function TasteProfileEditPage() {
         sourceMethod: isQcOnly ? "EXPERT_TASTING" : "INTERNAL_PANEL"
       };
 
-      let profileId = existingProfile?.id;
-      let rowVersion = existingProfile?.rowVersion ?? 0;
-
-      if (!profileId) {
-        const created = await variantTasteApi.createProfile(String(singleVariant.id), {
-          taxonomyVersion: taxonomy.versionCode,
-          assessment: payload
-        });
-        profileId = created.id;
-        rowVersion = created.rowVersion;
-      } else {
-        const updated = await variantTasteApi.updateProfile(profileId, rowVersion, payload);
-        rowVersion = updated.rowVersion;
-      }
-
-      if (autoApprove && isManagerOrAdmin && profileId) {
-        await variantTasteApi.approveProfile(profileId, rowVersion);
-        toast.success("Đã lưu và phê duyệt Tiêu chuẩn khẩu vị thành công (Tự động duyệt)!");
-      } else if (submitToManager) {
-        toast.success("Đã lưu bản nháp và gửi yêu cầu phê duyệt đến Quản lý!");
-      } else {
-        toast.success("Đã lưu bản nháp Tiêu chuẩn khẩu vị!");
-      }
+      await saveDraft(String(singleVariant.id), taxonomy, existingProfile, payload);
+      toast.success("Đã lưu bản nháp hồ sơ khẩu vị.");
 
       navigate(routePaths.tasteProfiles);
     } catch (err: unknown) {
@@ -356,7 +358,7 @@ export function TasteProfileEditPage() {
 
   // Quick approve for managers reviewing existing DRAFT
   const handleApproveExisting = async () => {
-    if (!existingProfile?.id) return;
+    if (!isManagerOrAdmin || existingProfile?.status !== "DRAFT") return;
     setApprovingExisting(true);
     try {
       await variantTasteApi.approveProfile(existingProfile.id, existingProfile.rowVersion);
@@ -369,10 +371,8 @@ export function TasteProfileEditPage() {
     }
   };
 
-  // Bulk Save Handler (OVERWRITE ONLY ACTIVATED FIELDS, RETAIN OTHERS)
-  // - If isManagerOrAdmin: auto approve all products by default
-  // - If isQcOnly: save as drafts, submit to manager
-  const handleBulkSave = async (autoApprove: boolean, submitToManager = false) => {
+  const handleBulkSave = async () => {
+    if (!canAssess) return;
     if (!anyBulkFieldEnabled) {
       toast.warning("Vui lòng chọn ít nhất một tiêu chí bạn muốn cập nhật!");
       return;
@@ -396,9 +396,7 @@ export function TasteProfileEditPage() {
 
       try {
         const existingProfs = await variantTasteApi.getVariantProfiles(String(v.id));
-        const profilesList = existingProfs.content || [];
-        const currentProfile =
-          profilesList.find((p) => p.status === "APPROVED") || profilesList[0] || null;
+        const currentProfile = editableProfile(existingProfs.content, taxonomy);
 
         // 1. Preparation code: overwrite if enabled, else retain
         const prepCode =
@@ -430,9 +428,6 @@ export function TasteProfileEditPage() {
         if (bulkUpdateDescription) mergedProtocol.description = bulkDescription;
 
         // 4. Save
-        let profileId = currentProfile?.id;
-        let rowVersion = currentProfile?.rowVersion ?? 0;
-
         const payload = {
           preparationCode: prepCode,
           preparationProtocol: mergedProtocol,
@@ -440,22 +435,7 @@ export function TasteProfileEditPage() {
           sourceMethod: isQcOnly ? "EXPERT_TASTING" : "INTERNAL_PANEL"
         };
 
-        if (!profileId) {
-          const created = await variantTasteApi.createProfile(String(v.id), {
-            taxonomyVersion: taxonomy.versionCode,
-            assessment: payload
-          });
-          profileId = created.id;
-          rowVersion = created.rowVersion;
-        } else {
-          const updated = await variantTasteApi.updateProfile(profileId, rowVersion, payload);
-          rowVersion = updated.rowVersion;
-        }
-
-        // 5. Auto approve for managers
-        if (autoApprove && isManagerOrAdmin && profileId) {
-          await variantTasteApi.approveProfile(profileId, rowVersion);
-        }
+        await saveDraft(String(v.id), taxonomy, currentProfile, payload);
 
         successCount++;
       } catch (err: unknown) {
@@ -468,13 +448,7 @@ export function TasteProfileEditPage() {
     setBulkProgress(null);
 
     if (errorCount === 0) {
-      if (autoApprove && isManagerOrAdmin) {
-        toast.success(`Đã cập nhật và phê duyệt thành công cho toàn bộ ${successCount} mặt hàng!`);
-      } else if (submitToManager) {
-        toast.success(`Đã cập nhật bản nháp và gửi ${successCount} mặt hàng đến Quản lý phê duyệt!`);
-      } else {
-        toast.success(`Đã lưu bản nháp thành công cho ${successCount} mặt hàng!`);
-      }
+      toast.success(`Đã lưu bản nháp cho ${successCount} mặt hàng.`);
       navigate(routePaths.tasteProfiles);
     } else {
       toast.warning(
@@ -590,7 +564,7 @@ export function TasteProfileEditPage() {
                   <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
                   Đã phê duyệt (Phiên bản v{existingProfile.rowVersion})
                 </span>
-              ) : existingProfile ? (
+              ) : existingProfile?.status === "DRAFT" ? (
                 <>
                   <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-3 py-1 text-xs font-bold text-amber-700 ring-1 ring-inset ring-amber-600/20">
                     <Clock className="h-3.5 w-3.5 text-amber-600" />
@@ -1074,87 +1048,15 @@ export function TasteProfileEditPage() {
           Hủy bỏ
         </Link>
 
-        <div className="flex flex-wrap gap-2">
-          {isSingleMode ? (
-            <>
-              <Button
-                disabled={saving}
-                onClick={() => void handleSingleSave(false)}
-              >
-                {saving ? "Đang lưu..." : "Lưu bản nháp (DRAFT)"}
-              </Button>
-
-              {isQcOnly ? (
-                <Button
-                  disabled={saving}
-                  onClick={() => void handleSingleSave(false, true)}
-                  variant="primary"
-                >
-                  {saving ? (
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  ) : (
-                    <Save className="mr-2 h-4 w-4" />
-                  )}
-                  Lưu & Gửi quản lý duyệt
-                </Button>
-              ) : (
-                <Button
-                  disabled={saving}
-                  onClick={() => void handleSingleSave(true)}
-                  variant="primary"
-                >
-                  {saving ? (
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  ) : (
-                    <CheckCircle2 className="mr-2 h-4 w-4" />
-                  )}
-                  Lưu & Phê duyệt ngay
-                </Button>
-              )}
-            </>
-          ) : (
-            <>
-              <Button
-                disabled={saving || !anyBulkFieldEnabled}
-                onClick={() => void handleBulkSave(false)}
-              >
-                {saving ? "Đang xử lý..." : "Lưu bản nháp hàng loạt"}
-              </Button>
-
-              {isQcOnly ? (
-                <Button
-                  disabled={saving || !anyBulkFieldEnabled}
-                  onClick={() => void handleBulkSave(false, true)}
-                  variant="primary"
-                >
-                  {saving ? (
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  ) : (
-                    <Sparkles className="mr-2 h-4 w-4" />
-                  )}
-                  {saving
-                    ? `Đang cập nhật (${bulkProgress?.current ?? 0}/${bulkVariants.length})...`
-                    : `Cập nhật & Gửi quản lý duyệt (${bulkVariants.length} mặt hàng)`}
-                </Button>
-              ) : (
-                <Button
-                  disabled={saving || !anyBulkFieldEnabled}
-                  onClick={() => void handleBulkSave(true)}
-                  variant="primary"
-                >
-                  {saving ? (
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  ) : (
-                    <CheckCircle2 className="mr-2 h-4 w-4" />
-                  )}
-                  {saving
-                    ? `Đang cập nhật (${bulkProgress?.current ?? 0}/${bulkVariants.length})...`
-                    : `Cập nhật & Phê duyệt ngay (${bulkVariants.length} mặt hàng)`}
-                </Button>
-              )}
-            </>
-          )}
-        </div>
+        {canAssess && (isSingleMode ? (
+          <Button disabled={saving || approvingExisting} onClick={() => void handleSingleSave()}>
+            {saving ? "Đang lưu..." : "Lưu bản nháp"}
+          </Button>
+        ) : (
+          <Button disabled={saving || !anyBulkFieldEnabled} onClick={() => void handleBulkSave()}>
+            {saving ? "Đang xử lý..." : "Lưu bản nháp hàng loạt"}
+          </Button>
+        ))}
       </footer>
     </section>
   );

@@ -61,6 +61,14 @@ export const variantTasteApi = {
     );
   },
 
+  createRevision(profileId: string, version: number, payload: CreateTasteProfileDraft) {
+    return apiClient.post<VariantTasteProfileResponse>(
+      `/catalog/taste-profiles/${encodeURIComponent(profileId)}/revisions`,
+      payload,
+      { headers: { "If-Match": `"${version}"` } }
+    );
+  },
+
   approveProfile(profileId: string, version: number) {
     return apiClient.post<VariantTasteProfileResponse>(
       `/catalog/taste-profiles/${encodeURIComponent(profileId)}/approve`,

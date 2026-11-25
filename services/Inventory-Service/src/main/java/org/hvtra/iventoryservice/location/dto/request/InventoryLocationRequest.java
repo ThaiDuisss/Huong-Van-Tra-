@@ -9,7 +9,6 @@ import org.hvtra.iventoryservice.domain.enums.InventoryStatus;
 import java.util.UUID;
 
 public record InventoryLocationRequest(
-//        @NotNull UUID branchId,
         UUID parentLocationId,
         @NotBlank @Size(max = 255) String name,
         @NotNull InventoryLocationType type,

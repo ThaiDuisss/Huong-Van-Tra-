@@ -14,6 +14,7 @@ import org.hvtra.iventoryservice.shared.exception.ResourceNotFoundException;
 import org.hvtra.iventoryservice.location.mapper.InventoryLocationMapper;
 import org.hvtra.iventoryservice.location.repository.InventoryLocationRepository;
 import org.hvtra.iventoryservice.location.service.InventoryLocationService;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
@@ -36,6 +37,9 @@ import org.hvtra.commonservice.common_core.util.CodeUtils;
 public class InventoryLocationServiceImpl implements InventoryLocationService {
     private final InventoryLocationRepository repository;
     private final InventoryLocationMapper mapper;
+
+    @Value("${INVENTORY_DEFAULT_BRANCH_ID:}")
+    private UUID defaultBranchId;
 
     public InventoryLocationServiceImpl(
             InventoryLocationRepository repository, InventoryLocationMapper mapper) {
@@ -177,10 +181,11 @@ public class InventoryLocationServiceImpl implements InventoryLocationService {
     @Override
     @Transactional
     public InventoryLocationResponse create(InventoryLocationRequest request) {
+        InventoryLocation parent = resolveParent(request, null);
         InventoryLocation location = new InventoryLocation();
-        String code = generateCode(request.name(), request.type());
-        location.setCode(code);
-        mapper.update(location, request, resolveParent(request, null));
+        location.setBranchId(parent == null ? resolveRootBranchId() : parent.getBranchId());
+        location.setCode(generateCode(request.name(), request.type()));
+        mapper.update(location, request, parent);
         return mapper.toResponse(repository.save(location));
     }
 
@@ -188,7 +193,11 @@ public class InventoryLocationServiceImpl implements InventoryLocationService {
     @Transactional
     public InventoryLocationResponse update(UUID id, InventoryLocationRequest request) {
         InventoryLocation location = get(id);
-        mapper.update(location, request, resolveParent(request, id));
+        InventoryLocation parent = resolveParent(request, id);
+        if (parent != null && !location.getBranchId().equals(parent.getBranchId())) {
+            throw new BadRequestException("Parent location must belong to the same branch");
+        }
+        mapper.update(location, request, parent);
         return mapper.toResponse(repository.save(location));
     }
 
@@ -220,15 +229,25 @@ public class InventoryLocationServiceImpl implements InventoryLocationService {
         return code;
     }
 
+    private UUID resolveRootBranchId() {
+        List<UUID> branches = repository.findDistinctBranchIds();
+        if (branches.size() == 1) {
+            return branches.getFirst();
+        }
+        if (branches.isEmpty() && defaultBranchId != null) {
+            return defaultBranchId;
+        }
+        throw new BadRequestException(branches.isEmpty()
+                ? "Inventory store branch must be configured before creating the first location"
+                : "Cannot determine a single branch for a root inventory location");
+    }
+
     private InventoryLocation resolveParent(InventoryLocationRequest request, UUID locationId) {
         if (request.parentLocationId() == null) return null;
         if (request.parentLocationId().equals(locationId)) {
             throw new BadRequestException("Inventory location cannot be its own parent");
         }
         InventoryLocation parent = get(request.parentLocationId());
-//        if (!parent.getBranchId().equals(request.branchId())) {
-//            throw new BadRequestException("Parent location must belong to the same branch");
-//        }
         for (InventoryLocation current = parent;
              current != null;
              current = current.getParentLocation()) {
