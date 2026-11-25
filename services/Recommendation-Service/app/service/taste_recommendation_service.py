@@ -1,4 +1,5 @@
 from decimal import Decimal, ROUND_HALF_UP
+import logging
 from typing import Callable
 
 from app.recommendation.taste_explanations import AttributeDefinition, explain_variant
@@ -12,7 +13,10 @@ from app.schemas.taste_recommendation import (
     TasteProduct,
     TasteStatus,
 )
+from app.service.level2_availability import AvailabilityUnavailable
 from app.service.taste_catalog_sync_service import ProjectionView
+
+logger = logging.getLogger(__name__)
 
 
 class InvalidTasteCriteria(ValueError):
@@ -122,7 +126,11 @@ def _compatible(match: VariantMatch, score: str, definitions: dict[str, Attribut
     )
 
 
-def preview_taste(request: TastePreviewRequest, read_projection: Callable[[], ProjectionView]) -> TastePreviewResponse:
+def preview_taste(
+    request: TastePreviewRequest,
+    read_projection: Callable[[], ProjectionView],
+    available_variant_ids: Callable[[tuple[str, ...]], set[str]] | None = None,
+) -> TastePreviewResponse:
     criteria = normalize_criteria(request, request.taxonomySha256)
     response = TastePreviewResponse(
         status="NO_CRITERIA",
@@ -156,6 +164,18 @@ def preview_taste(request: TastePreviewRequest, read_projection: Callable[[], Pr
     if not candidates:
         response.status = "TASTE_PROFILE_NOT_READY"
         return response
+
+    if available_variant_ids is not None:
+        try:
+            in_stock_ids = available_variant_ids(tuple(dict.fromkeys(item.variant.id for item in candidates)))
+        except AvailabilityUnavailable as failure:
+            logger.warning("taste_preview_availability_unavailable reason=%s", failure)
+            response.status = "TASTE_CATALOG_UNAVAILABLE"
+            return response
+        candidates = tuple(item for item in candidates if item.variant.id in in_stock_ids)
+        if not candidates:
+            response.status = "TASTE_PROFILE_NOT_READY"
+            return response
 
     response.eligibleVariantCount = len(candidates)
     ranked = rank_variants(candidates, criteria)
