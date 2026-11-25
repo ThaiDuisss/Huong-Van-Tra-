@@ -10,11 +10,14 @@ import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.ss.usermodel.Workbook;
 import org.apache.poi.ss.usermodel.WorkbookFactory;
 import org.hvtra.catalog.dto.request.IngredientRequest;
+import org.hvtra.catalog.entity.Ingredient;
 import org.hvtra.catalog.entity.Unit;
 import org.hvtra.catalog.enums.Status;
 import org.hvtra.catalog.exception.BadRequestException;
+import org.hvtra.catalog.repository.IngredientRepository;
 import org.hvtra.catalog.repository.UnitRepository;
 import org.hvtra.catalog.service.IngredientService;
+import org.hvtra.commonservice.common_importing.enums.ImportMode;
 import org.hvtra.commonservice.common_importing.enums.ImportType;
 import org.hvtra.commonservice.common_importing.dto.response.ValidationErrorResponse;
 import org.hvtra.commonservice.common_importing.handler.ImportTypeHandler;
@@ -23,6 +26,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -41,16 +45,19 @@ import java.util.stream.Collectors;
 public class IngredientImportHandler implements ImportTypeHandler {
 
     private final UnitRepository unitRepository;
+    private final IngredientRepository ingredientRepository;
     private final IngredientService ingredientService;
     private final Validator validator;
     private final ObjectMapper objectMapper;
 
     public IngredientImportHandler(
             UnitRepository unitRepository,
+            IngredientRepository ingredientRepository,
             IngredientService ingredientService,
             Validator validator,
             ObjectMapper objectMapper) {
         this.unitRepository = unitRepository;
+        this.ingredientRepository = ingredientRepository;
         this.ingredientService = ingredientService;
         this.validator = validator;
         this.objectMapper = objectMapper;
@@ -63,6 +70,11 @@ public class IngredientImportHandler implements ImportTypeHandler {
 
     @Override
     public List<ParsedImportRow> parseExcel(MultipartFile file) {
+        return parseExcel(file, ImportMode.CREATE);
+    }
+
+    @Override
+    public List<ParsedImportRow> parseExcel(MultipartFile file, ImportMode mode) {
         try (Workbook workbook = WorkbookFactory.create(file.getInputStream())) {
             Sheet sheet = findSheetByName(workbook, "nguyen lieu");
             if (sheet == null) {
@@ -78,16 +90,18 @@ public class IngredientImportHandler implements ImportTypeHandler {
 
             int headerRowIndex = findHeaderRowIndex(sheet, "ten nguyen lieu", "don vi");
             Row headerRow = sheet.getRow(headerRowIndex);
-            int colName = -1, colUnit = -1, colReorderPoint = -1, colStatus = -1;
+            int colName = -1, colUnit = -1, colReorderPoint = -1, colStatus = -1, colCode = -1;
 
             if (headerRow != null) {
                 for (int c = 0; c < headerRow.getLastCellNum(); c++) {
                     String normalized = normalize(getCellValueAsString(headerRow.getCell(c)));
-                    if (normalized.contains("ten nguyen lieu")) {
+                    if (normalized.contains("ma nguyen lieu")) {
+                        colCode = c;
+                    } else if (normalized.contains("ten nguyen lieu")) {
                         colName = c;
                     } else if (normalized.contains("don vi")) {
                         colUnit = c;
-                    } else if (normalized.contains("diem dat lai") || normalized.contains("ton kho toi thieu") || normalized.contains("reorder")) {
+                    } else if (normalized.contains("diem dat lai") || normalized.contains("ton kho toi thieu") || normalized.contains("nguong") || normalized.contains("reorder")) {
                         colReorderPoint = c;
                     } else if (normalized.contains("trang thai")) {
                         colStatus = c;
@@ -103,7 +117,8 @@ public class IngredientImportHandler implements ImportTypeHandler {
                     .filter(u -> !Boolean.TRUE.equals(u.getIsDeleted()))
                     .toList();
 
-            List<ParsedImportRow> rows = new ArrayList<>();
+            List<String[]> rawRows = new ArrayList<>();
+            List<Integer> rawRowIndexes = new ArrayList<>();
             for (int r = headerRowIndex + 1; r < rowCount; r++) {
                 Row row = sheet.getRow(r);
                 if (row == null) continue;
@@ -112,10 +127,27 @@ public class IngredientImportHandler implements ImportTypeHandler {
                 String unitName = getCellValueAsString(row.getCell(colUnit)).trim();
                 String reorderPointStr = getCellValueAsString(row.getCell(colReorderPoint)).trim();
                 String statusStr = getCellValueAsString(row.getCell(colStatus)).trim();
+                String code = colCode >= 0 ? getCellValueAsString(row.getCell(colCode)).trim() : "";
 
-                if (name.isBlank()) {
+                if (name.isBlank() && code.isBlank()) {
                     continue;
                 }
+                rawRows.add(new String[]{name, unitName, reorderPointStr, statusStr, code});
+                rawRowIndexes.add(r + 1);
+            }
+
+            Map<String, Ingredient> ingredientsByCode = mode == ImportMode.UPDATE
+                    ? loadIngredientsByCode(rawRows.stream().map(raw -> raw[4]).filter(code -> !code.isBlank()).toList())
+                    : Map.of();
+
+            List<ParsedImportRow> rows = new ArrayList<>();
+            for (int i = 0; i < rawRows.size(); i++) {
+                String[] raw = rawRows.get(i);
+                String name = raw[0];
+                String unitName = raw[1];
+                String reorderPointStr = raw[2];
+                String statusStr = raw[3];
+                String code = raw[4];
 
                 Unit unit = resolveUnit(units, unitName);
                 Integer reorderPoint = parseInt(reorderPointStr);
@@ -127,8 +159,32 @@ public class IngredientImportHandler implements ImportTypeHandler {
                 payload.put("unitId", unit != null ? unit.getId().toString() : null);
                 payload.put("reorderPoint", reorderPoint);
                 payload.put("status", status.name());
+                payload.put("ingredientCode", code.isBlank() ? null : code);
+                payload.put("importMode", mode.name());
 
-                rows.add(new ParsedImportRow(r + 1, payload));
+                if (mode == ImportMode.UPDATE) {
+                    Ingredient existing = code.isBlank() ? null : ingredientsByCode.get(code.toUpperCase());
+                    payload.put("ingredientId", existing != null ? existing.getId().toString() : null);
+                    if (existing != null) {
+                        payload.put("imageUrl", existing.getImageUrl());
+                        payload.put("type", existing.getType());
+                        payload.put("retailPricePerUnit", existing.getRetailPricePerUnit());
+                        if (name.isBlank()) {
+                            payload.put("name", existing.getName());
+                        }
+                        if (unitName.isBlank()) {
+                            payload.put("unitId", existing.getUnit() != null ? existing.getUnit().getId().toString() : null);
+                        }
+                        if (reorderPointStr.isBlank()) {
+                            payload.put("reorderPoint", existing.getReorderPoint());
+                        }
+                        if (statusStr.isBlank() && existing.getStatus() != null) {
+                            payload.put("status", existing.getStatus().name());
+                        }
+                    }
+                }
+
+                rows.add(new ParsedImportRow(rawRowIndexes.get(i), payload));
             }
 
             return mergeDuplicateRows(rows);
@@ -163,12 +219,22 @@ public class IngredientImportHandler implements ImportTypeHandler {
                 String.valueOf(payload.get("name")).trim().toLowerCase(),
                 String.valueOf(payload.get("unitId")),
                 String.valueOf(payload.get("reorderPoint")),
-                String.valueOf(payload.get("status")));
+                String.valueOf(payload.get("status")),
+                String.valueOf(payload.get("ingredientCode")).trim().toLowerCase());
+    }
+
+    private Map<String, Ingredient> loadIngredientsByCode(Collection<String> codes) {
+        if (codes.isEmpty()) return Map.of();
+        return ingredientRepository.findAllByIngredientCodeIn(codes).stream()
+                .filter(i -> i.getIngredientCode() != null)
+                .collect(Collectors.toMap(i -> i.getIngredientCode().toUpperCase(), i -> i, (a, b) -> a));
     }
 
     @Override
     public List<ValidationErrorResponse> validate(Map<String, Object> payload) {
-        return validate(payload, null);
+        List<ValidationErrorResponse> errors = validate(payload, null);
+        validateMode(payload, null, errors);
+        return errors;
     }
 
     @Override
@@ -184,7 +250,55 @@ public class IngredientImportHandler implements ImportTypeHandler {
                 ? Set.of()
                 : unitRepository.findAllById(unitIds).stream().map(Unit::getId).collect(Collectors.toSet());
 
-        return payloads.stream().map(payload -> validate(payload, existingUnitIds)).toList();
+        Map<String, Integer> codeCounts = new HashMap<>();
+        for (Map<String, Object> payload : payloads) {
+            String code = readCode(payload);
+            if (code != null) {
+                codeCounts.merge(code.toUpperCase(), 1, Integer::sum);
+            }
+        }
+        Map<String, Ingredient> ingredientsByCode = loadIngredientsByCode(codeCounts.keySet());
+
+        return payloads.stream().map(payload -> {
+            List<ValidationErrorResponse> errors = validate(payload, existingUnitIds);
+            validateMode(payload, ingredientsByCode, errors);
+            String code = readCode(payload);
+            if (code != null && codeCounts.getOrDefault(code.toUpperCase(), 0) > 1) {
+                errors.add(new ValidationErrorResponse("ingredientCode", "Mã nguyên liệu " + code + " bị lặp trong file import"));
+            }
+            return errors;
+        }).toList();
+    }
+
+    private void validateMode(
+            Map<String, Object> payload,
+            Map<String, Ingredient> preloadedByCode,
+            List<ValidationErrorResponse> errors) {
+        String code = readCode(payload);
+        Map<String, Ingredient> byCode = preloadedByCode != null ? preloadedByCode
+                : code == null ? Map.of() : loadIngredientsByCode(List.of(code));
+        Ingredient existing = code == null ? null : byCode.get(code.toUpperCase());
+
+        if (readMode(payload) == ImportMode.CREATE) {
+            if (code == null) return;
+            if (code.length() > 100) {
+                errors.add(new ValidationErrorResponse("ingredientCode", "Mã nguyên liệu tối đa 100 ký tự"));
+            }
+            if (existing != null) {
+                errors.add(new ValidationErrorResponse("ingredientCode",
+                        "Mã nguyên liệu " + code + " đã tồn tại — để trống để hệ thống tự sinh, hoặc chọn kiểu Cập nhật"));
+            }
+            return;
+        }
+
+        if (code == null) {
+            errors.add(new ValidationErrorResponse("ingredientCode", "Kiểu import Cập nhật bắt buộc nhập Mã nguyên liệu"));
+            return;
+        }
+        UUID ingredientId = readUuid(payload.get("ingredientId"));
+        if (existing == null || Boolean.TRUE.equals(existing.getIsDeleted()) || !existing.getId().equals(ingredientId)) {
+            errors.add(new ValidationErrorResponse("ingredientCode", "Mã nguyên liệu " + code + " không tồn tại hoặc đã bị xoá"));
+        }
     }
 
     private List<ValidationErrorResponse> validate(Map<String, Object> payload, Set<UUID> preloadedExistingUnitIds) {
@@ -210,11 +324,40 @@ public class IngredientImportHandler implements ImportTypeHandler {
     @Override
     public UUID commit(Map<String, Object> payload) {
         IngredientRequest request = toRequest(payload);
-        return ingredientService.create(request).id();
+        if (readMode(payload) == ImportMode.UPDATE) {
+            UUID ingredientId = readUuid(payload.get("ingredientId"));
+            if (ingredientId == null) {
+                throw new BadRequestException("Mã nguyên liệu " + readCode(payload) + " không tồn tại hoặc đã bị xoá");
+            }
+            return ingredientService.update(ingredientId, request).id();
+        }
+        String code = readCode(payload);
+        return code != null
+                ? ingredientService.createWithCode(request, code).id()
+                : ingredientService.create(request).id();
     }
 
     private IngredientRequest toRequest(Map<String, Object> payload) {
-        return objectMapper.convertValue(payload, IngredientRequest.class);
+        Map<String, Object> fields = new HashMap<>();
+        fields.put("name", payload.get("name"));
+        fields.put("imageUrl", payload.get("imageUrl"));
+        fields.put("unitId", payload.get("unitId"));
+        fields.put("reorderPoint", payload.get("reorderPoint"));
+        fields.put("type", payload.get("type"));
+        fields.put("status", payload.get("status"));
+        fields.put("retailPricePerUnit", payload.get("retailPricePerUnit"));
+        return objectMapper.convertValue(fields, IngredientRequest.class);
+    }
+
+    private ImportMode readMode(Map<String, Object> payload) {
+        return ImportMode.UPDATE.name().equals(payload.get("importMode")) ? ImportMode.UPDATE : ImportMode.CREATE;
+    }
+
+    private String readCode(Map<String, Object> payload) {
+        Object value = payload.get("ingredientCode");
+        if (value == null) return null;
+        String code = String.valueOf(value).trim();
+        return code.isEmpty() ? null : code;
     }
 
     private UUID readUuid(Object value) {

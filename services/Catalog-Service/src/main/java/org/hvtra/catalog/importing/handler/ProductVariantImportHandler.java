@@ -35,6 +35,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.math.BigDecimal;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -145,13 +146,15 @@ public class ProductVariantImportHandler implements ImportTypeHandler {
         int headerRowIndex = findHeaderRowIndex(sheet, "ma san pham", "dinh luong");
         Row headerRow = sheet.getRow(headerRowIndex);
         int colRef = -1, colProductCode = -1, colQuantity = -1, colUnit = -1,
-                colSellingPrice = -1, colCostPrice = -1, colPolicy = -1, colStatus = -1, colSku = -1;
+                colSellingPrice = -1, colCostPrice = -1, colPolicy = -1, colStatus = -1, colSku = -1, colBarcode = -1;
 
         if (headerRow != null) {
             for (int c = 0; c < headerRow.getLastCellNum(); c++) {
                 String normalized = normalize(getCellValueAsString(headerRow.getCell(c)));
                 if (normalized.startsWith("sku")) {
                     colSku = c;
+                } else if (normalized.startsWith("barcode") || normalized.contains("ma vach")) {
+                    colBarcode = c;
                 } else if (normalized.equals("ref") || normalized.contains("ref")) {
                     colRef = c;
                 } else if (normalized.contains("ma san pham") || normalized.contains("ma sp")) {
@@ -190,8 +193,9 @@ public class ProductVariantImportHandler implements ImportTypeHandler {
             String productCode = getCellValueAsString(row.getCell(colProductCode)).trim();
             String quantityStr = getCellValueAsString(row.getCell(colQuantity)).trim();
             String sku = colSku == -1 ? "" : getCellValueAsString(row.getCell(colSku)).trim();
+            String barcode = colBarcode == -1 ? "" : getCellValueAsString(row.getCell(colBarcode)).trim();
 
-            if (ref.isBlank() && productCode.isBlank() && quantityStr.isBlank() && sku.isBlank()) {
+            if (ref.isBlank() && productCode.isBlank() && quantityStr.isBlank() && sku.isBlank() && barcode.isBlank()) {
                 continue;
             }
             if (ref.isBlank()) {
@@ -211,7 +215,8 @@ public class ProductVariantImportHandler implements ImportTypeHandler {
                     getCellValueAsString(row.getCell(colCostPrice)).trim(),
                     getCellValueAsString(row.getCell(colPolicy)).trim(),
                     getCellValueAsString(row.getCell(colStatus)).trim(),
-                    sku));
+                    sku,
+                    barcode));
         }
 
         Map<String, ProductVariant> variantsBySku = mode == ImportMode.UPDATE ? loadVariantsBySku(rawRows) : Map.of();
@@ -244,6 +249,7 @@ public class ProductVariantImportHandler implements ImportTypeHandler {
             if (!raw.sku().isBlank()) {
                 payload.put("sku", raw.sku());
             }
+            payload.put("barcode", raw.barcode().isBlank() ? null : raw.barcode());
             if (mode == ImportMode.UPDATE) {
                 payload.put("variantId", existing != null ? existing.getId().toString() : null);
                 if (existing != null) {
@@ -289,6 +295,9 @@ public class ProductVariantImportHandler implements ImportTypeHandler {
         if (raw.status().isBlank() && existing.getStatus() != null) {
             payload.put("status", existing.getStatus().name());
         }
+        if (raw.barcode().isBlank()) {
+            payload.put("barcode", existing.getBarcode());
+        }
     }
 
     private record RawVariantRow(
@@ -301,7 +310,8 @@ public class ProductVariantImportHandler implements ImportTypeHandler {
             String costPrice,
             String policy,
             String status,
-            String sku) {
+            String sku,
+            String barcode) {
     }
 
     @SuppressWarnings("unchecked")
@@ -377,6 +387,7 @@ public class ProductVariantImportHandler implements ImportTypeHandler {
         // 1 item lẻ (vd sau khi user sửa 1 dòng) — tra cứu tồn tại trực tiếp, không cần gộp id vì chỉ có 1 dòng.
         List<ValidationErrorResponse> errors = validate(payload, null, null, null);
         validateUpdateTarget(payload, null, null, errors);
+        validateBarcode(payload, null, errors);
         return errors;
     }
 
@@ -419,19 +430,59 @@ public class ProductVariantImportHandler implements ImportTypeHandler {
                 : productVariantRepository.findSkusIn(createSkus).stream()
                         .map(String::toUpperCase)
                         .collect(Collectors.toSet());
+        Map<String, Integer> barcodeCounts = new HashMap<>();
+        for (Map<String, Object> payload : payloads) {
+            String barcode = readBarcode(payload);
+            if (barcode != null) {
+                barcodeCounts.merge(barcode.toUpperCase(), 1, Integer::sum);
+            }
+        }
+        Map<String, UUID> barcodeOwners = loadBarcodeOwners(barcodeCounts.keySet());
 
         return payloads.stream()
                 .map(payload -> {
                     List<ValidationErrorResponse> errors =
                             validate(payload, existingProductIds, existingUnitIds, existingIngredientIds);
                     validateUpdateTarget(payload, existingVariants, takenSkus, errors);
+                    validateBarcode(payload, barcodeOwners, errors);
                     String sku = readSku(payload);
                     if (sku != null && skuCounts.getOrDefault(sku.toUpperCase(), 0) > 1) {
                         errors.add(new ValidationErrorResponse("sku", "SKU " + sku + " bị lặp trong file import"));
                     }
+                    String barcode = readBarcode(payload);
+                    if (barcode != null && barcodeCounts.getOrDefault(barcode.toUpperCase(), 0) > 1) {
+                        errors.add(new ValidationErrorResponse("barcode", "Barcode " + barcode + " bị lặp trong file import"));
+                    }
                     return errors;
                 })
                 .toList();
+    }
+
+    private Map<String, UUID> loadBarcodeOwners(Collection<String> barcodes) {
+        if (barcodes.isEmpty()) return Map.of();
+        return productVariantRepository.findAllByBarcodeIn(barcodes).stream()
+                .filter(v -> v.getBarcode() != null)
+                .collect(Collectors.toMap(v -> v.getBarcode().toUpperCase(), ProductVariant::getId, (a, b) -> a));
+    }
+
+    private void validateBarcode(
+            Map<String, Object> payload,
+            Map<String, UUID> preloadedOwners,
+            List<ValidationErrorResponse> errors) {
+        String barcode = readBarcode(payload);
+        if (barcode == null) return;
+        if (barcode.length() > 100) {
+            errors.add(new ValidationErrorResponse("barcode", "Barcode không được dài quá 100 ký tự"));
+            return;
+        }
+        Map<String, UUID> owners = preloadedOwners != null ? preloadedOwners : loadBarcodeOwners(List.of(barcode));
+        UUID ownerId = owners.get(barcode.toUpperCase());
+        if (ownerId == null) return;
+        boolean sameVariant = readMode(payload) == ImportMode.UPDATE
+                && ownerId.equals(readUuid(payload.get("variantId")));
+        if (!sameVariant) {
+            errors.add(new ValidationErrorResponse("barcode", "Barcode " + barcode + " đã được dùng cho mặt hàng khác"));
+        }
     }
 
     private void validateUpdateTarget(
@@ -609,6 +660,7 @@ public class ProductVariantImportHandler implements ImportTypeHandler {
         variantFields.put("reorderPoint", payload.get("reorderPoint"));
         variantFields.put("inventoryPolicy", payload.get("inventoryPolicy"));
         variantFields.put("status", payload.get("status"));
+        variantFields.put("barcode", readBarcode(payload));
         return objectMapper.convertValue(variantFields, ProductVariantRequest.class);
     }
 
@@ -638,6 +690,13 @@ public class ProductVariantImportHandler implements ImportTypeHandler {
 
     private ImportMode readMode(Map<String, Object> payload) {
         return ImportMode.UPDATE.name().equals(payload.get("importMode")) ? ImportMode.UPDATE : ImportMode.CREATE;
+    }
+
+    private String readBarcode(Map<String, Object> payload) {
+        Object value = payload.get("barcode");
+        if (value == null) return null;
+        String barcode = String.valueOf(value).trim();
+        return barcode.isEmpty() ? null : barcode;
     }
 
     private String readSku(Map<String, Object> payload) {

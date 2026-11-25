@@ -79,10 +79,15 @@ public class ProductVariantServiceImpl implements ProductVariantService {
 
     private static final String CUSTOM_BUNDLE_SKU = "CUSTOM-BUNDLE";
     private static final String[] IMPORT_VARIANT_HEADERS = {
-            "Ref", "Mã sản phẩm", "Định lượng", "Đơn vị", "Giá bán", "Giá vốn", "Chính sách tồn kho", "Trạng thái", "SKU"
+            "Ref", "Mã sản phẩm *", "Định lượng *", "Đơn vị *", "Giá bán", "Giá vốn", "Chính sách tồn kho", "Trạng thái",
+            "SKU", "Barcode"
+    };
+    private static final String[] IMPORT_UPDATE_VARIANT_HEADERS = {
+            "Ref", "Mã sản phẩm", "Định lượng", "Đơn vị", "Giá bán", "Giá vốn", "Chính sách tồn kho", "Trạng thái",
+            "SKU *", "Barcode"
     };
     private static final String[] IMPORT_BOM_HEADERS = {
-            "Ref mặt hàng", "Mã nguyên liệu", "Định lượng", "Đơn vị", "Tỷ lệ hao hụt (%)"
+            "Ref mặt hàng *", "Mã nguyên liệu *", "Định lượng *", "Đơn vị *", "Tỷ lệ hao hụt (%)"
     };
 
     private final ProductVariantRepository repository;
@@ -669,7 +674,8 @@ public class ProductVariantServiceImpl implements ProductVariantService {
 
             buildImportInstructionSheet(workbook);
 
-            Sheet variantSheet = createImportSheet(workbook, "Mặt hàng", IMPORT_VARIANT_HEADERS);
+            Sheet variantSheet = createImportSheet(workbook, "Mặt hàng", IMPORT_UPDATE_VARIANT_HEADERS);
+            applyTextColumns(workbook, variantSheet, 8, 9);
             int rowIdx = 1;
             for (ProductVariant v : variants) {
                 Row row = variantSheet.createRow(rowIdx++);
@@ -682,8 +688,9 @@ public class ProductVariantServiceImpl implements ProductVariantService {
                 row.createCell(6).setCellValue(v.getInventoryPolicy() == InventoryPolicy.DO_NOT_TRACK ? "Không theo dõi" : "Theo dõi tồn kho");
                 row.createCell(7).setCellValue(v.getStatus() == Status.INACTIVE ? "Ngừng hoạt động" : "Đang hoạt động");
                 row.createCell(8).setCellValue(v.getSku());
+                row.createCell(9).setCellValue(v.getBarcode() != null ? v.getBarcode() : "");
             }
-            finishImportSheet(variantSheet, rowIdx, IMPORT_VARIANT_HEADERS.length);
+            finishImportSheet(variantSheet, rowIdx, IMPORT_UPDATE_VARIANT_HEADERS.length);
 
             Sheet bomSheet = createImportSheet(workbook, "BOM", IMPORT_BOM_HEADERS);
             rowIdx = 1;
@@ -719,6 +726,14 @@ public class ProductVariantServiceImpl implements ProductVariantService {
             cell.setCellStyle(headerStyle);
         }
         return sheet;
+    }
+
+    private void applyTextColumns(Workbook workbook, Sheet sheet, int... columns) {
+        CellStyle textStyle = workbook.createCellStyle();
+        textStyle.setDataFormat(workbook.createDataFormat().getFormat("@"));
+        for (int column : columns) {
+            sheet.setDefaultColumnStyle(column, textStyle);
+        }
     }
 
     private void finishImportSheet(Sheet sheet, int rowCount, int columnCount) {
@@ -778,18 +793,22 @@ public class ProductVariantServiceImpl implements ProductVariantService {
                 },
                 {
                         "3. Cách điền sheet \"Mặt hàng\"",
-                        "- Mã sản phẩm (*): bắt buộc, lấy từ cột \"Mã sản phẩm\" ở sheet \"Tham chiếu\".",
-                        "- Định lượng (*), Đơn vị (*): bắt buộc khi tạo mới. Tên Mặt hàng do hệ thống tự sinh.",
+                        "- Cột có dấu * là bắt buộc.",
+                        "- Mã sản phẩm *: lấy từ cột \"Mã sản phẩm\" ở sheet \"Tham chiếu\".",
+                        "- Định lượng *, Đơn vị *: bắt buộc khi tạo mới. Tên Mặt hàng do hệ thống tự sinh.",
                         "- Giá bán, Giá vốn: để trống sẽ mặc định là 0.",
                         "- Chính sách tồn kho: \"Theo dõi tồn kho\" hoặc \"Không theo dõi\" (mặc định Theo dõi tồn kho).",
                         "- Trạng thái: \"Đang hoạt động\" hoặc \"Ngừng hoạt động\" (mặc định Đang hoạt động).",
                         "- SKU (khi tạo mới): không bắt buộc. Để trống thì hệ thống tự sinh; điền thì dùng đúng SKU đó (không được trùng SKU đã có, tối đa 100 ký tự).",
+                        "- Barcode (khi tạo mới): không bắt buộc. Để trống thì hệ thống tự sinh mã EAN-13; điền thì dùng đúng barcode đó (không được trùng, tối đa 100 ký tự).",
+                        "- Nên định dạng cột SKU và Barcode là Text trong Excel để không mất số 0 ở đầu.",
                         "- Trên màn nhập Excel, chọn Kiểu import \"Tạo mới\" khi dùng file này để tạo mặt hàng mới."
                 },
                 {
                         "4. Cập nhật mặt hàng đã có (chọn Kiểu import \"Cập nhật\")",
-                        "- Dùng file tải từ nút \"Xuất để cập nhật\": cột SKU (bắt buộc) xác định mặt hàng cần sửa.",
-                        "- Các ô để trống (Mã sản phẩm, Định lượng, Đơn vị, Giá, Chính sách, Trạng thái) giữ nguyên giá trị hiện tại.",
+                        "- Dùng file tải từ nút \"Xuất để cập nhật\": cột SKU * xác định mặt hàng cần sửa.",
+                        "- Các ô để trống (Mã sản phẩm, Định lượng, Đơn vị, Giá, Chính sách, Trạng thái, Barcode) giữ nguyên giá trị hiện tại.",
+                        "- Barcode nếu điền giá trị mới thì không được trùng barcode của mặt hàng khác.",
                         "- Mã sản phẩm nếu điền phải đúng sản phẩm hiện tại của SKU (không chuyển mặt hàng sang sản phẩm khác).",
                         "- Nếu sheet \"BOM\" có dòng cho Ref của mặt hàng: thay TOÀN BỘ BOM hiện tại bằng các dòng trong file.",
                         "- Nếu không có dòng BOM nào: giữ nguyên BOM hiện tại.",
@@ -797,9 +816,9 @@ public class ProductVariantServiceImpl implements ProductVariantService {
                 },
                 {
                         "5. Cách điền sheet \"BOM\"",
-                        "- Ref mặt hàng (*): phải khớp với 1 giá trị \"Ref\" ở sheet \"Mặt hàng\".",
-                        "- Mã nguyên liệu (*): lấy từ cột \"Mã nguyên liệu\" ở sheet \"Tham chiếu\".",
-                        "- Định lượng (*), Đơn vị (*): bắt buộc.",
+                        "- Ref mặt hàng *: phải khớp với 1 giá trị \"Ref\" ở sheet \"Mặt hàng\".",
+                        "- Mã nguyên liệu *: lấy từ cột \"Mã nguyên liệu\" ở sheet \"Tham chiếu\".",
+                        "- Định lượng *, Đơn vị *: bắt buộc.",
                         "- Tỷ lệ hao hụt: để trống sẽ mặc định là 0."
                 },
                 {
@@ -859,6 +878,7 @@ public class ProductVariantServiceImpl implements ProductVariantService {
     private void buildImportVariantSheet(Workbook workbook) {
         String[] headers = IMPORT_VARIANT_HEADERS;
         Sheet sheet = createImportSheet(workbook, "Mặt hàng", headers);
+        applyTextColumns(workbook, sheet, 8, 9);
 
         Row row1 = sheet.createRow(1);
         row1.createCell(0).setCellValue("MH1");

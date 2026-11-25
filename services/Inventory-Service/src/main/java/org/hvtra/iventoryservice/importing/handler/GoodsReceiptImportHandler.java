@@ -841,26 +841,28 @@ public class GoodsReceiptImportHandler implements ImportTypeHandler {
                 },
                 {
                         "3. Cách điền sheet \"Phiếu nhập\"",
-                        "- Mã nhà cung cấp (*): bắt buộc, lấy từ sheet \"Tham chiếu\".",
-                        "- Mã kho nhận hàng (*): bắt buộc, lấy từ sheet \"Tham chiếu\".",
+                        "- Cột có dấu * là bắt buộc.",
+                        "- Ref *: mã tự đặt cho từng phiếu trong file (ví dụ PN1, PN2...) để sheet \"Nguyên liệu\" liên kết tới.",
+                        "- Mã nhà cung cấp *: bắt buộc, lấy từ sheet \"Tham chiếu\".",
+                        "- Mã kho nhận hàng *: bắt buộc, lấy từ sheet \"Tham chiếu\".",
                         "- Ngày dự kiến giao: định dạng yyyy-MM-dd hoặc dd/MM/yyyy, để trống nếu chưa xác định.",
                         "- Ghi chú: không bắt buộc."
                 },
                 {
                         "4. Cách điền sheet \"Nguyên liệu\"",
-                        "- Ref Phiếu nhập (*): phải khớp với 1 giá trị \"Ref\" ở sheet \"Phiếu nhập\".",
-                        "- Mã nguyên liệu (*):",
+                        "- Ref Phiếu nhập *: phải khớp với 1 giá trị \"Ref\" ở sheet \"Phiếu nhập\".",
+                        "- Mã nguyên liệu *:",
                         "  + Nếu là nguyên liệu đã có sẵn: điền mã từ sheet \"Tham chiếu\".",
                         "  + Nếu là nguyên liệu mới: điền mã tương ứng ở sheet \"Nguyên liệu mới\" và đánh dấu \"x\" ở cột \"Nguyên liệu mới\".",
                         "- Nguyên liệu mới: đánh dấu \"x\" NẾU nguyên liệu CHƯA có trong hệ thống.",
-                        "- Số lượng (*): bắt buộc, phải lớn hơn 0.",
+                        "- Số lượng *: bắt buộc, phải lớn hơn 0.",
                         "- Ghi chú: không bắt buộc."
                 },
                 {
                         "5. Cách điền sheet \"Nguyên liệu mới\"",
-                        "- Mã nguyên liệu (*): mã nguyên liệu dùng để đối chiếu với sheet \"Nguyên liệu\". Mã này cũng sẽ là mã chính thức của nguyên liệu trong hệ thống.",
-                        "- Tên nguyên liệu (*): bắt buộc.",
-                        "- Đơn vị (*): bắt buộc, lấy từ sheet \"Tham chiếu\"."
+                        "- Mã nguyên liệu *: mã nguyên liệu dùng để đối chiếu với sheet \"Nguyên liệu\". Mã này cũng sẽ là mã chính thức của nguyên liệu trong hệ thống.",
+                        "- Tên nguyên liệu *: bắt buộc.",
+                        "- Đơn vị *: bắt buộc, lấy từ sheet \"Tham chiếu\"."
                 },
                 {
                         "6. Sau khi tải file lên hệ thống",
@@ -920,7 +922,7 @@ public class GoodsReceiptImportHandler implements ImportTypeHandler {
         Sheet sheet = workbook.createSheet("Phiếu nhập");
         CellStyle headerStyle = createGreenHeaderStyle(workbook);
 
-        String[] headers = {"Ref", "Mã nhà cung cấp", "Mã kho nhận hàng", "Ngày dự kiến giao", "Ghi chú"};
+        String[] headers = {"Ref *", "Mã nhà cung cấp *", "Mã kho nhận hàng *", "Ngày dự kiến giao", "Ghi chú"};
         Row headerRow = sheet.createRow(0);
         headerRow.setHeightInPoints(22);
         for (int i = 0; i < headers.length; i++) {
@@ -952,7 +954,7 @@ public class GoodsReceiptImportHandler implements ImportTypeHandler {
         Sheet sheet = workbook.createSheet("Nguyên liệu");
         CellStyle headerStyle = createGreenHeaderStyle(workbook);
 
-        String[] headers = {"Ref Phiếu nhập", "Mã nguyên liệu", "Nguyên liệu mới", "Số lượng", "Ghi chú"};
+        String[] headers = {"Ref Phiếu nhập *", "Mã nguyên liệu *", "Nguyên liệu mới", "Số lượng *", "Ghi chú"};
         Row headerRow = sheet.createRow(0);
         headerRow.setHeightInPoints(22);
         for (int i = 0; i < headers.length; i++) {
@@ -984,7 +986,7 @@ public class GoodsReceiptImportHandler implements ImportTypeHandler {
         Sheet sheet = workbook.createSheet("Nguyên liệu mới");
         CellStyle headerStyle = createGreenHeaderStyle(workbook);
 
-        String[] headers = {"Mã nguyên liệu", "Tên nguyên liệu", "Đơn vị"};
+        String[] headers = {"Mã nguyên liệu *", "Tên nguyên liệu *", "Đơn vị *"};
         Row headerRow = sheet.createRow(0);
         headerRow.setHeightInPoints(22);
         for (int i = 0; i < headers.length; i++) {

@@ -18,6 +18,8 @@ public interface ProductRepository extends JpaRepository<Product, UUID>, JpaSpec
     boolean existsByCategoryId(UUID categoryId);
     Optional<Product> findByProductCode(String productCode);
     boolean existsByProductCode(String productCode);
+    @Query("select p from Product p left join fetch p.category where p.productCode in :codes")
+    List<Product> findAllByProductCodeIn(@Param("codes") Collection<String> codes);
     Page<Product> findByNameContainingIgnoreCaseAndIsDeletedFalse(String name, Pageable pageable);
 
     @Query("""

@@ -28,5 +28,6 @@ public interface IngredientService {
     void delete(UUID id);
     byte[] exportToExcel(String search, Status status);
     byte[] getImportTemplate();
+    byte[] getImportUpdateTemplate();
 }
 

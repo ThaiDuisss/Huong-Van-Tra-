@@ -24,6 +24,8 @@ function ItemRow({ item, editable, expanded, onToggle, onSave, onDelete, units }
     const [unitId, setUnitId] = useState(item.payload.unitId ? String(item.payload.unitId) : "");
     const [reorderPoint, setReorderPoint] = useState(Number(item.payload.reorderPoint ?? 0));
     const [status, setStatus] = useState(String(item.payload.status ?? "ACTIVE"));
+    const isUpdate = item.payload.importMode === "UPDATE";
+    const code = item.payload.ingredientCode ? String(item.payload.ingredientCode) : "";
     const [saving, setSaving] = useState(false);
 
     useEffect(() => {
@@ -41,6 +43,7 @@ function ItemRow({ item, editable, expanded, onToggle, onSave, onDelete, units }
         setSaving(true);
         try {
             await onSave({
+                ...item.payload,
                 name,
                 unitId: unitId || null,
                 reorderPoint,
@@ -66,6 +69,7 @@ function ItemRow({ item, editable, expanded, onToggle, onSave, onDelete, units }
                     </div>
                 </div>
                 <div className="flex shrink-0 items-center gap-1.5">
+                    <StatusBadge tone={isUpdate ? "info" : "neutral"}>{isUpdate ? "Cập nhật" : "Tạo mới"}</StatusBadge>
                     {item.occurrenceCount > 1 ? (
                         <StatusBadge tone="warning">
                             Trùng {item.occurrenceCount} dòng — đã gộp
@@ -79,6 +83,18 @@ function ItemRow({ item, editable, expanded, onToggle, onSave, onDelete, units }
 
             {expanded ? (
                 <div className="grid gap-3 border-t border-pos-border p-4">
+                    {code || errorByField.get("ingredientCode") ? (
+                        <div
+                            className={`rounded-lg border p-3 text-xs font-bold ${
+                                errorByField.get("ingredientCode")
+                                    ? "border-red-200 bg-red-50 text-red-600"
+                                    : "border-sky-200 bg-sky-50 text-sky-800"
+                            }`}
+                        >
+                            {code ? `Mã nguyên liệu: ${code}` : null}
+                            {errorByField.get("ingredientCode") ? <p>{errorByField.get("ingredientCode")}</p> : null}
+                        </div>
+                    ) : null}
                     {item.occurrenceCount > 1 ? (
                         <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs font-bold text-amber-700">
                             Dòng này xuất hiện {item.occurrenceCount} lần giống hệt nhau trong file Excel gốc — hệ thống đã tự

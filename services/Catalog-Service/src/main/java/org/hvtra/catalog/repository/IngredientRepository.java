@@ -17,6 +17,10 @@ import java.util.UUID;
 
 public interface IngredientRepository extends JpaRepository<Ingredient, UUID>, JpaSpecificationExecutor<Ingredient> {
     boolean existsByIngredientCode(String ingredientCode);
+    @Query("select i from Ingredient i left join fetch i.unit where i.isDeleted = false order by i.ingredientCode")
+    List<Ingredient> findAllActiveWithUnit();
+    @Query("select i from Ingredient i left join fetch i.unit where i.ingredientCode in :codes")
+    List<Ingredient> findAllByIngredientCodeIn(@Param("codes") Collection<String> codes);
     boolean existsByIngredientCodeAndIdNot(String ingredientCode, UUID id);
     @Query("SELECT i FROM Supplier s JOIN s.ingredients i WHERE s.id = :supplierId AND i.isDeleted = false AND i.status = 'ACTIVE'")
     List<Ingredient> findBySupplierId(@Param("supplierId") UUID supplierId);
