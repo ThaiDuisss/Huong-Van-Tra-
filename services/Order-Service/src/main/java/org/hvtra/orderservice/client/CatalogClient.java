@@ -1,5 +1,6 @@
 package org.hvtra.orderservice.client;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import org.hvtra.orderservice.dto.response.CatalogVariantResponse;
 import org.hvtra.orderservice.dto.response.PageResponse;
@@ -7,11 +8,13 @@ import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @FeignClient(name = "catalog-service")
@@ -49,6 +52,9 @@ public interface CatalogClient {
     @GetMapping("/internal/catalog/product-variants/{variantId}/bom-items")
     List<BomItemResponse> getBomItemsByVariantId(@PathVariable("variantId") UUID variantId);
 
+    @PostMapping("/internal/catalog/bom-items/batch")
+    Map<UUID, List<BomItemResponse>> getBomItemsByVariantIds(@RequestBody List<UUID> variantIds);
+
     /** Cấu hình tồn mục tiêu / ngưỡng sản xuất của mặt hàng (chỉ đọc, không bị trừ khi bán). */
     @GetMapping("/api/catalog/product-variants/{variantId}")
     VariantStockConfigResponse getVariantStockConfig(@PathVariable("variantId") UUID variantId);
@@ -77,19 +83,28 @@ public interface CatalogClient {
             String imageUrl
     ){}
 
+    @JsonIgnoreProperties(ignoreUnknown = true)
     record BomItemResponse(
             UUID id,
             BomIngredientResponse ingredient,
             BigDecimal quantity,
-            Object unit,
+            BomUnitResponse unit,
             BigDecimal wasteRate
     ) {
         public BomItemResponse(UUID ingredientId, BigDecimal quantity, BigDecimal wasteRate) {
-            this(null, new BomIngredientResponse(ingredientId), quantity, null, wasteRate);
+            this(null, new BomIngredientResponse(ingredientId, null, null), quantity, null, wasteRate);
         }
     }
 
-    record BomIngredientResponse(UUID id) {}
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    record BomIngredientResponse(UUID id, String ingredientCode, String name) {
+        public BomIngredientResponse(UUID id) {
+            this(id, null, null);
+        }
+    }
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    record BomUnitResponse(UUID id, String symbol, String name) {}
 
     record SellableQuantityAdjustmentRequest(
             BigDecimal quantity,

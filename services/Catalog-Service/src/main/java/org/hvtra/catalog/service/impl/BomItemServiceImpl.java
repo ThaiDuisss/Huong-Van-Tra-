@@ -17,6 +17,7 @@ import org.hvtra.catalog.taste.TasteComposition;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -53,6 +54,18 @@ public class BomItemServiceImpl implements BomItemService {
         return repository.findByProductVariantId(productVariantId).stream()
                 .map(mapper::toResponse)
                 .toList();
+    }
+
+    @Override
+    public Map<UUID, List<BomItemResponse>> findByVariantIds(Collection<UUID> productVariantIds) {
+        if (productVariantIds == null || productVariantIds.isEmpty()) {
+            return Map.of();
+        }
+        return repository.findByProductVariantIdIn(productVariantIds).stream()
+                .collect(Collectors.groupingBy(
+                        BomItem::getProductVariantId,
+                        Collectors.mapping(mapper::toResponse, Collectors.toList())
+                ));
     }
 
     @Override

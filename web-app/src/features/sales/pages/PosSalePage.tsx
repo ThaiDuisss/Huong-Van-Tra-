@@ -2936,7 +2936,7 @@ export function PosSalePage() {
     const recommendationContext = `${saleOwnerId ?? "signed-out"}:${invoiceTabs.activeId}:${selectedCustomerId ?? "guest"}:${recommendationGeneration}:DISCOVERY:${orderType}`;
     const customerLocked = addingProductId !== null || closingInvoice || quantityUpdating
         || customBundleSubmitting || unitSwitchSubmitting || checkoutLoading || Boolean(bankTransferPayment);
-    const recommendationEntry = <>
+    const recommendationEntry = selectedCustomerId ? (
         <ProductRecommendationLauncher key={recommendationContext}
             customerId={selectedCustomerId} disabled={customerLocked || !online}
             guestSurveyScope={invoiceTabs.activeId}
@@ -2945,7 +2945,7 @@ export function PosSalePage() {
                     || activeInvoiceIdRef.current !== invoiceTabs.activeId) return false;
                 return addProduct(product);
             }} />
-    </>;
+    ) : null;
 
     return (
         <PosShell
