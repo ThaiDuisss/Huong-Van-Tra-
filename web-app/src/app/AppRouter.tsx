@@ -14,12 +14,11 @@ import {
   TopSalesStaffReportPage,
   TopSellingProductsReportPage,
 } from "../features/report";
-import { AiReportsPage } from "../features/ai/pages/AiReportsPage";
-import { ProductRecommendationPage } from "../features/product-recommendation/pages/ProductRecommendationPage";
 import { CustomerListPage } from "../features/customer/pages/CustomerListPage";
 import { CustomerTasteSurveyPage } from "../features/customer/pages/CustomerTasteSurveyPage";
 import { CustomerTierManagementPage } from "../features/customer/pages/CustomerTierManagementPage";
 import { DashboardOverviewPage } from "../features/dashboard/pages/DashboardOverviewPage";
+import { ProductFormulaAnalysisPage } from "../features/product-formula-analysis/pages/ProductFormulaAnalysisPage";
 import { CreateReturnPage } from "../features/order/pages/CreateReturnPage";
 import { InvoiceDetailPage } from "../features/order/pages/InvoiceDetailPage";
 import { InvoiceListPage } from "../features/order/pages/InvoiceListPage";
@@ -276,9 +275,8 @@ export function AppRouter() {
           </ProtectedRoute>
         }
       >
-        <Route path={routePaths.aiReports} element={<AiReportsPage />} />
-        <Route path={routePaths.ingredientDemo} element={<Navigate to={routePaths.productRecommendations} replace />} />
-        <Route path={routePaths.productRecommendations} element={<ProtectedRoute roles={POS_WORKSPACE_ROLES}><ProductRecommendationPage /></ProtectedRoute>} />
+        <Route path={routePaths.productFormulaAnalysis} element={<ProductFormulaAnalysisPage />} />
+        <Route path={routePaths.ingredientDemo} element={<Navigate to={routePaths.productFormulaAnalysis} replace />} />
       </Route>
 
       <Route
@@ -392,7 +390,7 @@ export function AppRouter() {
         </Route>
         <Route element={<RoleGate roles={CUSTOMER_ROLES} />}>
           <Route path="customers" element={<CustomerListPage />} />
-          <Route path="customer-taste-surveys" element={<CustomerTasteSurveyPage />} />
+          <Route path="ai/customer-taste-surveys" element={<CustomerTasteSurveyPage />} />
           <Route path="customers/tiers" element={<CustomerTierManagementPage />} />
         </Route>
         <Route element={<RoleGate roles={MARKETING_ROLES} />}>

@@ -36,7 +36,6 @@ import {
   ACCOUNT_ROLES,
   ACTION_LOG_ROLES,
   AI_REPORT_ROLES,
-  POS_WORKSPACE_ROLES,
   BACKOFFICE_ROLES,
   CUSTOMER_ROLES,
   CUSTOMER_RETURN_QC_ROLES,
@@ -330,13 +329,6 @@ export const systemNavigationItems: SystemNavigationItem[] = [
         roles: CUSTOMER_ROLES,
       },
       {
-        key: "customers-taste-surveys",
-        label: "Khảo sát khẩu vị",
-        to: routePaths.customerTasteSurveys,
-        icon: Sparkles,
-        roles: CUSTOMER_ROLES,
-      },
-      {
         key: "customers-tiers",
         label: "Hạng khách hàng",
         to: routePaths.customerTiers,
@@ -388,18 +380,18 @@ export const systemNavigationItems: SystemNavigationItem[] = [
     roles: AI_REPORT_ROLES,
     children: [
       {
-        key: "ai-reports",
-        label: "Báo cáo AI",
-        to: routePaths.aiReports,
-        icon: FileText,
+        key: "product-formula-analysis",
+        label: "Phân tích SP & Công thức",
+        to: routePaths.productFormulaAnalysis,
+        icon: Layers3,
         roles: AI_REPORT_ROLES,
       },
       {
-        key: "product-recommendations",
-        label: "AI gợi ý sản phẩm",
-        to: routePaths.productRecommendations,
+        key: "customers-taste-surveys",
+        label: "Khảo sát khẩu vị",
+        to: routePaths.customerTasteSurveys,
         icon: Sparkles,
-        roles: POS_WORKSPACE_ROLES,
+        roles: CUSTOMER_ROLES,
       },
       {
         key: "taste-profiles",

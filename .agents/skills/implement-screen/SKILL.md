@@ -109,6 +109,7 @@ features/<feature_name>/
 
 2. **Quy tắc hiển thị dữ liệu chọn lựa (Dropdown / Select / Autocomplete):**
    > [!IMPORTANT]
+   > - **Dropdown lấy dữ liệu từ API:** Bắt buộc sử dụng component `SearchableDropdown` (`src/features/manufacturing/components/shared/SearchableDropdown.tsx`, kết hợp `useLookupDropdown` khi cần phân trang/tìm kiếm phía server) thay cho thẻ `<select>` / `NativeSelect` thuần.
    > - **TUYỆT ĐỐI KHÔNG hiển thị ID (UUID / Technical ID thô) cho người dùng chọn trên giao diện UI.**
    > - Người dùng chỉ được nhìn thấy **Tên (Name)**, **Mã nghiệp vụ (Code / SKU / Barcode)** (ví dụ: `Trà Ô Long Túi Lọc (NL-OL-01)`, `Kho tổng Hương Vân Trà`).
    > - `id` (UUID) chỉ được giữ ngầm làm `value` của dropdown/select, không bao giờ render thô lên text hiển thị (tránh các chuỗi như `Item #123e4567-e89b...` hoặc `ID: 00000000-...`).

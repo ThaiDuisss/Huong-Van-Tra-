@@ -1,7 +1,7 @@
 import { useState, useEffect, useLayoutEffect, useRef, useCallback } from "react";
 import type { CSSProperties } from "react";
 import { createPortal } from "react-dom";
-import { Search, ChevronDown, Check } from "lucide-react";
+import { Search, ChevronDown, Check, X } from "lucide-react";
 
 export interface LookupItem {
     id: string;
@@ -41,10 +41,24 @@ export function SearchableDropdown({
     const [isOpen, setIsOpen] = useState(false);
     const [searchTerm, setSearchTerm] = useState("");
     const [menuStyle, setMenuStyle] = useState<CSSProperties>({});
-    const triggerRef = useRef<HTMLButtonElement>(null);
+    const triggerRef = useRef<HTMLDivElement>(null);
     const menuRef = useRef<HTMLDivElement>(null);
     const observerTarget = useRef<HTMLDivElement>(null);
     const searchInputRef = useRef<HTMLInputElement>(null);
+
+    const openMenu = useCallback(() => {
+        if (disabled) return;
+        if (!isOpen) {
+            onOpen?.();
+            setSearchTerm("");
+            setIsOpen(true);
+        }
+    }, [disabled, isOpen, onOpen]);
+
+    const closeMenu = useCallback(() => {
+        setIsOpen(false);
+        setSearchTerm("");
+    }, []);
 
     // Định vị menu ngay dưới ô chọn (nổi qua portal ra ngoài card/table). Nếu bên dưới không đủ chỗ
     // mà bên trên rộng hơn thì lật menu lên trên; chiều cao co theo khoảng trống thực tế.
@@ -95,14 +109,14 @@ export function SearchableDropdown({
                 triggerRef.current && !triggerRef.current.contains(target) &&
                 menuRef.current && !menuRef.current.contains(target)
             ) {
-                setIsOpen(false);
+                closeMenu();
             }
         }
         document.addEventListener("mousedown", handleClickOutside);
         return () => {
             document.removeEventListener("mousedown", handleClickOutside);
         };
-    }, []);
+    }, [closeMenu]);
 
     // Focus input khi mở dropdown
     useEffect(() => {
@@ -147,9 +161,11 @@ export function SearchableDropdown({
     }, [handleObserver, isOpen]);
 
     // Tìm option đang được chọn để hiển thị label
-    const selectedOption = value === "ALL" || value === ""
-        ? { id: value, name: allOptionText || placeholder }
-        : options.find((opt) => opt.id === value) || { id: value, name: "Đã chọn" };
+    const hasSelection = value !== "" && value !== "ALL";
+    const selectedLabel = hasSelection
+        ? (options.find((opt) => opt.id === value)?.name ?? "Đã chọn")
+        : "";
+    const idlePlaceholder = allOptionText || placeholder;
 
     const menuContent = isOpen && typeof document !== "undefined" ? createPortal(
         <div
@@ -158,39 +174,24 @@ export function SearchableDropdown({
             className="flex flex-col rounded-xl border border-pos-border bg-white shadow-[0_18px_45px_rgba(24,39,28,0.16)] overflow-hidden animate-in fade-in zoom-in-95 duration-100"
             onPointerDown={(e) => e.stopPropagation()}
         >
-            {/* Ô Search */}
-            <div className="p-2 border-b border-pos-border bg-neutral-50/70 shrink-0">
-                <div className="relative">
-                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" size={14} />
-                    <input
-                        ref={searchInputRef}
-                        type="text"
-                        className="h-9 w-full rounded-lg border border-pos-border bg-white pl-8 pr-3 text-sm text-gray-700 outline-none focus:border-hvt-green-600 focus:ring-1 focus:ring-hvt-green-600"
-                        placeholder={placeholder}
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                    />
-                </div>
-            </div>
-
             {/* Danh sách Options */}
-            <div className="flex-1 min-h-0 overflow-y-auto p-1 py-1.5 max-h-[200px]">
+            <div className="flex-1 min-h-0 overflow-y-auto p-1 py-1.5 max-h-[240px]">
                 {/* Tùy chọn Tất cả */}
                 {allOptionText && (
                     <button
                         type="button"
                         className={`flex w-full items-center justify-between rounded-lg px-3 py-2 text-sm font-medium transition-colors cursor-pointer ${
-                            value === "ALL" || value === ""
+                            !hasSelection
                                 ? "bg-[#07883a]/10 text-[#07883a]"
                                 : "text-gray-700 hover:bg-neutral-100"
                         }`}
                         onClick={() => {
                             onChange("ALL");
-                            setIsOpen(false);
+                            closeMenu();
                         }}
                     >
                         <span>{allOptionText}</span>
-                        {(value === "ALL" || value === "") && <Check size={16} />}
+                        {!hasSelection && <Check size={16} />}
                     </button>
                 )}
 
@@ -206,7 +207,7 @@ export function SearchableDropdown({
                         }`}
                         onClick={() => {
                             onChange(opt.id);
-                            setIsOpen(false);
+                            closeMenu();
                         }}
                     >
                         <span className="truncate pr-2 text-left">{opt.name}</span>
@@ -231,37 +232,77 @@ export function SearchableDropdown({
         document.body
     ) : null;
 
+    const showClear = !disabled && ((isOpen && searchTerm.length > 0) || (hasSelection && !allOptionText));
+
     return (
         <div className="relative min-w-[180px]">
-            {/* Nút Toggle */}
-            <button
+            {/* Ô Input kiêm Search & Dropdown */}
+            <div
                 ref={triggerRef}
-                type="button"
-                disabled={disabled}
-                onClick={() => {
-                    if (!isOpen) onOpen?.();
-                    setIsOpen(!isOpen);
-                }}
-                className="flex h-10 w-full items-center justify-between rounded-xl border border-pos-border bg-white px-3 text-sm text-gray-700 outline-none hover:bg-neutral-50 focus:border-hvt-green-700 focus:ring-1 focus:ring-hvt-green-700 transition-all cursor-pointer disabled:bg-neutral-100 disabled:text-gray-400 disabled:cursor-not-allowed"
+                className={`flex h-10 w-full items-center rounded-xl border border-pos-border bg-white transition-all ${
+                    disabled
+                        ? "bg-neutral-100 text-gray-400 cursor-not-allowed"
+                        : "hover:bg-neutral-50/70 focus-within:border-hvt-green-700 focus-within:ring-1 focus-within:ring-hvt-green-700"
+                }`}
             >
-                <span className="truncate pr-2 font-medium text-left">
-                    {selectedOption.name}
-                </span>
-                <div className="flex items-center gap-1 shrink-0">
-                    {value !== "" && value !== "ALL" && !allOptionText && !disabled && (
-                        <div
-                            className="p-0.5 hover:bg-gray-200 rounded-full text-gray-400 hover:text-gray-600 transition-colors"
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                onChange("");
+                <Search className="ml-3 shrink-0 text-gray-400 pointer-events-none" size={15} />
+                <input
+                    ref={searchInputRef}
+                    type="text"
+                    disabled={disabled}
+                    value={isOpen ? searchTerm : selectedLabel}
+                    placeholder={isOpen && selectedLabel ? selectedLabel : idlePlaceholder}
+                    onFocus={openMenu}
+                    onClick={openMenu}
+                    onChange={(e) => {
+                        if (!isOpen) openMenu();
+                        setSearchTerm(e.target.value);
+                    }}
+                    onKeyDown={(e) => {
+                        if (e.key === "Escape") {
+                            closeMenu();
+                            searchInputRef.current?.blur();
+                        }
+                    }}
+                    className="h-full w-full min-w-0 bg-transparent px-2 text-sm font-medium text-gray-700 placeholder:text-gray-500 outline-none disabled:cursor-not-allowed"
+                />
+                <div className="flex items-center gap-0.5 pr-2 shrink-0">
+                    {showClear && (
+                        <button
+                            type="button"
+                            aria-label="Xóa lựa chọn"
+                            className="p-0.5 hover:bg-gray-200 rounded-full text-gray-400 hover:text-gray-600 transition-colors cursor-pointer"
+                            onMouseDown={(e) => e.preventDefault()}
+                            onClick={() => {
+                                if (isOpen && searchTerm.length > 0) {
+                                    setSearchTerm("");
+                                } else {
+                                    onChange("");
+                                }
                             }}
                         >
-                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
-                        </div>
+                            <X size={14} />
+                        </button>
                     )}
-                    <ChevronDown size={16} className={`text-gray-400 transition-transform ${isOpen ? "rotate-180" : ""}`} />
+                    <button
+                        type="button"
+                        disabled={disabled}
+                        aria-label="Mở danh sách"
+                        className="p-0.5 text-gray-400 hover:text-gray-600 transition-colors cursor-pointer disabled:cursor-not-allowed"
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => {
+                            if (isOpen) {
+                                closeMenu();
+                            } else {
+                                openMenu();
+                                searchInputRef.current?.focus();
+                            }
+                        }}
+                    >
+                        <ChevronDown size={16} className={`transition-transform ${isOpen ? "rotate-180" : ""}`} />
+                    </button>
                 </div>
-            </button>
+            </div>
 
             {menuContent}
         </div>
