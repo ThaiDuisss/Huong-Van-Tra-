@@ -1,7 +1,7 @@
 import { beforeEach, expect, it, vi } from "vitest";
 
 import { apiClient } from "@/api/api-client";
-import { tasteSurveyApi } from "./tasteSurvey.api";
+import { canPrefillTasteSurvey, orderedTasteAttributes, tasteSurveyApi, type TasteTaxonomy } from "./tasteSurvey.api";
 
 vi.mock("@/api/api-client", () => ({ apiClient: { get: vi.fn(), post: vi.fn() } }));
 
@@ -78,6 +78,59 @@ it("rejects draft taxonomy and reads paginated customer history", async () => {
 
     await expect(tasteSurveyApi.currentTaxonomy()).rejects.toThrow("không hợp lệ");
     await expect(tasteSurveyApi.history("customer", 1)).resolves.toEqual({ content: [submitted] });
-    expect(apiClient.get).toHaveBeenNthCalledWith(1, "/catalog/taste-taxonomies/current");
+    expect(apiClient.get).toHaveBeenNthCalledWith(1, "/catalog/taste-taxonomies/current", { cache: "no-store" });
     expect(apiClient.get).toHaveBeenNthCalledWith(2, "/customer/customer/taste-surveys", { query: { page: 1, size: 5 } });
+});
+
+it("accepts schemaVersion 2 taxonomy, orders by displayOrder, and checks compatible prefill sources", async () => {
+    const v3Hash = "a".repeat(64);
+    const v4Hash = "c".repeat(64);
+    const v4: TasteTaxonomy = {
+        versionCode: "hvtra-tea-v4",
+        manifestSha256: v4Hash,
+        state: "PUBLISHED",
+        current: true,
+        manifest: {
+            schemaVersion: 2,
+            versionCode: "hvtra-tea-v4",
+            attributes: [
+                {
+                    attributeCode: "BODY",
+                    label: "Độ dày vị",
+                    displayOrder: 10,
+                    selectionKind: "ORDINAL_SINGLE",
+                    matchingSemantics: "EXACT",
+                    maxSelections: 1,
+                    values: [
+                        { valueCode: "FULL", label: "Dày đậm", displayOrder: 3 },
+                        { valueCode: "LIGHT", label: "Thanh nhẹ", displayOrder: 1 },
+                    ],
+                },
+                {
+                    attributeCode: "BITTERNESS",
+                    label: "Độ đắng",
+                    displayOrder: 1,
+                    selectionKind: "ORDINAL_SINGLE",
+                    matchingSemantics: "EXACT",
+                    maxSelections: 1,
+                    values: [
+                        { valueCode: "LOW", label: "Nhẹ", displayOrder: 2 },
+                        { valueCode: "NONE", label: "Không đắng", displayOrder: 1 },
+                    ],
+                },
+            ],
+        } as TasteTaxonomy["manifest"],
+        compatibleSources: [{ sourceVersionCode: "hvtra-tea-v3", sourceManifestSha256: v3Hash }],
+    };
+    vi.mocked(apiClient.get).mockResolvedValueOnce(v4);
+
+    const loaded = await tasteSurveyApi.currentTaxonomy();
+    const ordered = orderedTasteAttributes(loaded);
+
+    expect(ordered.map((attr) => attr.attributeCode)).toEqual(["BITTERNESS", "BODY"]);
+    expect(ordered[0]?.values.map((val) => val.valueCode)).toEqual(["NONE", "LOW"]);
+    expect(ordered[1]?.values.map((val) => val.valueCode)).toEqual(["LIGHT", "FULL"]);
+    expect(canPrefillTasteSurvey(loaded, "hvtra-tea-v3", v3Hash)).toBe(true);
+    expect(canPrefillTasteSurvey(loaded, "hvtra-tea-v3", "d".repeat(64))).toBe(false);
+    expect(canPrefillTasteSurvey(loaded, "hvtra-tea-v4", v4Hash)).toBe(true);
 });

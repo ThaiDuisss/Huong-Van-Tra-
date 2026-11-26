@@ -1,5 +1,6 @@
 import { Leaf, Search, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import type { RecommendedBom } from "../../../product-recommendation/services/bomRecommendation.api";
 
 import { Button, IconButton } from "../../../../components/ui/Button";
 import { TextInput } from "../../../../components/ui/Field";
@@ -16,12 +17,14 @@ export interface CustomBundleInput {
     bundleName: string;
     note: string;
     lines: Array<{ ingredientId: string; ingredientName: string; quantity: number }>;
+    useRecommendedFormula?: boolean;
 }
 
 interface CustomBundleBuilderProps {
     branchId: string | null;
     submitLoading: boolean;
     submitError?: string;
+    recommendation?: RecommendedBom;
     onCancel(): void;
     onSubmit(input: CustomBundleInput): void;
 }
@@ -42,6 +45,7 @@ export function CustomBundleBuilder({
     branchId,
     submitLoading,
     submitError = "",
+    recommendation,
     onCancel,
     onSubmit
 }: CustomBundleBuilderProps) {
@@ -49,8 +53,18 @@ export function CustomBundleBuilder({
     const [options, setOptions] = useState<BundleIngredientOption[]>([]);
     const [optionsLoading, setOptionsLoading] = useState(false);
     const [optionsError, setOptionsError] = useState("");
-    const [lines, setLines] = useState<DraftLine[]>([]);
-    const [bundleName, setBundleName] = useState("");
+    const [lines, setLines] = useState<DraftLine[]>(() => recommendation?.bundlePrefill.lines.map(line => ({
+        ingredient: {
+            id: line.ingredientId,
+            ingredientCode: line.ingredientCode,
+            name: line.ingredientName,
+            unitSymbol: line.unitSymbol,
+            retailPricePerUnit: Number(line.retailPricePerUnit),
+        },
+        quantity: line.quantity,
+    })) ?? []);
+    const [usingRecommendation, setUsingRecommendation] = useState(Boolean(recommendation));
+    const [bundleName, setBundleName] = useState(recommendation?.bundlePrefill.bundleName ?? "");
     const [note, setNote] = useState("");
     const [validationError, setValidationError] = useState("");
     const [availability, setAvailability] = useState<BundleAvailability | null>(null);
@@ -93,6 +107,7 @@ export function CustomBundleBuilder({
     );
 
     function addIngredient(ingredient: BundleIngredientOption) {
+        setUsingRecommendation(false);
         setAvailability(null);
         setValidationError("");
         setLines((current) => {
@@ -113,6 +128,7 @@ export function CustomBundleBuilder({
     }
 
     function changeQuantity(ingredientId: string, value: string) {
+        setUsingRecommendation(false);
         setAvailability(null);
         setLines((current) =>
             current.map((line) => (line.ingredient.id === ingredientId ? { ...line, quantity: value } : line))
@@ -120,6 +136,7 @@ export function CustomBundleBuilder({
     }
 
     function removeLine(ingredientId: string) {
+        setUsingRecommendation(false);
         setAvailability(null);
         setLines((current) => current.filter((line) => line.ingredient.id !== ingredientId));
     }
@@ -159,11 +176,20 @@ export function CustomBundleBuilder({
         const error = validate();
         setValidationError(error);
         if (error) return;
-        onSubmit({ bundleName: bundleName.trim(), note: note.trim(), lines: requestLines() });
+        onSubmit({
+            bundleName: bundleName.trim(), note: note.trim(), lines: requestLines(),
+            useRecommendedFormula: usingRecommendation,
+        });
     }
 
     return (
-        <section className="grid min-h-0 grid-rows-[minmax(0,1fr)_auto] overflow-hidden rounded-xl border border-[#e8eef0] bg-white shadow-pos-card">
+        <section className="grid min-h-0 overflow-hidden rounded-xl border border-[#e8eef0] bg-white shadow-pos-card"
+            style={{ gridTemplateRows: recommendation ? "auto minmax(0,1fr) auto" : "minmax(0,1fr) auto" }}>
+            {recommendation && <p className="px-4 pt-3 text-sm text-slate-700">
+                {usingRecommendation
+                    ? `Công thức đề xuất · ${Number(recommendation.quantityBasis.ingredientInputGrams).toLocaleString("vi-VN")} g nguyên liệu đầu vào`
+                    : "Công thức tùy chỉnh"}
+            </p>}
             <div className="grid min-h-0 grid-cols-[minmax(0,1fr)_380px] gap-4 overflow-hidden p-4">
                 <div className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-3">
                     <div className="relative">

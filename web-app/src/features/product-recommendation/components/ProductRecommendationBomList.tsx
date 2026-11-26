@@ -1,4 +1,6 @@
 import {
+  ArrowLeft,
+  Check,
   Clock,
   Coffee,
   Layers,
@@ -7,7 +9,15 @@ import {
   Sparkles,
   Thermometer
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { Button } from "../../../components/ui/Button";
+import { TextInput } from "../../../components/ui/Field";
+import { bomRecommendationApi, type RecommendedBom } from "../services/bomRecommendation.api";
+import {
+  posCustomBundleApi,
+  type BundleAvailability
+} from "../../sales/services/posCustomBundle.api";
 
 import { bomApi } from "../../manufacturing/services/bom.api";
 import type { BomItemResponse } from "../../manufacturing/types/bom.types";
@@ -23,7 +33,358 @@ interface VariantBomEntry {
   profile?: VariantTasteProfileResponse;
 }
 
-export function ProductRecommendationBomList() {
+export interface BomBundleConfirmInput {
+  item: RecommendedBom;
+  scale: number;
+  bundleName: string;
+  note: string;
+  lines: Array<{ ingredientId: string; ingredientName: string; quantity: number }>;
+}
+
+interface Props {
+  customerId: string | null;
+  branchId: string | null;
+  personalized: boolean;
+  onSelect?: (input: BomBundleConfirmInput, signal: AbortSignal) => Promise<void>;
+}
+
+const SCALE_OPTIONS = [1, 2, 3] as const;
+
+function scaleQuantity(quantity: string | number, scale: number): number {
+  return Math.round(Number(quantity) * scale * 1000) / 1000;
+}
+
+function estimateBundlePrice(item: RecommendedBom, scale = 1): number {
+  const sum = item.bundlePrefill.lines.reduce((acc, line) => {
+    const lineTotal = Math.round(scaleQuantity(line.quantity, scale) * Number(line.retailPricePerUnit) * 100) / 100;
+    return acc + lineTotal;
+  }, 0);
+  return Math.round(sum);
+}
+
+const bomStatuses = {
+  INSUFFICIENT_VALID_ORDERS: "Khách chưa có đủ 5 đơn hợp lệ.",
+  INSUFFICIENT_INGREDIENT_SIGNAL: "Chưa đủ dữ liệu nguyên liệu để cá nhân hóa.",
+  CANDIDATE_POOL_UNAVAILABLE: "Chưa có danh mục công thức đủ điều kiện để đề xuất.",
+  NO_AVAILABLE_CANDIDATES: "Không có công thức đủ nguyên liệu tại kho đang chọn.",
+  CATALOG_UNAVAILABLE: "Chưa đọc được công thức hiện hành từ Catalog.",
+  AVAILABILITY_UNAVAILABLE: "Chưa xác minh được tồn nguyên liệu tại kho đang chọn.",
+  SELECTION_STALE: "Công thức đã thay đổi. Vui lòng tải lại gợi ý.",
+};
+
+export function ProductRecommendationBomList({ customerId, branchId, personalized, onSelect }: Props) {
+  const [manual, setManual] = useState(false);
+  const [confirming, setConfirming] = useState<{
+    item: RecommendedBom;
+    scale: number;
+    note: string;
+  } | null>(null);
+  const [scaledAvailability, setScaledAvailability] = useState<{
+    key: string;
+    loading: boolean;
+    error: string;
+    data: BundleAvailability | null;
+  }>({ key: "", loading: false, error: "", data: null });
+  const [pending, setPending] = useState<string | null>(null);
+  const [selectionError, setSelectionError] = useState("");
+  const request = useRef<AbortController | null>(null);
+  useEffect(() => () => request.current?.abort(), []);
+  const query = useQuery({
+    queryKey: ["personalized-boms", customerId, branchId],
+    enabled: personalized && Boolean(customerId) && !manual,
+    queryFn: ({ signal }) => bomRecommendationApi.list(customerId!, branchId, signal),
+    staleTime: 0,
+    retry: false,
+    refetchOnWindowFocus: false,
+  });
+
+  useEffect(() => {
+    if (!confirming || confirming.scale === 1) {
+      setScaledAvailability({ key: "", loading: false, error: "", data: null });
+      return;
+    }
+    const key = `${confirming.item.variantId}:${confirming.scale}:${branchId ?? "default"}`;
+    let active = true;
+    setScaledAvailability({ key, loading: true, error: "", data: null });
+    const lines = confirming.item.bundlePrefill.lines.map((line) => ({
+      ingredientId: line.ingredientId,
+      ingredientName: line.ingredientName,
+      quantity: scaleQuantity(line.quantity, confirming.scale),
+    }));
+    posCustomBundleApi
+      .checkAvailability({ branchId, lines })
+      .then((data) => {
+        if (active) setScaledAvailability({ key, loading: false, error: "", data });
+      })
+      .catch((error: unknown) => {
+        if (active) {
+          setScaledAvailability({
+            key,
+            loading: false,
+            error: error instanceof Error ? error.message : "Không kiểm tra được tồn kho cho mức định lượng này.",
+            data: null,
+          });
+        }
+      });
+    return () => {
+      active = false;
+    };
+  }, [confirming?.item.variantId, confirming?.scale, branchId]);
+
+  if (!personalized || !customerId) return <CatalogBomList />;
+
+  async function confirmBundle() {
+    if (!onSelect || !confirming || request.current) return;
+    const { item, scale, note } = confirming;
+    const controller = new AbortController();
+    request.current = controller;
+    setPending(item.variantId);
+    setSelectionError("");
+    const lines = item.bundlePrefill.lines.map((line) => ({
+      ingredientId: line.ingredientId,
+      ingredientName: line.ingredientName,
+      quantity: scaleQuantity(line.quantity, scale),
+    }));
+    try {
+      await onSelect(
+        {
+          item,
+          scale,
+          bundleName: item.bundlePrefill.bundleName,
+          note: note.trim(),
+          lines,
+        },
+        controller.signal,
+      );
+    } catch (error) {
+      if (!controller.signal.aborted) {
+        setSelectionError(error instanceof Error ? error.message : "Không thể tạo Bundle từ công thức.");
+      }
+    } finally {
+      request.current = null;
+      if (!controller.signal.aborted) setPending(null);
+    }
+  }
+
+  return (
+    <div className="grid gap-3">
+      <div className="flex gap-2">
+        <Button
+          variant={manual ? "secondary" : "primary"}
+          size="sm"
+          onClick={() => {
+            setManual(false);
+            setConfirming(null);
+            setSelectionError("");
+          }}
+          disabled={Boolean(pending)}
+        >
+          Gợi ý cá nhân hóa
+        </Button>
+        <Button
+          variant={manual ? "primary" : "secondary"}
+          size="sm"
+          onClick={() => {
+            setManual(true);
+            setConfirming(null);
+            setSelectionError("");
+          }}
+          disabled={Boolean(pending)}
+        >
+          Tra cứu Catalog
+        </Button>
+      </div>
+      {manual ? <CatalogBomList /> : confirming ? (
+        <div className="grid gap-3 rounded-xl border border-emerald-200 bg-emerald-50/30 p-4">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-emerald-100 pb-3">
+            <button
+              type="button"
+              disabled={Boolean(pending)}
+              onClick={() => {
+                setConfirming(null);
+                setSelectionError("");
+              }}
+              className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-700 hover:text-slate-900 disabled:opacity-50"
+            >
+              <ArrowLeft className="h-4 w-4" />
+              Quay lại danh sách BOM
+            </button>
+            <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-[11px] font-bold text-emerald-800">
+              Tạo Bundle trực tiếp từ công thức AI
+            </span>
+          </div>
+
+          <div className="grid gap-1">
+            <strong className="text-base text-slate-900">
+              #{confirming.item.rank} {confirming.item.bundlePrefill.bundleName}
+            </strong>
+            <p className="text-xs font-mono text-slate-500">
+              SKU công thức gốc: {confirming.item.sku} · Tỷ lệ nguyên liệu được giữ nguyên
+            </p>
+            <p className="text-sm text-slate-700">{confirming.item.reason}</p>
+          </div>
+
+          <div className="grid gap-1.5">
+            <span className="text-xs font-bold text-slate-700">Mức định lượng theo tỷ lệ BOM gốc:</span>
+            <div className="flex flex-wrap gap-2">
+              {SCALE_OPTIONS.map((opt) => (
+                <Button
+                  key={opt}
+                  size="sm"
+                  variant={confirming.scale === opt ? "primary" : "secondary"}
+                  disabled={Boolean(pending)}
+                  onClick={() => {
+                    setSelectionError("");
+                    setConfirming((cur) => (cur ? { ...cur, scale: opt } : cur));
+                  }}
+                >
+                  {opt}x ({(Number(confirming.item.quantityBasis.ingredientInputGrams) * opt).toLocaleString("vi-VN")} g)
+                </Button>
+              ))}
+            </div>
+          </div>
+
+          <div className="rounded-lg border border-slate-200 bg-white p-3">
+            <div className="mb-2 text-xs font-bold text-slate-700">Thành phần nguyên liệu của Bundle</div>
+            <ul className="grid gap-1.5 text-sm">
+              {confirming.item.bundlePrefill.lines.map((line) => {
+                const qty = scaleQuantity(line.quantity, confirming.scale);
+                const linePrice = Math.round(qty * Number(line.retailPricePerUnit));
+                return (
+                  <li key={line.ingredientId} className="flex items-center justify-between gap-2">
+                    <span className="text-slate-800">
+                      {line.ingredientName} · <strong>{qty.toLocaleString("vi-VN")} {line.unitSymbol}</strong>
+                    </span>
+                    <span className="font-semibold text-slate-700">{formatCurrency(linePrice)}</span>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+
+          <div className="grid gap-1 rounded-lg bg-white p-3 text-sm border border-slate-200">
+            <div className="flex items-center justify-between">
+              <span className="text-slate-600">Tổng nguyên liệu đầu vào:</span>
+              <strong>
+                {(Number(confirming.item.quantityBasis.ingredientInputGrams) * confirming.scale).toLocaleString("vi-VN")} g
+              </strong>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-slate-600">Giá dự kiến của Bundle:</span>
+              <strong className="text-emerald-700">
+                {formatCurrency(estimateBundlePrice(confirming.item, confirming.scale))}
+              </strong>
+            </div>
+            <div className="flex items-center justify-between pt-1">
+              <span className="text-slate-600">Tồn nguyên liệu tại kho:</span>
+              {confirming.scale === 1 ? (
+                <span className="inline-flex items-center gap-1 font-semibold text-emerald-700">
+                  <Check className="h-3.5 w-3.5" /> Đủ nguyên liệu tại kho
+                </span>
+              ) : scaledAvailability.loading ? (
+                <span className="text-slate-600">Đang kiểm tra tồn nguyên liệu…</span>
+              ) : scaledAvailability.error ? (
+                <span className="text-red-700">{scaledAvailability.error}</span>
+              ) : scaledAvailability.data?.enough ? (
+                <span className="inline-flex items-center gap-1 font-semibold text-emerald-700">
+                  <Check className="h-3.5 w-3.5" /> Đủ nguyên liệu cho mức {confirming.scale}x
+                </span>
+              ) : (
+                <span className="font-semibold text-amber-700">Không đủ tồn kho cho mức {confirming.scale}x</span>
+              )}
+            </div>
+          </div>
+
+          <TextInput
+            maxLength={1000}
+            disabled={Boolean(pending)}
+            onChange={(event) => {
+              const val = event.currentTarget.value;
+              setConfirming((cur) => (cur ? { ...cur, note: val } : cur));
+            }}
+            placeholder="Ghi chú đóng gói cho kho (tuỳ chọn)"
+            value={confirming.note}
+          />
+
+          {selectionError && <p role="alert" className="text-sm font-semibold text-red-700">{selectionError}</p>}
+
+          <div className="flex flex-wrap justify-end gap-2 pt-1">
+            <Button
+              variant="secondary"
+              size="sm"
+              disabled={Boolean(pending)}
+              onClick={() => {
+                setConfirming(null);
+                setSelectionError("");
+              }}
+            >
+              Hủy
+            </Button>
+            <Button
+              variant="primary"
+              size="sm"
+              disabled={
+                !onSelect
+                || Boolean(pending)
+                || (confirming.scale !== 1 && (scaledAvailability.loading || !scaledAvailability.data?.enough))
+              }
+              onClick={() => void confirmBundle()}
+            >
+              {pending === confirming.item.variantId
+                ? "Đang tạo Bundle vào đơn…"
+                : "Xác nhận tạo Bundle & Thêm vào đơn"}
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <div className="grid gap-3">
+          {query.isFetching && <p role="status">Đang kiểm tra công thức và tồn nguyên liệu…</p>}
+          {query.isError && <p role="alert">Không tải được công thức cá nhân hóa.</p>}
+          {!query.isFetching && !query.isError && query.data?.status !== "OK" && query.data &&
+            <p role="status">{bomStatuses[query.data.status]}</p>}
+          {(query.isError || (query.data && query.data.status !== "OK")) &&
+            <Button variant="secondary" size="sm" onClick={() => void query.refetch()}>Tải lại gợi ý BOM</Button>}
+          {selectionError && <p role="alert" className="text-sm text-red-700">{selectionError}</p>}
+          {!query.isError && !query.isFetching && query.data?.status === "OK" && <>
+            <p className="text-sm text-slate-600">
+              Gợi ý dựa trên BOM hiện hành của hàng đã mua còn giữ.
+            </p>
+            {query.data.items.map(item => <article key={item.variantId}
+              className="grid gap-2 rounded-xl border border-slate-200 p-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <strong>#{item.rank} {item.bundlePrefill.bundleName}</strong>
+                <span className="text-sm font-bold text-emerald-700">
+                  Dự kiến: {formatCurrency(estimateBundlePrice(item))}
+                </span>
+              </div>
+              <p className="text-sm text-slate-700">{item.reason}</p>
+              <p className="text-sm text-slate-600">
+                {Number(item.quantityBasis.ingredientInputGrams).toLocaleString("vi-VN")} g nguyên liệu đầu vào
+                {item.tasteScore === undefined ? " · Theo nguyên liệu" : " · Có đối chiếu khẩu vị"}
+                {" · "}
+                <span className="font-semibold text-emerald-700">Đủ nguyên liệu tại kho</span>
+              </p>
+              <ul className="text-sm">
+                {item.bundlePrefill.lines.map(line => <li key={line.ingredientId}>
+                  {line.ingredientName} · {Number(line.quantity).toLocaleString("vi-VN")} {line.unitSymbol}
+                </li>)}
+              </ul>
+              <Button className="justify-self-start" size="sm" disabled={!onSelect || Boolean(pending)}
+                onClick={() => {
+                  setSelectionError("");
+                  setConfirming({ item, scale: 1, note: "" });
+                }}>
+                Chọn công thức
+              </Button>
+            </article>)}
+          </>}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function CatalogBomList() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [entries, setEntries] = useState<VariantBomEntry[]>([]);
@@ -32,8 +393,6 @@ export function ProductRecommendationBomList() {
 
   useEffect(() => {
     let active = true;
-    setLoading(true);
-    setError("");
 
     const loadAllBoms = async () => {
       try {

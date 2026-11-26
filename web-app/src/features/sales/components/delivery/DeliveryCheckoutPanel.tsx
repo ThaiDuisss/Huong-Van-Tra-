@@ -67,6 +67,8 @@ interface DeliveryCheckoutPanelProps {
   onAddToCart?(product: SaleProductPreview): Promise<boolean>;
   recommendationEntry?: ReactNode;
   tasteSurveyScope?: string;
+  tasteSurveyInvoiceId?: string;
+  tasteSurveyLocalInvoiceId?: string;
   state: DeliveryCheckoutState;
   totals: SaleTotals;
   onCustomerChange(customerId: string): void;
@@ -95,6 +97,8 @@ export function DeliveryCheckoutPanel({
   onAddToCart,
   recommendationEntry,
   tasteSurveyScope,
+  tasteSurveyInvoiceId,
+  tasteSurveyLocalInvoiceId,
   state,
   totals,
   onCustomerChange,
@@ -196,6 +200,7 @@ export function DeliveryCheckoutPanel({
       <div className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)_auto] rounded-xl bg-white shadow-pos-panel">
         <div className="border-b border-[#edf0f4] p-4">
           <CustomerSelector
+            key={tasteSurveyScope}
             disabled={customerLocked}
             hasMore={customerHasMore}
             onSearch={onCustomerSearch}
@@ -210,6 +215,8 @@ export function DeliveryCheckoutPanel({
             onClear={onCustomerClear}
             onAddToCart={onAddToCart}
             tasteSurveyScope={tasteSurveyScope}
+            invoiceId={tasteSurveyInvoiceId}
+            localInvoiceId={tasteSurveyLocalInvoiceId}
           />
           <div className="mt-3">{recommendationEntry}</div>
           <label className="mt-3 flex items-center justify-between rounded-lg border border-[#dbe4ee] bg-[#f8fafc] px-3 py-2 text-sm font-bold text-[#172317]">

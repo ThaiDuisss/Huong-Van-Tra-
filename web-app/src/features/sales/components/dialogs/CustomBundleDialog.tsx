@@ -2,17 +2,19 @@ import { Leaf } from "lucide-react";
 
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "../../../../components/ui/dialog";
 import { CustomBundleBuilder, type CustomBundleInput } from "../custom-bundle/CustomBundleBuilder";
+import type { RecommendedBom } from "../../../product-recommendation/services/bomRecommendation.api";
 
 interface CustomBundleDialogProps {
     branchId: string | null;
     submitLoading: boolean;
     submitError: string;
+    recommendation?: RecommendedBom;
     onClose(): void;
     onSubmit(input: CustomBundleInput): void;
 }
 
 /** Popup đóng trà theo yêu cầu trên màn POS: chọn nguyên liệu rồi thêm bundle vào đơn đang bán. */
-export function CustomBundleDialog({ branchId, submitLoading, submitError, onClose, onSubmit }: CustomBundleDialogProps) {
+export function CustomBundleDialog({ branchId, submitLoading, submitError, recommendation, onClose, onSubmit }: CustomBundleDialogProps) {
     return (
         <Dialog
             open
@@ -29,7 +31,6 @@ export function CustomBundleDialog({ branchId, submitLoading, submitError, onClo
                     <DialogDescription>
                         Chọn nguyên liệu và khối lượng khách muốn, bấm "Thêm vào đơn" để đưa bundle vào đơn đang bán;
                         kho đóng gói sau khi thu tiền.
-                        Gợi ý công thức (BOM) chưa sẵn sàng.
                     </DialogDescription>
                 </DialogHeader>
                 <div className="grid h-[min(620px,calc(90vh-110px))] grid-rows-[minmax(0,1fr)] p-4">
@@ -37,6 +38,7 @@ export function CustomBundleDialog({ branchId, submitLoading, submitError, onClo
                         branchId={branchId}
                         submitLoading={submitLoading}
                         submitError={submitError}
+                        recommendation={recommendation}
                         onCancel={onClose}
                         onSubmit={onSubmit}
                     />

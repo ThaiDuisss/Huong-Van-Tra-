@@ -76,7 +76,7 @@ export function createProductRecommendationApi(client: ApiClient = apiClient) {
       if (!uuid.test(customerId)) throw new Error("Không xác định được khách hàng.");
       const value = await client.get<unknown>(
         `/recommendation/recommendations/${customerId}/${mode.toLowerCase()}`,
-        { ...recommendationRequestOptions, signal, query: { limit: 5 } },
+        { ...recommendationRequestOptions, timeoutMs: 20_000, signal, query: { limit: 5 } },
       );
       if (!isRecord(value) || value.customerId !== customerId || value.mode !== mode ||
           value.status !== "ELIGIBLE" || !isRecord(value.product)) {

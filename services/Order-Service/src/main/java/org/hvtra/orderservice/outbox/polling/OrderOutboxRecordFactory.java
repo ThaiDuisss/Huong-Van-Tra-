@@ -33,17 +33,60 @@ final class OrderOutboxRecordFactory {
 
     ProducerRecord<String, String> create(PollingOrderEvent event) throws RejectedEvent {
         ObjectNode body = parse(event.payload());
+        if (!PollingOrderEvent.supports(event.eventType(), event.topic())
+                || !uuid(event.eventId()) || !matching(body, "eventId", event.eventId())
+                || !matching(body, "eventType", event.eventType())
+                || event.eventVersion() != 1
+                || !"order-service".equals(event.source())) {
+            throw new RejectedEvent("INVALID_CONTRACT_METADATA");
+        }
+
+        if (OrderEventType.RETURN_INVENTORY_DISPOSITION_REQUESTED.equals(event.eventType())) {
+            validateReturnDisposition(event, body);
+        } else if (PollingOrderEvent.supportsRefundSideEffect(event.eventType(), event.topic())) {
+            validateRefundSideEffect(event, body);
+        } else {
+            validateSignedCompletion(event, body);
+        }
+
+        RecordHeaders headers = buildHeaders(event, body);
+        return new ProducerRecord<>(event.topic(), null, event.occurredAt().toEpochMilli(),
+                event.key(), event.payload(), headers);
+    }
+
+    private static void validateRefundSideEffect(PollingOrderEvent event, ObjectNode body) throws RejectedEvent {
+        boolean customerRefund = OrderEventType.ORDER_REFUNDED.equals(event.eventType());
+        String returnId = body.path(customerRefund ? "refundId" : "returnId").textValue();
+        String orderId = body.path("orderId").textValue();
+        String businessKey = returnId + (customerRefund ? ":order-refunded" : ":return-refund-completed");
+        if (!uuid(returnId) || !uuid(orderId) || !returnId.equals(event.aggregateId())
+                || !"ORDER_RETURN".equals(event.aggregateType()) || !businessKey.equals(event.businessKey())
+                || !(customerRefund ? orderId : returnId).equals(event.key())
+                || !matching(body, "eventKey", customerRefund ? businessKey : returnId)) {
+            throw new RejectedEvent("INVALID_CONTRACT_METADATA");
+        }
+        timestamp(body.path("occurredAt"));
+        if (customerRefund) {
+            JsonNode amount = body.path("refundAmount");
+            if (!uuid(body.path("customerId").textValue()) || !amount.isNumber()
+                    || amount.decimalValue().signum() <= 0 || !body.path("fullRefund").isBoolean()) {
+                throw new RejectedEvent("INVALID_REFUND_PAYLOAD");
+            }
+        } else if (!matching(body, "newStatus", "COMPLETED")
+                || !uuid(body.path("refundTransactionId").textValue()) || !uuid(body.path("paymentId").textValue())) {
+            throw new RejectedEvent("INVALID_REFUND_PAYLOAD");
+        }
+    }
+
+    private void validateSignedCompletion(PollingOrderEvent event, ObjectNode body) throws RejectedEvent {
         boolean purchase = OrderEventType.ORDER_COMPLETED.equals(event.eventType());
         String key = body.path(purchase ? "orderId" : "returnId").textValue();
         String aggregate = purchase ? "ORDER" : "ORDER_RETURN";
         String businessKey = key + (purchase ? ":order-completed" : ":return-completed");
-        if (!PollingOrderEvent.supports(event.eventType(), event.topic())
-                || !uuid(event.eventId()) || !matching(body, "eventId", event.eventId())
-                || !matching(body, "eventType", event.eventType())
-                || !body.path("eventVersion").isIntegralNumber()
+        if (!body.path("eventVersion").isIntegralNumber()
                 || !body.path("eventVersion").canConvertToInt()
-                || body.path("eventVersion").intValue() != 1 || event.eventVersion() != 1
-                || !"order-service".equals(event.source()) || !matching(body, "sourceService", event.source())
+                || body.path("eventVersion").intValue() != 1
+                || !matching(body, "sourceService", event.source())
                 || !uuid(body.path("orderId").textValue()) || !uuid(key)
                 || !key.equals(event.key()) || !matching(body, "eventKey", key)
                 || !key.equals(event.aggregateId()) || !aggregate.equals(event.aggregateType())
@@ -59,7 +102,30 @@ final class OrderOutboxRecordFactory {
             case VALID -> { }
         }
         validateBusinessPayload(body, purchase);
+    }
 
+    private static void validateReturnDisposition(PollingOrderEvent event, ObjectNode body) throws RejectedEvent {
+        String commandId = body.path("commandId").textValue();
+        String returnId = body.path("returnId").textValue();
+        String orderId = body.path("orderId").textValue();
+        String businessKey = event.businessKey();
+        if (!uuid(commandId) || !uuid(returnId) || !uuid(orderId)
+                || !commandId.equals(event.key())
+                || !matching(body, "eventKey", commandId)
+                || !commandId.equals(event.aggregateId())
+                || !"ORDER_RETURN_INVENTORY_COMMAND".equals(event.aggregateType())
+                || businessKey == null
+                || (!commandId.equals(businessKey) && !businessKey.startsWith(commandId + ":recovery:"))) {
+            throw new RejectedEvent("INVALID_CONTRACT_METADATA");
+        }
+        timestamp(body.path("occurredAt"));
+        JsonNode lines = body.path("lines");
+        if (!lines.isArray() || lines.isEmpty()) {
+            throw new RejectedEvent("INVALID_COMPLETION_PAYLOAD");
+        }
+    }
+
+    private static RecordHeaders buildHeaders(PollingOrderEvent event, ObjectNode body) throws RejectedEvent {
         RecordHeaders headers = new RecordHeaders();
         header(headers, "event_id", event.eventId());
         header(headers, "event_type", event.eventType());
@@ -68,11 +134,16 @@ final class OrderOutboxRecordFactory {
         header(headers, "aggregate_type", event.aggregateType());
         header(headers, "aggregate_id", event.aggregateId());
         header(headers, "business_key", event.businessKey());
-        optionalHeader(headers, body, "saga_id", "sagaId");
-        optionalHeader(headers, body, "correlation_id", "correlationId");
-        optionalHeader(headers, body, "causation_id", "causationId");
-        return new ProducerRecord<>(event.topic(), null, event.occurredAt().toEpochMilli(),
-                event.key(), event.payload(), headers);
+        if (PollingOrderEvent.supportsRefundSideEffect(event.eventType(), event.topic())) {
+            optionalHeader(headers, "saga_id", event.sagaId());
+            optionalHeader(headers, "correlation_id", event.correlationId());
+            optionalHeader(headers, "causation_id", event.causationId());
+        } else {
+            optionalHeader(headers, body, "saga_id", "sagaId");
+            optionalHeader(headers, body, "correlation_id", "correlationId");
+            optionalHeader(headers, body, "causation_id", "causationId");
+        }
+        return headers;
     }
 
     private ObjectNode parse(String payload) throws RejectedEvent {
@@ -177,6 +248,12 @@ final class OrderOutboxRecordFactory {
 
     private static void header(RecordHeaders headers, String key, String value) {
         headers.add(key, value.getBytes(StandardCharsets.UTF_8));
+    }
+
+    private static void optionalHeader(RecordHeaders headers, String key, String value) {
+        if (value != null) {
+            header(headers, key, value);
+        }
     }
 
     static final class RejectedEvent extends Exception {

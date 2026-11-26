@@ -1,3 +1,4 @@
+from datetime import datetime, timezone
 from functools import lru_cache
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, Response
@@ -8,7 +9,9 @@ from sqlalchemy.exc import SQLAlchemyError
 from app.clients.customer_taste_client import CustomerTasteClient
 from app.core.config import get_settings
 from app.database.session import get_db
-from app.repositories.explore_history_repository import ExploreHistoryError
+from app.repositories.explore_history_repository import ExploreHistoryError, ExploreHistoryRepository
+from app.schemas.bom_recommendation import BomRecommendations
+from app.schemas.taste_catalog import Digest
 from app.schemas.explore_recommendation import (
     ExploreRecommendationResponse, FamiliarRecommendationResponse, Level2Eligibility,
 )
@@ -18,6 +21,7 @@ from app.schemas.recommendation import (
 from app.core.recommendation_auth import authorize_customer, authorize_pos_actor
 from app.repositories.v1_recommendation_repository import V1RecommendationRepository
 from app.service.explore_recommendation_service import ExploreRecommendationService, FamiliarRecommendationService
+from app.service.bom_recommendation_service import BomRecommendationService
 from app.service.level2_availability import Level2Availability
 from app.service.personalized_taste_features import PersonalizedTasteFeatures
 from app.service.recommendation_service import RecommendationService
@@ -73,10 +77,13 @@ def level2_eligibility(
 ) -> Level2Eligibility:
     response.headers["Cache-Control"] = "private, no-store"
     demo = getattr(request.app.state, "level2_demo", None)
-    if demo is None:
-        return Level2Eligibility(customer_id=verified_customer, enabled=False)
     try:
-        count = demo.valid_orders(db, verified_customer)
+        if demo is not None:
+            count = demo.valid_orders(db, verified_customer)
+        else:
+            count = ExploreHistoryRepository().history(
+                db, verified_customer, datetime.now(timezone.utc).replace(tzinfo=None)
+            ).valid_order_count
     except (ExploreHistoryError, SQLAlchemyError):
         raise HTTPException(503, "Personalized purchase evidence unavailable",
                             headers={"Cache-Control": "private, no-store"}) from None
@@ -125,6 +132,34 @@ def familiar_products(
             return demo.recommend(FamiliarRecommendationResponse, verified_customer, "FAMILIAR", limit, db=db)
         return service.recommend(db, verified_customer, limit)
     except (SQLAlchemyError, ExploreHistoryError):
+        raise HTTPException(503, "Personalized purchase evidence unavailable",
+                            headers={"Cache-Control": "private, no-store"}) from None
+
+
+@router.get("/{customer_id}/boms", response_model=BomRecommendations, response_model_exclude_none=True)
+def recommend_boms(
+    response: Response,
+    verified_customer: str = Depends(authorize_customer),
+    db: Session = Depends(get_db),
+    limit: int = Query(default=5, ge=1, le=5),
+    branch_id: UUID | None = Query(default=None, alias="branchId"),
+    variant_id: UUID | None = Query(default=None, alias="variantId"),
+    revision: int | None = Query(default=None, alias="compositionRevision", gt=0),
+    checksum: Digest | None = Query(default=None, alias="compositionSha256"),
+) -> BomRecommendations:
+    response.headers["Cache-Control"] = "private, no-store"
+    if any(value is not None for value in (variant_id, revision, checksum)):
+        if variant_id is None or revision is None or checksum is None:
+            raise HTTPException(422, "Complete BOM composition identity required",
+                                headers={"Cache-Control": "private, no-store"})
+        selected = (variant_id, revision, checksum)
+    else:
+        selected = None
+    try:
+        return BomRecommendationService(get_settings(), get_personalized_taste_features()).recommend(
+            db, verified_customer, limit, branch_id, selected,
+        )
+    except (ExploreHistoryError, SQLAlchemyError):
         raise HTTPException(503, "Personalized purchase evidence unavailable",
                             headers={"Cache-Control": "private, no-store"}) from None
 

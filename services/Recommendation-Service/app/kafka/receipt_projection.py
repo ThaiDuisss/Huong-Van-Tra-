@@ -34,8 +34,9 @@ DROP_RETURN = DROP_COMMON | {"returnCode", "branchId", "actorUserId", "paymentId
 DROP_PURCHASE_LINE = {"productName", "variantName", "originalUnitPrice", "discountAmount", "lineTotal"}
 DROP_RETURN_LINE = {"productName", "note"}
 IDENTITIES = {"eventId", "eventKey", "orderId", "customerId", "returnId", "sagaId",
-              "correlationId", "causationId", "orderItemId", "returnItemId", "productVariantId",
+              "orderItemId", "returnItemId", "productVariantId",
               "productId", "bomVersionId"}
+TRACE_TOKENS = {"correlationId", "causationId"}
 ENUMS = {
     "eventType": {"ORDER_COMPLETED", "RETURN_COMPLETED"},
     "sourceService": {"order-service"},
@@ -74,6 +75,8 @@ def _safe_value(field, value):
         return True  # Preserve explicit null, including invalid required-field null.
     if field in IDENTITIES:
         return _uuid_text(value)
+    if field in TRACE_TOKENS:
+        return isinstance(value, str) and bool(re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._:/-]{0,149}", value))
     if field in ("quantity", "unitPrice"):
         if type(value) in (int, bool) or isinstance(value, Decimal):
             return not isinstance(value, Decimal) or value.is_finite()

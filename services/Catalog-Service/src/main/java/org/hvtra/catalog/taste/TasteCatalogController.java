@@ -79,10 +79,25 @@ public class TasteCatalogController {
         return ok(release, release.rowVersion());
     }
 
+    @PostMapping(TAXONOMIES + "/{versionCode}/activate")
+    public ResponseEntity<TasteTaxonomyService.Response> activateTaxonomy(@PathVariable String versionCode,
+            @RequestHeader(value = HttpHeaders.IF_MATCH, required = false) String etag,
+            @Valid @RequestBody TasteTaxonomyService.Activate body) {
+        var release = taxonomy.activate(versionCode, TasteFailure.requireVersion(etag), body);
+        return ok(release, release.rowVersion());
+    }
+
     @PostMapping(VARIANT_PROFILES)
     public ResponseEntity<VariantTasteService.Response> createProfile(@PathVariable UUID variantId,
             @Valid @RequestBody VariantTasteService.Draft body) {
         return created(profile.create(variantId, body));
+    }
+
+    @PostMapping(VARIANT_PROFILES + "/import-draft")
+    public ResponseEntity<VariantTasteService.Response> importDraft(@PathVariable UUID variantId,
+            @Valid @RequestBody VariantTasteService.ImportDraft body) {
+        var result = profile.importDraft(variantId, body);
+        return result.created() ? created(result.profile()) : ok(result.profile(), result.profile().rowVersion());
     }
 
     @PostMapping(PROFILES + "/bulk-draft")

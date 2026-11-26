@@ -105,6 +105,17 @@ spring:
             filters:
               - StripPrefix=2
 
+          - id: personalized-bom
+            uri: ${RECOMMENDATION_SERVICE_URL:http://localhost:8090}
+            predicates:
+              - name: Path
+                args:
+                  patterns: /api/recommendation/recommendations/{customerId}/boms
+                  matchTrailingSlash: false
+              - Method=GET
+            filters:
+              - StripPrefix=2
+
           - id: personalized-product-eligibility
             uri: ${RECOMMENDATION_SERVICE_URL:http://localhost:8090}
             predicates:

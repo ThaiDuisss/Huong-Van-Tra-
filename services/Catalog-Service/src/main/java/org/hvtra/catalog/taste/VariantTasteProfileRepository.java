@@ -18,6 +18,9 @@ interface VariantTasteProfileRepository extends JpaRepository<VariantTasteProfil
     Optional<VariantTasteProfile> findByVariantIdAndTaxonomyIdAndPreparationCodeAndStatus(
             UUID variantId, UUID taxonomyId, String preparationCode, VariantTasteProfile.State status);
 
+    List<VariantTasteProfile> findByVariantIdAndTaxonomyIdAndPreparationCodeAndStatusIn(
+            UUID variantId, UUID taxonomyId, String preparationCode, Collection<VariantTasteProfile.State> statuses);
+
     @EntityGraph(attributePaths = "taxonomy")
     Page<VariantTasteProfile> findByVariantIdOrderByProfileRevisionDesc(UUID variantId, Pageable page);
 

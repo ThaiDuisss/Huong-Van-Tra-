@@ -7,6 +7,7 @@ import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import feign.FeignException;
 import org.hvtra.commonservice.common_core.exception.FeignClientException;
+import org.hvtra.commonservice.common_core.taste.TasteManifestV2;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
@@ -98,8 +99,16 @@ class CatalogTasteTaxonomyAuthority implements TasteTaxonomyAuthority {
         if (!(value instanceof ObjectNode manifest) || json.bytes(manifest).length > MAX_MANIFEST_BYTES
                 || !version.equals(manifest.path("versionCode").textValue())
                 || !manifest.path("schemaVersion").isIntegralNumber()
-                || !manifest.path("schemaVersion").canConvertToInt() || manifest.path("schemaVersion").intValue() != 1) {
+                || !manifest.path("schemaVersion").canConvertToInt()
+                || !(manifest.path("schemaVersion").intValue() == 1 || manifest.path("schemaVersion").intValue() == 2)) {
             throw TasteSurveyErrors.unavailableTaxonomy();
+        }
+        boolean dynamic = manifest.path("schemaVersion").intValue() == 2;
+        if (dynamic) {
+            TasteManifestV2.validate(manifest, true);
+            if (SPLIT_SWEETNESS_VERSIONS.contains(version)) {
+                throw TasteSurveyErrors.unavailableTaxonomy();
+            }
         }
         JsonNode entries = requiredArray(manifest, "attributes", MAX_ATTRIBUTES);
         Map<String, Attribute> attributes = new HashMap<>();
@@ -128,7 +137,8 @@ class CatalogTasteTaxonomyAuthority implements TasteTaxonomyAuthority {
                 case "ENUM_MULTI" -> max.intValue();
                 default -> throw TasteSurveyErrors.unavailableTaxonomy();
             };
-            boolean allowsNotApplicable = SPLIT_SWEETNESS_VERSIONS.contains(version) && "ADDED_SWEETNESS".equals(code)
+            boolean allowsNotApplicable = (dynamic || SPLIT_SWEETNESS_VERSIONS.contains(version)
+                    && "ADDED_SWEETNESS".equals(code))
                     && entry.path("allowsNotApplicable").isBoolean() && entry.path("allowsNotApplicable").booleanValue();
             if (limit != max.intValue() || attributes.putIfAbsent(code,
                     new Attribute(limit, Set.copyOf(allowed), allowsNotApplicable)) != null) {

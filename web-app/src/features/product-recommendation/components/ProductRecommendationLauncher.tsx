@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Coffee, Layers, RefreshCw, Sparkles } from "lucide-react";
 import { Button } from "../../../components/ui/Button";
 import {
@@ -12,8 +13,9 @@ import {
   ProductRecommendationResults,
   type RecommendationResultProps,
 } from "./ProductRecommendationResults";
-import { ProductRecommendationBomList } from "./ProductRecommendationBomList";
-import type { RecommendationMode } from "../types/productRecommendation.types";
+import { ProductRecommendationBomList, type BomBundleConfirmInput } from "./ProductRecommendationBomList";
+import type { ProductRecommendationMode, RecommendationMode } from "../types/productRecommendation.types";
+import { productRecommendationApi } from "../services/productRecommendation.api";
 import { useGuestTasteSurvey } from "../../customer/services/guestTasteSurvey";
 import { TasteSurveyRecommendations } from "./TastePreviewLauncher";
 
@@ -23,12 +25,31 @@ export function ProductRecommendationLauncher({
   disabled,
   onAdd,
   guestSurveyScope,
-}: Omit<RecommendationResultProps, "mode"> & { guestSurveyScope?: string }) {
-  const guestSurvey = useGuestTasteSurvey(customerId ? undefined : guestSurveyScope);
+  branchId = null,
+  onSelectBom,
+}: Omit<RecommendationResultProps, "mode"> & {
+  guestSurveyScope?: string;
+  branchId?: string | null;
+  onSelectBom?: (input: BomBundleConfirmInput, signal: AbortSignal) => Promise<void>;
+}) {
+  const guest = useGuestTasteSurvey(customerId ? undefined : guestSurveyScope);
+  const guestSurvey = guest?.criteria.hardGroups.length || guest?.criteria.softGroups.length ? guest : null;
   const [open, setOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<"products" | "bom">("products");
-  const [recommendationMode, setRecommendationMode] = useState<RecommendationMode>("DISCOVERY");
+  const [selection, setSelection] = useState<RecommendationMode>("DISCOVERY");
   const [refresh, setRefresh] = useState(0);
+  const eligibility = useQuery({
+    queryKey: ["product-recommendation-eligibility", customerId],
+    queryFn: ({ signal }) => customerId ? productRecommendationApi.eligibility(customerId, signal) : false,
+    enabled: open && !disabled && Boolean(customerId),
+    retry: false,
+    staleTime: 0,
+    refetchOnWindowFocus: false,
+  });
+  const eligibleForPersonalization = eligibility.data === true && !eligibility.isError;
+  const recommendationMode: ProductRecommendationMode = customerId && eligibleForPersonalization
+    ? (selection === "REPEAT" ? "FAMILIAR" : "EXPLORE")
+    : selection;
   const trigger = useRef<HTMLButtonElement>(null);
   const body = useRef<HTMLDivElement>(null);
 
@@ -88,9 +109,11 @@ export function ProductRecommendationLauncher({
                       AI gợi ý sản phẩm & Công thức
                     </DialogTitle>
                     <DialogDescription className="text-xs text-slate-500">
-                      {customerId
-                        ? "Gợi ý cá nhân hóa cho khách hàng đang chọn trên đơn."
-                        : "Gợi ý sản phẩm phổ biến và danh sách công thức pha chế."}
+                      {activeTab === "bom" && !eligibleForPersonalization
+                        ? "Tra cứu công thức pha chế trong danh mục."
+                        : customerId
+                          ? "Gợi ý cá nhân hóa cho khách hàng đang chọn trên đơn."
+                          : "Gợi ý sản phẩm phổ biến và danh sách công thức pha chế."}
                     </DialogDescription>
                   </div>
 
@@ -135,11 +158,11 @@ export function ProductRecommendationLauncher({
                           <button
                             type="button"
                             onClick={() => {
-                              setRecommendationMode("DISCOVERY");
+                              setSelection("DISCOVERY");
                               setRefresh((v) => v + 1);
                             }}
                             className={`rounded-md px-3 py-1 text-xs font-bold transition ${
-                              recommendationMode === "DISCOVERY"
+                              selection === "DISCOVERY"
                                 ? "bg-emerald-600 text-white shadow-2xs"
                                 : "text-slate-600 hover:text-slate-900"
                             }`}
@@ -149,11 +172,11 @@ export function ProductRecommendationLauncher({
                           <button
                             type="button"
                             onClick={() => {
-                              setRecommendationMode("REPEAT");
+                              setSelection("REPEAT");
                               setRefresh((v) => v + 1);
                             }}
                             className={`rounded-md px-3 py-1 text-xs font-bold transition ${
-                              recommendationMode === "REPEAT"
+                              selection === "REPEAT"
                                 ? "bg-emerald-600 text-white shadow-2xs"
                                 : "text-slate-600 hover:text-slate-900"
                             }`}
@@ -166,7 +189,10 @@ export function ProductRecommendationLauncher({
                       <Button
                         variant="secondary"
                         disabled={disabled}
-                        onClick={() => setRefresh((value) => value + 1)}
+                        onClick={() => {
+                          if (customerId) void eligibility.refetch();
+                          setRefresh((value) => value + 1);
+                        }}
                         size="sm"
                         className="h-8 text-xs"
                       >
@@ -203,9 +229,17 @@ export function ProductRecommendationLauncher({
                       }
                     />
                   </div>
-                ) : (
+                  ) : customerId && eligibility.isLoading ? (
+                    <p role="status">Đang kiểm tra điều kiện gợi ý công thức…</p>
+                  ) : (
                   /* Tab 2: Công thức (BOM List) */
-                  <ProductRecommendationBomList />
+                  <ProductRecommendationBomList customerId={customerId} branchId={branchId}
+                      key={branchId ?? "default-warehouse"}
+                    personalized={eligibleForPersonalization}
+                    onSelect={onSelectBom ? async (item, signal) => {
+                      await onSelectBom(item, signal);
+                      if (!signal.aborted) changeOpen(false);
+                    } : undefined} />
                 )}
               </div>
             </div>

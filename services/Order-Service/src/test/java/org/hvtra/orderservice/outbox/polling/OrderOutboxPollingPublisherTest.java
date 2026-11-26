@@ -7,6 +7,8 @@ import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.errors.RecordTooLargeException;
 import org.hvtra.orderservice.outbox.service.OrderKafkaSigner;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.kafka.core.KafkaOperations;
 import org.springframework.kafka.support.SendResult;
 
@@ -54,6 +56,48 @@ class OrderOutboxPollingPublisherTest {
         assertEquals(event.eventId(), header(record, "event_id"));
         assertEquals(event.key(), header(record, "correlation_id"));
         assertEquals(event.businessKey(), header(record, "business_key"));
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {true, false})
+    void sendsRefundEventsWithTheExistingTopicsKeysBodyAndHeaders(boolean customerRefund) throws Exception {
+        String eventId = UUID.randomUUID().toString();
+        String returnId = UUID.randomUUID().toString();
+        String orderId = UUID.randomUUID().toString();
+        String transactionId = UUID.randomUUID().toString();
+        String eventType = customerRefund ? "ORDER_REFUNDED" : "RETURN_REFUND_COMPLETED";
+        String key = customerRefund ? orderId : returnId;
+        String businessKey = returnId + (customerRefund ? ":order-refunded" : ":return-refund-completed");
+        String topic = customerRefund ? "customer.order-refunded" : "notification.return.refund-completed";
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("eventId", eventId);
+        body.put("eventType", eventType);
+        body.put("eventKey", customerRefund ? businessKey : returnId);
+        body.put("orderId", orderId);
+        body.put("occurredAt", OCCURRED.toString());
+        if (customerRefund) {
+            body.put("refundId", returnId);
+            body.put("customerId", UUID.randomUUID().toString());
+            body.put("refundAmount", new BigDecimal("90000"));
+            body.put("fullRefund", false);
+        } else {
+            body.put("returnId", returnId);
+            body.put("paymentId", UUID.randomUUID().toString());
+            body.put("refundTransactionId", transactionId);
+            body.put("newStatus", "COMPLETED");
+        }
+        String payload = mapper.writeValueAsString(body);
+        PollingOrderEvent event = new PollingOrderEvent("refund", "token", 1, eventId, eventType, 1,
+                "ORDER_RETURN", returnId, key, businessKey, topic, "order-service", payload, OCCURRED,
+                null, key, transactionId);
+        var record = records.create(event);
+        assertEquals(topic, record.topic());
+        assertEquals(key, record.key());
+        assertEquals(payload, record.value());
+        assertEquals(returnId, header(record, "aggregate_id"));
+        assertEquals(businessKey, header(record, "business_key"));
+        assertEquals(key, header(record, "correlation_id"));
+        assertEquals(transactionId, header(record, "causation_id"));
     }
 
     @Test
@@ -154,7 +198,7 @@ class OrderOutboxPollingPublisherTest {
         }
         return new PollingOrderEvent(id, "token", 2, eventId, "ORDER_COMPLETED", 1, "ORDER",
                 orderId, orderId, orderId + ":order-completed", TOPIC, "order-service",
-                mapper.writeValueAsString(body), OCCURRED);
+                mapper.writeValueAsString(body), OCCURRED, null, orderId, null);
     }
 
     private OrderKafkaSigner signer(String version) {

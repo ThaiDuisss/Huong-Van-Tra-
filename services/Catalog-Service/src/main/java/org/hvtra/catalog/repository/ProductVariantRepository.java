@@ -36,6 +36,13 @@ public interface ProductVariantRepository extends JpaRepository<ProductVariant, 
             """)
     List<ProductVariant> findTasteSnapshotVariants(@Param("active") Status active, Pageable page);
 
+    @Query("""
+            select v from ProductVariant v join fetch v.product p join fetch v.unit
+            where v.id in :ids and v.isDeleted = false and v.customBundle = false
+              and p.isDeleted = false and v.status = :active and p.status = :active
+            """)
+    List<ProductVariant> findActiveBomRecipeVariants(@Param("ids") Collection<UUID> ids, @Param("active") Status active);
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select v from ProductVariant v where v.id = :id and v.isDeleted = false")
     Optional<ProductVariant> findByIdForUpdate(@Param("id") UUID id);

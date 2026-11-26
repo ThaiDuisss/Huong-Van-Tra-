@@ -58,7 +58,7 @@ export function ProductRecommendationResults({
     <div className="grid gap-3">
       <div className="flex items-center justify-between">
         <p className="text-xs font-bold uppercase tracking-wider text-[#159734]">
-          Top 5 sản phẩm gợi ý · {mode === "REPEAT" ? "Đã mua (Mua lại)" : "Chưa mua (Khám phá)"} ({label})
+          Top 5 sản phẩm gợi ý · {mode === "REPEAT" || mode === "FAMILIAR" ? "Đã mua (Mua lại)" : "Chưa mua (Khám phá)"} ({label})
         </p>
         <span className="text-[11px] font-semibold text-slate-500">
           Hiển thị {topProducts.length} / {products.length} sản phẩm
@@ -66,7 +66,7 @@ export function ProductRecommendationResults({
       </div>
       {!topProducts.length && (
         <p role="status" className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-6 text-center text-sm text-slate-500">
-          Chưa có sản phẩm phù hợp với danh mục {mode === "REPEAT" ? "đã mua" : "chưa mua"} của khách hàng.
+          Chưa có sản phẩm phù hợp với danh mục {mode === "REPEAT" || mode === "FAMILIAR" ? "đã mua" : "chưa mua"} của khách hàng.
         </p>
       )}
       {topProducts.map((product, idx) => (

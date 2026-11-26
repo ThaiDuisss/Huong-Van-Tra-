@@ -25,6 +25,8 @@ ADDED_SWEETNESS = "ADDED_SWEETNESS"
 NOT_APPLICABLE = "NOT_APPLICABLE"
 ORDINAL_ATTRIBUTES = {"BITTERNESS", "NATURAL_SWEETNESS", ADDED_SWEETNESS, "AFTERTASTE", "ASTRINGENCY"}
 ORDINAL_LEVELS = {"NONE", "LOW", "MEDIUM", "HIGH"}
+RESERVED_OPTIONS = {"UNKNOWN", "UNANSWERED", NOT_APPLICABLE}
+TAXONOMY_VERSION_CODE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,39}")
 ESCAPE = re.compile(r'["\\\x00-\x1f\ud800-\udfff\U00010000-\U0010ffff]')
 SHORT_ESCAPES = {'"': r'\"', '\\': r'\\', '\t': r'\t', '\n': r'\n', '\b': r'\b', '\f': r'\f', '\r': r'\r'}
 
@@ -200,16 +202,59 @@ def _label_and_order(node: dict) -> bool:
     return isinstance(label, str) and bool(label.strip()) and len(label) <= 200 and type(order) is int and order >= 0
 
 
+def dynamic_taxonomy(manifest: dict) -> bool:
+    return manifest.get("schemaVersion") == 2
+
+
+def not_applicable_attributes(release: Taxonomy) -> frozenset[str]:
+    return frozenset(
+        item["attributeCode"] for item in release.manifest["attributes"]
+        if item.get("allowsNotApplicable") is True and (
+            dynamic_taxonomy(release.manifest) or
+            release.versionCode in SPLIT_SWEETNESS_VERSIONS and item["attributeCode"] == ADDED_SWEETNESS
+        )
+    )
+
+
+def _dynamic_option(node: dict, fields: set[str]) -> None:
+    _require(set(node) <= fields | {"label", "displayOrder", "definition"}
+             and node["displayOrder"] <= 2147483647
+             and len(node["label"].encode("utf-16-le", "surrogatepass")) <= 400)
+    if "definition" in node:
+        value = node["definition"]
+        _require(isinstance(value, str) and bool(value.strip())
+                 and len(value.encode("utf-16-le", "surrogatepass")) <= 2000)
+
+
+def _compatibility_ref(taxonomy: Taxonomy) -> dict | None:
+    manifest = taxonomy.manifest
+    if not dynamic_taxonomy(manifest) or "compatibility" not in manifest:
+        return None
+    reference = manifest["compatibility"]
+    _require(isinstance(reference, dict) and set(reference) == {"sourceVersionCode", "sourceManifestSha256"})
+    source, checksum = reference["sourceVersionCode"], reference["sourceManifestSha256"]
+    _require(isinstance(source, str) and TAXONOMY_VERSION_CODE.fullmatch(source) is not None
+             and source.lower() != "current" and source != taxonomy.versionCode
+             and isinstance(checksum, str) and re.fullmatch(r"[0-9a-f]{64}", checksum) is not None)
+    return reference
+
+
 def _manifest(taxonomy: Taxonomy) -> dict[str, tuple[int, set[str]]]:
     manifest = taxonomy.manifest
     attributes = manifest.get("attributes")
     encoded = canonical_bytes(manifest)
     _require(len(encoded) <= 256 * 1024 and hashlib.sha256(encoded).hexdigest() == taxonomy.manifestSha256
              and manifest.get("versionCode") == taxonomy.versionCode and type(manifest.get("schemaVersion")) is int
-             and manifest["schemaVersion"] == 1 and isinstance(attributes, list) and 1 <= len(attributes) <= 64)
+             and manifest["schemaVersion"] in (1, 2) and isinstance(attributes, list) and 1 <= len(attributes) <= 64)
     definitions = {}
+    dynamic = dynamic_taxonomy(manifest)
+    if dynamic:
+        _require(len(attributes) <= 32 and taxonomy.versionCode not in SPLIT_SWEETNESS_VERSIONS
+                 and taxonomy.versionCode.lower() != "current"
+                 and set(manifest) <= {"schemaVersion", "versionCode", "attributes", "compatibility"})
+        _compatibility_ref(taxonomy)
     level_one = taxonomy.versionCode == LEVEL_ONE_TASTE_VERSION
-    split_sweetness = taxonomy.versionCode in SPLIT_SWEETNESS_VERSIONS
+    split_sweetness = not dynamic and taxonomy.versionCode in SPLIT_SWEETNESS_VERSIONS
     for attribute in attributes:
         _require(isinstance(attribute, dict) and _label_and_order(attribute))
         code, limit = attribute.get("attributeCode"), attribute.get("maxSelections")
@@ -219,12 +264,22 @@ def _manifest(taxonomy: Taxonomy) -> dict[str, tuple[int, set[str]]]:
                  and 1 <= limit <= len(values)
                  and (kind == "ENUM_MULTI" or kind in ("ENUM_SINGLE", "ORDINAL_SINGLE") and limit == 1))
         codes = []
+        if dynamic:
+            _dynamic_option(attribute, {"attributeCode", "maxSelections", "selectionKind", "matchingSemantics",
+                                        "allowsNotApplicable", "values"})
+            _require(code not in RESERVED_OPTIONS and limit <= 32
+                     and ("allowsNotApplicable" not in attribute or type(attribute["allowsNotApplicable"]) is bool))
         for value in values:
             _require(isinstance(value, dict) and _label_and_order(value) and _code(value.get("valueCode")))
+            if dynamic:
+                _dynamic_option(value, {"valueCode"})
+                _require(value["valueCode"] not in RESERVED_OPTIONS)
             codes.append(value["valueCode"])
         _require(codes == sorted(set(codes)))
         profile_codes = set(codes)
-        if split_sweetness:
+        if dynamic and attribute.get("allowsNotApplicable") is True:
+            profile_codes.add(NOT_APPLICABLE)
+        elif split_sweetness:
             _require(not profile_codes.intersection({NOT_APPLICABLE, "UNANSWERED"}))
             if code in ORDINAL_ATTRIBUTES:
                 _require(kind == "ORDINAL_SINGLE" and profile_codes == ORDINAL_LEVELS)
@@ -245,10 +300,52 @@ def _manifest(taxonomy: Taxonomy) -> dict[str, tuple[int, set[str]]]:
     split_attributes = ORDINAL_ATTRIBUTES | {"FLAVOR", "TEA_TYPE"}
     if level_one:
         split_attributes.add(AFTERTASTE_CHARACTER)
-    required = (definitions.keys() == split_attributes
-                if split_sweetness else REQUIRED_ATTRIBUTES <= definitions.keys())
+    required = dynamic or (definitions.keys() == split_attributes
+                           if split_sweetness else REQUIRED_ATTRIBUTES <= definitions.keys())
     _require(required and list(definitions) == sorted(definitions))
     return definitions
+
+
+def _is_additive(source: Taxonomy, target: Taxonomy) -> bool:
+    def semantics(node: dict, attribute: bool = False) -> dict:
+        result = {k: v for k, v in node.items() if k != "displayOrder" and (not attribute or k != "values")}
+        if attribute and result.get("allowsNotApplicable") is not True:
+            result.pop("allowsNotApplicable", None)
+        return result
+
+    target_attrs = {a["attributeCode"]: a for a in target.manifest["attributes"]}
+    source_na = not_applicable_attributes(source)
+    target_na = not_applicable_attributes(target)
+    for before in source.manifest["attributes"]:
+        code = before["attributeCode"]
+        after = target_attrs.get(code)
+        if (after is None or (code in source_na) != (code in target_na)
+                or semantics(before, True) != semantics(after, True)):
+            return False
+        target_values = {v["valueCode"]: v for v in after["values"]}
+        for value in before["values"]:
+            successor = target_values.get(value["valueCode"])
+            if successor is None or semantics(value) != semantics(successor):
+                return False
+    return True
+
+
+def compatible_lineage(taxonomies: dict[str, Taxonomy], version: str) -> tuple[Taxonomy, ...]:
+    current = taxonomies.get(version)
+    lineage = []
+    visited = set()
+    while current is not None:
+        _require(current.versionCode not in visited)
+        visited.add(current.versionCode)
+        lineage.append(current)
+        reference = _compatibility_ref(current)
+        if reference is None:
+            break
+        source = taxonomies.get(reference["sourceVersionCode"])
+        _require(source is not None and source.manifestSha256 == reference["sourceManifestSha256"]
+                 and _is_additive(source, current))
+        current = source
+    return tuple(lineage)
 
 
 def _profile(row: Profile, taxonomy: Taxonomy, definitions: dict, variant: Variant) -> None:
@@ -265,6 +362,8 @@ def _profile(row: Profile, taxonomy: Taxonomy, definitions: dict, variant: Varia
         allowed = definitions.get(code)
         _require(allowed is not None and 1 <= len(choices) <= allowed[0] and choices == sorted(set(choices))
                  and set(choices) <= allowed[1] and ("NONE" not in choices or len(choices) == 1))
+        if dynamic_taxonomy(taxonomy.manifest):
+            _require(NOT_APPLICABLE not in choices or len(choices) == 1)
     utc_timestamp(row.approvedAt)
     content = {key: getattr(row, key) for key in (
         "variantId", "profileRevision", "compositionRevision", "compositionSha256", "taxonomySha256",
@@ -298,6 +397,9 @@ def verify_payload(raw: dict, expected_digest: str, max_bytes: int, max_variants
              and len(variants) == len(payload.variants) == payload.counts.variants
              and len(payload.profiles) == payload.counts.approvedProfiles)
     _require(all((row.compositionRevision == 0) == (row.compositionSha256 is None) for row in variants.values()))
+    taxonomy_index = {version: release for version, (release, _) in taxonomies.items()}
+    for version in taxonomy_index:
+        compatible_lineage(taxonomy_index, version)
     slots, identities, preparations, revisions = set(), set(), set(), set()
     for row in payload.profiles:
         variant = variants.get(row.variantId)

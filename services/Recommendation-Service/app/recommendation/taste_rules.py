@@ -63,6 +63,8 @@ def observed_taste_values(profile: Profile) -> dict[str, set[str]]:
 
 def _match_variant(candidate: RankableVariant, criteria: TasteCriteria) -> VariantMatch | None:
     sensory = observed_taste_values(candidate.profile)
+    for attribute in candidate.not_applicable:
+        sensory.get(attribute, set()).discard(NOT_APPLICABLE)
     matched_hard = []
     for attribute, allowed in criteria.hard.items():
         overlap = sorted(sensory.get(attribute, set()).intersection(allowed))
@@ -76,7 +78,8 @@ def _match_variant(candidate: RankableVariant, criteria: TasteCriteria) -> Varia
     unknown_attributes = []
     for attribute, priorities in criteria.soft.items():
         observed = sensory.get(attribute, set())
-        if not observed:
+        assessed = priorities.keys() if candidate.assessed_options is None else candidate.assessed_options.get(attribute, ())
+        if not observed or not priorities.keys() & assessed:
             unknown_attributes.append(attribute)
         best_weight = 0
         for value, weight in priorities.items():
@@ -88,7 +91,7 @@ def _match_variant(candidate: RankableVariant, criteria: TasteCriteria) -> Varia
             else:
                 unmatched_soft.append(SoftResult(
                     attribute=attribute, value=value, weight=weight,
-                    status="NOT_MATCHED" if observed else "UNKNOWN",
+                    status="NOT_MATCHED" if observed and value in assessed else "UNKNOWN",
                 ))
         points += best_weight
 

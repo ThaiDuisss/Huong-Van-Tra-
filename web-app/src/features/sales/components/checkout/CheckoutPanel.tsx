@@ -54,6 +54,8 @@ interface CheckoutPanelProps {
     onAddToCart?(product: SaleProductPreview): Promise<boolean>;
     recommendationEntry?: ReactNode;
     tasteSurveyScope?: string;
+    tasteSurveyInvoiceId?: string;
+    tasteSurveyLocalInvoiceId?: string;
     /** Số tiền phải thu ở lần này (tiền cọc của đơn chờ hàng). Mặc định là tổng tiền. */
     amountDue?: number;
     /** Thông báo đơn chờ hàng kèm lựa chọn thu đủ / đặt cọc. */
@@ -106,6 +108,8 @@ export function CheckoutPanel({
     onAddToCart,
     recommendationEntry,
     tasteSurveyScope,
+    tasteSurveyInvoiceId,
+    tasteSurveyLocalInvoiceId,
     amountDue,
     backorderNotice,
     paymentBlocked = false,
@@ -152,6 +156,7 @@ export function CheckoutPanel({
     return (
         <section className="flex h-full min-h-0 flex-col gap-3 rounded-[20px] bg-pos-surface p-4 shadow-pos-panel">
             <CustomerSelector
+                key={tasteSurveyScope}
                 disabled={customerLocked}
                 hasMore={customerHasMore}
                 onSearch={onCustomerSearch}
@@ -164,7 +169,8 @@ export function CheckoutPanel({
                 onSelect={onCustomerChange}
                 onCreated={onCustomerCreated}
                 onClear={onCustomerClear}
-                invoiceId={bankTransferReferenceCode}
+                invoiceId={tasteSurveyInvoiceId}
+                localInvoiceId={tasteSurveyLocalInvoiceId}
                 tasteSurveyScope={tasteSurveyScope}
                 onAddToCart={onAddToCart}
             />

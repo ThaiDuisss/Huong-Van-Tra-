@@ -4,7 +4,7 @@ import { ApiError } from "@/lib/api-client";
 export interface TastePreviewRequest {
   taxonomyVersion: string;
   taxonomySha256: string;
-  preparationCode: string;
+  preparationCode?: string;
   requestSequence: number;
   limit: number;
   hardGroups: Array<{ attribute: string; allowedValues: string[] }>;
@@ -16,20 +16,30 @@ export interface TastePreviewVariant {
   variantId: string;
   variantName: string;
   sku: string;
+  preparationCode?: string | null;
   matchedHard: Array<{ attribute: string; matchedValues: string[] }>;
+  matchedSoft?: TastePreviewSoftResult[];
+  unmatchedSoft?: TastePreviewSoftResult[];
   reason: string;
+}
+
+interface TastePreviewSoftResult {
+  attribute: string;
+  value: string;
+  status: "MATCHED" | "NOT_MATCHED" | "UNKNOWN";
 }
 
 export interface TastePreviewProduct {
   productId: string;
   productName: string;
+  score?: string;
   compatibleVariants: TastePreviewVariant[];
 }
 
 interface TastePreviewResponse {
   taxonomyVersion: string;
   taxonomySha256: string;
-  preparationCode: string;
+  preparationCode: string | null;
   requestSequence: number;
   status: "OK" | "INSUFFICIENT_MATCHES" | "NO_MATCH" | "NO_CRITERIA" |
     "TASTE_PROFILE_NOT_READY" | "TASTE_CATALOG_UNAVAILABLE" | "TAXONOMY_MAPPING_REQUIRED";
@@ -42,7 +52,8 @@ export async function fetchTastePreview(input: TastePreviewRequest, signal: Abor
     { cache: "no-store", retry: false, retryOnUnauthorized: false, timeoutMs: 8000, signal },
   );
   if (result.requestSequence !== input.requestSequence || result.taxonomyVersion !== input.taxonomyVersion ||
-      result.taxonomySha256 !== input.taxonomySha256 || result.preparationCode !== input.preparationCode ||
+      result.taxonomySha256 !== input.taxonomySha256 ||
+      (result.preparationCode ?? null) !== (input.preparationCode ?? null) ||
       !Array.isArray(result.items)) {
     throw new Error("Phản hồi tư vấn không khớp yêu cầu hiện tại.");
   }
@@ -59,10 +70,10 @@ export function tastePreviewError(error: unknown) {
   return "Không tải được dữ liệu tư vấn. Vui lòng thử lại.";
 }
 
-export async function fetchTasteVariantUnit(productId: string, variantId: string, signal: AbortSignal) {
-  const variant = await apiClient.get<{ id: string; productId: string; unitName?: string }>(
+export async function fetchTasteVariantDetails(productId: string, variantId: string, signal: AbortSignal) {
+  const variant = await apiClient.get<{ id: string; productId: string; unitName?: string; imageUrl?: string | null }>(
     `/catalog/product-variants/${encodeURIComponent(variantId)}`,
     { cache: "no-store", retry: false, retryOnUnauthorized: false, timeoutMs: 8000, signal },
   );
-  return variant.id === variantId && variant.productId === productId ? variant.unitName ?? null : null;
+  return variant.id === variantId && variant.productId === productId ? variant : null;
 }

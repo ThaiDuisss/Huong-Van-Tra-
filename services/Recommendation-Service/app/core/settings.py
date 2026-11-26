@@ -26,6 +26,7 @@ class Settings(BaseSettings):
     catalog_service_url: str = "http://localhost:8081"
     level2_inventory_service_url: str | None = None
     level2_stock_timeout_seconds: float = Field(default=3.0, gt=0, le=15)
+    bom_candidate_manifest_path: str | None = None
     customer_service_url: str | None = None
     customer_taste_read_secret: SecretStr | None = None
     customer_taste_timeout_seconds: float = Field(default=1.0, gt=0, le=5)

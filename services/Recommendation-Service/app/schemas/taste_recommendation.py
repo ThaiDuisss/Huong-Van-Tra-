@@ -43,7 +43,7 @@ class TasteCriteriaDocument(StrictDocument):
 class TastePreviewRequest(TasteCriteriaDocument):
     taxonomyVersion: Version
     taxonomySha256: Digest
-    preparationCode: Preparation
+    preparationCode: Preparation | None = None
     requestSequence: int = Field(ge=0, le=9007199254740991)
     limit: int = Field(default=5, ge=1, le=5)
 
@@ -64,9 +64,12 @@ class CompatibleVariant(StrictDocument):
     variantId: Identifier
     variantName: str
     sku: str
+    preparationCode: Preparation | None = None
     profileId: Identifier
     profileRevision: int
     profileSha256: Digest
+    profileTaxonomyVersion: Version | None = None
+    profileTaxonomySha256: Digest | None = None
     compositionSha256: Digest
     score: Score
     matchedHard: list[HardMatch]
@@ -91,7 +94,7 @@ class TastePreviewResponse(StrictDocument):
     rankingSource: Literal["TASTE_RULES_V1"] = "TASTE_RULES_V1"
     taxonomyVersion: Version
     taxonomySha256: Digest
-    preparationCode: Preparation
+    preparationCode: Preparation | None
     requestSequence: int
     criteriaHash: Digest
     catalogRevision: int | None

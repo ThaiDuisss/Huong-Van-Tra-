@@ -3,6 +3,7 @@ package org.hvtra.catalog.taste;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
@@ -123,6 +124,57 @@ class VariantTasteService {
         UUID actor = TasteAccess.assess();
         composition.lockWrites();
         return create(availableVariant(variantId), request, actor);
+    }
+
+    @Transactional
+    public ImportResult importDraft(UUID variantId, ImportDraft request) {
+        UUID actor = TasteAccess.manage();
+        composition.lockWrites();
+        ProductVariant variant = availableVariant(variantId);
+        if (!request.productId().equals(variant.getProduct().getId()) || !request.sku().equals(variant.getSku())
+                || request.compositionRevision() != variant.getCompositionRevision()
+                || !request.compositionSha256().equals(variant.getCompositionSha256())) {
+            throw TasteFailure.conflict("Biến thể, SKU hoặc công thức đã thay đổi kể từ khi duyệt đề xuất");
+        }
+        TasteTaxonomy target = taxonomies.findByVersionCode(request.taxonomyVersion())
+                .orElseThrow(() -> TasteFailure.notFound("TASTE_TAXONOMY_NOT_FOUND", "Không tìm thấy taxonomy"));
+        TasteManifest.Release release = importableTarget(target);
+        if (release.manifest().path("schemaVersion").intValue() != 2
+                || !request.taxonomySha256().equals(release.digest())) {
+            throw TasteFailure.conflict("Hash taxonomy đích không khớp đề xuất đã duyệt");
+        }
+        VariantTasteProfile source = get(request.sourceProfileId());
+        TasteFailure.matchVersion(source, request.sourceRowVersion());
+        if (!variantId.equals(source.getVariantId()) || source.getTaxonomy().getId().equals(target.getId())
+                || !DEFAULT_LIST_STATUSES.contains(source.getStatus())) {
+            throw TasteFailure.conflict("Hồ sơ nguồn không còn đủ điều kiện đối chiếu");
+        }
+        TasteComposition.Basis basis = requireCurrentBasis(source, variant, true);
+        if (!request.sourcePreparationSha256().equals(source.getPreparationSha256())
+                || !request.sourcePreparationSha256().equals(documents.hash(preparation(source.getPreparationProtocol())))) {
+            throw TasteFailure.conflict("Quy trình pha của hồ sơ nguồn đã thay đổi");
+        }
+        JsonNode sensory = manifests.sensory(request.sensoryValues(), release);
+        if (sensory.isEmpty()) {
+            throw TasteFailure.invalid("Cần ít nhất một giá trị cảm quan đã được xem xét");
+        }
+        List<VariantTasteProfile> existing = profiles.findByVariantIdAndTaxonomyIdAndPreparationCodeAndStatusIn(
+                variantId, target.getId(), source.getPreparationCode(), DEFAULT_LIST_STATUSES);
+        for (VariantTasteProfile profile : existing) {
+            if (profile.getCompositionRevision() == request.compositionRevision()
+                    && request.compositionSha256().equals(profile.getCompositionSha256())
+                    && request.sourcePreparationSha256().equals(profile.getPreparationSha256())
+                    && request.sourceMethod().equals(profile.getSourceMethod())
+                    && sensory.equals(profile.getSensoryValues())) {
+                return new ImportResult(false, response(profile, new Eligibility(variant.getCompositionRevision(), basis.digest())));
+            }
+        }
+        if (!existing.isEmpty()) {
+            throw TasteFailure.conflict("Đã có hồ sơ khác ở cùng taxonomy và mã pha. Hãy xem lịch sử trước khi tạo revision.");
+        }
+        Assessment assessment = new Assessment(source.getPreparationCode(), source.getPreparationProtocol(),
+                sensory, request.sourceMethod());
+        return new ImportResult(true, createDraft(variant, target, release, basis, assessment, actor));
     }
 
     @Transactional(propagation = Propagation.NOT_SUPPORTED)
@@ -258,6 +310,11 @@ class VariantTasteService {
                 .orElseThrow(() -> TasteFailure.notFound("TASTE_TAXONOMY_NOT_FOUND", "Không tìm thấy taxonomy"));
         TasteManifest.Release release = published(taxonomy);
         TasteComposition.Basis basis = composition.capture(variant);
+        return createDraft(variant, taxonomy, release, basis, request.assessment(), actor);
+    }
+
+    private Response createDraft(ProductVariant variant, TasteTaxonomy taxonomy, TasteManifest.Release release,
+                                 TasteComposition.Basis basis, Assessment assessment, UUID actor) {
         VariantTasteProfile profile = new VariantTasteProfile();
         profile.setVariantId(variant.getId());
         profile.setTaxonomy(taxonomy);
@@ -267,7 +324,7 @@ class VariantTasteService {
         profile.setCompositionRevision(variant.getCompositionRevision());
         profile.setCompositionSha256(basis.digest());
         profile.setBasisSnapshot(basis.document());
-        assess(profile, request.assessment(), release, actor);
+        assess(profile, assessment, release, actor);
         return response(profiles.saveAndFlush(profile), null);
     }
 
@@ -348,6 +405,18 @@ class VariantTasteService {
             throw TasteFailure.conflict("Cần dùng phiên bản taxonomy PUBLISHED");
         }
         TasteManifest.Release release = manifests.normalize(taxonomy.getVersionCode(), taxonomy.getManifest(), true);
+        if (!release.digest().equals(taxonomy.getManifestSha256())) {
+            throw TasteFailure.conflict("Không xác minh được mã kiểm tra của taxonomy");
+        }
+        return release;
+    }
+
+    private TasteManifest.Release importableTarget(TasteTaxonomy taxonomy) {
+        if (taxonomy.getState() == TasteTaxonomy.State.RETIRED) {
+            throw TasteFailure.conflict("Không thể nhập bản nháp vào taxonomy đã RETIRED");
+        }
+        boolean publish = taxonomy.getState() == TasteTaxonomy.State.PUBLISHED;
+        TasteManifest.Release release = manifests.normalize(taxonomy.getVersionCode(), taxonomy.getManifest(), publish);
         if (!release.digest().equals(taxonomy.getManifestSha256())) {
             throw TasteFailure.conflict("Không xác minh được mã kiểm tra của taxonomy");
         }
@@ -475,6 +544,20 @@ class VariantTasteService {
                       @NotNull JsonNode preparationProtocol,
                       @NotNull JsonNode sensoryValues,
                       @NotNull @Pattern(regexp = "[A-Z][A-Z0-9_]{0,29}") String sourceMethod) {
+    }
+
+    record ImportDraft(@NotNull UUID productId, @NotNull @Size(min = 1, max = 100) String sku,
+                       @NotNull @Pattern(regexp = TasteDocuments.VERSION_CODE) String taxonomyVersion,
+                       @NotNull @Pattern(regexp = "[0-9a-f]{64}") String taxonomySha256,
+                       @Min(1) long compositionRevision,
+                       @NotNull @Pattern(regexp = "[0-9a-f]{64}") String compositionSha256,
+                       @NotNull UUID sourceProfileId, @NotNull @Min(0) Long sourceRowVersion,
+                       @NotNull @Pattern(regexp = "[0-9a-f]{64}") String sourcePreparationSha256,
+                       @NotNull JsonNode sensoryValues,
+                       @NotNull @Pattern(regexp = "[A-Z][A-Z0-9_]{0,29}") String sourceMethod) {
+    }
+
+    record ImportResult(boolean created, Response profile) {
     }
 
     record Response(UUID id, UUID variantId, UUID taxonomyVersionId, String taxonomyVersion, String taxonomySha256,
