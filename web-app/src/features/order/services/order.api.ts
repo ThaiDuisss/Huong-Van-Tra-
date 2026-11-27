@@ -35,6 +35,16 @@ export function getOrders(params: OrderQueryParams = {}) {
     });
 }
 
+/** Lịch sử mua hàng của một khách (bỏ đơn nháp), mới nhất trước. */
+export function getOrdersByCustomer(customerId: string, page = 0, size = 10) {
+    return apiClient.get<OrderPageResponse<OrderSummaryResponse>>(
+        `/orders/customers/${encodeURIComponent(customerId)}`,
+        {
+            query: { page, size }
+        }
+    );
+}
+
 export function getOrderReturnEligibilityStats(keyword?: string) {
     return apiClient.get<OrderReturnEligibilityStatsResponse>(
         "/orders/return-eligibility-stats",

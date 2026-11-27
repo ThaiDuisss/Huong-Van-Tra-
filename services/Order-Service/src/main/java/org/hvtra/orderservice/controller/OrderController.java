@@ -477,6 +477,16 @@ public class OrderController {
         );
     }
 
+    @Operation(summary = "lich su mua hang cua khach hang")
+    @GetMapping("/customers/{customerId:[0-9a-fA-F\\-]{36}}")
+    public Page<OrderSummaryResponse> getOrdersByCustomer(
+            @PathVariable UUID customerId,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size
+    ) {
+        return orderService.getOrdersByCustomer(customerId, page, size);
+    }
+
     @GetMapping("/return-eligibility-stats")
     public OrderReturnEligibilityStatsResponse getOrderReturnEligibilityStats(
             @RequestParam(required = false) String keyword
