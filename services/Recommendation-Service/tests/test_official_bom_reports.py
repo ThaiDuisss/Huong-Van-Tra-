@@ -1,6 +1,6 @@
-"""Official report auth/lifecycle in SQLite; opt-in pinned research workbook checks."""
+"""Official Ingredient report lifecycle and archived BOM research artifact checks."""
 from copy import deepcopy
-from datetime import date
+from datetime import date, datetime
 from io import BytesIO
 import hashlib
 import json
@@ -14,7 +14,7 @@ from zipfile import ZipFile
 
 from fastapi import FastAPI, HTTPException
 from fastapi.testclient import TestClient
-from openpyxl import Workbook, load_workbook
+from openpyxl import load_workbook
 from sqlalchemy import select, func
 from sqlalchemy.orm import Session
 
@@ -25,7 +25,7 @@ from app.models.ai_report import AiReport
 from app.models.business_report import BusinessReportExport
 from app.schemas.business_report import BusinessExportRequest
 from app.service.business_report_service import BusinessReportService
-from app.service.bom_report_source import build_bom, select_bom_source
+from app.service.bom_report_source import BomExportDataError, build_bom, select_bom_source
 from app.ingredient_poc.recommendation.model import IngredientRecommender
 from app.ingredient_demo.workbook import SHEETS, WORKBOOK_SCHEMA, table_rows
 from tests.test_ai_reports import A, B, SECRET, signed
@@ -33,14 +33,18 @@ from tests.test_business_reports import DbFixture, GeneratedFiles
 from tests.test_recommendation_modes_security import settings
 
 CONFIG = os.environ.get("HVTRA_INGREDIENT_TEST_CONFIG")
-SOURCE = {"kind": "SYNTHETIC_BOM_RESEARCH", "source_kind": "SYNTHETIC", "research_only": True,
+LEGACY_SOURCE = {"kind": "SYNTHETIC_BOM_RESEARCH", "source_kind": "SYNTHETIC", "research_only": True,
           "production_approved": False, "dataset_id": "fixture-dataset", "dataset_sha256": "a" * 64,
           "model_sha256": "b" * 64, "model_fingerprint": "c" * 64, "model_version": "ingredient-research-v1",
           "protocol": {"name": "BOM_TEST_TOP5_REPEAT_V1", "mode": "CUSTOM_BOM", "policy": "REPEAT", "top_k": 5,
                        "as_of": "2026-04-01T00:00:00+00:00", "label_end_exclusive": "2026-05-01T00:00:00+00:00"}}
 
 
-class OfficialBomLifecycleTests(DbFixture, unittest.TestCase):
+SOURCE = {"kind": "OPERATIONAL", "version": "hvtra-ingredient-report-v1"}
+INGREDIENT_EVIDENCE = {"report_type": "INGREDIENT", "report_source": SOURCE, "data_status": "OK"}
+
+
+class OfficialIngredientLifecycleTests(DbFixture, unittest.TestCase):
     def setUp(self):
         super().setUp()
         AiReport.__table__.create(self.engine)
@@ -52,26 +56,26 @@ class OfficialBomLifecycleTests(DbFixture, unittest.TestCase):
         self.cfg = settings(ai_report_data_source="OPERATIONAL")
         for target, value in (("app.core.ai_report_auth.get_settings", SimpleNamespace(internal_header_secret=SECRET)),
                               ("app.service.business_report_service.get_settings", self.cfg),
-                              ("app.service.business_report_service.select_bom_source", SOURCE),
-                              ("app.service.business_report_service.build_bom",
-                               (b"isolated frozen BOM bytes", {"report_type": "CUSTOM_BOM", "report_source": SOURCE}))):
+                              ("app.service.business_report_service.build_ingredient_workbook",
+                               (b"isolated frozen Ingredient bytes", INGREDIENT_EVIDENCE))):
             context = patch(target, return_value=value); context.start(); self.addCleanup(context.stop)
         self.client = TestClient(self.app); self.addCleanup(self.client.close)
         self.base = "/api/recommendation/ai-reports/exports"
-        self.payload = {"reportType": "CUSTOM_BOM", "requestId": str(uuid4())}
+        self.payload = {"reportType": "INGREDIENT", "requestId": str(uuid4()),
+                        "fromDate": "2026-04-01", "toDate": "2026-04-30"}
 
     def export(self, payload=None, headers=None):
         return self.client.post(self.base, json=payload or self.payload, headers=headers if headers is not None else signed())
 
-    def test_official_bom_uses_same_authenticated_route_and_durable_receipt(self):
+    def test_official_ingredient_uses_same_authenticated_route_and_durable_receipt(self):
         with patch("app.service.business_report_service.build_workbook", side_effect=AssertionError("No Product data")):
             r = self.export(); self.assertEqual(r.status_code, 200)
         receipt = r.json()
-        self.assertEqual(receipt["reportType"], "CUSTOM_BOM")
+        self.assertEqual(receipt["reportType"], "INGREDIENT")
         self.assertEqual(receipt["createdBy"], A)
         self.assertEqual(receipt["status"], "COMPLETE")
-        self.assertTrue(receipt["researchOnly"])
-        self.assertFalse(receipt["productionApproved"])
+        self.assertEqual(receipt["sourceKind"], "OPERATIONAL")
+        self.assertEqual(receipt["dataStatus"], "OK")
         self.assertEqual(receipt["provenance"], SOURCE)
         self.assertEqual(receipt["fileName"], "AI_Report_HuongVanTra_20260401_20260430.xlsx")
         self.assertEqual(receipt, self.export().json())
@@ -106,30 +110,12 @@ class OfficialBomLifecycleTests(DbFixture, unittest.TestCase):
 
     def test_schema_rejects_unknown_type_period_and_client_artifact_or_identity_fields(self):
         self.assertEqual(BusinessExportRequest(requestId=uuid4(), fromDate="2026-04-01", toDate="2026-04-30").reportType, "PRODUCT")
-        for extra in ({"reportType": "UNIFIED"}, {"fromDate": "2026-04-01"},
+        for extra in ({"reportType": "UNIFIED"}, {"fromDate": None},
                       {"fromDate": "2026-11-19", "toDate": "2026-11-18"},
                       {"dataset_path": "C:/untrusted.json"}, {"model_sha256": "0" * 64}, {"ownerId": B}, {"roles": "ADMIN"}):
             self.assertEqual(self.export(dict(self.payload, **extra)).status_code, 422)
 
-    def test_valid_dates_outside_coverage_are_a_data_error_and_never_prepare_a_file(self):
-        periods = (("2026-03-01", "2026-03-31"), ("2026-05-01", "2026-05-31"),
-                   ("2026-11-01", "2026-11-18"), ("2026-04-30", "2026-11-18"))
-        with patch("app.service.business_report_service.select_bom_source") as select_source, \
-             patch("app.service.business_report_service.build_bom") as build:
-            for start, end in periods:
-                with self.subTest(start=start, end=end):
-                    payload = dict(self.payload, fromDate=start, toDate=end)
-                    self.assertEqual(BusinessExportRequest(**payload).fromDate, date.fromisoformat(start))
-                    response = self.export(payload)
-                    self.assertEqual(response.status_code, 422)
-                    self.assertEqual(response.json()["code"], "BOM_PERIOD_UNSUPPORTED")
-                    self.assertEqual(response.json()["details"], {"fromDate": "2026-04-01", "toDate": "2026-04-30", "timezone": "UTC"})
-            select_source.assert_not_called()
-            build.assert_not_called()
-        self.assertEqual(len(self.files.records), 0)
-        self.assertEqual(self.db.scalar(select(func.count()).select_from(BusinessReportExport)), 0)
-
-    def test_same_request_id_cannot_change_product_bom_type_even_when_period_matches(self):
+    def test_same_request_id_cannot_change_product_ingredient_type_even_when_period_matches(self):
         receipt = self.export().json()
         changed = dict(self.payload, reportType="PRODUCT", fromDate="2026-04-01", toDate="2026-04-30")
         self.assertEqual(self.export(changed).status_code, 409)
@@ -138,23 +124,24 @@ class OfficialBomLifecycleTests(DbFixture, unittest.TestCase):
         self.assertNotEqual(other["id"], receipt["id"])
         self.assertEqual(other["createdBy"], B)
 
-    def test_bom_period_is_authenticated_and_selected_dates_reach_builder(self):
+    def test_legacy_period_is_authenticated_and_ingredient_dates_reach_builder(self):
         path = self.base + "/bom-period"
         self.assertEqual(self.client.get(path).status_code, 401)
         self.assertEqual(self.client.get(path, headers=signed(roles="CUSTOMER")).status_code, 403)
         self.assertEqual(self.client.get(path, headers=signed()).json(), {"fromDate": "2026-04-01", "toDate": "2026-04-30"})
-        selected = dict(self.payload, fromDate="2026-04-07", toDate="2026-04-07")
-        with patch("app.service.business_report_service.build_bom",
-                   return_value=(b"filtered", {"report_type": "CUSTOM_BOM", "report_source": SOURCE})) as builder:
+        selected = dict(self.payload, fromDate="2026-05-07", toDate="2026-05-07")
+        with patch("app.service.business_report_service.build_ingredient_workbook",
+                   return_value=(b"filtered", dict(INGREDIENT_EVIDENCE, data_status="NO_DATA"))) as builder:
             result = self.export(selected)
             self.assertEqual(result.status_code, 200)
-            self.assertEqual(result.json()["fileName"], "AI_Report_HuongVanTra_20260407_20260407.xlsx")
-            builder.assert_called_once_with(self.cfg, SOURCE, date(2026, 4, 7), date(2026, 4, 7))
-        self.assertEqual(self.export(dict(selected, toDate="2026-04-08")).status_code, 409)
+            self.assertEqual(result.json()["fileName"], "AI_Report_HuongVanTra_20260507_20260507.xlsx")
+            self.assertEqual(result.json()["dataStatus"], "NO_DATA")
+            self.assertEqual(builder.call_args.args[:4], (self.db, self.cfg, date(2026, 5, 7), date(2026, 5, 7)))
+        self.assertEqual(self.export(dict(selected, toDate="2026-05-08")).status_code, 409)
 
     def test_legacy_product_response_and_generator_remain_unchanged(self):
         payload = dict(requestId=str(uuid4()), fromDate="2026-04-01", toDate="2026-04-30")
-        with patch("app.service.business_report_service.build_bom", side_effect=AssertionError("No BOM route")), \
+        with patch("app.service.business_report_service.build_ingredient_workbook", side_effect=AssertionError("No Ingredient route")), \
              patch("app.service.bom_report_source.load_research", side_effect=AssertionError("No eager research load")):
             response = self.export(payload)
         self.assertEqual(response.status_code, 200)
@@ -171,14 +158,13 @@ class OfficialBomLifecycleTests(DbFixture, unittest.TestCase):
         self.db = Session(self.engine, expire_on_commit=False)
         self.addCleanup(self.db.close)
         self.service = BusinessReportService(self.files)
-        with patch("app.service.business_report_service.build_bom", side_effect=AssertionError("Must not regenerate")), \
-             patch("app.service.business_report_service.select_bom_source", side_effect=AssertionError("Frozen intent")):
+        with patch("app.service.business_report_service.build_ingredient_workbook", side_effect=AssertionError("Must not regenerate")):
             response = self.export()
         self.assertEqual(response.status_code, 200)
         self.assertEqual(self.db.get(BusinessReportExport, response.json()["id"]).workbook, frozen)
         self.assertEqual(len(self.files.records), 1)
 
-    def test_remote_success_local_commit_failure_recovers_same_bom_file(self):
+    def test_remote_success_local_commit_failure_recovers_same_ingredient_file(self):
         commit = self.db.commit
         calls = 0
         def fail_finalization():
@@ -193,13 +179,32 @@ class OfficialBomLifecycleTests(DbFixture, unittest.TestCase):
         self.assertEqual(self.export().status_code, 200)
         self.assertEqual(len(self.files.records), 1)
 
-    def test_disabled_bom_fails_closed_before_persistence_without_product_fallback(self):
-        with patch("app.service.business_report_service.select_bom_source", side_effect=select_bom_source), \
-             patch("app.service.business_report_service.build_workbook", side_effect=AssertionError("No fallback")):
-            response = self.export()
-        self.assertEqual(response.status_code, 503)
+    def test_new_legacy_reports_are_retired_before_persistence(self):
+        with patch("app.service.business_report_service.build_workbook", side_effect=AssertionError("No fallback")):
+            response = self.export(dict(self.payload, reportType="CUSTOM_BOM"))
+        self.assertEqual(response.status_code, 410)
         self.assertEqual(len(self.files.records), 0)
         self.assertEqual(self.db.scalar(select(func.count()).select_from(BusinessReportExport)), 0)
+
+    def test_archived_prepared_bom_retries_frozen_bytes(self):
+        legacy = dict(self.payload, reportType="CUSTOM_BOM")
+        workbook = b"previously frozen workbook"
+        export_id = str(uuid4())
+        digest = hashlib.sha256(workbook).hexdigest()
+        self.db.add(BusinessReportExport(
+            id=export_id, created_by=A, request_key=legacy["requestId"], from_date=date(2026, 4, 1),
+            to_date=date(2026, 4, 30), generated_at=datetime(2026, 4, 30), status="PREPARED",
+            file_name="AI_Report_HuongVanTra_20260401_20260430.xlsx", workbook=workbook, sha256=digest,
+            evidence={"report_type": "CUSTOM_BOM", "report_source": LEGACY_SOURCE},
+        ))
+        self.db.commit()
+        receipt = self.export(legacy).json()
+        self.assertEqual(receipt["sha256"], digest)
+        self.assertEqual(receipt["reportType"], "CUSTOM_BOM")
+        self.assertTrue(receipt["researchOnly"])
+        self.assertEqual(self.export(legacy).json(), receipt)
+        response = self.client.get(f"{self.base}/{export_id}/download", headers=signed(B))
+        self.assertEqual(response.content, workbook)
 
 
 @unittest.skipUnless(CONFIG, "Configure pinned external Phase 2/3 artifacts")
@@ -266,100 +271,26 @@ class OfficialBomArtifactTests(unittest.TestCase):
         self.assertEqual(failure.exception.status_code, 503)
         self.assertEqual(failure.exception.detail, "BOM research workbook verification failed")
 
-    def test_actual_generator_can_complete_and_redownload_official_lifecycle(self):
-        engine_fixture = OfficialBomLifecycleTests()
-        engine_fixture.setUp()
-        try:
-            with patch("app.service.business_report_service.select_bom_source", return_value=self.source), \
-                 patch("app.service.business_report_service.build_bom", return_value=(self.content, self.evidence)):
-                response = engine_fixture.export()
-                self.assertEqual(response.status_code, 200)
-                receipt = response.json()
-                download = engine_fixture.client.get(engine_fixture.base + "/" + receipt["id"] + "/download", headers=signed())
-                self.assertEqual(download.content, self.content)
-                self.assertEqual(hashlib.sha256(download.content).hexdigest(), receipt["sha256"])
-                self.assertEqual(load_workbook(BytesIO(download.content)).sheetnames[2], "THỐNG KÊ BOM")
-        finally:
-            engine_fixture.doCleanups()
+    def test_two_research_periods_use_the_same_prediction_baseline(self):
+        workbooks = []
+        for start, end in ((date(2026, 4, 1), date(2026, 4, 15)), (date(2026, 4, 16), date(2026, 4, 30))):
+            content, _ = build_bom(self.cfg, self.source, start, end)
+            workbook = load_workbook(BytesIO(content))
+            self.addCleanup(workbook.close)
+            self.assertIn(start.strftime("%d/%m/%Y"), workbook[SHEETS[0]]["A2"].value)
+            self.assertIn(end.strftime("%d/%m/%Y"), workbook[SHEETS[0]]["A2"].value)
+            workbooks.append(workbook)
+        first, last = workbooks
+        first_rows, last_rows = [list(table_rows(wb[SHEETS[2]])) for wb in workbooks]
+        self.assertNotEqual([row[4:] for row in first_rows], [row[4:] for row in last_rows])
+        self.assertEqual([row[:4] for row in first_rows], [row[:4] for row in last_rows])
+        self.assertEqual(list(table_rows(first[SHEETS[4]])), list(table_rows(last[SHEETS[4]])))
 
-    def test_two_periods_export_different_purchases_with_the_same_prediction_baseline(self):
-        fixture = OfficialBomLifecycleTests(); fixture.setUp()
-        try:
-            workbooks = []
-            with patch("app.service.business_report_service.get_settings", return_value=self.cfg), \
-                 patch("app.service.business_report_service.select_bom_source", side_effect=select_bom_source), \
-                 patch("app.service.business_report_service.build_bom", side_effect=build_bom):
-                for start, end in (("2026-04-01", "2026-04-15"), ("2026-04-16", "2026-04-30")):
-                    response = fixture.export(dict(fixture.payload, requestId=str(uuid4()), fromDate=start, toDate=end))
-                    self.assertEqual(response.status_code, 200)
-                    receipt = response.json()
-                    download = fixture.client.get(f"{fixture.base}/{receipt['id']}/download", headers=signed())
-                    self.assertEqual(hashlib.sha256(download.content).hexdigest(), receipt["sha256"])
-                    wb = load_workbook(BytesIO(download.content)); self.addCleanup(wb.close)
-                    self.assertIn(date.fromisoformat(start).strftime("%d/%m/%Y"), wb[SHEETS[0]]["A2"].value)
-                    self.assertIn(date.fromisoformat(end).strftime("%d/%m/%Y"), wb[SHEETS[0]]["A2"].value)
-                    workbooks.append(wb)
-            first, last = workbooks
-            first_rows, last_rows = [list(table_rows(wb[SHEETS[2]])) for wb in workbooks]
-            self.assertNotEqual([row[4:] for row in first_rows], [row[4:] for row in last_rows])
-            self.assertEqual([row[:4] for row in first_rows], [row[:4] for row in last_rows])
-            self.assertEqual(list(table_rows(first[SHEETS[4]])), list(table_rows(last[SHEETS[4]])))
-        finally:
-            fixture.doCleanups()
-
-    def test_covered_day_without_purchases_does_not_emit_april_predictions_as_a_workbook(self):
-        fixture = OfficialBomLifecycleTests(); fixture.setUp()
-        try:
-            with patch("app.service.business_report_service.get_settings", return_value=self.cfg), \
-                 patch("app.service.business_report_service.select_bom_source", side_effect=select_bom_source), \
-                 patch("app.service.business_report_service.build_bom", side_effect=build_bom), \
-                 patch("app.service.bom_report_source.build_workbook") as workbook:
-                response = fixture.export(dict(fixture.payload, fromDate="2026-04-30", toDate="2026-04-30"))
-                self.assertEqual(response.status_code, 422)
-                self.assertEqual(response.json()["code"], "BOM_NO_DATA")
-                workbook.assert_not_called()
-            self.assertEqual(len(fixture.files.records), 0)
-        finally:
-            fixture.doCleanups()
-
-    def test_legacy_prepared_and_complete_bytes_survive_layout_change_new_request_gets_new_layout(self):
-        legacy = Workbook()
-        legacy.active.title = SHEETS[0]
-        legacy.active["A1"] = "Legacy BOM V2 four-sheet fixture"
-        for title in (SHEETS[1], SHEETS[2], "ĐỐI CHIẾU KẾT QUẢ GỢI Ý"):
-            legacy.create_sheet(title)
-        stream = BytesIO(); legacy.save(stream)
-        old_bytes = stream.getvalue()
-        for initially_complete in (False, True):
-            with self.subTest(initially_complete=initially_complete):
-                fixture = OfficialBomLifecycleTests(); fixture.setUp()
-                try:
-                    fixture.files.fail = not initially_complete
-                    with patch("app.service.business_report_service.build_bom", return_value=(old_bytes, {
-                            "report_type": "CUSTOM_BOM", "report_source": self.source,
-                            "workbook_schema": "bom-four-sheets-business-v2"})):
-                        self.assertEqual(fixture.export().status_code, 200 if initially_complete else 502)
-                    row = fixture.db.scalar(select(BusinessReportExport))
-                    original_id, original_sha = row.id, row.sha256
-                    self.assertEqual(row.workbook, old_bytes)
-                    fixture.files.fail = False
-                    with patch("app.service.business_report_service.build_bom", side_effect=AssertionError("Frozen bytes must not regenerate")), \
-                         patch("app.service.business_report_service.select_bom_source", side_effect=AssertionError("No artifact dependency for frozen export")):
-                        receipt = fixture.export().json()
-                        download = fixture.client.get(fixture.base + "/" + original_id + "/download", headers=signed())
-                    self.assertEqual(receipt["sha256"], original_sha)
-                    self.assertEqual(download.content, old_bytes)
-                    self.assertEqual(hashlib.sha256(download.content).hexdigest(), original_sha)
-                    with patch("app.service.business_report_service.select_bom_source", return_value=self.source), \
-                         patch("app.service.business_report_service.build_bom", return_value=(self.content, self.evidence)) as generator:
-                        fresh = fixture.export(dict(fixture.payload, requestId=str(uuid4()))).json()
-                    generator.assert_called_once()
-                    self.assertNotEqual(fresh["id"], original_id)
-                    self.assertNotEqual(fresh["sha256"], original_sha)
-                    self.assertEqual(fixture.db.get(BusinessReportExport, original_id).workbook, old_bytes)
-                    self.assertEqual(fixture.db.get(BusinessReportExport, original_id).evidence["workbook_schema"],
-                                     "bom-four-sheets-business-v2")
-                    self.assertEqual(fixture.db.get(BusinessReportExport, fresh["id"]).workbook, self.content)
-                    self.assertEqual(fixture.db.get(BusinessReportExport, fresh["id"]).evidence["workbook_schema"], WORKBOOK_SCHEMA)
-                finally:
-                    fixture.doCleanups()
+    def test_covered_research_day_without_purchases_does_not_emit_predictions(self):
+        day = date(2026, 4, 30)
+        with patch("app.service.bom_report_source.build_workbook") as workbook:
+            with self.assertRaises(BomExportDataError) as failure:
+                build_bom(self.cfg, self.source, day, day)
+            self.assertEqual(failure.exception.status_code, 422)
+            self.assertEqual(failure.exception.code, "BOM_NO_DATA")
+            workbook.assert_not_called()

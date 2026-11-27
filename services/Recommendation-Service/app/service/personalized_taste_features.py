@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections import defaultdict
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime
 from typing import TYPE_CHECKING, Callable, Literal
 
@@ -60,6 +60,21 @@ class TasteFeatureBatch:
     sellable_variant_counts: dict[str, int] | None = None
     matching_policy_version: str = EXACT_POLICY_VERSION
 
+    def for_products(self, product_ids: set[str]) -> TasteFeatureBatch:
+        if self.products is None:
+            return self
+        products = {key: value for key, value in self.products.items() if key in product_ids}
+        counts = {key: value for key, value in (self.sellable_variant_counts or {}).items() if key in product_ids}
+        return replace(self, status=_feature_status(products), products=products, sellable_variant_counts=counts)
+
+
+def _feature_status(features: dict[str, ProductTasteFeatures]) -> TasteFeatureStatus:
+    if any(value.status == "AVAILABLE" for value in features.values()):
+        return "TASTE_FEATURE_READY"
+    if any(value.status == "SENSORY_MISSING" for value in features.values()):
+        return "SENSORY_MISSING"
+    return "PROFILES_UNAVAILABLE"
+
 
 def _variant_features(row: RankableVariant, criteria: TasteCriteria) -> VariantTasteFeatures:
     profile = row.profile
@@ -92,13 +107,15 @@ def _variant_features(row: RankableVariant, criteria: TasteCriteria) -> VariantT
 
 
 class PersonalizedTasteFeatures:
-    def __init__(self, customer_taste: CustomerTasteClient, read_projection: Callable[[], ProjectionView]):
+    def __init__(self, customer_taste: CustomerTasteClient, read_projection: Callable[[], ProjectionView], *,
+                 latest_survey: Callable[[str], SubmittedTasteSurvey | None] | None = None):
         self.customer_taste = customer_taste
         self.read_projection = read_projection
+        self.latest_survey = latest_survey or customer_taste.latest
 
     def prepare(self, customer_id: str, as_of: datetime, product_ids: set[str]) -> TasteFeatureBatch:
         try:
-            survey = self.customer_taste.latest(customer_id)
+            survey = self.latest_survey(customer_id)
         except CustomerTasteError as failure:
             return TasteFeatureBatch(failure.status)
         if survey is None:
@@ -145,11 +162,7 @@ class PersonalizedTasteFeatures:
             return TasteFeatureBatch("SURVEY_INVALID", **metadata)
 
         features = PersonalizedTasteFeatures._products(view, criteria, survey.taxonomyVersion, product_ids)
-        status: TasteFeatureStatus = "PROFILES_UNAVAILABLE"
-        if any(feature.status == "AVAILABLE" for feature in features.values()):
-            status = "TASTE_FEATURE_READY"
-        elif any(feature.status == "SENSORY_MISSING" for feature in features.values()):
-            status = "SENSORY_MISSING"
+        status = _feature_status(features)
         counts = {product.id: 0 for product in view.payload.products if product.id in product_ids}
         for variant in view.payload.variants:
             if variant.sellable and variant.productId in product_ids:

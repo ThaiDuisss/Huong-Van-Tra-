@@ -7,6 +7,7 @@ import com.fasterxml.jackson.databind.ObjectReader;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.common.header.internals.RecordHeaders;
+import org.hvtra.iventoryservice.outbox.event.InventoryEventType;
 
 import java.nio.charset.StandardCharsets;
 import java.util.UUID;
@@ -36,6 +37,8 @@ final class InventoryOutboxRecordFactory {
                 || event.key().isBlank()) {
             throw new RejectedEvent("INVALID_CONTRACT_METADATA");
         }
+
+        validateBusinessContract(event, body);
 
         RecordHeaders headers = new RecordHeaders();
         header(headers, "event_id", event.eventId());
@@ -76,6 +79,51 @@ final class InventoryOutboxRecordFactory {
             }
         }
         throw new RejectedEvent("MALFORMED_PAYLOAD");
+    }
+
+    private static void validateBusinessContract(PollingInventoryEvent event, ObjectNode body) throws RejectedEvent {
+        switch (event.eventType()) {
+            case InventoryEventType.RETURN_INVENTORY_DISPOSITION_PROCESSED -> {
+                String commandId = body.path("commandId").textValue();
+                String returnId = body.path("returnId").textValue();
+                String inspectionId = body.path("inspectionId").textValue();
+                if (!uuid(commandId) || !uuid(returnId) || !uuid(inspectionId)
+                        || !"ORDER_RETURN_INVENTORY_COMMAND".equals(event.aggregateType())
+                        || !commandId.equals(event.aggregateId())
+                        || !commandId.equals(event.key())
+                        || !(commandId + ":PROCESSED").equals(event.businessKey())) {
+                    throw new RejectedEvent("INVALID_RETURN_ACK_CONTRACT");
+                }
+            }
+            case InventoryEventType.RETURN_INVENTORY_DISPOSITION_FAILED -> {
+                String commandId = body.path("commandId").textValue();
+                String returnId = body.path("returnId").textValue();
+                String failureCode = body.path("failureCode").textValue();
+                String failureReason = body.path("failureReason").textValue();
+                if (!uuid(commandId) || !uuid(returnId)
+                        || failureCode == null || failureCode.isBlank()
+                        || failureReason == null || failureReason.isBlank()
+                        || !"ORDER_RETURN_INVENTORY_COMMAND".equals(event.aggregateType())
+                        || !commandId.equals(event.aggregateId())
+                        || !commandId.equals(event.key())
+                        || !(commandId + ":FAILED").equals(event.businessKey())) {
+                    throw new RejectedEvent("INVALID_RETURN_ACK_CONTRACT");
+                }
+            }
+            case InventoryEventType.CUSTOM_BUNDLE_PACKED -> {
+                String packingId = body.path("packingId").textValue();
+                String orderId = body.path("orderId").textValue();
+                String orderItemId = body.path("orderItemId").textValue();
+                if (!uuid(packingId) || !uuid(orderId) || !uuid(orderItemId)
+                        || !"CUSTOM_BUNDLE_PACKING".equals(event.aggregateType())
+                        || !packingId.equals(event.aggregateId())
+                        || !orderId.equals(event.key())
+                        || !(packingId + ":PACKED").equals(event.businessKey())) {
+                    throw new RejectedEvent("INVALID_CUSTOM_BUNDLE_CONTRACT");
+                }
+            }
+            default -> throw new RejectedEvent("INVALID_CONTRACT_METADATA");
+        }
     }
 
     private static boolean uuid(String value) {

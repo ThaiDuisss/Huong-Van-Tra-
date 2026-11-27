@@ -7,6 +7,7 @@ import org.hvtra.orderservice.domain.entity.OrderItem;
 import org.hvtra.orderservice.domain.entity.OrderItemComponent;
 import org.hvtra.orderservice.domain.enums.BundlePackingStatus;
 import org.hvtra.orderservice.domain.enums.OrderItemType;
+import org.hvtra.orderservice.dto.request.CustomBundleBomRequest;
 import org.hvtra.orderservice.dto.request.CustomBundleLineRequest;
 import org.hvtra.orderservice.exception.InvalidOrderStatusException;
 import org.junit.jupiter.api.BeforeEach;
@@ -210,6 +211,61 @@ class OrderCustomBundleSupportTest {
         assertFalse(support.hasBundle(order));
         assertTrue(support.bundleItems(order).isEmpty());
         verifyNoInteractions(inventory);
+    }
+
+    @Test
+    void priceMultiBomMergesSharedIngredientsForPricingAndPreservesPerBomLinesAndNotes() {
+        UUID secondIngredient = UUID.randomUUID();
+        UUID variantA = UUID.randomUUID();
+        UUID variantB = UUID.randomUUID();
+        when(catalog.getIngredientsByIds(anyList())).thenReturn(List.of(
+                ingredient("ACTIVE", 1, new BigDecimal("2.00")),
+                new CustomBundleCatalogClient.IngredientResponse(
+                        secondIngredient, "JAS", "Hoa nhài", "g", 1, "ACTIVE", new BigDecimal("5.00"))));
+
+        var bomA = bom(variantA, "SKU-A", "Trà Ô Long Nhài", "  Khách lấy 200g, chia 2 túi  ",
+                List.of(line(ingredientId, "20"), line(secondIngredient, "5")));
+        var bomB = bom(variantB, "SKU-B", "Trà Ô Long Thuần", "Đóng gói riêng",
+                List.of(line(ingredientId, "30")));
+
+        var priced = support.priceMultiBom(List.of(bomA, bomB));
+
+        assertEquals(2, priced.components().size());
+        assertEquals(new BigDecimal("50"), priced.components().getFirst().getQuantity());
+        // 50*2 + 5*5 = 125 + 2.50 packagingFee -> 128
+        assertEquals(new BigDecimal("128"), priced.unitPrice());
+        assertEquals(2, priced.bundleBoms().size());
+        assertEquals(variantA, priced.bundleBoms().get(0).getSourceVariantId());
+        assertEquals("Khách lấy 200g, chia 2 túi", priced.bundleBoms().get(0).getNote());
+        assertEquals(2, priced.bundleBoms().get(0).getLines().size());
+        assertEquals(new BigDecimal("65"), priced.bundleBoms().get(0).getEstimatedPrice());
+        assertEquals(variantB, priced.bundleBoms().get(1).getSourceVariantId());
+        assertEquals("Đóng gói riêng", priced.bundleBoms().get(1).getNote());
+        assertEquals(1, priced.bundleBoms().get(1).getLines().size());
+        assertEquals(new BigDecimal("20"), priced.bundleBoms().get(0).getLines().getFirst().getQuantity());
+        assertEquals(new BigDecimal("30"), priced.bundleBoms().get(1).getLines().getFirst().getQuantity());
+    }
+
+    @Test
+    void priceMultiBomRejectsDuplicateVariantAndEmptyRequests() {
+        UUID duplicateVariant = UUID.randomUUID();
+        var bomA = bom(duplicateVariant, "SKU-1", "Trà 1", "", List.of(line(ingredientId, "10")));
+        var bomB = bom(duplicateVariant, "SKU-1", "Trà 1", "", List.of(line(ingredientId, "15")));
+
+        assertThrows(InvalidOrderStatusException.class, () -> support.priceMultiBom(List.of()));
+        assertThrows(InvalidOrderStatusException.class, () -> support.priceMultiBom(List.of(bomA, bomB)));
+        verifyNoInteractions(catalog, inventory);
+    }
+
+    private CustomBundleBomRequest bom(
+            UUID variantId, String sku, String name, String note, List<CustomBundleLineRequest> lines) {
+        var req = new CustomBundleBomRequest();
+        req.setVariantId(variantId);
+        req.setBomSku(sku);
+        req.setBomName(name);
+        req.setNote(note);
+        req.setLines(lines);
+        return req;
     }
 
     private CustomBundleCatalogClient.IngredientResponse ingredient(String status, Integer type, BigDecimal price) {

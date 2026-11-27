@@ -82,6 +82,17 @@ inventory:
       topics:
         reservation-confirm: inventory.reservation-confirm.requested
         return-disposition-requested: order.event.RETURN_INVENTORY_DISPOSITION_REQUESTED
+  outbox:
+    publisher:
+      mode: ${INVENTORY_OUTBOX_PUBLISHER_MODE:POLLING}
+      cdc-fenced: ${INVENTORY_OUTBOX_PUBLISHER_CDC_FENCED:true}
+      bootstrap-servers: ${INVENTORY_OUTBOX_PUBLISHER_BOOTSTRAP_SERVERS:${KAFKA_BOOTSTRAP_SERVERS:100.99.2.30:19092}}
+      interval-ms: ${INVENTORY_OUTBOX_PUBLISHER_INTERVAL_MS:1000}
+      batch-size: ${INVENTORY_OUTBOX_PUBLISHER_BATCH_SIZE:25}
+      ack-timeout-ms: ${INVENTORY_OUTBOX_PUBLISHER_ACK_TIMEOUT_MS:12000}
+      lease-ms: ${INVENTORY_OUTBOX_PUBLISHER_LEASE_MS:30000}
+      retry-initial-ms: ${INVENTORY_OUTBOX_PUBLISHER_RETRY_INITIAL_MS:1000}
+      retry-max-ms: ${INVENTORY_OUTBOX_PUBLISHER_RETRY_MAX_MS:120000}
 
 security:
   internal:

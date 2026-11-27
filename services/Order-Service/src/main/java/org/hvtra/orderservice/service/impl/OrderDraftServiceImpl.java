@@ -74,6 +74,9 @@ public class OrderDraftServiceImpl implements OrderDraftService {
         if (CUSTOM_BUNDLE_SKU.equals(variant.sku())) {
             throw new InvalidOrderStatusException("Trà đóng theo yêu cầu phải thêm bằng chức năng đóng trà");
         }
+        if ("CUSTOMER".equalsIgnoreCase(variant.productType())) {
+            throw new InvalidOrderStatusException("Sản phẩm công thức khách hàng phải bán qua đóng trà theo yêu cầu");
+        }
         BigDecimal addQuantity = orderValidator.requirePositiveQuantity(request.getQuantity());
         OrderItem item = findDraftItem(
                 order,

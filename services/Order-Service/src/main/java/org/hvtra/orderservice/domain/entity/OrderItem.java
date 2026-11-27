@@ -74,11 +74,20 @@ public class OrderItem extends BaseEntity {
     @Column(name = "packing_code", length = 100)
     private String packingCode;
 
+    @Column(name = "bundle_request_id", columnDefinition = "BINARY(16)")
+    private UUID bundleRequestId;
+
     @BatchSize(size = 50)
     @OneToMany(mappedBy = "orderItem", cascade = CascadeType.ALL, orphanRemoval = true)
     @OrderBy("createdAt asc")
     @Builder.Default
     private List<OrderItemComponent> components = new ArrayList<>();
+
+    @BatchSize(size = 50)
+    @OneToMany(mappedBy = "orderItem", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OrderBy("displayOrder asc")
+    @Builder.Default
+    private List<OrderItemBundleBom> bundleBoms = new ArrayList<>();
 
     public boolean isCustomBundle() {
         return itemType == OrderItemType.CUSTOM_BUNDLE;
@@ -99,6 +108,17 @@ public class OrderItem extends BaseEntity {
         newComponents.forEach(component -> {
             component.setOrderItem(this);
             components.add(component);
+        });
+    }
+
+    public void replaceBundleBoms(List<OrderItemBundleBom> newBundleBoms) {
+        if (bundleBoms == null) {
+            bundleBoms = new ArrayList<>();
+        }
+        bundleBoms.clear();
+        newBundleBoms.forEach(bundleBom -> {
+            bundleBom.setOrderItem(this);
+            bundleBoms.add(bundleBom);
         });
     }
 }

@@ -1,7 +1,7 @@
 from collections import defaultdict
 from dataclasses import dataclass
 
-from sqlalchemy import case, func, select
+from sqlalchemy import case, func, or_, select
 from sqlalchemy.orm import Session
 
 from app.models.category import Category
@@ -69,6 +69,7 @@ class V1RecommendationRepository:
             Product.id, Product.product_code, Product.name, Category.category_code,
         ).outerjoin(Category, Category.id == Product.category_id).where(
             Product.status == "ACTIVE", Product.is_deleted.is_(False),
+            or_(Category.category_code.is_(None), Category.category_code != "CUSTOMER-BUNDLE"),
         ).order_by(Product.id)
         if include_sellability:
             statement = statement.add_columns(self._has_commercial_variant())
@@ -93,7 +94,11 @@ class V1RecommendationRepository:
         popularity = func.coalesce(func.sum(CustomerInteraction.total_purchase_count), 0).label("popularity")
         statement = select(Product.id, Product.product_code, Product.name, popularity).outerjoin(
             CustomerInteraction, CustomerInteraction.product_id == Product.id,
-        ).where(Product.status == "ACTIVE", Product.is_deleted.is_(False), self._has_commercial_variant())
+        ).outerjoin(Category, Category.id == Product.category_id).where(
+            Product.status == "ACTIVE", Product.is_deleted.is_(False),
+            or_(Category.category_code.is_(None), Category.category_code != "CUSTOMER-BUNDLE"),
+            self._has_commercial_variant(),
+        )
         if purchased:
             statement = statement.where(Product.id.not_in(purchased))
         if eligible_ids is not None:

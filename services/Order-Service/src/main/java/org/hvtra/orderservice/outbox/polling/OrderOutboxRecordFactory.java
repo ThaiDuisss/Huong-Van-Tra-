@@ -45,6 +45,8 @@ final class OrderOutboxRecordFactory {
             validateReturnDisposition(event, body);
         } else if (PollingOrderEvent.supportsRefundSideEffect(event.eventType(), event.topic())) {
             validateRefundSideEffect(event, body);
+        } else if (PollingOrderEvent.supportsReturnLifecycleNotification(event.eventType(), event.topic())) {
+            validateReturnLifecycleNotification(event, body);
         } else {
             validateSignedCompletion(event, body);
         }
@@ -125,6 +127,40 @@ final class OrderOutboxRecordFactory {
         }
     }
 
+    private static void validateReturnLifecycleNotification(PollingOrderEvent event, ObjectNode body)
+            throws RejectedEvent {
+        String returnId = body.path("returnId").textValue();
+        String orderId = body.path("orderId").textValue();
+        String expectedSuffix;
+        String expectedStatus;
+        switch (event.eventType()) {
+            case OrderEventType.RETURN_CREATED -> {
+                expectedSuffix = ":return-created";
+                expectedStatus = "CREATED";
+            }
+            case OrderEventType.RETURN_RECEIVED -> {
+                expectedSuffix = ":return-received";
+                expectedStatus = "RECEIVED";
+            }
+            case OrderEventType.RETURN_CANCELLED -> {
+                expectedSuffix = ":return-cancelled";
+                expectedStatus = "CANCELLED";
+            }
+            default -> throw new RejectedEvent("INVALID_CONTRACT_METADATA");
+        }
+        String businessKey = returnId + expectedSuffix;
+        if (!uuid(returnId) || !uuid(orderId) || !returnId.equals(event.aggregateId())
+                || !"ORDER_RETURN".equals(event.aggregateType()) || !businessKey.equals(event.businessKey())
+                || !returnId.equals(event.key()) || !matching(body, "eventKey", returnId)) {
+            throw new RejectedEvent("INVALID_CONTRACT_METADATA");
+        }
+        timestamp(body.path("occurredAt"));
+        JsonNode items = body.path("items");
+        if (!matching(body, "newStatus", expectedStatus) || !items.isArray() || items.isEmpty()) {
+            throw new RejectedEvent("INVALID_COMPLETION_PAYLOAD");
+        }
+    }
+
     private static RecordHeaders buildHeaders(PollingOrderEvent event, ObjectNode body) throws RejectedEvent {
         RecordHeaders headers = new RecordHeaders();
         header(headers, "event_id", event.eventId());
@@ -134,7 +170,8 @@ final class OrderOutboxRecordFactory {
         header(headers, "aggregate_type", event.aggregateType());
         header(headers, "aggregate_id", event.aggregateId());
         header(headers, "business_key", event.businessKey());
-        if (PollingOrderEvent.supportsRefundSideEffect(event.eventType(), event.topic())) {
+        if (PollingOrderEvent.supportsRefundSideEffect(event.eventType(), event.topic())
+                || PollingOrderEvent.supportsReturnLifecycleNotification(event.eventType(), event.topic())) {
             optionalHeader(headers, "saga_id", event.sagaId());
             optionalHeader(headers, "correlation_id", event.correlationId());
             optionalHeader(headers, "causation_id", event.causationId());
@@ -177,11 +214,7 @@ final class OrderOutboxRecordFactory {
                 throw new RejectedEvent("INVALID_COMPLETION_LINE");
             }
             if (purchase) {
-                String type = item.path("purchaseType").textValue();
-                if (!("PRODUCT".equals(type) && uuid(item.path("productVariantId").textValue()))
-                        && !"CUSTOM_BUNDLE".equals(type)) {
-                    throw new RejectedEvent("INVALID_PURCHASE_LINE");
-                }
+                validatePurchaseLine(item);
             } else {
                 String returnItem = item.path("returnItemId").textValue();
                 String variant = item.path("productVariantId").textValue();
@@ -192,6 +225,30 @@ final class OrderOutboxRecordFactory {
                         || reason == null || reason.isBlank()) {
                     throw new RejectedEvent("INVALID_RETURN_LINE");
                 }
+            }
+        }
+    }
+
+    private static void validatePurchaseLine(JsonNode item) throws RejectedEvent {
+        String type = item.path("purchaseType").textValue();
+        if ("PRODUCT".equals(type) && uuid(item.path("productVariantId").textValue())) {
+            return;
+        }
+        if (!"CUSTOM_BUNDLE".equals(type)) {
+            throw new RejectedEvent("INVALID_PURCHASE_LINE");
+        }
+        JsonNode components = item.path("components");
+        if (!components.isArray() || components.isEmpty()) {
+            throw new RejectedEvent("INVALID_PURCHASE_LINE");
+        }
+        for (JsonNode component : components) {
+            String code = component.path("ingredientCode").textValue();
+            String unit = component.path("unit").textValue();
+            if (!uuid(component.path("ingredientId").textValue())
+                    || code == null || code.isBlank() || code.strip().length() > 100
+                    || !validQuantity(component.path("quantity"))
+                    || unit == null || unit.isBlank() || unit.strip().length() > 24) {
+                throw new RejectedEvent("INVALID_PURCHASE_LINE");
             }
         }
     }

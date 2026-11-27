@@ -1,10 +1,10 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { ApiError } from "@/lib/api-client";
 import {
   loadRecommendedProducts,
   productRecommendationApi,
 } from "../services/productRecommendation.api";
-import { RecommendationRequestScope } from "../services/recommendationLifecycle";
 import type {
   ProductRecommendations,
   ProductRecommendationMode,
@@ -23,31 +23,44 @@ function errorMessage(error: unknown) {
   return "Không tải được gợi ý sản phẩm. Bạn vẫn có thể tiếp tục bán hàng và thanh toán.";
 }
 
-/** Mount per invoice/customer/generation/mode/refresh; cleanup invalidates late responses. */
-export function useProductRecommendations(customerId: string | null, mode: ProductRecommendationMode) {
+/** Caches recommendation + POS variant views per customer and mode across tab switches. */
+export function useProductRecommendations(customerId: string | null, mode: ProductRecommendationMode): RecommendationState {
   const [key] = useState(() => crypto.randomUUID());
-  const [state, setState] = useState<RecommendationState>({
-    loading: true,
-    result: null,
-    products: [],
-    error: "",
+  const query = useQuery({
+    queryKey: ["product-recommendations", customerId ?? "guest", mode],
+    queryFn: async ({ signal }) => {
+      const result = mode === "EXPLORE" || mode === "FAMILIAR"
+        ? await productRecommendationApi.getPersonalized(customerId ?? "", mode, signal)
+        : await productRecommendationApi.get(customerId, mode, key, signal);
+      const products = await loadRecommendedProducts(result, signal);
+      return { result, products };
+    },
+    staleTime: 120_000,
+    gcTime: 5 * 60_000,
+    retry: false,
+    refetchOnWindowFocus: false,
   });
-  useEffect(() => {
-    const scope = new RecommendationRequestScope(key);
-    void (async () => {
-      try {
-        const result = mode === "EXPLORE" || mode === "FAMILIAR"
-          ? await productRecommendationApi.getPersonalized(customerId ?? "", mode, scope.controller.signal)
-          : await productRecommendationApi.get(customerId, mode, scope.key, scope.controller.signal);
-        if (!scope.isCurrent()) return;
-        const products = await loadRecommendedProducts(result, scope.controller.signal);
-        if (scope.isCurrent()) setState({ loading: false, result, products, error: "" });
-      } catch (error) {
-        if (scope.isCurrent())
-          setState({ loading: false, result: null, products: [], error: errorMessage(error) });
-      }
-    })();
-    return () => scope.cancel();
-  }, [customerId, mode, key]);
-  return state;
+
+  if (query.isPending) {
+    return {
+      loading: true,
+      result: null,
+      products: [],
+      error: "",
+    };
+  }
+  if (query.isError) {
+    return {
+      loading: false,
+      result: null,
+      products: [],
+      error: errorMessage(query.error),
+    };
+  }
+  return {
+    loading: false,
+    result: query.data?.result ?? null,
+    products: query.data?.products ?? [],
+    error: "",
+  };
 }

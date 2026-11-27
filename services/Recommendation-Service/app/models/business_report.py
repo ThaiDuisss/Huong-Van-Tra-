@@ -50,6 +50,17 @@ class CompletedPurchaseOrder(Base):
     lines: Mapped[list] = mapped_column(JSON)
 
 
+class IngredientRecommendationLog(Base):
+    """Each row records one issued list, without a customer or attribution key."""
+    __tablename__ = "ingredient_recommendation_log"
+    __table_args__ = (Index("idx_ingredient_recommendation_generated", "generated_at"),)
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    generated_at: Mapped[datetime] = mapped_column(DATETIME(fsp=6))
+    model_version: Mapped[str] = mapped_column(String(64))
+    items: Mapped[list] = mapped_column(JSON)
+
+
 class BusinessReportExport(Base):
     __tablename__ = "business_report_exports"
     __table_args__ = (UniqueConstraint("created_by", "request_key", name="uq_business_export_actor_request"),)

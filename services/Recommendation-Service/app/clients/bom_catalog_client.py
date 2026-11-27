@@ -1,3 +1,6 @@
+from concurrent.futures import Executor, wait
+from contextlib import nullcontext
+from contextvars import copy_context
 from dataclasses import dataclass
 from decimal import Decimal, DecimalException
 from fractions import Fraction
@@ -122,30 +125,48 @@ def normalize_recipe(row: RecipeRow, batch: RecipeBatch) -> BomRecipe:
     return BomRecipe(row, grams, names, prefill)
 
 
-def fetch_bom_recipes(settings: Settings, ids: set[UUID]) -> dict[UUID, BomRecipe]:
+def fetch_bom_recipes(settings: Settings, ids: set[UUID], *, timeout: float | None = None,
+                      client: httpx.Client | None = None, executor: Executor | None = None) -> dict[UUID, BomRecipe]:
     if not ids:
         return {}
     result = {}
     targets = sorted(ids)
+    timeout = timeout or settings.level2_stock_timeout_seconds
+    transport = nullcontext(client) if client is not None else httpx.Client(
+        base_url=settings.catalog_service_url, timeout=timeout, trust_env=False,
+    )
+    path = "/internal/catalog/bom-recipes"
+    url = settings.catalog_service_url.rstrip("/") + path if client is not None else path
     try:
-        with httpx.Client(base_url=settings.catalog_service_url,
-                          timeout=settings.level2_stock_timeout_seconds, trust_env=False) as client:
-            for start in range(0, len(targets), 64):
-                requested = targets[start:start + 64]
-                res = client.get("/internal/catalog/bom-recipes",
-                                 params={"variantIds": ",".join(map(str, requested))},
-                                 headers=generate_internal_auth_headers())
+        with transport as http:
+            def read(requested):
+                res = http.get(url, params={"variantIds": ",".join(map(str, requested))},
+                               headers=generate_internal_auth_headers(), timeout=timeout)
                 res.raise_for_status()
                 batch = RecipeBatch.model_validate_json(res.content)
                 seen = {row.variantId for row in batch.recipes}
                 if len(seen) != len(batch.recipes) or not seen.issubset(requested):
                     raise ValueError("Invalid Catalog recipe batch")
+                recipes = {}
                 for row in batch.recipes:
                     try:
-                        result[row.variantId] = normalize_recipe(row, batch)
+                        recipes[row.variantId] = normalize_recipe(row, batch)
                     except (ValueError, KeyError, TypeError, DecimalException):
                         # One incomplete recipe cannot make an unrelated recipe eligible.
                         continue
+                return recipes
+
+            batches = [targets[start:start + 64] for start in range(0, len(targets), 64)]
+            if executor is None:
+                for batch in batches:
+                    result.update(read(batch))
+            else:
+                pending = [executor.submit(copy_context().run, read, batch) for batch in batches]
+                try:
+                    for future in pending:
+                        result.update(future.result())
+                finally:
+                    wait(pending)
     except (httpx.HTTPError, ValueError) as exc:
         raise CatalogBomUnavailable("CATALOG_UNAVAILABLE") from exc
     return result

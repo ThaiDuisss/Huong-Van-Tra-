@@ -38,6 +38,7 @@ public class OrderItemResponse {
     private BundlePackingStatus packingStatus;
     private String packingCode;
     private List<Component> components;
+    private List<BundleBom> bundleBoms;
 
     @Data
     @Builder
@@ -49,5 +50,17 @@ public class OrderItemResponse {
         private BigDecimal quantity;
         private BigDecimal unitPrice;
         private BigDecimal lineTotal;
+    }
+
+    @Data
+    @Builder
+    public static class BundleBom {
+        private UUID id;
+        private UUID sourceVariantId;
+        private String bomSku;
+        private String bomName;
+        private String note;
+        private BigDecimal estimatedPrice;
+        private List<Component> components;
     }
 }

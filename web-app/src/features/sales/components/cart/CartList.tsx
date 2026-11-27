@@ -97,11 +97,41 @@ export function CartList({
                   </small>
                 ) : null}
                 {item.bundle ? (
-                  <small className="mt-1 block text-xs font-semibold text-neutral-500">
-                    {item.bundle.components
-                      .map((component) => `${component.ingredientName} ${component.quantity}${component.unit ?? ""}`)
-                      .join(" · ")}
-                  </small>
+                  item.bundle.boms && item.bundle.boms.length > 0 ? (
+                    <div className="mt-1.5 grid gap-1 text-xs">
+                      {item.bundle.boms.map((bom, bomIdx) => (
+                        <div
+                          key={bom.id ?? `${bom.sourceVariantId ?? bom.bomName}-${bomIdx}`}
+                          className="rounded-md border border-[#e3ece5] bg-[#f8fbf8] px-2 py-1 text-neutral-700"
+                        >
+                          <div className="font-bold text-[#172317]">
+                            {bom.bomName}
+                            {bom.bomSku ? (
+                              <span className="ml-1.5 font-mono text-[10px] font-semibold text-neutral-400">
+                                ({bom.bomSku})
+                              </span>
+                            ) : null}
+                          </div>
+                          <div className="text-[11px] font-medium text-neutral-500">
+                            {bom.components
+                              .map((component) => `${component.ingredientName} ${component.quantity}${component.unit ?? ""}`)
+                              .join(" · ")}
+                          </div>
+                          {bom.note ? (
+                            <div className="mt-0.5 text-[11px] font-semibold text-[#159734]">
+                              Ghi chú: {bom.note}
+                            </div>
+                          ) : null}
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <small className="mt-1 block text-xs font-semibold text-neutral-500">
+                      {item.bundle.components
+                        .map((component) => `${component.ingredientName} ${component.quantity}${component.unit ?? ""}`)
+                        .join(" · ")}
+                    </small>
+                  )
                 ) : null}
               </span>
               {item.bundle ? (

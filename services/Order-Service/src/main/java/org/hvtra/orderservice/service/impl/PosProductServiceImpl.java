@@ -8,11 +8,16 @@ import org.hvtra.orderservice.client.InventoryClient.StockVariantBatchResponse;
 import org.hvtra.orderservice.dto.request.PosProductSearchRequest;
 import org.hvtra.orderservice.dto.response.CatalogVariantResponse;
 import org.hvtra.orderservice.dto.response.PageResponse;
+import org.hvtra.orderservice.dto.response.PosProductVariantBomResponse;
+import org.hvtra.orderservice.dto.response.PosProductVariantBomResponse.PosBundleBomLineResponse;
 import org.hvtra.orderservice.dto.response.PosProductVariantResponse;
+import org.hvtra.orderservice.exception.InvalidOrderStatusException;
+import org.hvtra.orderservice.exception.OrderNotFoundException;
 import org.hvtra.orderservice.service.PosProductService;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -107,6 +112,69 @@ public class PosProductServiceImpl implements PosProductService {
         return toPosProductVariantResponse(variant, stock);
     }
 
+    @Override
+    public PosProductVariantBomResponse getCustomerBundleBom(UUID variantId) {
+        CatalogVariantResponse variant = catalogClient.findById(variantId);
+        if (!isPosSaleVariant(variant) || !variantId.equals(variant.id())) {
+            throw new OrderNotFoundException("Không tìm thấy biến thể sản phẩm bán hàng: " + variantId);
+        }
+        if (!"CUSTOMER".equalsIgnoreCase(variant.productType())) {
+            throw new InvalidOrderStatusException("Biến thể này không thuộc loại công thức khách hàng (CUSTOMER)");
+        }
+        List<CatalogClient.BomItemResponse> bomItems = catalogClient.getBomItemsByVariantId(variantId);
+        if (bomItems == null || bomItems.isEmpty()) {
+            throw new InvalidOrderStatusException("Sản phẩm công thức khách hàng chưa có định mức nguyên liệu (BOM)");
+        }
+        List<PosBundleBomLineResponse> lines = bomItems.stream()
+                .filter(item -> item != null && item.ingredient() != null && item.ingredient().id() != null
+                        && item.quantity() != null && item.quantity().signum() > 0)
+                .map(item -> {
+                    CatalogClient.BomIngredientResponse ingredient = item.ingredient();
+                    String targetUnit = ingredient.unitSymbol() != null && !ingredient.unitSymbol().isBlank()
+                            ? ingredient.unitSymbol()
+                            : (item.unit() != null ? item.unit().symbol() : null);
+                    BigDecimal convertedQty = convertToIngredientUnit(item.quantity(), item.unit(), targetUnit);
+                    return new PosBundleBomLineResponse(
+                            ingredient.id(),
+                            ingredient.ingredientCode(),
+                            ingredient.name(),
+                            targetUnit,
+                            convertedQty);
+                })
+                .toList();
+        if (lines.isEmpty()) {
+            throw new InvalidOrderStatusException("Sản phẩm công thức khách hàng chưa có nguyên liệu hợp lệ");
+        }
+        return new PosProductVariantBomResponse(
+                variant.id(),
+                variant.sku(),
+                variant.productName(),
+                variant.variantName(),
+                variant.productType(),
+                lines);
+    }
+
+    private static BigDecimal convertToIngredientUnit(
+            BigDecimal quantity,
+            CatalogClient.BomUnitResponse sourceUnit,
+            String targetUnitSymbol) {
+        if (sourceUnit == null || sourceUnit.symbol() == null || targetUnitSymbol == null) {
+            return quantity;
+        }
+        String src = sourceUnit.symbol().trim().toLowerCase();
+        String dst = targetUnitSymbol.trim().toLowerCase();
+        if (src.equals(dst)) {
+            return quantity;
+        }
+        if ("g".equals(src) && "kg".equals(dst)) {
+            return quantity.divide(new BigDecimal("1000"), 3, RoundingMode.HALF_UP);
+        }
+        if ("kg".equals(src) && "g".equals(dst)) {
+            return quantity.multiply(new BigDecimal("1000")).setScale(3, RoundingMode.HALF_UP);
+        }
+        return quantity;
+    }
+
     private static boolean isPosSaleVariant(CatalogVariantResponse variant) {
         return variant != null && variant.sellable() && !"CUSTOM-BUNDLE".equals(variant.sku());
     }
@@ -156,6 +224,7 @@ public class PosProductServiceImpl implements PosProductService {
                         ? stock.warehouseQuantity() : BigDecimal.ZERO)
                 .shelfLocationId(stock != null ? stock.shelfLocationId() : null)
                 .warehouseLocationId(stock != null ? stock.warehouseLocationId() : null)
+                .productType(variant.productType() != null ? variant.productType() : "FINISHED_PRODUCT")
                 .build();
     }
 }

@@ -11,6 +11,7 @@ import lombok.RequiredArgsConstructor;
 import org.hvtra.catalog.dto.response.PageResponse;
 import org.hvtra.catalog.dto.response.ProductResponse;
 import org.hvtra.catalog.entity.ProductVariant;
+import org.hvtra.catalog.enums.ProductType;
 import org.hvtra.catalog.enums.Status;
 import org.hvtra.catalog.mapper.ProductMapper;
 import org.hvtra.catalog.repository.ProductVariantRepository;
@@ -468,6 +469,7 @@ class VariantTasteService {
 
     private boolean sellableVariant(ProductVariant variant) {
         return !Boolean.TRUE.equals(variant.getIsDeleted()) && variant.getStatus() == Status.ACTIVE && !variant.isCustomBundle()
+                && (variant.getProductType() == null || variant.getProductType() == ProductType.FINISHED_PRODUCT)
                 && !Boolean.TRUE.equals(variant.getProduct().getIsDeleted()) && variant.getProduct().getStatus() == Status.ACTIVE;
     }
 

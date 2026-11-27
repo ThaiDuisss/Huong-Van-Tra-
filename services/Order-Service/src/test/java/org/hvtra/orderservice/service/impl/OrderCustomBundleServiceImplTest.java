@@ -2,16 +2,20 @@ package org.hvtra.orderservice.service.impl;
 
 import org.hvtra.orderservice.domain.entity.Order;
 import org.hvtra.orderservice.domain.entity.OrderItem;
+import org.hvtra.orderservice.domain.entity.OrderItemBundleBom;
 import org.hvtra.orderservice.domain.entity.OrderItemComponent;
 import org.hvtra.orderservice.domain.enums.OrderInventoryProcessingStatus;
 import org.hvtra.orderservice.domain.enums.OrderItemType;
 import org.hvtra.orderservice.domain.enums.OrderStatus;
 import org.hvtra.orderservice.domain.enums.PaymentStatus;
 import org.hvtra.orderservice.dto.request.AddDraftBundleItemRequest;
+import org.hvtra.orderservice.dto.request.CustomBundleBomRequest;
+import org.hvtra.orderservice.dto.request.CustomBundleLineRequest;
 import org.hvtra.orderservice.dto.request.FulfillBackorderRequest;
 import org.hvtra.orderservice.dto.request.UpdateDraftBundleItemRequest;
 import org.hvtra.orderservice.exception.InvalidOrderStatusException;
 import org.hvtra.orderservice.exception.OrderNotFoundException;
+import org.hvtra.orderservice.outbox.service.OrderOutboxPublisher;
 import org.hvtra.orderservice.repository.OrderRepository;
 import org.hvtra.orderservice.service.OrderBackorderService;
 import org.hvtra.orderservice.service.helper.OrderAmountCalculator;
@@ -57,6 +61,7 @@ class OrderCustomBundleServiceImplTest {
     @Mock private OrderResponseAssembler responses;
     @Mock private OrderCustomBundleSupport bundles;
     @Mock private OrderBackorderService backorders;
+    @Mock private OrderOutboxPublisher outbox;
     private OrderCustomBundleServiceImpl service;
 
     @BeforeEach
@@ -65,7 +70,7 @@ class OrderCustomBundleServiceImplTest {
         var dates = new OrderDateTimeHelper();
         var mapper = new OrderMapper(new OrderItemMapper(), calculator, dates);
         service = new OrderCustomBundleServiceImpl(orders, mapper, new OrderValidator(), calculator, codes,
-                dates, histories, customers, responses, bundles, backorders);
+                dates, histories, customers, responses, bundles, backorders, outbox);
     }
 
     @Test
@@ -183,19 +188,21 @@ class OrderCustomBundleServiceImplTest {
     @Test
     void successfulHandoverChecksPackingBeforeCompletingAndWritingHistory() {
         Order order = order(OrderStatus.PAYMENT_CONFIRMED, PaymentStatus.PAID);
+        order.setPaymentCode("PAY-BUNDLE-01");
         order.setInventoryProcessingStatus(OrderInventoryProcessingStatus.CONSUMED);
         when(orders.findByIdAndIsDeletedFalseWithItemsForUpdate(order.getId())).thenReturn(Optional.of(order));
         when(bundles.hasBundle(order)).thenReturn(true);
         when(orders.save(order)).thenReturn(order);
         service.handover(order.getId(), null);
         assertEquals(OrderStatus.COMPLETED, order.getStatus());
-        var sequence = inOrder(bundles, orders, histories);
+        var sequence = inOrder(bundles, orders, histories, outbox);
         sequence.verify(orders).findByIdAndIsDeletedFalseWithItemsForUpdate(order.getId());
         sequence.verify(bundles).hasBundle(order);
         sequence.verify(bundles).refreshPacking(order);
         sequence.verify(bundles).requireAllPacked(order);
         sequence.verify(orders).save(order);
         sequence.verify(histories).write(eq(order), eq(OrderStatus.PAYMENT_CONFIRMED), eq(OrderStatus.COMPLETED), anyString(), isNull());
+        sequence.verify(outbox).publishOrderCompleted(order, "PAY-BUNDLE-01", null);
     }
 
     @Test
@@ -208,7 +215,7 @@ class OrderCustomBundleServiceImplTest {
         assertThrows(InvalidOrderStatusException.class, () -> service.handover(order.getId(), null));
         assertEquals(OrderStatus.PAYMENT_CONFIRMED, order.getStatus());
         verify(orders, never()).save(order);
-        verifyNoInteractions(histories);
+        verifyNoInteractions(histories, outbox);
     }
 
     @Test
@@ -223,6 +230,7 @@ class OrderCustomBundleServiceImplTest {
         verify(backorders).fulfill(order.getId(), request);
         assertEquals(OrderStatus.PAYMENT_CONFIRMED, order.getStatus());
         verify(orders, never()).save(order);
+        verifyNoInteractions(outbox);
     }
 
     @Test
@@ -332,6 +340,66 @@ class OrderCustomBundleServiceImplTest {
         verify(orders, never()).save(any());
         verify(bundles, never()).price(any());
         verifyNoInteractions(histories, backorders, responses);
+    }
+
+    @Test
+    void addsMultiBomBundleToExistingDraftOnceAndDeduplicatesRetryByRequestId() {
+        Order order = order(OrderStatus.DRAFT, PaymentStatus.WAITING_PAYMENT);
+        OrderItem regular = OrderItem.builder().itemType(OrderItemType.PRODUCT).quantity(BigDecimal.ONE)
+                .originalUnitPrice(new BigDecimal("50")).actualUnitPrice(new BigDecimal("50"))
+                .discountAmount(BigDecimal.ZERO).lineTotal(new BigDecimal("50")).build();
+        order.addItem(regular);
+
+        UUID requestId = UUID.randomUUID();
+        var request = new AddDraftBundleItemRequest();
+        request.setOrderId(order.getId());
+        request.setRequestId(requestId);
+        var line = new CustomBundleLineRequest();
+        line.setIngredientId(UUID.randomUUID());
+        line.setQuantity(new BigDecimal("25"));
+        var bom1 = new CustomBundleBomRequest();
+        bom1.setVariantId(UUID.randomUUID());
+        bom1.setBomName("Trà Xanh Nhài");
+        bom1.setNote("Chia 2 túi");
+        bom1.setLines(List.of(line));
+        var bom2 = new CustomBundleBomRequest();
+        bom2.setVariantId(UUID.randomUUID());
+        bom2.setBomName("Ô Long Gừng");
+        bom2.setNote("Đóng riêng");
+        bom2.setLines(List.of(line));
+        request.setBoms(List.of(bom1, bom2));
+
+        OrderItemBundleBom savedBom1 = new OrderItemBundleBom();
+        savedBom1.setBomNameSnapshot("Trà Xanh Nhài");
+        savedBom1.setNote("Chia 2 túi");
+        OrderItemBundleBom savedBom2 = new OrderItemBundleBom();
+        savedBom2.setBomNameSnapshot("Ô Long Gừng");
+        savedBom2.setNote("Đóng riêng");
+        OrderItemComponent comp = new OrderItemComponent();
+        comp.setIngredientId(line.getIngredientId());
+        comp.setQuantity(new BigDecimal("50"));
+        comp.setLineTotal(new BigDecimal("100"));
+
+        when(orders.findByIdAndIsDeletedFalse(order.getId())).thenReturn(Optional.of(order));
+        when(orders.save(order)).thenReturn(order);
+        when(bundles.customBundleVariant())
+                .thenReturn(new OrderCustomBundleSupport.CatalogVariant(UUID.randomUUID(), "BUNDLE", "Tea", "Bundle"));
+        when(bundles.priceMultiBom(request.getBoms()))
+                .thenReturn(new OrderCustomBundleSupport.PricedBundle(
+                        List.of(comp), new BigDecimal("100"), List.of(savedBom1, savedBom2)));
+
+        atFixedTime(() -> service.addDraftBundleItem(request));
+        atFixedTime(() -> service.addDraftBundleItem(request));
+
+        assertEquals(2, order.getItems().size());
+        OrderItem bundleItem = order.getItems().get(1);
+        assertEquals(OrderItemType.CUSTOM_BUNDLE, bundleItem.getItemType());
+        assertEquals(requestId, bundleItem.getBundleRequestId());
+        assertEquals("Bundle 2 công thức: Trà Xanh Nhài, Ô Long Gừng", bundleItem.getVariantNameSnapshot());
+        assertEquals(2, bundleItem.getBundleBoms().size());
+        assertSame(bundleItem, savedBom1.getOrderItem());
+        assertEquals(new BigDecimal("150"), order.getFinalAmount());
+        verify(orders, times(1)).save(order);
     }
 
     private Order order(OrderStatus status, PaymentStatus payment) {

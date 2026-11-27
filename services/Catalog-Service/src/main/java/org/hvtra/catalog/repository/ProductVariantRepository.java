@@ -3,6 +3,7 @@ package org.hvtra.catalog.repository;
 import org.hvtra.catalog.dto.response.VariantCostResponse;
 import org.hvtra.catalog.dto.response.VariantInventorySummaryResponse;
 import org.hvtra.catalog.entity.ProductVariant;
+import org.hvtra.catalog.enums.ProductType;
 import org.hvtra.catalog.enums.Status;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -32,6 +33,7 @@ public interface ProductVariantRepository extends JpaRepository<ProductVariant, 
             select v from ProductVariant v join fetch v.product p
             where v.isDeleted = false and v.customBundle = false and p.isDeleted = false
               and v.status = :active and p.status = :active
+              and v.productType = org.hvtra.catalog.enums.ProductType.FINISHED_PRODUCT
             order by v.id
             """)
     List<ProductVariant> findTasteSnapshotVariants(@Param("active") Status active, Pageable page);
@@ -40,8 +42,16 @@ public interface ProductVariantRepository extends JpaRepository<ProductVariant, 
             select v from ProductVariant v join fetch v.product p join fetch v.unit
             where v.id in :ids and v.isDeleted = false and v.customBundle = false
               and p.isDeleted = false and v.status = :active and p.status = :active
+              and v.productType = org.hvtra.catalog.enums.ProductType.FINISHED_PRODUCT
             """)
     List<ProductVariant> findActiveBomRecipeVariants(@Param("ids") Collection<UUID> ids, @Param("active") Status active);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select v from ProductVariant v join fetch v.product p where v.recipeSha256 = :recipeSha256 and v.isDeleted = false")
+    Optional<ProductVariant> findByRecipeSha256ForUpdate(@Param("recipeSha256") String recipeSha256);
+
+    @Query("select v from ProductVariant v join fetch v.product p where v.recipeSha256 = :recipeSha256 and v.isDeleted = false")
+    Optional<ProductVariant> findFirstByRecipeSha256AndIsDeletedFalse(@Param("recipeSha256") String recipeSha256);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select v from ProductVariant v where v.id = :id and v.isDeleted = false")

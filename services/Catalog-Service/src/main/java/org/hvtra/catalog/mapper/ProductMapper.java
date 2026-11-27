@@ -4,6 +4,7 @@ import org.hvtra.catalog.dto.response.ProductResponse;
 import org.hvtra.catalog.dto.response.ProductSummaryResponse;
 import org.hvtra.catalog.entity.Product;
 import org.hvtra.catalog.entity.ProductVariant;
+import org.hvtra.catalog.enums.ProductType;
 import org.hvtra.catalog.enums.Status;
 import org.springframework.stereotype.Component;
 
@@ -90,7 +91,8 @@ public class ProductMapper {
                 variant.getStatus(),
                 product != null ? product.getStatus() : null,
                 isSellable(variant),
-                variant.getBarcode());
+                variant.getBarcode(),
+                variant.getProductType() != null ? variant.getProductType() : ProductType.FINISHED_PRODUCT);
     }
 
     public ProductResponse.VariantResponse toVariantResponseForNewlyCreated(ProductVariant variant) {
@@ -123,7 +125,8 @@ public class ProductMapper {
                 variant.getStatus(),
                 product != null ? product.getStatus() : null,
                 isSellable(variant),
-                variant.getBarcode()
+                variant.getBarcode(),
+                variant.getProductType() != null ? variant.getProductType() : ProductType.FINISHED_PRODUCT
         );
     }
 

@@ -1,6 +1,5 @@
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor
-from dataclasses import dataclass
 from datetime import datetime, timezone
 from decimal import Decimal
 from math import fsum, isfinite, log1p, sqrt
@@ -10,16 +9,14 @@ from uuid import UUID
 
 import httpx
 from pydantic import BaseModel, Field
-from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.clients.bom_catalog_client import BomRecipe, CatalogBomUnavailable, fetch_bom_recipes
 from app.core.internal_auth import generate_internal_auth_headers
 from app.core.settings import Settings
-from app.models.business_report import CompletedPurchaseOrder
-from app.models.order_event_inbox import OrderEventInbox, OrderReturnLine
 from app.recommendation.taste_ranking_features import MIN_VALID_ORDERS
-from app.repositories.explore_history_repository import ExploreHistoryError, ExploreHistoryRepository, receipt_products
+from app.repositories.explore_history_repository import ExploreHistoryRepository
+from app.repositories.ingredient_history_repository import RetainedLine, retained_lines
 from app.schemas.bom_recommendation import (
     BomAvailability, BomHistoryLine, BomIngredientStock, BomQuantityBasis, BomRecommendationItem,
     BomRecommendations, BundlePrefill,
@@ -57,55 +54,6 @@ class InventoryIngredient(BaseModel):
 class InventoryIngredientPage(BaseModel):
     content: list[InventoryIngredient]
     last: bool
-
-
-@dataclass(frozen=True)
-class RetainedLine:
-    order_item_id: UUID
-    product_id: UUID
-    variant_id: UUID
-    quantity: Decimal
-
-
-def retained_lines(db: Session, customer_id: str, cutoff: datetime) -> list[RetainedLine]:
-    purchases = db.execute(select(
-        CompletedPurchaseOrder.id, CompletedPurchaseOrder.occurred_at,
-        CompletedPurchaseOrder.evidence_hash, CompletedPurchaseOrder.lines,
-    ).join(OrderEventInbox, OrderEventInbox.event_id == CompletedPurchaseOrder.source_event_id).where(
-        CompletedPurchaseOrder.customer_id == customer_id,
-        CompletedPurchaseOrder.occurred_at <= cutoff, CompletedPurchaseOrder.observed_at <= cutoff,
-        OrderEventInbox.order_id == CompletedPurchaseOrder.id,
-        OrderEventInbox.event_type == "ORDER_COMPLETED", OrderEventInbox.status == "APPLIED",
-        OrderEventInbox.key_id.is_not(None),
-    )).all()
-    returns = db.execute(select(
-        OrderReturnLine.order_id, OrderReturnLine.order_item_id,
-        OrderReturnLine.product_variant_id, OrderReturnLine.quantity,
-    ).join(OrderEventInbox, OrderEventInbox.event_id == OrderReturnLine.event_id).where(
-        OrderReturnLine.customer_id == customer_id, OrderReturnLine.purchase_type == "PRODUCT",
-        OrderReturnLine.occurred_at <= cutoff, OrderReturnLine.observed_at <= cutoff,
-        OrderEventInbox.order_id == OrderReturnLine.order_id,
-        OrderEventInbox.event_type == "RETURN_COMPLETED", OrderEventInbox.status == "APPLIED",
-        OrderEventInbox.key_id.is_not(None),
-    ))
-    returned: dict[tuple[str, str, str], Decimal] = defaultdict(Decimal)
-    for order_id, line_id, variant_id, amount in returns:
-        if not amount.is_finite() or amount <= 0:
-            raise ExploreHistoryError("Invalid return quantity")
-        returned[(order_id, line_id, variant_id)] += amount
-
-    result = []
-    seen = set()
-    for order_id, occurred_at, checksum, raw in purchases:
-        for line_id, product_id, variant_id, amount in receipt_products(customer_id, occurred_at, checksum, raw):
-            quantity = amount - returned.pop((order_id, line_id, variant_id), Decimal(0))
-            if quantity < 0 or line_id in seen:
-                raise ExploreHistoryError("Invalid retained purchase line")
-            seen.add(line_id)
-            result.append(RetainedLine(UUID(line_id), UUID(product_id), UUID(variant_id), quantity))
-    if returned:
-        raise ExploreHistoryError("Return without a matching signed receipt")
-    return sorted(result, key=lambda line: line.order_item_id)
 
 
 def unit_vector(vector: dict[UUID, float]) -> dict[UUID, float]:

@@ -87,16 +87,22 @@ export function buildReceiptHtml(
     const debt = toNumber(order.debtAmount);
 
     const itemRows = items
-        .map(
-            (item) => `
+        .map((item) => {
+            const bomDetails = (item.bundleBoms ?? [])
+                .map(
+                    (bom) => `<div class="muted">• ${escapeHtml(bom.bomName)}${bom.note ? ` (${escapeHtml(bom.note)})` : ""}</div>`
+                )
+                .join("");
+            return `
         <div class="item">
             <div class="item-name">${escapeHtml(getReceiptItemName(item))}</div>
+            ${bomDetails}
             <div class="row">
                 <span>${escapeHtml(formatQuantity(item.quantity))} x ${escapeHtml(formatCurrency(getItemUnitPrice(item)))}</span>
                 <span>${escapeHtml(formatCurrency(getReceiptLineTotal(item)))}</span>
             </div>
-        </div>`
-        )
+        </div>`;
+        })
         .join("");
 
     return `<!DOCTYPE html>

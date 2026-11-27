@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ApiError } from "@/lib/api-client";
 
 import { useNetworkStatus } from "../../../app/network/useNetworkStatus";
@@ -44,9 +44,7 @@ import {
 import { posCustomBundleApi } from "../services/posCustomBundle.api";
 import { formatCurrency } from "../services/money";
 import { usePosCustomerSearch } from "../hooks/usePosCustomerSearch";
-import type { BomBundleConfirmInput } from "../../product-recommendation/components/ProductRecommendationBomList";
 import { ProductRecommendationLauncher } from "../../product-recommendation/components/ProductRecommendationLauncher";
-import { bomRecommendationApi, sameBundleQuote } from "../../product-recommendation/services/bomRecommendation.api";
 import { WorkspaceMutationLock } from "../../product-recommendation/services/recommendationLifecycle";
 import {
     buildLocalPosSale,
@@ -379,6 +377,21 @@ function orderToCartItemsById(
                                       unit: component.unit,
                                       quantity: toNumber(component.quantity),
                                       lineTotal: toNumber(component.lineTotal)
+                                  })),
+                                  boms: (item.bundleBoms ?? []).map((bom) => ({
+                                      id: bom.id,
+                                      sourceVariantId: bom.sourceVariantId,
+                                      bomSku: bom.bomSku,
+                                      bomName: bom.bomName,
+                                      note: bom.note,
+                                      estimatedPrice: bom.estimatedPrice,
+                                      components: (bom.components ?? []).map((component) => ({
+                                          ingredientId: component.ingredientId,
+                                          ingredientName: component.ingredientName,
+                                          unit: component.unit,
+                                          quantity: toNumber(component.quantity),
+                                          lineTotal: toNumber(component.lineTotal)
+                                      }))
                                   })),
                                   packingStatus: item.packingStatus,
                                   packingCode: item.packingCode
@@ -1566,25 +1579,26 @@ export function PosSalePage() {
         }
     }
 
-    async function addCustomBundle(input: CustomBundleInput) {
-        if (workspaceMutation.current.isLocked()) return;
+    async function addCustomBundle(input: CustomBundleInput): Promise<boolean> {
+        if (workspaceMutation.current.isLocked()) return false;
         if (customBundleSubmitting) {
-            return;
+            return false;
         }
 
         if (!online) {
             setCustomBundleError("Đóng trà theo yêu cầu cần kết nối mạng để kiểm tra nguyên liệu.");
-            return;
+            return false;
         }
 
         const release = workspaceMutation.current.acquire();
-        if (!release) return;
+        if (!release) return false;
         setCustomBundleSubmitting(true);
         setCustomBundleError("");
 
         try {
             const order = await posCustomBundleApi.addDraftBundleItem({
                 orderId: draftOrder?.id ?? null,
+                requestId: crypto.randomUUID(),
                 branchId: currentBranchId,
                 customerId: selectedCustomerId,
                 bundleName: input.bundleName,
@@ -1596,69 +1610,13 @@ export function PosSalePage() {
             setCheckoutSuccess("");
             setCustomBundleOpen(false);
             void refreshBackorderEstimate(order);
+            return true;
         } catch (error) {
             logApiError(error);
             setCustomBundleError(
                 `Không thể thêm trà đóng theo yêu cầu: ${getErrorMessage(error)}`
             );
-        } finally {
-            release();
-            setCustomBundleSubmitting(false);
-        }
-    }
-
-    async function addRecommendedBomBundle(input: BomBundleConfirmInput, signal: AbortSignal) {
-        if (!selectedCustomerId || !online || workspaceMutation.current.isLocked()) {
-            throw new Error("Không thể tạo Bundle cho hóa đơn hiện tại.");
-        }
-        if (customBundleSubmitting) {
-            throw new Error("Đang xử lý tạo Bundle, vui lòng đợi.");
-        }
-        const release = workspaceMutation.current.acquire();
-        if (!release) {
-            throw new Error("Hóa đơn đang cập nhật, vui lòng thử lại.");
-        }
-        const expectedContext = bomContext;
-        setCustomBundleSubmitting(true);
-        try {
-            const current = await bomRecommendationApi.revalidate(selectedCustomerId, bomBranchId, input.item, signal);
-            if (signal.aborted || bomContextRef.current !== expectedContext ||
-                activeInvoiceIdRef.current !== invoiceTabs.activeId) {
-                throw new Error("Hóa đơn, khách hàng hoặc kho đã thay đổi. Vui lòng chọn lại công thức.");
-            }
-            if (!sameBundleQuote(input.item, current)) {
-                throw new Error("Giá hoặc định mức công thức đã thay đổi. Vui lòng tải lại gợi ý.");
-            }
-            const lines = current.bundlePrefill.lines.map((line) => ({
-                ingredientId: line.ingredientId,
-                ingredientName: line.ingredientName,
-                quantity: Math.round(Number(line.quantity) * input.scale * 1000) / 1000
-            }));
-            if (input.scale !== 1) {
-                const stock = await posCustomBundleApi.checkAvailability({ branchId: bomBranchId, lines });
-                if (!stock.enough) {
-                    throw new Error(`Không đủ tồn nguyên liệu cho mức ${input.scale}x.`);
-                }
-            }
-            if (signal.aborted || bomContextRef.current !== expectedContext ||
-                activeInvoiceIdRef.current !== invoiceTabs.activeId) {
-                throw new Error("Hóa đơn đã thay đổi trong lúc kiểm tra công thức.");
-            }
-            const order = await posCustomBundleApi.addDraftBundleItem({
-                orderId: draftOrder?.id ?? null,
-                branchId: currentBranchId,
-                customerId: selectedCustomerId,
-                bundleName: input.bundleName.trim() || current.bundlePrefill.bundleName,
-                note: input.note,
-                lines
-            });
-            applyDraftOrder(order);
-            setCheckoutError("");
-            setCheckoutSuccess("");
-            void refreshBackorderEstimate(order);
-        } catch (error) {
-            logApiError(error);
-            throw error;
+            return false;
         } finally {
             release();
             setCustomBundleSubmitting(false);
@@ -1800,6 +1758,40 @@ export function PosSalePage() {
         if (!release) return false;
         setAddingProductId(product.id);
         try {
+            if (product.productType === "CUSTOMER") {
+                if (!online) {
+                    setCheckoutError("Bán lại công thức khách hàng cần kết nối mạng để kiểm tra tồn nguyên liệu.");
+                    return false;
+                }
+                const bom = await posProductApi.getCustomerBundleBom(variantId);
+                const bomLines = (bom.lines ?? []).map((line) => ({
+                    ingredientId: line.ingredientId,
+                    ingredientName: line.ingredientName ?? undefined,
+                    quantity: Number(line.quantity)
+                }));
+                const bundleName = bom.variantName || product.variant || product.name;
+                const order = await posCustomBundleApi.addDraftBundleItem({
+                    orderId: draftOrder?.id ?? null,
+                    requestId: crypto.randomUUID(),
+                    branchId: currentBranchId,
+                    customerId: selectedCustomerId,
+                    bundleName,
+                    boms: [
+                        {
+                            variantId,
+                            bomSku: bom.sku || product.sku,
+                            bomName: bundleName,
+                            lines: bomLines
+                        }
+                    ]
+                });
+                applyDraftOrder(order);
+                setCheckoutError("");
+                setCheckoutSuccess("");
+                void refreshBackorderEstimate(order);
+                return true;
+            }
+
             const waitAccepted = !requireAvailable &&
                 (allowBackorder || backorderVariantIdsRef.current.has(variantId));
 
@@ -2363,11 +2355,28 @@ export function PosSalePage() {
                           customerId,
                           bundleName: line.variant || undefined,
                           note: line.note,
-                          lines: line.bundle.components.map((component) => ({
-                              ingredientId: component.ingredientId,
-                              ingredientName: component.ingredientName,
-                              quantity: component.quantity
-                          }))
+                          boms: line.bundle.boms?.length
+                              ? line.bundle.boms
+                                  .filter((bom) => Boolean(bom.sourceVariantId))
+                                  .map((bom) => ({
+                                      variantId: bom.sourceVariantId!,
+                                      bomSku: bom.bomSku ?? undefined,
+                                      bomName: bom.bomName,
+                                      note: bom.note ?? undefined,
+                                      lines: bom.components.map((component) => ({
+                                          ingredientId: component.ingredientId,
+                                          ingredientName: component.ingredientName,
+                                          quantity: component.quantity
+                                      }))
+                                  }))
+                              : undefined,
+                          lines: line.bundle.boms?.length
+                              ? undefined
+                              : line.bundle.components.map((component) => ({
+                                    ingredientId: component.ingredientId,
+                                    ingredientName: component.ingredientName,
+                                    quantity: component.quantity
+                                }))
                       })
                     : await posOrderApi.addDraftItem({
                           orderId,
@@ -3006,10 +3015,7 @@ export function PosSalePage() {
     ]);
 
     const recommendationContext = `${saleOwnerId ?? "signed-out"}:${invoiceTabs.activeId}:${selectedCustomerId ?? "guest"}:${recommendationGeneration}:DISCOVERY:${orderType}`;
-    const bomBranchId = getUuid(currentBranchId) ?? null;
-    const bomContext = JSON.stringify([recommendationContext, bomBranchId, draftOrder?.id ?? null]);
-    const bomContextRef = useRef(bomContext);
-    useLayoutEffect(() => { bomContextRef.current = bomContext; }, [bomContext]);
+    const currentBranchUuid = getUuid(currentBranchId) ?? null;
     const tasteSurveyScope = `${saleOwnerId ?? "signed-out"}:${invoiceTabs.activeId}`;
     const customerLocked = addingProductId !== null || closingInvoice || quantityUpdating
         || customBundleSubmitting || unitSwitchSubmitting || checkoutLoading || Boolean(bankTransferPayment);
@@ -3022,8 +3028,11 @@ export function PosSalePage() {
         <ProductRecommendationLauncher key={recommendationContext}
             customerId={selectedCustomerId} disabled={customerLocked || !online}
             guestSurveyScope={tasteSurveyScope}
-            branchId={bomBranchId}
-            onSelectBom={addRecommendedBomBundle}
+            branchId={currentBranchUuid}
+            customBundleSubmitting={customBundleSubmitting}
+            customBundleError={customBundleError}
+            onClearCustomBundleError={() => setCustomBundleError("")}
+            onAddCustomBundle={addCustomBundle}
             onAdd={async (product) => {
                 if (recommendationVersion.current !== recommendationGeneration
                     || activeInvoiceIdRef.current !== invoiceTabs.activeId) return false;
@@ -3192,7 +3201,8 @@ export function PosSalePage() {
             />
             {customBundleOpen ? (
                 <CustomBundleDialog
-                    branchId={currentBranchId}
+                    branchId={currentBranchUuid}
+                    customerId={selectedCustomerId}
                     submitLoading={customBundleSubmitting}
                     submitError={customBundleError}
                     onClose={() => {

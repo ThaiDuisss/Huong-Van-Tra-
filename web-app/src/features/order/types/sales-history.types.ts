@@ -80,6 +80,7 @@ export interface SalesHistoryOrder {
 }
 
 export interface SalesOrderItemDetail {
+    id?: string;
     productName?: string | null;
     productNameSnapshot?: string | null;
     variantName?: string | null;
@@ -92,6 +93,32 @@ export interface SalesOrderItemDetail {
     actualUnitPrice?: number | string | null;
     price?: number | string | null;
     lineTotal?: number | string | null;
+    note?: string | null;
+    itemType?: "PRODUCT" | "CUSTOM_BUNDLE" | string | null;
+    packingStatus?: string | null;
+    packingCode?: string | null;
+    components?: Array<{
+        ingredientId: string;
+        ingredientName: string;
+        unit?: string | null;
+        quantity: number | string;
+        lineTotal?: number | string | null;
+    }>;
+    bundleBoms?: Array<{
+        id?: string;
+        sourceVariantId?: string;
+        bomSku?: string | null;
+        bomName: string;
+        note?: string | null;
+        estimatedPrice?: number | string | null;
+        components?: Array<{
+            ingredientId: string;
+            ingredientName: string;
+            unit?: string | null;
+            quantity: number | string;
+            lineTotal?: number | string | null;
+        }>;
+    }>;
 }
 
 export interface SalesOrderDetail {

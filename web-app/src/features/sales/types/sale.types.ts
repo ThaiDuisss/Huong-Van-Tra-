@@ -31,6 +31,7 @@ export interface SaleProductPreview {
   warehouseLocationId?: string | null;
   quantityOnHand?: number | null;
   quantityReserved?: number | null;
+  productType?: "FINISHED_PRODUCT" | "CUSTOMER" | string | null;
 }
 
 export interface SaleCartItem {
@@ -61,8 +62,19 @@ export interface SaleBundleComponent {
   lineTotal: number;
 }
 
+export interface SaleBundleBom {
+  id?: string;
+  sourceVariantId?: string;
+  bomSku?: string | null;
+  bomName: string;
+  note?: string | null;
+  estimatedPrice?: number;
+  components: SaleBundleComponent[];
+}
+
 export interface SaleBundleInfo {
   components: SaleBundleComponent[];
+  boms?: SaleBundleBom[];
   packingStatus?: string | null;
   packingCode?: string | null;
 }

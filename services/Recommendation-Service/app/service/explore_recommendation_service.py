@@ -1,4 +1,5 @@
 from collections import defaultdict
+from contextvars import copy_context
 from dataclasses import dataclass
 from datetime import datetime, timezone
 import logging
@@ -29,7 +30,10 @@ from app.schemas.explore_recommendation import (
     PersonalizedRecommendationResponse,
 )
 from app.schemas.recommendation import RecommendationItem
-from app.service.level2_availability import AvailabilityUnavailable, Level2Availability, variants_by_product
+from app.service.level2_availability import (
+    AvailabilityUnavailable, Level2Availability, fetch_available_variant_ids, variants_by_product,
+)
+from app.service.level2_serving_inputs import Level2ServingInputs
 from app.service.personalized_taste_features import PersonalizedTasteFeatures, TasteFeatureBatch
 
 MIN_EXPLORE_VALID_ORDERS = MIN_VALID_ORDERS
@@ -182,6 +186,7 @@ class PersonalizedRecommendationService:
                  taste_features: PersonalizedTasteFeatures | None = None,
                  taste_reranker: TasteReranker | None = None,
                  availability: Level2Availability | None = None,
+                 serving_inputs: Level2ServingInputs | None = None,
                  ranker: Callable[[CandidateFeatures, int], list[BehavioralCandidate]] = rank_by_behavior) -> None:
         self.artifact_store = artifact_store
         self.history_repository = history_repository or ExploreHistoryRepository()
@@ -189,12 +194,15 @@ class PersonalizedRecommendationService:
         self.taste_features = taste_features
         self.taste_reranker = taste_reranker or TasteReranker()
         self.availability = availability
+        self.serving_inputs = serving_inputs
         self.ranker = ranker
 
     def _recommend(self, db: Session, customer_id: str, limit: int,
                    response_model: type[ResponseT], *, familiar: bool) -> ResponseT:
         as_of = datetime.now(timezone.utc)
-        history = self.history_repository.history(db, customer_id, as_of.replace(tzinfo=None))
+        cutoff = as_of.replace(tzinfo=None)
+        history = (self.serving_inputs.product_history(self.history_repository, db, customer_id, cutoff)
+                   if self.serving_inputs else self.history_repository.history(db, customer_id, cutoff))
         if history.valid_order_count < MIN_EXPLORE_VALID_ORDERS:
             return response_model(
                 customer_id=customer_id, status="INSUFFICIENT_VALID_ORDERS",
@@ -209,16 +217,20 @@ class PersonalizedRecommendationService:
     def _load_catalog_and_mirror(
         self, db: Session
     ) -> tuple[tuple[CatalogProduct, ...], dict[str, str], bool]:
-        db_products = self.catalog_repository.active_catalog(db)
+        db_products = (self.serving_inputs.product_mirror(db, self.catalog_repository)
+                       if self.serving_inputs else self.catalog_repository.active_catalog(db))
         ingredients_by_id = {p.product_id: p.ingredient_codes for p in db_products if p.ingredient_codes}
         if (type(self.catalog_repository) is V1RecommendationRepository
                 and type(self.availability) is Level2Availability):
             try:
                 settings = self.availability.settings
-                with CatalogClient(settings.catalog_service_url,
-                                   timeout=settings.level2_stock_timeout_seconds) as client:
-                    live_products = client.get_products()
-                    live_variants = client.get_product_variants(sellable_only=True)
+                if self.serving_inputs:
+                    live_products, live_variants = self.serving_inputs.product_market()
+                else:
+                    with CatalogClient(settings.catalog_service_url,
+                                       timeout=settings.level2_stock_timeout_seconds) as client:
+                        live_products = client.get_products()
+                        live_variants = client.get_product_variants(sellable_only=True)
                 products = tuple(
                     CatalogProduct(
                         product_id=p.id,
@@ -227,7 +239,10 @@ class PersonalizedRecommendationService:
                         category_code=p.category.categoryCode,
                         ingredient_codes=ingredients_by_id.get(p.id, ()),
                     )
-                    for p in live_products if p.status == "ACTIVE"
+                    for p in live_products
+                    if p.status == "ACTIVE"
+                    and (p.category.categoryCode or "").upper() != "CUSTOMER-BUNDLE"
+                    and not (p.variants and all((v.productType or "").upper() == "CUSTOMER" for v in p.variants))
                 )
                 active_ids = {p.product_id for p in products}
                 mirror = {
@@ -235,6 +250,8 @@ class PersonalizedRecommendationService:
                     for v in live_variants
                     if (v.productId in active_ids and v.status == "ACTIVE"
                         and v.sellable is True and v.sku != "CUSTOM-BUNDLE"
+                        and (v.productType or "").upper() != "CUSTOMER"
+                        and v.sellingPrice.is_finite() and v.sellingPrice >= 0
                         and (v.productStatus is None or v.productStatus == "ACTIVE"))
                 }
                 return products, mirror, True
@@ -250,17 +267,34 @@ class PersonalizedRecommendationService:
         metadata_ids = eligible_products(mode, set(mirror.values()), history) & catalog_by_id.keys()
         if not metadata_ids:
             return ExploreProducts(status="NO_CANDIDATES")
+        taste_pending = None
+        if self.serving_inputs and self.taste_features:
+            taste_pending = self.serving_inputs.io.submit(
+                copy_context().run, self.taste_features.prepare, customer_id, as_of, metadata_ids,
+            )
         try:
             if self.availability is None:
                 raise AvailabilityUnavailable("INVENTORY_NOT_CONFIGURED")
-            available = variants_by_product(self.availability.available_variants({
+            scoped_variants = {
                 variant: product for variant, product in mirror.items() if product in metadata_ids
-            }))
+            }
+            if live_catalog and self.serving_inputs and type(self.availability) is Level2Availability:
+                active = (
+                    self.serving_inputs.available_variant_ids(mirror.keys(), self.availability.settings)
+                    & scoped_variants.keys()
+                )
+                available = variants_by_product({variant: scoped_variants[variant] for variant in active})
+            else:
+                available = variants_by_product(self.availability.available_variants(scoped_variants))
         except AvailabilityUnavailable:
+            if taste_pending is not None:
+                taste_pending.cancel()
             return ExploreProducts(status="AVAILABILITY_UNAVAILABLE")
         candidate_ids = eligible_products(mode, set(available), history)
         candidates = {pid: catalog_by_id[pid] for pid in candidate_ids if pid in catalog_by_id}
         if not candidates:
+            if taste_pending is not None:
+                taste_pending.cancel()
             return ExploreProducts(status="NO_CANDIDATES")
 
         artifact = None
@@ -281,8 +315,11 @@ class PersonalizedRecommendationService:
             has_signal = False
 
         try:
-            taste = (self.taste_features.prepare(customer_id, as_of, set(candidates))
-                     if self.taste_features else TasteFeatureBatch("NOT_CONFIGURED"))
+            if taste_pending is not None:
+                taste = taste_pending.result().for_products(set(candidates))
+            else:
+                taste = (self.taste_features.prepare(customer_id, as_of, set(candidates))
+                         if self.taste_features else TasteFeatureBatch("NOT_CONFIGURED"))
         except (SQLAlchemyError, RuntimeError, ValueError):
             taste = TasteFeatureBatch("CATALOG_UNAVAILABLE")
 
@@ -328,7 +365,14 @@ class PersonalizedRecommendationService:
             )
             ranked = self.ranker(features, top_k)
         else:
-            popularity = _popularity_map(db, set(candidates))
+            if self.serving_inputs is not None:
+                try:
+                    totals = self.serving_inputs.popularity_totals(db)
+                    popularity = normalize_scores({pid: totals[pid] for pid in candidates if pid in totals})
+                except SQLAlchemyError:
+                    popularity = {}
+            else:
+                popularity = _popularity_map(db, set(candidates))
             baseline = _baseline_scores(
                 mode=mode, catalog_by_id=catalog_by_id, candidates=candidates,
                 history=history, rows=rows_by_id, taste=taste, popularity=popularity,

@@ -26,6 +26,7 @@ public record PosProductVariantResponse(
         /** Số còn trong kho (WAREHOUSE / STORAGE). */
         BigDecimal warehouseQuantity,
         UUID shelfLocationId,
-        UUID warehouseLocationId
+        UUID warehouseLocationId,
+        String productType
 ) {
 }

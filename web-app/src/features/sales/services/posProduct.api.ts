@@ -38,6 +38,24 @@ export interface PosVariantResponse {
     warehouseQuantity?: number | string | null;
     shelfLocationId?: string | null;
     warehouseLocationId?: string | null;
+    productType?: string | null;
+}
+
+export interface PosCustomerBundleBomLine {
+    ingredientId: string;
+    ingredientCode?: string | null;
+    ingredientName?: string | null;
+    unitSymbol?: string | null;
+    quantity: number | string;
+}
+
+export interface PosCustomerBundleBomResponse {
+    variantId: string;
+    sku: string;
+    productName: string;
+    variantName: string;
+    productType: string;
+    lines: PosCustomerBundleBomLine[];
 }
 
 function toNumber(value: number | string | null | undefined) {
@@ -101,7 +119,8 @@ function mapPosVariantToSaleProduct(
         quantityOnHand: toNumber(variant.quantityOnHand),
         quantityReserved: toNumber(
             variant.reservedQuantity ?? variant.quantityReserved
-        )
+        ),
+        productType: variant.productType ?? "FINISHED_PRODUCT"
     };
 }
 
@@ -206,5 +225,11 @@ export const posProductApi = {
 
         if (!isVariantResponse(variant)) throw invalidVariantResponse();
         return mapPosVariantToSaleProduct(variant);
+    },
+
+    getCustomerBundleBom(variantId: string) {
+        return apiClient.get<PosCustomerBundleBomResponse>(
+            `/pos/products/${encodeURIComponent(variantId)}/bundle-bom`
+        );
     }
 };

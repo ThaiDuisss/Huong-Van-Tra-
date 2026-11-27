@@ -53,6 +53,8 @@ export interface AiReportImportOperation {
     onCompletedUpload?: (recovery: AiReportRecovery) => void): Promise<AiReport>;
 }
 
+export type AiBusinessReportType = "PRODUCT" | "INGREDIENT";
+
 export interface AiBusinessExport {
   id: string;
   fileId: string;
@@ -61,22 +63,16 @@ export interface AiBusinessExport {
   toDate: string;
   generatedAt: string;
   sha256: string;
-  reportType?: "PRODUCT" | "CUSTOM_BOM";
-  sourceKind?: "SYNTHETIC";
-  researchOnly?: boolean;
-  productionApproved?: boolean;
+  reportType?: AiBusinessReportType;
+  sourceKind?: "SYNTHETIC" | "OPERATIONAL";
+  dataStatus?: "OK" | "NO_DATA";
   createdBy?: string;
   status?: "COMPLETE";
-  provenance?: {
-    kind: string; dataset_id: string; dataset_sha256: string; model_sha256: string; model_version: string;
-    model_fingerprint: string; source_kind: string; research_only: boolean; production_approved: boolean;
-    protocol: {name: string; mode: string; policy: string; top_k: number; as_of: string; label_end_exclusive: string};
-  };
 }
 
 export interface AiBusinessExportInput {
   fromDate: string;
   toDate: string;
   requestId: string;
-  reportType?: "PRODUCT" | "CUSTOM_BOM";
+  reportType?: AiBusinessReportType;
 }
