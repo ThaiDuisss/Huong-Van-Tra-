@@ -14,6 +14,7 @@ import org.hvtra.iventoryservice.domain.enums.CustomerReturnQcResult;
 import org.hvtra.iventoryservice.domain.enums.DisposalRequestStatus;
 import org.hvtra.iventoryservice.domain.enums.InventoryTransactionType;
 import org.hvtra.iventoryservice.movement.repository.InventoryTransactionRepository;
+import org.hvtra.iventoryservice.stock.repository.InventoryBalanceRepository;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -46,6 +47,7 @@ class DisposalApprovalCompatibilityTest {
     @Mock private DisposalRequestRepository requestRepository;
     @Mock private CustomerReturnInspectionRepository inspectionRepository;
     @Mock private InventoryTransactionRepository transactionRepository;
+    @Mock private InventoryBalanceRepository balanceRepository;
     @Mock private CustomerReturnInspectionService inspectionService;
 
     private DisposalRequestServiceImpl service;
@@ -58,7 +60,7 @@ class DisposalApprovalCompatibilityTest {
         actorId = UUID.randomUUID();
         authenticate("SUPER_ADMIN");
         service = new DisposalRequestServiceImpl(
-                requestRepository, inspectionRepository, transactionRepository, inspectionService);
+                requestRepository, inspectionRepository, transactionRepository, balanceRepository, inspectionService);
         inspection = new CustomerReturnInspection();
         inspection.setId(UUID.randomUUID());
         InventoryItem item = new InventoryItem();
@@ -122,7 +124,7 @@ class DisposalApprovalCompatibilityTest {
     void qcUsesCustomerReturnPostingInsteadOfLegacyApprovalEndpoint() {
         authenticate("QC");
         assertThatThrownBy(() -> service.approveRequest(request.getId())).isInstanceOf(AccessDeniedException.class);
-        verifyNoInteractions(requestRepository, inspectionRepository, transactionRepository, inspectionService);
+        verifyNoInteractions(requestRepository, inspectionRepository, transactionRepository, balanceRepository, inspectionService);
     }
 
     private void stubLocks() {

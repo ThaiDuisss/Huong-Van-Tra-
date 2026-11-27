@@ -48,7 +48,8 @@ public interface DisposalRequestRepository
             left join fetch request.lines lines
             left join fetch lines.inventoryItem
             where inspection.id = :inspectionId
+              and request.sourceType = 'CUSTOMER_RETURN_INSPECTION'
               and request.isDeleted = false
             """)
-    Optional<DisposalRequest> findBySourceInspectionId(@Param("inspectionId") UUID inspectionId);
+    Optional<DisposalRequest> findLegacyWriteOffBySourceInspectionId(@Param("inspectionId") UUID inspectionId);
 }

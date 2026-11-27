@@ -7,9 +7,23 @@ import type {
 } from "../types/inventory.types";
 import type { DisposalRequest } from "../types/quality.types";
 
+export const DAMAGED_RETURN_DISPOSAL_SOURCE = "CUSTOMER_RETURN_DAMAGED";
+
+/** Phiếu tiêu hủy cũ cho dòng QC WRITE_OFF: tự hoàn tất khi QC xác nhận phiếu kiểm định. */
 export function isCustomerReturnDisposal(request: DisposalRequest | null | undefined): boolean {
     return request?.sourceType === "CUSTOMER_RETURN_INSPECTION"
         || (!request?.sourceType && Boolean(request?.sourceInspectionId));
+}
+
+/** Phiếu tiêu hủy hàng lỗi (DAMAGED) khách trả: quản lý phê duyệt để xuất hủy khỏi vị trí hàng lỗi. */
+export function isDamagedReturnDisposal(request: DisposalRequest | null | undefined): boolean {
+    return request?.sourceType === DAMAGED_RETURN_DISPOSAL_SOURCE;
+}
+
+export function disposalSourceLabel(request: DisposalRequest | null | undefined): string {
+    if (isDamagedReturnDisposal(request)) return "Hàng lỗi khách trả";
+    if (isCustomerReturnDisposal(request)) return "Khách trả hàng";
+    return "Hàng hỏng / hết hạn";
 }
 
 export const locationTypeLabels: Record<InventoryLocationType, string> = {

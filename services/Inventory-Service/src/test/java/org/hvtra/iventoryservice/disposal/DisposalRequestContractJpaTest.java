@@ -67,7 +67,7 @@ class DisposalRequestContractJpaTest {
         }
         entityManager.clear();
 
-        DisposalRequestServiceImpl service = new DisposalRequestServiceImpl(repository, null, null, null);
+        DisposalRequestServiceImpl service = new DisposalRequestServiceImpl(repository, null, null, null, null);
         assertEquals(List.of("DSP-P01"), codes(service.listRequests(
                 "DSP-P01", null, null, null, PageRequest.of(0, 10))));
         assertEquals(List.of("DSP-P01"), codes(service.listRequests(
