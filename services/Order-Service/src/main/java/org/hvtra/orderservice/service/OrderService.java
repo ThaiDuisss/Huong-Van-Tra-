@@ -42,6 +42,8 @@ public interface OrderService {
             int page,
             int size
     );
+    /** Lịch sử mua hàng của một khách: các đơn đã chốt (bỏ đơn nháp), mới nhất trước. */
+    Page<OrderSummaryResponse> getOrdersByCustomer(UUID customerId, int page, int size);
     Page<TodaySalesItemResponse> getTodaySales(
             OrderStatus status,
             PaymentStatus paymentStatus,

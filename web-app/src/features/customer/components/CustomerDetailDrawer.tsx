@@ -7,6 +7,7 @@ import {
     RefreshCw,
     ShieldCheck,
     ShieldOff,
+    ShoppingBag,
     SlidersHorizontal,
     Trash2,
     TrendingUp,
@@ -41,6 +42,14 @@ import {
     TableHeaderCell,
     TableRow
 } from "../../../components/ui/Table";
+import { OrderStatusBadge } from "../../order/components/OrderStatusBadge";
+import { PaymentStatusBadge } from "../../order/components/PaymentStatusBadge";
+import { getOrdersByCustomer } from "../../order/services/order.api";
+import type {
+    OrderPageResponse,
+    OrderSummaryResponse
+} from "../../order/types/order.types";
+import { formatCurrency as formatOrderAmount } from "../../order/utils/order-formatters";
 import {
     CUSTOMER_STATUS_LABELS,
     CUSTOMER_STATUS_TONES
@@ -58,7 +67,7 @@ import {
     customerStatusActionLabel
 } from "../utils/customer-list.utils";
 
-type DetailTab = "progress" | "points";
+type DetailTab = "progress" | "points" | "orders";
 
 interface Props {
     customer: CustomerResponse | null;
@@ -79,10 +88,12 @@ const DETAIL_TABS: Array<{
     label: string;
 }> = [
     { id: "progress", icon: TrendingUp, label: "Hạng & điểm" },
-    { id: "points", icon: Coins, label: "Lịch sử điểm" }
+    { id: "points", icon: Coins, label: "Lịch sử điểm" },
+    { id: "orders", icon: ShoppingBag, label: "Lịch sử mua hàng" }
 ];
 
 const POINT_PAGE_SIZE = 10;
+const ORDER_PAGE_SIZE = 10;
 
 export function CustomerDetailDrawer({
     customer,
@@ -102,6 +113,11 @@ export function CustomerDetailDrawer({
     const [transactionPage, setTransactionPage] = useState(0);
     const [pointsLoading, setPointsLoading] = useState(false);
     const [pointsError, setPointsError] = useState("");
+    const [orders, setOrders] =
+        useState<OrderPageResponse<OrderSummaryResponse> | null>(null);
+    const [orderPage, setOrderPage] = useState(0);
+    const [ordersLoading, setOrdersLoading] = useState(false);
+    const [ordersError, setOrdersError] = useState("");
     // Số dư sau lần điều chỉnh gần nhất, để không phải tải lại cả hồ sơ khách.
     const [balanceOverride, setBalanceOverride] =
         useState<{ customerId: string; balance: number } | null>(null);
@@ -141,6 +157,24 @@ export function CustomerDetailDrawer({
             setPointsError(customerErrorMessage(loadError));
         } finally {
             setPointsLoading(false);
+        }
+    }
+
+    // Chỉ tải lịch sử mua hàng khi người dùng mở tab, tránh gọi order-service mỗi lần xem chi tiết.
+    useEffect(() => {
+        if (!open || !customerId || activeTab !== "orders") return;
+        void loadOrders(customerId, orderPage);
+    }, [activeTab, customerId, open, orderPage]);
+
+    async function loadOrders(customerId: string, page: number) {
+        setOrdersLoading(true);
+        setOrdersError("");
+        try {
+            setOrders(await getOrdersByCustomer(customerId, page, ORDER_PAGE_SIZE));
+        } catch (loadError) {
+            setOrdersError(customerErrorMessage(loadError));
+        } finally {
+            setOrdersLoading(false);
         }
     }
 
@@ -280,6 +314,19 @@ export function CustomerDetailDrawer({
                                         transactions={transactions}
                                         onPageChange={setTransactionPage}
                                         onRefresh={() => void loadPointTransactions(customer.id, transactionPage)}
+                                    />
+                                )}
+
+                                {activeTab === "orders" && (
+                                    <OrdersTab
+                                        error={ordersError}
+                                        loading={ordersLoading}
+                                        orders={orders}
+                                        page={orderPage}
+                                        totalOrderCount={customer.totalOrderCount ?? 0}
+                                        totalSpent={customer.totalSpent}
+                                        onPageChange={setOrderPage}
+                                        onRefresh={() => void loadOrders(customer.id, orderPage)}
                                     />
                                 )}
                             </div>
@@ -675,6 +722,134 @@ function PointsTab({
                 pageSize={transactions?.size ?? POINT_PAGE_SIZE}
                 totalItems={transactions?.totalElements ?? 0}
                 totalPages={transactions?.totalPages ?? 1}
+            />
+        </section>
+    );
+}
+
+function OrdersTab({
+    error,
+    loading,
+    orders,
+    page,
+    totalOrderCount,
+    totalSpent,
+    onPageChange,
+    onRefresh
+}: {
+    error: string;
+    loading: boolean;
+    orders: OrderPageResponse<OrderSummaryResponse> | null;
+    page: number;
+    totalOrderCount: number;
+    totalSpent: number;
+    onPageChange: (page: number) => void;
+    onRefresh: () => void;
+}) {
+    const rows = orders?.content ?? [];
+
+    return (
+        <section className="overflow-hidden rounded-xl border border-[#e0e8e4] bg-white">
+            <div className="flex min-h-14 flex-wrap items-center justify-between gap-3 border-b border-[#eef2f0] px-4 py-2.5">
+                <div>
+                    <SectionTitle title="Lịch sử mua hàng" />
+                    <p className="mt-0.5 text-xs font-bold text-[#718078]">
+                        {totalOrderCount.toLocaleString("vi-VN")} đơn · Tổng chi tiêu{" "}
+                        {formatCurrency(totalSpent)}
+                    </p>
+                </div>
+                <Button disabled={loading} onClick={onRefresh} size="sm">
+                    <RefreshCw size={14} aria-hidden="true" />
+                    Làm mới
+                </Button>
+            </div>
+
+            {error ? (
+                <div className="m-4 rounded-lg border border-[#f1c8c1] bg-[#fff5f3] p-3 text-sm font-bold text-[#a43a2a]">
+                    {error}
+                </div>
+            ) : loading && !orders ? (
+                <TransactionSkeleton />
+            ) : rows.length === 0 ? (
+                <div className="p-4">
+                    <EmptyPanel message="Khách hàng chưa có đơn hàng nào." />
+                </div>
+            ) : (
+                <>
+                    <div className="overflow-auto max-md:hidden">
+                        <Table className="min-w-[860px]">
+                            <TableHead>
+                                <TableRow>
+                                    <TableHeaderCell>Mã đơn</TableHeaderCell>
+                                    <TableHeaderCell>Thời gian</TableHeaderCell>
+                                    <TableHeaderCell>Loại đơn</TableHeaderCell>
+                                    <TableHeaderCell>Trạng thái</TableHeaderCell>
+                                    <TableHeaderCell>Thanh toán</TableHeaderCell>
+                                    <TableHeaderCell>Thu ngân</TableHeaderCell>
+                                    <TableHeaderCell className="text-right">Tổng tiền</TableHeaderCell>
+                                </TableRow>
+                            </TableHead>
+                            <tbody>
+                                {rows.map((order) => (
+                                    <TableRow key={order.id}>
+                                        <TableCell>
+                                            <span className="font-black text-[#172317]">
+                                                {order.orderCode ?? "—"}
+                                            </span>
+                                        </TableCell>
+                                        <TableCell>{formatDateTime(order.createdAt ?? null)}</TableCell>
+                                        <TableCell>{order.orderTypeLabel || "—"}</TableCell>
+                                        <TableCell>
+                                            <OrderStatusBadge
+                                                label={order.statusLabel}
+                                                status={order.status}
+                                            />
+                                        </TableCell>
+                                        <TableCell>
+                                            <PaymentStatusBadge
+                                                label={order.paymentStatusLabel}
+                                                status={order.paymentStatus}
+                                            />
+                                        </TableCell>
+                                        <TableCell>
+                                            {order.cashierName || order.createdByName || "—"}
+                                        </TableCell>
+                                        <TableCell className="text-right">
+                                            <strong className="font-black text-[#172317]">
+                                                {formatOrderAmount(order.finalAmount)}
+                                            </strong>
+                                        </TableCell>
+                                    </TableRow>
+                                ))}
+                            </tbody>
+                        </Table>
+                    </div>
+                    <div className="grid gap-2 p-3 md:hidden">
+                        {rows.map((order) => (
+                            <CompactRecord
+                                key={order.id}
+                                meta={[
+                                    formatDateTime(order.createdAt ?? null),
+                                    order.statusLabel,
+                                    order.paymentStatusLabel
+                                ]
+                                    .filter(Boolean)
+                                    .join(" · ")}
+                                title={order.orderCode ?? "—"}
+                                value={formatOrderAmount(order.finalAmount)}
+                            />
+                        ))}
+                    </div>
+                </>
+            )}
+
+            <TablePagination
+                itemLabel="đơn hàng"
+                onPageChange={onPageChange}
+                page={orders?.number ?? page}
+                pageSize={orders?.size ?? ORDER_PAGE_SIZE}
+                totalItems={orders?.totalElements ?? 0}
+                totalPages={orders?.totalPages ?? 1}
             />
         </section>
     );
