@@ -36,6 +36,7 @@ import type {
 } from "../types/customer-return-inspection.types";
 import { createCustomerReturnQcDraft, getCustomerReturnQcError } from "../utils/customer-return-qc";
 import { CustomerReturnInspectionCard } from "./CustomerReturnInspectionCard";
+import { DamagedReturnDisposalPanel } from "./DamagedReturnDisposalPanel";
 import { InspectionStatusBadge } from "./CustomerReturnInspectionComponents";
 import styles from "./CustomerReturnWarehouseInspectionModal.module.css";
 
@@ -439,6 +440,12 @@ export function CustomerReturnWarehouseInspectionModal({
                             />;
                         })}
                     </div>}
+
+                    {inspection && !editingPreparation && !pending && <DamagedReturnDisposalPanel
+                        canRequest={canDisposition}
+                        inspection={inspection}
+                        onCreated={() => setRefreshKey((value) => value + 1)}
+                    />}
                 </div>
                 <footer className={styles.modalFooter}>
                     <div className="ml-auto flex gap-2">

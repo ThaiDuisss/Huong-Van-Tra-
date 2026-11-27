@@ -12,7 +12,7 @@ import { DisposalStatusBadge } from "../components/QualityComponents";
 import { qualityApi } from "../services/quality.api";
 import type { DisposalRequest } from "../types/quality.types";
 import { formatVietnamDateTime, formatVietnamNumber } from "../utils/inventory-format";
-import { isCustomerReturnDisposal } from "../utils/inventory-labels";
+import { disposalSourceLabel, isCustomerReturnDisposal, isDamagedReturnDisposal } from "../utils/inventory-labels";
 import { ROLES } from "../../../auth/roles";
 
 export function DisposalDetailPage() {
@@ -70,6 +70,7 @@ export function DisposalDetailPage() {
         [disposal]
     );
     const isCustomerReturn = isCustomerReturnDisposal(disposal);
+    const isDamagedReturn = isDamagedReturnDisposal(disposal);
 
     if (!disposalId) return <Navigate replace to="/management/inventory/disposals" />;
 
@@ -82,7 +83,9 @@ export function DisposalDetailPage() {
             const updated = await qualityApi.approveDisposalRequest({ disposalId: disposal.id });
             setDisposal(updated);
             setConfirmOpen(false);
-            setSuccess("Đã phê duyệt yêu cầu tiêu hủy.");
+            setSuccess(isDamagedReturn
+                ? "Đã phê duyệt và xuất hủy hàng lỗi khỏi kho."
+                : "Đã phê duyệt yêu cầu tiêu hủy.");
         } catch (approveError) {
             setError(approveError instanceof Error ? approveError.message : "Không thể phê duyệt yêu cầu tiêu hủy.");
         } finally {
@@ -111,7 +114,7 @@ export function DisposalDetailPage() {
                     </div>
                     {disposal ? (
                         <p className="text-sm font-semibold text-[#697684]">
-                            {isCustomerReturn ? "Nguồn: Khách trả hàng" : "Nguồn: Hàng hỏng / hết hạn"} · Tạo lúc {formatVietnamDateTime(disposal.requestedAt)}
+                            Nguồn: {disposalSourceLabel(disposal)} · Tạo lúc {formatVietnamDateTime(disposal.requestedAt)}
                         </p>
                     ) : null}
                 </div>
@@ -205,6 +208,9 @@ export function DisposalDetailPage() {
                             ) : null}
                         </SideCard>
                         <SideCard title="Tham chiếu">
+                            {isDamagedReturn ? (
+                                <SideRow label="Vị trí hàng lỗi">{disposal.location.name}</SideRow>
+                            ) : null}
                             <SideRow label="Phiếu trả">
                                 {returnLink ? <Link className="font-black text-[#159734] hover:underline" to={returnLink}>{disposal.returnCode}</Link> : "–"}
                             </SideRow>
@@ -221,7 +227,9 @@ export function DisposalDetailPage() {
                                     : isCustomerReturn
                                         ? "QC hoặc quản lý xác nhận xử lý trên phiếu kiểm định; yêu cầu sẽ tự hoàn tất."
                                         : canApprove
-                                            ? "Kiểm tra hàng tiêu hủy rồi bấm Phê duyệt để ghi nhận xuất hủy."
+                                            ? isDamagedReturn
+                                                ? "Phê duyệt sẽ trừ tồn hàng lỗi tại vị trí hàng lỗi và ghi nhận xuất hủy."
+                                                : "Kiểm tra hàng tiêu hủy rồi bấm Phê duyệt để ghi nhận xuất hủy."
                                             : "Yêu cầu đang chờ quản lý chi nhánh hoặc quản lý kho phê duyệt."}
                             </p>
                         </SideCard>
@@ -232,7 +240,9 @@ export function DisposalDetailPage() {
             {confirmOpen && disposal && !isCustomerReturn ? (
                 <ConfirmDialog
                     confirmLabel="Xác nhận phê duyệt"
-                    description={`Bạn xác nhận phê duyệt yêu cầu tiêu hủy ${disposal.code}?`}
+                    description={isDamagedReturn
+                        ? `Phê duyệt ${disposal.code} sẽ trừ ${formatVietnamNumber(totalQuantity)} sản phẩm hàng lỗi khỏi tồn kho. Thao tác không thể hoàn tác.`
+                        : `Bạn xác nhận phê duyệt yêu cầu tiêu hủy ${disposal.code}?`}
                     error={error}
                     onCancel={() => setConfirmOpen(false)}
                     onConfirm={() => void approve()}

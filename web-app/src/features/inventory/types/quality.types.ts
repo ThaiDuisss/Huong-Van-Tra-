@@ -177,6 +177,13 @@ export interface DisposalRequest {
     auditEvents: InventoryAuditEvent[];
 }
 
+export interface DamagedReturnDisposalCreateInput {
+    inspectionId: string;
+    /** Bỏ trống để tạo cho mọi dòng hàng lỗi chưa có phiếu tiêu hủy. */
+    lineIds?: string[];
+    note?: string;
+}
+
 export interface DisposalListQuery {
     fromDate?: string;
     toDate?: string;
@@ -246,6 +253,7 @@ export interface QualityApi {
     getDisposalStatusCounts(keyword?: string, fromDate?: string, toDate?: string): Promise<DisposalStatusCounts>;
     getDisposalRequest(disposalId: string): Promise<DisposalRequest>;
     approveDisposalRequest(input: DisposalActionInput): Promise<DisposalRequest>;
+    createDamagedReturnDisposal(input: DamagedReturnDisposalCreateInput): Promise<DisposalRequest>;
     rejectDisposalRequest(input: DisposalActionInput): Promise<DisposalRequest>;
     completeDisposalRequest(input: DisposalCompleteInput): Promise<DisposalRequest>;
 }

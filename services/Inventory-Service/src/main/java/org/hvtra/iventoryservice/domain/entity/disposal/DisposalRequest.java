@@ -8,8 +8,8 @@ import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.Index;
 import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
-import jakarta.persistence.OneToOne;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
 import lombok.Getter;
@@ -28,10 +28,10 @@ import java.util.UUID;
 @Table(
         name = "disposal_requests",
         uniqueConstraints = {
-                @UniqueConstraint(name = "uq_disposal_request_code", columnNames = "request_code"),
-                @UniqueConstraint(name = "uq_disposal_source_inspection", columnNames = "source_inspection_id")
+                @UniqueConstraint(name = "uq_disposal_request_code", columnNames = "request_code")
         },
         indexes = {
+                @Index(name = "idx_disposal_requests_source_inspection", columnList = "source_inspection_id"),
                 @Index(name = "idx_disposal_requests_status", columnList = "status"),
                 @Index(name = "idx_disposal_requests_return", columnList = "return_id"),
                 @Index(name = "idx_disposal_requests_created_at", columnList = "created_at")
@@ -41,14 +41,19 @@ import java.util.UUID;
 @Setter
 public class DisposalRequest extends BaseEntity {
 
+    /** Phiếu cũ: dòng QC WRITE_OFF chờ duyệt (đóng tự động khi QC xác nhận). */
+    public static final String SOURCE_RETURN_WRITE_OFF = "CUSTOMER_RETURN_INSPECTION";
+    /** Tiêu hủy hàng lỗi DAMAGED đã nhập vị trí hàng lỗi từ phiếu QC hoàn hàng. */
+    public static final String SOURCE_RETURN_DAMAGED = "CUSTOMER_RETURN_DAMAGED";
+
     @Column(name = "request_code", nullable = false, unique = true, length = 100)
     private String requestCode;
 
     @Column(name = "source_type", nullable = false, length = 50)
     private String sourceType;
 
-    @OneToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "source_inspection_id", nullable = false, unique = true)
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "source_inspection_id", nullable = false)
     private CustomerReturnInspection sourceInspection;
 
     @Column(name = "return_id", nullable = false, columnDefinition = "BINARY(16)")
@@ -82,5 +87,9 @@ public class DisposalRequest extends BaseEntity {
     public void addLine(CustomerReturnInspectionLine line) {
         lines.add(line);
         line.setDisposalRequest(this);
+    }
+
+    public boolean isDamagedReturnDisposal() {
+        return SOURCE_RETURN_DAMAGED.equals(sourceType);
     }
 }

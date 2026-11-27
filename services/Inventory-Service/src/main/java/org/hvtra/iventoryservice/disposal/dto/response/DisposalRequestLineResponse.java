@@ -10,6 +10,8 @@ public record DisposalRequestLineResponse(
         String itemCode,
         String itemName,
         BigDecimal quantity,
-        UUID transactionId
+        UUID transactionId,
+        UUID locationId,
+        String locationName
 ) {
 }
