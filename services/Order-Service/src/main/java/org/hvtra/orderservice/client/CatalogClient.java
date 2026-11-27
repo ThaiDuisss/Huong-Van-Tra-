@@ -71,6 +71,7 @@ public interface CatalogClient {
             @RequestBody SellableQuantityAdjustmentRequest request
     );
 
+    @JsonIgnoreProperties(ignoreUnknown = true)
     record ProductVariantPosViewResponse(
             UUID productId,
             @JsonProperty("id") UUID variantId,
@@ -80,8 +81,23 @@ public interface CatalogClient {
             String categoryName,
             BigDecimal sellingPrice,
             BigDecimal sellableQuantity,
-            String imageUrl
-    ){}
+            String imageUrl,
+            String productType
+    ) {
+        public ProductVariantPosViewResponse(
+                UUID productId,
+                UUID variantId,
+                String sku,
+                String productName,
+                String variantName,
+                String categoryName,
+                BigDecimal sellingPrice,
+                BigDecimal sellableQuantity,
+                String imageUrl) {
+            this(productId, variantId, sku, productName, variantName, categoryName, sellingPrice, sellableQuantity,
+                    imageUrl, null);
+        }
+    }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
     record BomItemResponse(
@@ -92,19 +108,41 @@ public interface CatalogClient {
             BigDecimal wasteRate
     ) {
         public BomItemResponse(UUID ingredientId, BigDecimal quantity, BigDecimal wasteRate) {
-            this(null, new BomIngredientResponse(ingredientId, null, null), quantity, null, wasteRate);
+            this(null, new BomIngredientResponse(ingredientId), quantity, null, wasteRate);
         }
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
-    record BomIngredientResponse(UUID id, String ingredientCode, String name) {
+    record BomIngredientResponse(
+            UUID id,
+            String ingredientCode,
+            String name,
+            UUID unitId,
+            String unitName,
+            String unitSymbol
+    ) {
         public BomIngredientResponse(UUID id) {
-            this(id, null, null);
+            this(id, null, null, null, null, null);
+        }
+
+        public BomIngredientResponse(UUID id, String ingredientCode, String name) {
+            this(id, ingredientCode, name, null, null, null);
         }
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
-    record BomUnitResponse(UUID id, String symbol, String name) {}
+    record BomUnitResponse(
+            UUID id,
+            String name,
+            String symbol,
+            String type,
+            UUID baseUnitId,
+            BigDecimal conversionRate
+    ) {
+        public BomUnitResponse(UUID id, String symbol, String name) {
+            this(id, name, symbol, null, null, null);
+        }
+    }
 
     record SellableQuantityAdjustmentRequest(
             BigDecimal quantity,
@@ -125,7 +163,7 @@ public interface CatalogClient {
             String reason
     ) {}
 
-    @com.fasterxml.jackson.annotation.JsonIgnoreProperties(ignoreUnknown = true)
+    @JsonIgnoreProperties(ignoreUnknown = true)
     record VariantStockConfigResponse(
             UUID id,
             BigDecimal sellableQuantity,
