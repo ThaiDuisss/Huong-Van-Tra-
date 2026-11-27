@@ -1,3 +1,4 @@
+.venv/
 artifacts/*.pkl
 artifacts/*.tmp
 artifacts/*.npz

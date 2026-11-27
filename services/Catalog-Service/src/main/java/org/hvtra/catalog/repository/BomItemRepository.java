@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.UUID;
 
@@ -17,6 +18,13 @@ public interface BomItemRepository extends JpaRepository<BomItem, UUID> {
             + "LEFT JOIN FETCH bi.unit "
             + "WHERE bi.productVariantId = :variantId AND bi.isDeleted = false")
     List<BomItem> findByProductVariantId(@Param("variantId") UUID variantId);
+
+    @Query("SELECT bi FROM BomItem bi "
+            + "LEFT JOIN FETCH bi.ingredient i "
+            + "LEFT JOIN FETCH i.unit "
+            + "LEFT JOIN FETCH bi.unit "
+            + "WHERE bi.productVariantId IN :variantIds AND bi.isDeleted = false")
+    List<BomItem> findByProductVariantIdIn(@Param("variantIds") Collection<UUID> variantIds);
 
     @Query("SELECT bi FROM BomItem bi "
             + "JOIN FETCH bi.ingredient i "

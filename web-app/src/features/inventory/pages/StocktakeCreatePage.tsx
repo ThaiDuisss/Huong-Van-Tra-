@@ -4,7 +4,7 @@ import { Link, useNavigate } from "react-router-dom";
 
 import { Button } from "../../../components/ui/Button";
 import { buttonClassName } from "../../../components/ui/button-styles";
-import { Field, NativeSelect, TextArea, TextInput } from "../../../components/ui/Field";
+import { Field, NativeSelect, TextArea } from "../../../components/ui/Field";
 import { stocktakeScopeLabels, stocktakeScopeOptions } from "../constants/stocktake.constants";
 import { stocktakeApi } from "../services/stocktake.api";
 import type {
@@ -27,11 +27,8 @@ export function StocktakeCreatePage() {
   const [branchId, setBranchId] = useState("");
   const [scopeType, setScopeType] = useState<StocktakeScopeType>("FULL");
   const [countType, setCountType] = useState<StocktakeCountType>("FULL_COUNT");
-  const [blindCount, setBlindCount] = useState(false);
   const [locationIds, setLocationIds] = useState<string[]>([]);
-  const [inventoryItemIds, setInventoryItemIds] = useState<string[]>([]);
   const [note, setNote] = useState("");
-  const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
@@ -63,51 +60,32 @@ export function StocktakeCreatePage() {
     () => options.locations.filter((item) => item.branchId === branchId),
     [branchId, options.locations],
   );
-  const items = useMemo(() => {
-    const keyword = search.trim().toLocaleLowerCase("vi-VN");
-    return keyword
-      ? options.items.filter((item) =>
-          `${item.itemCode} ${item.itemName}`.toLocaleLowerCase("vi-VN").includes(keyword),
-        )
-      : options.items;
-  }, [options.items, search]);
-
-  function changeBranch(value: string) {
-    setBranchId(value);
-    setLocationIds([]);
-    setInventoryItemIds([]);
-    setError("");
-  }
 
   function changeScope(value: StocktakeScopeType) {
     setScopeType(value);
     setLocationIds([]);
-    setInventoryItemIds([]);
     setError("");
   }
 
   function changeCountType(value: StocktakeCountType) {
     setCountType(value);
-    changeScope(value === "FULL_COUNT" ? "FULL" : value === "CYCLE_COUNT" ? "PARTIAL" : "LOCATION");
+    changeScope(value === "FULL_COUNT" ? "FULL" : "LOCATION");
   }
 
   async function submit() {
-    if (!branchId) return setError("Vui lòng chọn chi nhánh.");
+    if (!branchId) return setError("Không xác định được chi nhánh hiện tại.");
     if (scopeType === "LOCATION" && locationIds.length === 0)
       return setError("Chọn ít nhất một vị trí kiểm kê.");
-    if (scopeType === "PARTIAL" && inventoryItemIds.length === 0)
-      return setError("Chọn ít nhất một mặt hàng kiểm kê.");
     setSubmitting(true);
     setError("");
     try {
       const result = await stocktakeApi.createStocktake({
-        blindCount,
+        blindCount: false,
         branchId,
         countType,
         scopeType,
         note: note.trim() || undefined,
         locationIds: scopeType === "LOCATION" ? locationIds : undefined,
-        inventoryItemIds: scopeType === "PARTIAL" ? inventoryItemIds : undefined,
       });
       navigate(`/management/inventory/stocktakes/${result.id}`);
     } catch (submitError) {
@@ -129,7 +107,7 @@ export function StocktakeCreatePage() {
         <div>
           <h1 className="text-2xl font-bold sm:text-3xl">Tạo phiên kiểm kê</h1>
           <p className="mt-1 text-sm text-gray-500">
-            Chọn chi nhánh và phạm vi hàng hóa cần đối chiếu.
+            Chọn hình thức và phạm vi hàng hóa cần đối chiếu.
           </p>
         </div>
       </header>
@@ -141,20 +119,13 @@ export function StocktakeCreatePage() {
         ) : null}
         {!loading ? (
           <>
-            <div className="grid gap-4 md:grid-cols-3">
-              <SelectField
-                label="Chi nhánh"
-                value={branchId}
-                onChange={changeBranch}
-                options={options.branches.map((item) => ({ label: item.name, value: item.id }))}
-              />
+            <div className="grid gap-4 md:grid-cols-2">
               <SelectField
                 label="Hình thức"
                 value={countType}
                 onChange={(value) => changeCountType(value as StocktakeCountType)}
                 options={[
                   { label: "Kiểm kê toàn bộ", value: "FULL_COUNT" },
-                  { label: "Kiểm kê định kỳ theo nhóm hàng", value: "CYCLE_COUNT" },
                   { label: "Kiểm kê đột xuất", value: "SPOT_COUNT" },
                 ]}
               />
@@ -163,6 +134,7 @@ export function StocktakeCreatePage() {
                 value={scopeType}
                 onChange={(value) => changeScope(value as StocktakeScopeType)}
                 options={stocktakeScopeOptions
+                  .filter((item) => item !== "PARTIAL")
                   .filter((item) => countType !== "FULL_COUNT" || item === "FULL")
                   .map((item) => ({ label: stocktakeScopeLabels[item], value: item }))}
               />
@@ -176,41 +148,6 @@ export function StocktakeCreatePage() {
                 onToggle={(id) => setLocationIds(toggle(locationIds, id))}
               />
             ) : null}
-            {scopeType === "PARTIAL" ? (
-              <div className="grid gap-3">
-                <Field label="Tìm mặt hàng">
-                  <TextInput
-                    onChange={(event) => setSearch(event.currentTarget.value)}
-                    placeholder="Nhập mã hoặc tên mặt hàng"
-                    value={search}
-                  />
-                </Field>
-                <ChoiceGrid
-                  label="Mặt hàng kiểm kê"
-                  empty="Không có mặt hàng phù hợp."
-                  options={items.map((item) => ({
-                    id: item.id,
-                    label: `${item.itemCode} · ${item.itemName}${item.unit ? ` (${item.unit})` : ""}`,
-                  }))}
-                  selected={inventoryItemIds}
-                  onToggle={(id) => setInventoryItemIds(toggle(inventoryItemIds, id))}
-                />
-              </div>
-            ) : null}
-            <label className="flex items-start gap-3 rounded-xl border border-[#dce5e1] p-3 text-sm font-bold">
-              <input
-                className="mt-0.5"
-                checked={blindCount}
-                onChange={(event) => setBlindCount(event.currentTarget.checked)}
-                type="checkbox"
-              />
-              <span>
-                Kiểm kê kín
-                <span className="mt-0.5 block text-xs font-semibold text-[#697684]">
-                  Nhân viên không nhìn thấy số lượng trên hệ thống trong lúc nhập kết quả đếm.
-                </span>
-              </span>
-            </label>
             <Field label="Ghi chú">
               <TextArea
                 onChange={(event) => setNote(event.currentTarget.value)}
