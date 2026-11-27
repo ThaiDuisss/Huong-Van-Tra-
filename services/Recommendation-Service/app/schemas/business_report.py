@@ -20,7 +20,7 @@ class BusinessExportRequest(BaseModel):
     fromDate: date | None = None
     toDate: date | None = None
     requestId: UUID
-    reportType: Literal["PRODUCT", "CUSTOM_BOM"] = "PRODUCT"
+    reportType: Literal["PRODUCT", "INGREDIENT", "CUSTOM_BOM"] = "PRODUCT"
 
     @model_validator(mode="after")
     def dates(self):
@@ -30,7 +30,7 @@ class BusinessExportRequest(BaseModel):
             elif self.fromDate is None or self.toDate is None:
                 raise ValueError("Both BOM reporting dates are required")
         elif self.fromDate is None or self.toDate is None:
-            raise ValueError("Product reporting dates are required")
+            raise ValueError("Both reporting dates are required")
         if self.fromDate > self.toDate:
             raise ValueError("From date must not exceed to date")
         return self
@@ -45,12 +45,13 @@ class BusinessExportResponse(BaseModel):
     generatedAt: datetime
     sha256: str
     # Omitted from legacy Product HTTP responses to preserve their contract.
-    reportType: Literal["CUSTOM_BOM"] | None = None
-    sourceKind: Literal["SYNTHETIC"] | None = None
+    reportType: Literal["CUSTOM_BOM", "INGREDIENT"] | None = None
+    sourceKind: Literal["SYNTHETIC", "OPERATIONAL"] | None = None
     researchOnly: bool | None = None
     productionApproved: bool | None = None
     createdBy: str | None = None
     status: Literal["COMPLETE"] | None = None
+    dataStatus: Literal["OK", "NO_DATA"] | None = None
     provenance: dict | None = None
 
     @field_validator("generatedAt", mode="before")

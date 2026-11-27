@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { LoaderCircle } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { tasteSurveyApi, type TasteAttribute } from "../../customer/services/tasteSurvey.api";
+import { orderedTasteAttributes, tasteSurveyApi, type TasteAttribute } from "../../customer/services/tasteSurvey.api";
 import type { GuestTasteSurvey } from "../../customer/services/guestTasteSurvey";
 import { PosVariantSelector } from "../../sales/components/product/PosVariantSelector";
 import { formatCurrency } from "../../sales/services/money";
@@ -11,7 +12,8 @@ import { initialPosVariant, posVariantSelectionError } from "../../sales/service
 import type { SaleProductPreview } from "../../sales/types/sale.types";
 import { recommendationRequestOptions, resolveRecommendedVariant } from "../services/productRecommendation.api";
 import {
-  fetchTastePreview, fetchTasteVariantUnit, tastePreviewError, type TastePreviewProduct, type TastePreviewRequest,
+  fetchTastePreview, fetchTasteVariantDetails, tastePreviewError, type TastePreviewProduct, type TastePreviewRequest,
+  type TastePreviewVariant,
 } from "../services/tastePreview.api";
 
 interface TastePreviewLauncherProps {
@@ -70,12 +72,15 @@ export function TastePreviewLauncher({ disabled, onAdd, onManualConsultation }: 
 function TastePreviewPanel({ disabled, onAdd, onManualConsultation }: TastePreviewLauncherProps) {
   const taxonomyQuery = useQuery({
     queryKey: ["current-taste-taxonomy"], queryFn: tasteSurveyApi.currentTaxonomy, retry: false,
+    staleTime: 0, refetchOnWindowFocus: false,
   });
-  const taxonomy = taxonomyQuery.data;
-  const attributes = useMemo(() => taxonomy?.versionCode === "hvtra-tea-v3"
-    ? [...taxonomy.manifest.attributes].sort((left, right) => left.displayOrder - right.displayOrder)
-    : [], [taxonomy]);
-  const [values, setValues] = useState<Record<string, string[]>>({});
+  const taxonomy = taxonomyQuery.isFetching || taxonomyQuery.isError ? undefined : taxonomyQuery.data;
+  const identity = taxonomy && `${taxonomy.versionCode}:${taxonomy.manifestSha256}`;
+  const attributes = useMemo(() => orderedTasteAttributes(taxonomy), [taxonomy]);
+  const [draft, setDraft] = useState<{
+    identity: string; groups: Record<string, { values: string[]; hard: boolean; notApplicable?: boolean }>;
+  }>();
+  const groups = draft?.identity === identity ? draft?.groups : undefined;
   const [preparation, setPreparation] = useState("");
   const [revision, setRevision] = useState(0);
   const [outcome, setOutcome] = useState<{
@@ -87,16 +92,28 @@ function TastePreviewPanel({ disabled, onAdd, onManualConsultation }: TastePrevi
   const addRequest = useRef<AbortController | null>(null);
   const sequence = useRef(0);
   const preparationCode = preparation.trim();
-  const hardGroups = useMemo(() => attributes.flatMap((attribute) => {
-    const allowedValues = values[attribute.attributeCode]?.filter((value) =>
-      attribute.values.some((option) => option.valueCode === value));
-    return allowedValues?.length ? [{ attribute: attribute.attributeCode, allowedValues }] : [];
-  }), [attributes, values]);
-  const input = useMemo(() => !disabled && taxonomy &&
-    preparationPattern.test(preparationCode) && hardGroups.length ? {
+  const criteria = useMemo(() => {
+    const hardGroups: TastePreviewRequest["hardGroups"] = [];
+    const softGroups: NonNullable<TastePreviewRequest["softGroups"]> = [];
+    const notApplicableAttributes: string[] = [];
+    for (const attribute of attributes) {
+      const selection = groups?.[attribute.attributeCode];
+      if (!selection) continue;
+      if (selection.notApplicable && attribute.allowsNotApplicable) {
+        notApplicableAttributes.push(attribute.attributeCode);
+      } else if (selection.values.length && selection.hard) {
+        hardGroups.push({ attribute: attribute.attributeCode, allowedValues: selection.values });
+      } else if (selection.values.length) {
+        softGroups.push({ attribute: attribute.attributeCode, priorities: selection.values.map((value) => ({ value, weight: 1 })) });
+      }
+    }
+    return { hardGroups, softGroups, notApplicableAttributes };
+  }, [attributes, groups]);
+  const hasCriteria = Boolean(criteria.hardGroups.length || criteria.softGroups.length);
+  const input = useMemo(() => !disabled && taxonomy && preparationPattern.test(preparationCode) && hasCriteria ? {
       taxonomyVersion: taxonomy.versionCode, taxonomySha256: taxonomy.manifestSha256,
-      preparationCode, hardGroups, limit: 5,
-    } : null, [disabled, hardGroups, preparationCode, taxonomy]);
+      preparationCode, ...criteria, limit: 5,
+    } : null, [disabled, criteria, hasCriteria, preparationCode, taxonomy]);
   const current = outcome?.input === input && outcome.revision === revision ? outcome : undefined;
 
   useEffect(() => {
@@ -119,8 +136,9 @@ function TastePreviewPanel({ disabled, onAdd, onManualConsultation }: TastePrevi
 
   useEffect(() => () => addRequest.current?.abort(), []);
 
-  function updateValues(attribute: TasteAttribute, next: string[]) {
-    setValues((previous) => ({ ...previous, [attribute.attributeCode]: next }));
+  function updateGroup(attribute: string, selection: NonNullable<typeof groups>[string]) {
+    if (!identity) return;
+    setDraft({ identity, groups: { ...groups, [attribute]: selection } });
     setAddError("");
   }
 
@@ -144,9 +162,9 @@ function TastePreviewPanel({ disabled, onAdd, onManualConsultation }: TastePrevi
   const statusMessage = current?.result ? previewMessages[current.result.status] : "";
   return (
     <div className="grid max-h-[72vh] gap-4 overflow-y-auto px-6 py-4">
-      {taxonomyQuery.isPending && <p role="status">Đang tải bộ tiêu chí…</p>}
+      {taxonomyQuery.isFetching && <p role="status">Đang tải bộ tiêu chí…</p>}
       {taxonomyQuery.isError && <p role="alert">{tastePreviewError(taxonomyQuery.error)}</p>}
-      {taxonomy && !attributes.length && <p role="alert">Chưa có bộ tiêu chí khẩu vị v3 đang áp dụng.</p>}
+      {taxonomy && !attributes.length && <p role="alert">Chưa có bộ tiêu chí khẩu vị đang áp dụng.</p>}
       {attributes.length > 0 && (
         <fieldset disabled={disabled || adding} className="grid gap-3">
           <label className="grid max-w-sm gap-1 text-sm font-semibold">
@@ -158,18 +176,30 @@ function TastePreviewPanel({ disabled, onAdd, onManualConsultation }: TastePrevi
               }} />
           </label>
           <div className="grid gap-3 sm:grid-cols-2">
-            {attributes.map((attribute) => (
-              <TasteFilter key={attribute.attributeCode} attribute={attribute}
-                selected={values[attribute.attributeCode] ?? []}
-                onChange={(next) => updateValues(attribute, next)} />
-            ))}
+            {attributes.map((attribute) => {
+              const code = attribute.attributeCode;
+              const selection = groups?.[code] ?? { values: [], hard: true };
+              return <div key={code} className="grid gap-2">
+                <TasteFilter attribute={attribute} selected={selection.values}
+                  onChange={(values) => updateGroup(code, { ...selection, values, notApplicable: false })} />
+                {selection.values.length > 0 && <label className="flex items-center gap-2 text-xs">
+                  <input type="checkbox" checked={selection.hard}
+                    onChange={(event) => updateGroup(code, { ...selection, hard: event.target.checked })} />
+                  Bắt buộc
+                </label>}
+                {attribute.allowsNotApplicable && <Button type="button" size="sm" aria-pressed={Boolean(selection.notApplicable)}
+                  className="justify-self-start" onClick={() => updateGroup(code, {
+                    ...selection, values: [], notApplicable: !selection.notApplicable,
+                  })}>Không áp dụng</Button>}
+              </div>;
+            })}
           </div>
         </fieldset>
       )}
       {attributes.length > 0 && !preparationPattern.test(preparationCode) && (
         <p className="text-sm text-slate-600">Nhập mã cách pha dùng chữ in hoa, số và dấu gạch dưới.</p>
       )}
-      {attributes.length > 0 && preparationPattern.test(preparationCode) && !hardGroups.length && (
+      {attributes.length > 0 && preparationPattern.test(preparationCode) && !hasCriteria && (
         <p className="text-sm text-slate-600">Chọn ít nhất một tiêu chí để xem gợi ý.</p>
       )}
       {input && !current && <p role="status">Đang tìm sản phẩm phù hợp…</p>}
@@ -195,11 +225,14 @@ export function TasteSurveyRecommendations({ survey, disabled, onAdd }: {
   survey: GuestTasteSurvey; disabled?: boolean; onAdd(product: SaleProductPreview): Promise<boolean>;
 }) {
   const taxonomyQuery = useQuery({
-    queryKey: ["current-taste-taxonomy"], queryFn: tasteSurveyApi.currentTaxonomy, retry: false,
+    queryKey: ["taste-taxonomy-release", survey.taxonomyVersion, survey.taxonomySha256],
+    queryFn: ({ signal }) => tasteSurveyApi.taxonomyRelease(survey.taxonomyVersion, survey.taxonomySha256, signal),
+    retry: false,
   });
   const attributes = taxonomyQuery.data?.manifest.attributes ?? [];
   const previewQuery = useQuery({
-    queryKey: ["guest-taste-preview", survey.savedAt, survey.taxonomySha256, survey.preparationCode],
+    queryKey: ["guest-taste-preview", survey.taxonomyVersion, survey.taxonomySha256, survey.preparationCode, survey.criteria],
+    enabled: taxonomyQuery.data?.state === "PUBLISHED",
     retry: false,
     queryFn: ({ signal }) => fetchTastePreview({
       taxonomyVersion: survey.taxonomyVersion,
@@ -235,14 +268,18 @@ export function TasteSurveyRecommendations({ survey, disabled, onAdd }: {
     }
   }
 
-  const result = previewQuery.data;
+  const result = taxonomyQuery.data?.state === "PUBLISHED" ? previewQuery.data : undefined;
   const statusMessage = result ? previewMessages[result.status] : "";
   return (
     <div className="grid gap-3">
       <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800">
         Gợi ý theo khảo sát khẩu vị của khách vãng lai (chỉ lưu tạm trên hóa đơn này).
       </p>
-      {previewQuery.isPending && <p role="status" className="text-sm">Đang tìm sản phẩm phù hợp…</p>}
+      {taxonomyQuery.isError && <p role="alert" className="text-sm">Không đọc được bộ tiêu chí đã lưu.</p>}
+      {taxonomyQuery.data?.state === "RETIRED" &&
+        <p role="status" className="text-sm">Bộ tiêu chí đã ngừng sử dụng. Mở Tư vấn trà để chọn lại khẩu vị.</p>}
+      {(taxonomyQuery.isPending || taxonomyQuery.data?.state === "PUBLISHED" && previewQuery.isPending) &&
+        <p role="status" className="text-sm">Đang tìm sản phẩm phù hợp…</p>}
       {previewQuery.isError && <div role="alert" className="flex items-center gap-3 text-sm text-amber-900">
         <span>{tastePreviewError(previewQuery.error)}</span>
         <Button type="button" size="sm" onClick={() => void previewQuery.refetch()}>Thử lại</Button>
@@ -292,26 +329,118 @@ function TasteFilter({ attribute, selected, onChange }: {
   );
 }
 
-function TasteResultCard({ product, attributes, disabled, onAdd }: {
+function TasteMatchSummary({ match, attributes }: {
+  match: TastePreviewVariant;
+  attributes: TasteAttribute[];
+}) {
+  const attributesByCode = new Map(attributes.map((attribute) => [attribute.attributeCode, attribute]));
+  const valueLabelCounts = new Map<string, number>();
+  for (const attribute of attributes) {
+    for (const option of attribute.values) {
+      valueLabelCounts.set(option.label, (valueLabelCounts.get(option.label) ?? 0) + 1);
+    }
+  }
+  function labelText(values: Array<{ attribute: string; value: string }>) {
+    const labels = new Map<string, string>();
+    for (const { attribute: attributeCode, value: valueCode } of values) {
+      const attribute = attributesByCode.get(attributeCode);
+      const value = attribute?.values.find((option) => option.valueCode === valueCode);
+      if (!attribute || !value || valueCode === "UNKNOWN") continue;
+
+      const ambiguousLabel = (valueLabelCounts.get(value.label) ?? 0) > 1;
+      const qualified = (attribute.selectionKind === "ORDINAL_SINGLE" || ambiguousLabel) && valueCode !== "NONE";
+      const attributeName = attribute.label.replace(/\s+\([^()]*\)$/, "");
+      labels.set(`${attributeCode}:${valueCode}`, qualified ? `${attributeName} (${value.label})` : value.label);
+    }
+    return [...labels.values()].join(", ");
+  }
+  const matched = labelText([
+    ...match.matchedHard.flatMap(({ attribute, matchedValues }) =>
+      matchedValues.map((value) => ({ attribute, value }))),
+    ...(match.matchedSoft ?? []).filter(({ status }) => status === "MATCHED"),
+  ]);
+  const unmatched = labelText((match.unmatchedSoft ?? []).filter(({ status }) => status === "NOT_MATCHED"));
+
+  return <>
+    {matched && <p className="text-xs text-emerald-800"><strong>Phù hợp:</strong> {matched}</p>}
+    {unmatched && <p className="text-xs text-slate-600"><strong>Chưa khớp:</strong> {unmatched}</p>}
+  </>;
+}
+
+export function TasteResultCard({
+  product, attributes, disabled, onAdd, requireAvailable = false, rank, topTied, adding,
+}: {
   product: TastePreviewProduct; attributes: TasteAttribute[]; disabled?: boolean; onAdd(variantId: string): void;
+  requireAvailable?: boolean; rank?: number; topTied?: boolean; adding?: boolean;
 }) {
   const { data, isPending, isError } = useQuery({
     queryKey: ["pos-taste-variants", product.productId], retry: false,
     queryFn: ({ signal }) => posProductApi.listProductVariants(product.productId, { ...recommendationRequestOptions, signal }),
   });
   const variants = (data ?? []).filter((variant) => variant.productId === product.productId &&
-    product.compatibleVariants.some((match) => match.variantId === (variant.productVariantId ?? variant.id)));
+    (!requireAvailable || ((variant.availableQuantity ?? 0) > 0 && !posVariantSelectionError(variant))) &&
+    product.compatibleVariants.some((match) => match.variantId === (variant.productVariantId ?? variant.id) &&
+      match.sku === variant.sku));
   const [selection, setSelection] = useState("");
-  const selectedId = variants.some((variant) =>
-    (variant.productVariantId ?? variant.id) === selection && !posVariantSelectionError(variant))
-    ? selection : initialPosVariant(variants);
-  const unitQuery = useQuery({
-    queryKey: ["pos-taste-unit", product.productId, selectedId], enabled: Boolean(selectedId), retry: false,
-    queryFn: ({ signal }) => fetchTasteVariantUnit(product.productId, selectedId, signal),
+  const eligibleMatches = product.compatibleVariants.filter((match) => variants.some((variant) =>
+    (variant.productVariantId ?? variant.id) === match.variantId && !posVariantSelectionError(variant)));
+  const selectedMatch = eligibleMatches.find((match) => match.variantId === selection);
+  const defaultId = rank === undefined ? initialPosVariant(variants) : eligibleMatches[0]?.variantId ?? "";
+  const selectedId = selectedMatch?.variantId ?? defaultId;
+  const detailId = selectedId || (variants[0]?.productVariantId ?? variants[0]?.id) || "";
+  const details = useQuery({
+    queryKey: ["pos-taste-variant-details", product.productId, detailId], enabled: Boolean(detailId), retry: false,
+    queryFn: ({ signal }) => fetchTasteVariantDetails(product.productId, detailId, signal),
   });
+  const selected = variants.find((variant) => (variant.productVariantId ?? variant.id) === selectedId);
+  if (rank !== undefined) {
+    const match = selectedMatch ?? eligibleMatches[0];
+    return (
+      <article className={`grid gap-2 rounded-xl border p-3 ${rank === 1 ? "border-emerald-200 bg-emerald-50/40" : "border-[#dce5e1] bg-white"}`}>
+        <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3">
+          <div className="flex min-w-0 items-start gap-2.5">
+            {details.data?.imageUrl && <img src={details.data.imageUrl} alt="" loading="lazy"
+              className="size-12 shrink-0 rounded-md object-cover" />}
+            <div className="grid min-w-0 gap-1">
+              <span className={`text-xs font-semibold ${rank === 1 ? "text-emerald-800" : "text-slate-600"}`}>
+                Top {rank}{rank === 1 && (topTied ? " — Phù hợp nhất (đồng điểm)" : " — Phù hợp nhất")}
+              </span>
+              <h4 className="text-sm font-bold text-[#172317]">{product.productName}</h4>
+              {eligibleMatches.length > 1 ? (
+                <select aria-label={`Chọn biến thể cho ${product.productName}`} value={selectedId}
+                  disabled={disabled} onChange={(event) => setSelection(event.target.value)}
+                  className="min-w-0 rounded-md border border-[#dce5e1] bg-white px-2 py-1 text-xs text-[#172317]">
+                  {eligibleMatches.map((item) => <option key={item.variantId} value={item.variantId}>
+                    {item.variantName}
+                  </option>)}
+                </select>
+              ) : match && <p className="text-xs text-slate-700">{match.variantName}</p>}
+            </div>
+          </div>
+          {selected && <span className="whitespace-nowrap text-right text-sm font-bold tabular-nums text-[#172317]">
+            {formatCurrency(selected.price)}
+          </span>}
+        </div>
+        {match && <TasteMatchSummary match={match} attributes={attributes} />}
+        {isPending && <p role="status" className="text-xs text-slate-600">Đang lấy giá và quy cách bán…</p>}
+        {(isError || (!isPending && !selected)) && <p className="text-xs text-amber-900">
+          Chưa xác minh được biến thể đang bán trên POS.
+        </p>}
+        <Button type="button" size="sm" variant="primary" className="justify-self-end"
+          disabled={disabled || !selectedId || adding} aria-busy={adding}
+          onClick={() => onAdd(selectedId)}>
+          {adding ? <><LoaderCircle className="size-4 animate-spin" aria-hidden="true" /> Đang thêm…</> : "Thêm vào hóa đơn"}
+        </Button>
+      </article>
+    );
+  }
   return (
     <article className="grid gap-2 rounded-xl border border-[#dce5e1] p-4">
-      <h3 className="font-bold">{product.productName}</h3>
+      <div className="flex items-center gap-3">
+        {details.data?.imageUrl && <img src={details.data.imageUrl} alt="" loading="lazy"
+          className="size-12 rounded-md object-cover" />}
+        <h3 className="font-bold">{product.productName}</h3>
+      </div>
       {product.compatibleVariants.map((variant) => (
         <div key={variant.variantId} className="text-sm">
           <p className="font-semibold">{variant.variantName}{variant.sku ? ` · ${variant.sku}` : ""}</p>
@@ -331,7 +460,7 @@ function TasteResultCard({ product, attributes, disabled, onAdd }: {
       </p>}
       <PosVariantSelector variants={variants} selectedId={selectedId} disabled={disabled}
         onSelect={setSelection} formatCurrency={formatCurrency} />
-      {unitQuery.data && <p className="text-sm text-slate-600">Đơn vị bán: {unitQuery.data}</p>}
+      {details.data?.unitName && selectedId && <p className="text-sm text-slate-600">Đơn vị bán: {details.data.unitName}</p>}
       <Button type="button" size="sm" className="justify-self-start" disabled={disabled || !selectedId}
         onClick={() => onAdd(selectedId)}>
         Thêm vào hóa đơn

@@ -55,14 +55,16 @@ public class OrderOutboxPublicationStore {
         }
         return Optional.ofNullable(jdbc.queryForObject("""
                 SELECT p.attempts, o.event_id, o.event_type, o.event_version, o.aggregate_type, o.aggregate_id,
-                       o.message_key, o.business_key, o.topic, o.source_service, o.payload, o.occurred_at
+                       o.message_key, o.business_key, o.topic, o.source_service, o.payload, o.occurred_at,
+                       o.saga_id, o.correlation_id, o.causation_id
                 FROM order_outbox_publication p JOIN outbox_events o ON o.id = p.outbox_id
                 WHERE p.outbox_id = UUID_TO_BIN(?)
                 """, (rs, row) -> new PollingOrderEvent(id, token, rs.getInt("attempts"), rs.getString("event_id"),
                 rs.getString("event_type"), rs.getInt("event_version"), rs.getString("aggregate_type"),
                 rs.getString("aggregate_id"), rs.getString("message_key"), rs.getString("business_key"),
                 rs.getString("topic"), rs.getString("source_service"), rs.getString("payload"),
-                rs.getObject("occurred_at", LocalDateTime.class).toInstant(ZoneOffset.UTC)), id));
+                rs.getObject("occurred_at", LocalDateTime.class).toInstant(ZoneOffset.UTC),
+                rs.getString("saga_id"), rs.getString("correlation_id"), rs.getString("causation_id")), id));
     }
 
     public boolean sent(PollingOrderEvent event) {

@@ -78,7 +78,7 @@ kafka-consumer-config:
 
 customer:
   taste-survey:
-    catalog-taxonomy-enabled: ${CUSTOMER_TASTE_CATALOG_TAXONOMY_ENABLED:true}
+    catalog-taxonomy-enabled: ${CUSTOMER_TASTE_SURVEY_CATALOG_TAXONOMY_ENABLED:true}
   order-events:
     topics:
       order-completed: order.completed

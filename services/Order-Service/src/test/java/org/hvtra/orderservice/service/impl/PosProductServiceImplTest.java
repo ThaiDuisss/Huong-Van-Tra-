@@ -157,6 +157,42 @@ class PosProductServiceImplTest {
         verifyNoInteractions(inventory);
     }
 
+    @Test
+    void customerBundleBomConvertsGramsToIngredientRetailKilograms() {
+        UUID variantId = UUID.randomUUID();
+        CatalogVariantResponse customerVariant = new CatalogVariantResponse(
+                variantId, UUID.randomUUID(), "Trà Quýt", "KH-01", "TQ-00001", "Trà Quýt Stevia",
+                "Trà khách tự chọn", new BigDecimal("92000"), BigDecimal.ZERO, null, UUID.randomUUID(),
+                "DO_NOT_TRACK", "ACTIVE", "ACTIVE", true, BigDecimal.ZERO, "CUSTOMER");
+        when(catalog.findById(variantId)).thenReturn(customerVariant);
+
+        UUID ingGramId = UUID.randomUUID();
+        UUID ingKgId = UUID.randomUUID();
+        when(catalog.getBomItemsByVariantId(variantId)).thenReturn(List.of(
+                new CatalogClient.BomItemResponse(
+                        UUID.randomUUID(),
+                        new CatalogClient.BomIngredientResponse(ingGramId, "VQK-G-59", "Vỏ quýt khô", UUID.randomUUID(), "Gram", "g"),
+                        new BigDecimal("35.00"),
+                        new CatalogClient.BomUnitResponse(UUID.randomUUID(), "Gram", "g", "WEIGHT", null, BigDecimal.ONE),
+                        BigDecimal.ZERO),
+                new CatalogClient.BomItemResponse(
+                        UUID.randomUUID(),
+                        new CatalogClient.BomIngredientResponse(ingKgId, "ING-CO-NGOT", "Cỏ ngọt", UUID.randomUUID(), "Kilogram", "kg"),
+                        new BigDecimal("15.00"),
+                        new CatalogClient.BomUnitResponse(UUID.randomUUID(), "Gram", "g", "WEIGHT", null, BigDecimal.ONE),
+                        BigDecimal.ZERO)
+        ));
+
+        var bom = service.getCustomerBundleBom(variantId);
+
+        assertEquals("CUSTOMER", bom.productType());
+        assertEquals(2, bom.lines().size());
+        assertEquals(0, new BigDecimal("35.00").compareTo(bom.lines().get(0).quantity()));
+        assertEquals("g", bom.lines().get(0).unitSymbol());
+        assertEquals(0, new BigDecimal("0.015").compareTo(bom.lines().get(1).quantity()));
+        assertEquals("kg", bom.lines().get(1).unitSymbol());
+    }
+
     private CatalogVariantResponse variant() {
         return variant("SKU", "ACTIVE", "ACTIVE", true);
     }
@@ -164,6 +200,6 @@ class PosProductServiceImplTest {
     private CatalogVariantResponse variant(String sku, String status, String productStatus, boolean sellable) {
         return new CatalogVariantResponse(UUID.randomUUID(), UUID.randomUUID(), "Tea", "TEA", sku, "100g", "Tea",
                 new BigDecimal("10000"), new BigDecimal("5000"), "image", UUID.randomUUID(), "STOCK", status,
-                productStatus, sellable, new BigDecimal("99"));
+                productStatus, sellable, new BigDecimal("99"), "FINISHED_PRODUCT");
     }
 }

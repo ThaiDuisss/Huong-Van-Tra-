@@ -157,7 +157,11 @@ export function ProductSearchBar({
                     </p>
                   </div>
 
-                  {product.sellableQuantity <= 0 ? (
+                  {product.productType === "CUSTOMER" ? (
+                    <StatusBadge shape="tag" tone="info">
+                      Công thức khách · Đóng theo yêu cầu
+                    </StatusBadge>
+                  ) : product.sellableQuantity <= 0 ? (
                     <StatusBadge shape="tag" tone="danger">
                       Hết hàng · có thể đặt trước
                     </StatusBadge>
@@ -180,9 +184,11 @@ export function ProductSearchBar({
                       type="button"
                       disabled={addingProductId === product.id}
                       title={
-                        product.sellableQuantity <= 0
-                          ? "Hết hàng: xem ngày dự kiến có hàng và đặt trước"
-                          : undefined
+                        product.productType === "CUSTOMER"
+                          ? "Đọc công thức BOM và đóng gói theo yêu cầu"
+                          : product.sellableQuantity <= 0
+                            ? "Hết hàng: xem ngày dự kiến có hàng và đặt trước"
+                            : undefined
                       }
                       onClick={(event) => {
                         event.stopPropagation();

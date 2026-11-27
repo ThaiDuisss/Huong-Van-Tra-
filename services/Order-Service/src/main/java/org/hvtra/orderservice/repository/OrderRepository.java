@@ -24,6 +24,16 @@ public interface OrderRepository extends JpaRepository<Order, UUID>, JpaSpecific
     @Query("""
             select distinct orders
             from Order orders
+            join orders.items item
+            where item.bundleRequestId = :bundleRequestId
+              and orders.isDeleted = false
+              and item.isDeleted = false
+            """)
+    Optional<Order> findByBundleRequestId(@Param("bundleRequestId") UUID bundleRequestId);
+
+    @Query("""
+            select distinct orders
+            from Order orders
             left join fetch orders.items
             where orders.id = :orderId
               and orders.isDeleted = false

@@ -1,13 +1,13 @@
 from __future__ import annotations
 
 from collections import defaultdict
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime
 from typing import TYPE_CHECKING, Callable, Literal
 
 from app.clients.customer_taste_client import CustomerTasteClient, CustomerTasteError, SubmittedTasteSurvey
 from app.recommendation.taste_rules import EXACT_POLICY_VERSION, TasteCriteria, observed_taste_values
-from app.schemas.taste_catalog import SnapshotError, utc_timestamp
+from app.schemas.taste_catalog import NOT_APPLICABLE, SnapshotError, utc_timestamp
 from app.service.taste_recommendation_service import (
     InvalidTasteCriteria, normalize_criteria, validate_criteria_taxonomy,
 )
@@ -60,19 +60,46 @@ class TasteFeatureBatch:
     sellable_variant_counts: dict[str, int] | None = None
     matching_policy_version: str = EXACT_POLICY_VERSION
 
+    def for_products(self, product_ids: set[str]) -> TasteFeatureBatch:
+        if self.products is None:
+            return self
+        products = {key: value for key, value in self.products.items() if key in product_ids}
+        counts = {key: value for key, value in (self.sellable_variant_counts or {}).items() if key in product_ids}
+        return replace(self, status=_feature_status(products), products=products, sellable_variant_counts=counts)
+
+
+def _feature_status(features: dict[str, ProductTasteFeatures]) -> TasteFeatureStatus:
+    if any(value.status == "AVAILABLE" for value in features.values()):
+        return "TASTE_FEATURE_READY"
+    if any(value.status == "SENSORY_MISSING" for value in features.values()):
+        return "SENSORY_MISSING"
+    return "PROFILES_UNAVAILABLE"
+
 
 def _variant_features(row: RankableVariant, criteria: TasteCriteria) -> VariantTasteFeatures:
     profile = row.profile
     observed = observed_taste_values(profile)
-    hard = {
-        attribute: bool(observed[attribute].intersection(allowed)) if observed.get(attribute) else None
-        for attribute, allowed in criteria.hard.items()
-    }
-    soft = {
-        attribute: (max((weight for value, weight in priorities.items() if value in observed[attribute]), default=0)
-                    / max(priorities.values())) if observed.get(attribute) else None
-        for attribute, priorities in criteria.soft.items()
-    }
+    for attribute in row.not_applicable:
+        observed.get(attribute, set()).discard(NOT_APPLICABLE)
+
+    def assess(attribute: str, requested: set[str]) -> tuple[set[str], set[str]]:
+        values = observed.get(attribute)
+        if not values:
+            return set(), requested
+        assessed = requested if row.assessed_options is None else row.assessed_options.get(attribute, frozenset())
+        return requested & values, requested - assessed
+
+    hard: dict[str, bool | None] = {}
+    for attribute, allowed in criteria.hard.items():
+        matches, unknown = assess(attribute, set(allowed))
+        hard[attribute] = True if matches else None if unknown else False
+
+    soft: dict[str, float | None] = {}
+    for attribute, priorities in criteria.soft.items():
+        matches, unknown = assess(attribute, set(priorities))
+        best_match = max((priorities[value] for value in matches), default=0)
+        possible_match = max((priorities[value] for value in unknown), default=0)
+        soft[attribute] = None if possible_match > best_match else best_match / max(priorities.values())
     return VariantTasteFeatures(
         row.variant.id, profile.id, profile.profileRevision, profile.compositionRevision, profile.compositionSha256,
         profile.preparationCode, profile.preparationSha256, hard, soft,
@@ -80,13 +107,15 @@ def _variant_features(row: RankableVariant, criteria: TasteCriteria) -> VariantT
 
 
 class PersonalizedTasteFeatures:
-    def __init__(self, customer_taste: CustomerTasteClient, read_projection: Callable[[], ProjectionView]):
+    def __init__(self, customer_taste: CustomerTasteClient, read_projection: Callable[[], ProjectionView], *,
+                 latest_survey: Callable[[str], SubmittedTasteSurvey | None] | None = None):
         self.customer_taste = customer_taste
         self.read_projection = read_projection
+        self.latest_survey = latest_survey or customer_taste.latest
 
     def prepare(self, customer_id: str, as_of: datetime, product_ids: set[str]) -> TasteFeatureBatch:
         try:
-            survey = self.customer_taste.latest(customer_id)
+            survey = self.latest_survey(customer_id)
         except CustomerTasteError as failure:
             return TasteFeatureBatch(failure.status)
         if survey is None:
@@ -133,11 +162,7 @@ class PersonalizedTasteFeatures:
             return TasteFeatureBatch("SURVEY_INVALID", **metadata)
 
         features = PersonalizedTasteFeatures._products(view, criteria, survey.taxonomyVersion, product_ids)
-        status: TasteFeatureStatus = "PROFILES_UNAVAILABLE"
-        if any(feature.status == "AVAILABLE" for feature in features.values()):
-            status = "TASTE_FEATURE_READY"
-        elif any(feature.status == "SENSORY_MISSING" for feature in features.values()):
-            status = "SENSORY_MISSING"
+        status = _feature_status(features)
         counts = {product.id: 0 for product in view.payload.products if product.id in product_ids}
         for variant in view.payload.variants:
             if variant.sellable and variant.productId in product_ids:
@@ -151,7 +176,7 @@ class PersonalizedTasteFeatures:
         product_by_variant = {variant.id: variant.productId for variant in view.payload.variants}
         profiled_products = {product_by_variant[profile.variantId] for profile in view.payload.profiles}
         grouped: dict[str, list[VariantTasteFeatures]] = defaultdict(list)
-        for row in view.rankable_variants(taxonomy_version):
+        for row in view.consultation_variants(taxonomy_version, None):
             if row.product.id in product_ids:
                 grouped[row.product.id].append(_variant_features(row, criteria))
 

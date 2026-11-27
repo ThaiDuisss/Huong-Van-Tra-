@@ -171,6 +171,17 @@ export interface PosOrderItemDto {
     packingStatus?: "WAITING_MATERIAL" | "AWAITING_PACKING" | "PACKED" | "CANCELLED" | null;
     packingCode?: string | null;
     components?: PosOrderItemComponentDto[];
+    bundleBoms?: PosOrderBundleBomDto[];
+}
+
+export interface PosOrderBundleBomDto {
+    id?: string;
+    sourceVariantId?: string;
+    bomSku?: string | null;
+    bomName: string;
+    note?: string | null;
+    estimatedPrice?: number;
+    components?: PosOrderItemComponentDto[];
 }
 
 export interface PosOrderItemComponentDto {

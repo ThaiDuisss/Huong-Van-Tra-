@@ -5,6 +5,7 @@ import org.hvtra.commonservice.common_core.kafka.outbox.dto.OutboxSaveCommand;
 import org.hvtra.commonservice.common_core.kafka.outbox.service.OutboxEventService;
 import org.hvtra.orderservice.domain.entity.Order;
 import org.hvtra.orderservice.domain.entity.OrderItem;
+import org.hvtra.orderservice.domain.entity.OrderItemComponent;
 import org.hvtra.orderservice.domain.entity.OrderReturn;
 import org.hvtra.orderservice.domain.entity.OrderReturnItem;
 import org.hvtra.orderservice.domain.entity.OrderReturnInventoryCommand;
@@ -841,6 +842,28 @@ public class OrderOutboxPublisher {
         map.put("discountAmount", item.getDiscountAmount());
         map.put("lineTotal", item.getLineTotal());
         map.put("bomVersionId", item.getBomVersionId() == null ? null : item.getBomVersionId().toString());
+        if (item.isCustomBundle()) {
+            map.put("components", orderItemComponents(item));
+        }
+        return map;
+    }
+
+    private List<Map<String, Object>> orderItemComponents(OrderItem item) {
+        if (item.getComponents() == null) {
+            return List.of();
+        }
+        return item.getComponents().stream()
+                .filter(component -> component != null && !Boolean.TRUE.equals(component.getIsDeleted()))
+                .map(this::orderItemComponent)
+                .toList();
+    }
+
+    private Map<String, Object> orderItemComponent(OrderItemComponent component) {
+        Map<String, Object> map = new LinkedHashMap<>();
+        map.put("ingredientId", component.getIngredientId() == null ? null : component.getIngredientId().toString());
+        map.put("ingredientCode", component.getIngredientCodeSnapshot());
+        map.put("quantity", component.getQuantity());
+        map.put("unit", component.getUnitSnapshot());
         return map;
     }
 

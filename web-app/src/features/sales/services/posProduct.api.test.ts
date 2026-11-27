@@ -90,5 +90,26 @@ describe("shared POS response mapping", () => {
     expect(current.productVariantId).toBe(variantId);
     expect(current.productId).toBe(parent);
     expect(current.priceAvailable).toBe(false);
+    expect(current.productType).toBe("FINISHED_PRODUCT");
+  });
+
+  it("maps CUSTOMER productType and loads bundle BOM for POS resale", async () => {
+    vi.mocked(apiClient.get).mockResolvedValueOnce({
+      content: [{ ...variant, productType: "CUSTOMER", shelfQuantity: 0, warehouseQuantity: 0 }]
+    });
+    const [customerProduct] = await posProductApi.search("Trà");
+    expect(customerProduct.productType).toBe("CUSTOMER");
+
+    vi.mocked(apiClient.get).mockResolvedValueOnce({
+      variantId,
+      sku: "KH-00001",
+      productName: "Trà khách",
+      variantName: "Trà Quýt",
+      productType: "CUSTOMER",
+      lines: [{ ingredientId: "ing-1", ingredientName: "Vỏ quýt", unitSymbol: "g", quantity: 35 }]
+    });
+    const bom = await posProductApi.getCustomerBundleBom(variantId);
+    expect(bom.lines).toHaveLength(1);
+    expect(apiClient.get).toHaveBeenLastCalledWith(`/pos/products/${variantId}/bundle-bom`);
   });
 });

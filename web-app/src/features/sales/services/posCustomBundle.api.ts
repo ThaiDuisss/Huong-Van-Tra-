@@ -18,6 +18,14 @@ export interface BundleLineInput {
     quantity: number;
 }
 
+export interface BundleBomInput {
+    variantId: string;
+    bomSku?: string | null;
+    bomName: string;
+    note?: string | null;
+    lines: BundleLineInput[];
+}
+
 export interface BundleMaterialAvailability {
     ingredientId: string;
     ingredientCode?: string | null;
@@ -54,6 +62,11 @@ export const bundleLimits = {
     maxIngredients: 10
 };
 
+/** Khối lượng prefill mặc định hợp lệ theo đơn vị bán lẻ; tuyệt đối không dùng 10 kg khi bán theo kg. */
+export function defaultBundleQuantity(unitSymbol?: string | null): number {
+    return unitSymbol?.trim().toLowerCase() === "kg" ? 0.1 : 10;
+}
+
 export const posCustomBundleApi = {
     searchIngredients(search: string) {
         return apiClient
@@ -73,33 +86,66 @@ export const posCustomBundleApi = {
 
     addDraftBundleItem(input: {
         orderId: string | null;
+        requestId?: string;
         branchId?: string | null;
         customerId: string | null;
         bundleName?: string;
         note?: string;
-        lines: BundleLineInput[];
+        lines?: BundleLineInput[];
+        boms?: BundleBomInput[];
     }) {
+        const mappedLines = (input.lines ?? []).map((line) => ({
+            ingredientId: line.ingredientId,
+            quantity: line.quantity
+        }));
+        const mappedBoms = input.boms?.map((bom) => ({
+            variantId: bom.variantId,
+            bomSku: bom.bomSku?.trim() || undefined,
+            bomName: bom.bomName.trim(),
+            note: bom.note?.trim() || undefined,
+            lines: bom.lines.map((line) => ({
+                ingredientId: line.ingredientId,
+                quantity: line.quantity
+            }))
+        }));
         return apiClient.post<PosOrderDto, Record<string, unknown>>("/orders/pos/draft/bundle-items", {
             orderId: input.orderId ?? undefined,
+            requestId: input.requestId,
             branchId: optionalUuid(input.branchId),
             customerId: optionalUuid(input.customerId),
             bundleName: input.bundleName?.trim() || undefined,
             note: input.note?.trim() || undefined,
-            lines: input.lines.map((line) => ({ ingredientId: line.ingredientId, quantity: line.quantity }))
+            lines: mappedLines.length > 0 ? mappedLines : undefined,
+            boms: mappedBoms && mappedBoms.length > 0 ? mappedBoms : undefined
         });
     },
 
     updateDraftBundleItem(
         orderId: string,
         itemId: string,
-        input: { bundleName?: string; note?: string; lines: BundleLineInput[] }
+        input: { bundleName?: string; note?: string; lines?: BundleLineInput[]; boms?: BundleBomInput[] }
     ) {
+        const mappedLines = (input.lines ?? []).map((line) => ({
+            ingredientId: line.ingredientId,
+            quantity: line.quantity
+        }));
+        const mappedBoms = input.boms?.map((bom) => ({
+            variantId: bom.variantId,
+            bomSku: bom.bomSku?.trim() || undefined,
+            bomName: bom.bomName.trim(),
+            note: bom.note?.trim() || undefined,
+            lines: bom.lines.map((line) => ({
+                ingredientId: line.ingredientId,
+                quantity: line.quantity
+            }))
+        }));
         return apiClient.put<PosOrderDto, Record<string, unknown>>(
             `/orders/pos/draft/${encodeURIComponent(orderId)}/bundle-items/${encodeURIComponent(itemId)}`,
             {
                 bundleName: input.bundleName?.trim() || undefined,
                 note: input.note?.trim() || undefined,
-                lines: input.lines.map((line) => ({ ingredientId: line.ingredientId, quantity: line.quantity }))
+                lines: mappedLines.length > 0 ? mappedLines : undefined,
+                boms: mappedBoms && mappedBoms.length > 0 ? mappedBoms : undefined
             }
         );
     },

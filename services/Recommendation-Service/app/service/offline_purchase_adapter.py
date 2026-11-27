@@ -1,4 +1,4 @@
-"""Conservative eligibility and deterministic simulation; no persistence API."""
+"""Conservative eligibility, deterministic simulation, and controlled verified apply."""
 from collections import Counter, defaultdict
 from dataclasses import dataclass
 from datetime import datetime, timezone, tzinfo
@@ -6,6 +6,12 @@ from decimal import Decimal
 import json
 from uuid import UUID
 
+from sqlalchemy import select
+from sqlalchemy.dialects import mysql, sqlite
+from sqlalchemy.orm import Session
+
+from app.models.business_report import CompletedPurchaseOrder
+from app.models.order_event_inbox import OrderEventStream, OrderReturnLine
 from app.service.completed_purchase_evidence import (
     PurchaseEvidence, build_completed_purchase, canonical_lines, require_identity,
 )
@@ -319,3 +325,111 @@ def analyze_historical_source(source, *, diagnostic_assume_utc=False, policy=Non
                                             source_lines=sum(len(v) > 1 for v in line_owners.values()))
     summary["result_digest"] = fingerprint(json.loads(json.dumps(summary, default=str)))
     return HistoricalDryRun(decisions, summary)
+
+
+def _lock_order_stream(db: Session, order_id: str) -> None:
+    table = OrderEventStream.__table__
+    dialect = db.get_bind().dialect.name
+    if dialect == "mysql":
+        stmt = mysql.insert(table).values(order_id=order_id).on_duplicate_key_update(order_id=table.c.order_id)
+    elif dialect == "sqlite":
+        stmt = sqlite.insert(table).values(order_id=order_id).on_conflict_do_nothing()
+    else:
+        raise ValueError("unsupported_apply_database")
+    db.execute(stmt)
+
+
+def apply_historical_purchases(
+    db: Session,
+    run: HistoricalDryRun,
+    *,
+    policy: VerificationPolicy,
+    source_provenance: str = "VERIFIED_COMMERCIAL",
+    observed_at: datetime | None = None,
+) -> dict:
+    """Transactionally persist strictly READY purchase evidences; fail & roll back on any conflict."""
+    if source_provenance != "VERIFIED_COMMERCIAL":
+        raise ValueError("apply_requires_verified_commercial_provenance")
+    missing_policy = policy.missing()
+    ready = [d for d in run.decisions if d.category == "READY" and d.evidence is not None]
+    if missing_policy or not ready:
+        return {
+            "status": "BLOCKED_BEFORE_MUTATION",
+            "target_table": "report_purchase_orders",
+            "provenance": source_provenance,
+            "ready_orders": len(ready),
+            "inserted_orders": 0,
+            "skipped_orders": 0,
+            "rejected_orders": len(run.decisions) - len(ready),
+            "missing_policy": missing_policy,
+        }
+
+    now = (observed_at or datetime.now(timezone.utc)).astimezone(timezone.utc).replace(tzinfo=None)
+    inserted = 0
+    skipped = 0
+
+    with db.begin():
+        existing_rows = list(db.scalars(select(CompletedPurchaseOrder).with_for_update()))
+        sim_index = _SimulationIndex([
+            {
+                "id": row.id,
+                "source_event_id": row.source_event_id,
+                "evidence_hash": row.evidence_hash,
+                "lines": row.lines if isinstance(row.lines, list) else [],
+            }
+            for row in existing_rows
+        ])
+        for decision in sorted(ready, key=lambda d: d.order_id):
+            ev = decision.evidence
+            assert ev is not None
+            if ev.customer_id is None:
+                raise ValueError("verified_commercial_requires_customer_id_or_explicit_guest_policy")
+            action = simulation_action(ev, sim_index)
+            if action == "SKIP":
+                skipped += 1
+                continue
+            if action != "INSERT":
+                raise ValueError(f"apply_rejected_{action.lower()}")
+
+            # Reject if persisted returns already exceed purchased line quantities.
+            returned_rows = db.execute(
+                select(OrderReturnLine.order_item_id, OrderReturnLine.quantity).where(
+                    OrderReturnLine.order_id == ev.order_id
+                )
+            )
+            returned_by_line: dict[str, Decimal] = defaultdict(Decimal)
+            for item_id, qty in returned_rows:
+                returned_by_line[item_id] += Decimal(str(qty))
+            for line in ev.lines:
+                if returned_by_line[line.order_item_id] > Decimal(line.quantity):
+                    raise ValueError("apply_negative_retained_quantity")
+
+            _lock_order_stream(db, ev.order_id)
+            line_dicts = [line.as_dict() for line in ev.lines]
+            db.add(CompletedPurchaseOrder(
+                id=ev.order_id,
+                source_event_id=ev.source_event_id,
+                customer_id=ev.customer_id,
+                occurred_at=ev.occurred_at,
+                observed_at=now,
+                evidence_hash=ev.evidence_hash,
+                lines=line_dicts,
+            ))
+            sim_index.remember({
+                "id": ev.order_id,
+                "source_event_id": ev.source_event_id,
+                "evidence_hash": ev.evidence_hash,
+                "lines": line_dicts,
+            })
+            inserted += 1
+
+    return {
+        "status": "APPLIED",
+        "target_table": "report_purchase_orders",
+        "provenance": source_provenance,
+        "ready_orders": len(ready),
+        "inserted_orders": inserted,
+        "skipped_orders": skipped,
+        "rejected_orders": len(run.decisions) - len(ready),
+        "missing_policy": [],
+    }

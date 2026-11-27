@@ -5,6 +5,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.extern.slf4j.Slf4j;
 import org.hvtra.orderservice.dto.request.PosProductSearchRequest;
 import org.hvtra.orderservice.dto.response.PageResponse;
+import org.hvtra.orderservice.dto.response.PosProductVariantBomResponse;
 import org.hvtra.orderservice.dto.response.PosProductVariantResponse;
 import org.hvtra.orderservice.service.PosProductService;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -44,6 +45,12 @@ public class PosProductController {
     @GetMapping(value = {"/{variantId}", "/{variantId}/pos-view"})
     public PosProductVariantResponse getPosView(@PathVariable("variantId") UUID variantId) {
         return posProductService.getPosView(variantId);
+    }
+
+    @Operation(summary = "Lấy BOM của biến thể Product CUSTOMER để POS chuyển thành CUSTOM_BUNDLE")
+    @GetMapping("/{variantId}/bundle-bom")
+    public PosProductVariantBomResponse getCustomerBundleBom(@PathVariable("variantId") UUID variantId) {
+        return posProductService.getCustomerBundleBom(variantId);
     }
 }
 

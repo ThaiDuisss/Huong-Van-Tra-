@@ -1,6 +1,5 @@
 import { ApiError } from "@/lib/api-client";
 import type { AiReportImportProgress } from "../types/ai-report.types";
-import { validateBomPeriod } from "./ai-report.export";
 
 export class AiReportImportError extends Error {
   readonly retryable: boolean;
@@ -31,16 +30,16 @@ export function aiReportErrorMessage(error: unknown, fallback = "Không thể x�
   return fallback;
 }
 
-export function bomExportDataMessage(error: unknown): string | null {
-  if (!(error instanceof ApiError) || error.status !== 422) return null;
-  if (error.code === "BOM_NO_DATA") return "Không có lượt mua BOM trong kỳ đã chọn.";
-  if (error.code !== "BOM_PERIOD_UNSUPPORTED") return null;
-
-  const message = "Nguồn dữ liệu BOM mô phỏng chưa hỗ trợ toàn bộ kỳ đã chọn.";
-  if (!error.details || typeof error.details !== "object") return message;
-  const {fromDate, toDate, timezone} = error.details as Record<string, unknown>;
-  if (typeof fromDate !== "string" || typeof toDate !== "string" || timezone !== "UTC"
-      || validateBomPeriod(fromDate, toDate)) return message;
-  const format = (date: string) => date.split("-").reverse().join("/");
-  return `${message} Kỳ có thể đối chiếu: ${format(fromDate)} – ${format(toDate)} (UTC).`;
+export function ingredientExportDataMessage(error: unknown): string | null {
+  if (!(error instanceof ApiError)) return null;
+  if (error.status === 422) {
+    if (error.code === "INGREDIENT_NO_DATA" || error.code === "NO_DATA") {
+      return "Chưa có dữ liệu gợi ý nguyên liệu trong kỳ đã chọn.";
+    }
+    return "API xuất báo cáo nguyên liệu chưa khả dụng hoặc đang chờ hoàn tất tích hợp từ backend.";
+  }
+  if (error.status === 404 || error.status === 501) {
+    return "API xuất báo cáo nguyên liệu chưa được triển khai trên backend.";
+  }
+  return null;
 }

@@ -56,7 +56,8 @@ class TasteSnapshotService {
         this.maxBytes = maxBytes;
     }
 
-    @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ, timeout = 30)
+    @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ,
+            timeoutString = "${taste.catalog.snapshot-transaction-timeout-seconds:55}")
     public Snapshot read() {
         String readAt = Instant.now().truncatedTo(ChronoUnit.MICROS).toString();
         var payload = documents.object().put("schemaVersion", 1);

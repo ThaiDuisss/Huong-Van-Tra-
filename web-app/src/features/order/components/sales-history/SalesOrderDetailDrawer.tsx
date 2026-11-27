@@ -179,7 +179,7 @@ export function SalesOrderDetailDrawer({
                                             className={styles.itemRow}
                                             key={`${getItemSku(item)}-${index}`}
                                         >
-                                            <div>
+                                            <div className="min-w-0 flex-1">
                                                 <strong>
                                                     {getItemProductName(item)}
                                                 </strong>
@@ -190,6 +190,50 @@ export function SalesOrderDetailDrawer({
                                                         getItemUnitPrice(item)
                                                     )}
                                                 </span>
+                                                {item.bundleBoms && item.bundleBoms.length > 0 ? (
+                                                    <div className="mt-1.5 grid gap-1 text-xs">
+                                                        {item.bundleBoms.map((bom, bomIdx) => (
+                                                            <div
+                                                                key={bom.id ?? `${bom.bomName}-${bomIdx}`}
+                                                                className="rounded-md border border-[#e3ece5] bg-[#f8fbf8] px-2.5 py-1.5 text-slate-700"
+                                                            >
+                                                                <div className="font-bold text-[#172317]">
+                                                                    {bom.bomName}
+                                                                    {bom.bomSku ? ` · ${bom.bomSku}` : ""}
+                                                                </div>
+                                                                {bom.components && bom.components.length > 0 ? (
+                                                                    <div className="text-[11px] text-slate-500">
+                                                                        {bom.components
+                                                                            .map(
+                                                                                (c) =>
+                                                                                    `${c.ingredientName} ${formatQuantity(c.quantity)} ${c.unit ?? ""}`
+                                                                            )
+                                                                            .join(" · ")}
+                                                                    </div>
+                                                                ) : null}
+                                                                {bom.note ? (
+                                                                    <div className="mt-0.5 text-[11px] font-semibold text-[#159734]">
+                                                                        Ghi chú: {bom.note}
+                                                                    </div>
+                                                                ) : null}
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                ) : item.components && item.components.length > 0 ? (
+                                                    <span className="block text-[11px] text-slate-500">
+                                                        {item.components
+                                                            .map(
+                                                                (c) =>
+                                                                    `${c.ingredientName} ${formatQuantity(c.quantity)} ${c.unit ?? ""}`
+                                                            )
+                                                            .join(" · ")}
+                                                    </span>
+                                                ) : null}
+                                                {item.note ? (
+                                                    <span className="block text-[11px] italic text-slate-600">
+                                                        Ghi chú: {item.note}
+                                                    </span>
+                                                ) : null}
                                             </div>
                                             <div className={styles.itemAmount}>
                                                 <b>

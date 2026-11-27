@@ -5,7 +5,7 @@ import type { TasteCriteria } from "./tasteSurvey.api";
 export interface GuestTasteSurvey {
     taxonomyVersion: string;
     taxonomySha256: string;
-    preparationCode: string;
+    preparationCode?: string;
     criteria: TasteCriteria;
     savedAt: string;
 }

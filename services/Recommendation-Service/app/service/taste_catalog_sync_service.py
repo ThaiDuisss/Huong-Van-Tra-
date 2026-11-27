@@ -12,7 +12,10 @@ from app.clients.taste_catalog_client import TasteCatalogClient
 from app.core.config import get_settings
 from app.core.settings import Settings
 from app.repositories.taste_catalog_projection_repository import TasteCatalogProjectionRepository
-from app.schemas.taste_catalog import Payload, Product, Profile, SnapshotError, Variant, verify_payload
+from app.schemas.taste_catalog import (
+    Payload, Product, Profile, SnapshotError, Variant, compatible_lineage, dynamic_taxonomy,
+    not_applicable_attributes, verify_payload,
+)
 
 logger = logging.getLogger(__name__)
 Readiness = Literal["READY", "EMPTY", "UNAVAILABLE", "STALE", "CAPACITY_ERROR"]
@@ -30,6 +33,8 @@ class RankableVariant:
     product: Product
     variant: Variant
     profile: Profile
+    assessed_options: dict[str, frozenset[str]] | None = None
+    not_applicable: frozenset[str] = frozenset()
 
 
 @dataclass(frozen=True)
@@ -64,6 +69,24 @@ class ProjectionView:
             if profile.taxonomyVersion == taxonomy_version
             and (preparation_code is None or profile.preparationCode == preparation_code)
         )
+
+    def consultation_variants(self, taxonomy_version: str, preparation_code: str | None) -> tuple[RankableVariant, ...]:
+        if self.status != "READY" or self.payload is None:
+            return ()
+        releases = {release.versionCode: release for release in self.payload.taxonomies}
+        target = releases.get(taxonomy_version)
+        if target is None or not dynamic_taxonomy(target.manifest):
+            return self.rankable_variants(taxonomy_version, preparation_code)
+
+        selected = {}
+        for release in compatible_lineage(releases, taxonomy_version):
+            options = {attr["attributeCode"]: frozenset(value["valueCode"] for value in attr["values"])
+                       for attr in release.manifest["attributes"]}
+            no_assessment = not_applicable_attributes(release)
+            for row in self.rankable_variants(release.versionCode, preparation_code):
+                slot = (row.variant.id, row.profile.preparationCode)
+                selected.setdefault(slot, RankableVariant(row.product, row.variant, row.profile, options, no_assessment))
+        return tuple(selected.values())
 
 
 class TasteCatalogSyncService:

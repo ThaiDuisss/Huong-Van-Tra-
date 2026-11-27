@@ -33,3 +33,8 @@ eureka:
 
 kafka-config:
   enabled: false
+
+inventory:
+  outbox:
+    publisher:
+      mode: CDC

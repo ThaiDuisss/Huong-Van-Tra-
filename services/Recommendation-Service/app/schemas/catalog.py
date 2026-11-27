@@ -41,6 +41,7 @@ class ProductVariantResponse(BaseModel):
     status: str
     productStatus: str | None = None
     sellable: bool | None = None
+    productType: str | None = None
 
 
 class ProductResponse(BaseModel):

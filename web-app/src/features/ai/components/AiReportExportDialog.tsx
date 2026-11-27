@@ -2,29 +2,40 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "../../../components/ui/dialog";
 import { ApiError } from "@/lib/api-client";
 import type { AiReportApi } from "../services/aiReport.api";
-import { aiReportErrorMessage, bomExportDataMessage } from "../utils/ai-report.errors";
-import { readBomExportRecovery, readBusinessExportRecovery, saveBomExportRecovery, saveBusinessExportRecovery,
-  saveBusinessDownload, validateBomPeriod, validateBusinessPeriod, vietnamToday,
-  type BusinessExportRecovery } from "../utils/ai-report.export";
+import type { AiBusinessExport, AiBusinessReportType } from "../types/ai-report.types";
+import { aiReportErrorMessage, ingredientExportDataMessage } from "../utils/ai-report.errors";
+import {
+  readBusinessExportRecovery,
+  readIngredientExportRecovery,
+  saveBusinessDownload,
+  saveBusinessExportRecovery,
+  saveIngredientExportRecovery,
+  validateBusinessPeriod,
+  vietnamToday,
+  type BusinessExportRecovery,
+} from "../utils/ai-report.export";
 
-type ReportKind = "PRODUCT" | "CUSTOM_BOM";
-const reportKinds = [["PRODUCT", "Theo sản phẩm"], ["CUSTOM_BOM", "Theo BOM"]] as const;
+const reportKinds: ReadonlyArray<readonly [AiBusinessReportType, string]> = [
+  ["PRODUCT", "Theo sản phẩm"],
+  ["INGREDIENT", "Theo nguyên liệu"],
+];
 
 export function AiReportExportDialog({api, actor, onClose, onExported}: {
   api: AiReportApi; actor?: string;
-  onClose(): void; onExported(kind: ReportKind): void;
+  onClose(): void; onExported(kind: AiBusinessReportType, report?: AiBusinessExport): void;
 }) {
   const today = vietnamToday();
-  const [kind, setKind] = useState<ReportKind>("PRODUCT");
-  const isBom = kind === "CUSTOM_BOM";
-  const [attempts, setAttempts] = useState<Record<ReportKind, BusinessExportRecovery | null>>(() => ({
-    PRODUCT: readBusinessExportRecovery(actor), CUSTOM_BOM: readBomExportRecovery(actor)
+  const [kind, setKind] = useState<AiBusinessReportType>("PRODUCT");
+  const isIngredient = kind === "INGREDIENT";
+  const [attempts, setAttempts] = useState<Record<AiBusinessReportType, BusinessExportRecovery | null>>(() => ({
+    PRODUCT: readBusinessExportRecovery(actor),
+    INGREDIENT: readIngredientExportRecovery(actor),
   }));
   const [fromDate, setFromDate] = useState(attempts.PRODUCT?.fromDate ?? today.slice(0, 8) + "01");
   const [toDate, setToDate] = useState(attempts.PRODUCT?.toDate ?? today);
   const savedAttempt = attempts[kind];
   const retrying = savedAttempt?.fromDate === fromDate && savedAttempt?.toDate === toDate;
-  const saveRecovery = isBom ? saveBomExportRecovery : saveBusinessExportRecovery;
+  const saveRecovery = isIngredient ? saveIngredientExportRecovery : saveBusinessExportRecovery;
   const [busy, setBusy] = useState(false);
   const [stage, setStage] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -35,36 +46,43 @@ export function AiReportExportDialog({api, actor, onClose, onExported}: {
   async function submit(event: FormEvent) {
     event.preventDefault();
     if (running.current) return;
-    const invalid = isBom ? validateBomPeriod(fromDate, toDate) : validateBusinessPeriod(fromDate, toDate, today);
+    const invalid = validateBusinessPeriod(fromDate, toDate, today);
     if (invalid) {setError(invalid); return;}
     const intent: BusinessExportRecovery = retrying && savedAttempt
-      ? {...savedAttempt} : {requestId: crypto.randomUUID(), fromDate, toDate};
+      ? {...savedAttempt} : {requestId: crypto.randomUUID(), fromDate, toDate, ...(isIngredient ? {reportType: "INGREDIENT" as const} : {})};
     saveRecovery(actor, intent);
     const controller = new AbortController();
     exportController.current = controller;
     running.current = true; setBusy(true); setError(null); setStage("Đang tạo báo cáo...");
     try {
-      if (!intent.report) intent.report = await api.exportBusinessReport({requestId: intent.requestId,
-        fromDate, toDate, ...(isBom ? {reportType: "CUSTOM_BOM" as const} : {})}, controller.signal);
+      if (!intent.report) {
+        intent.report = await api.exportBusinessReport({
+          requestId: intent.requestId,
+          fromDate,
+          toDate,
+          ...(isIngredient ? {reportType: "INGREDIENT" as const} : {}),
+        }, controller.signal);
+      }
       if (controller.signal.aborted) return;
       setStage("Đang tải Excel...");
       const blob = await api.downloadBusinessReport(intent.report, controller.signal);
       if (controller.signal.aborted) return;
-      saveBusinessDownload(blob, intent.report.fileName);
+      const exportedReport = intent.report;
+      saveBusinessDownload(blob, exportedReport.fileName);
       saveRecovery(actor, null);
       setAttempts(previous => ({...previous, [kind]: null}));
-      onExported(kind);
+      onExported(kind, exportedReport);
     } catch (failure) {
       if (controller.signal.aborted) return;
-      const dataMessage = isBom && bomExportDataMessage(failure);
+      const dataMessage = isIngredient ? ingredientExportDataMessage(failure) : null;
       if (dataMessage) {
         saveRecovery(actor, null);
         setAttempts(previous => ({...previous, [kind]: null}));
         setError(dataMessage);
       } else {
         setAttempts(previous => ({...previous, [kind]: intent}));
-        setError(isBom && failure instanceof ApiError && failure.status === 503
-          ? "Nguồn dữ liệu báo cáo BOM chưa sẵn sàng. Vui lòng liên hệ quản trị."
+        setError(isIngredient && failure instanceof ApiError && failure.status === 503
+          ? "Nguồn dữ liệu báo cáo nguyên liệu chưa sẵn sàng. Vui lòng liên hệ quản trị."
           : aiReportErrorMessage(failure, "Không thể xuất báo cáo AI. Vui lòng thử lại cùng lượt xuất."));
       }
     } finally {
@@ -92,12 +110,12 @@ export function AiReportExportDialog({api, actor, onClose, onExported}: {
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <label className="grid min-w-0 gap-2 text-sm font-semibold">Từ ngày
                 <input aria-label="Từ ngày" type="date" value={fromDate}
-                  max={isBom ? undefined : today} disabled={busy || retrying}
+                  max={today} disabled={busy || retrying}
                   className="h-10 min-w-0 w-full rounded-lg border border-pos-border px-3 disabled:cursor-not-allowed disabled:bg-[#f1f5f3] disabled:text-[#697684]"
                   onChange={(event) => {setFromDate(event.target.value); setError(null);}} /></label>
               <label className="grid min-w-0 gap-2 text-sm font-semibold">Đến ngày
                 <input aria-label="Đến ngày" type="date" value={toDate}
-                  min={fromDate} max={isBom ? undefined : today} disabled={busy || retrying}
+                  min={fromDate} max={today} disabled={busy || retrying}
                   className="h-10 min-w-0 w-full rounded-lg border border-pos-border px-3 disabled:cursor-not-allowed disabled:bg-[#f1f5f3] disabled:text-[#697684]"
                   onChange={(event) => {setToDate(event.target.value); setError(null);}} /></label>
           </div>

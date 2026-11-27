@@ -2,6 +2,8 @@ package org.hvtra.orderservice.service.mapper;
 
 import org.hvtra.orderservice.client.CatalogClient;
 import org.hvtra.orderservice.domain.entity.OrderItem;
+import org.hvtra.orderservice.domain.entity.OrderItemBundleBom;
+import org.hvtra.orderservice.domain.entity.OrderItemBundleBomLine;
 import org.hvtra.orderservice.domain.entity.OrderItemComponent;
 import org.hvtra.orderservice.dto.response.OrderItemResponse;
 import org.springframework.stereotype.Component;
@@ -118,6 +120,9 @@ public class OrderItemMapper {
                 .components(item.isCustomBundle() && item.getComponents() != null
                         ? item.getComponents().stream().map(this::toComponentResponse).toList()
                         : List.of())
+                .bundleBoms(item.isCustomBundle() && item.getBundleBoms() != null
+                        ? item.getBundleBoms().stream().map(this::toBundleBomResponse).toList()
+                        : List.of())
                 .build();
     }
 
@@ -130,6 +135,32 @@ public class OrderItemMapper {
                 .quantity(component.getQuantity())
                 .unitPrice(component.getUnitPrice())
                 .lineTotal(component.getLineTotal())
+                .build();
+    }
+
+    private OrderItemResponse.BundleBom toBundleBomResponse(OrderItemBundleBom bom) {
+        return OrderItemResponse.BundleBom.builder()
+                .id(bom.getId())
+                .sourceVariantId(bom.getSourceVariantId())
+                .bomSku(bom.getBomSkuSnapshot())
+                .bomName(bom.getBomNameSnapshot())
+                .note(bom.getNote())
+                .estimatedPrice(bom.getEstimatedPrice())
+                .components(bom.getLines() == null
+                        ? List.of()
+                        : bom.getLines().stream().map(this::toBundleBomLineResponse).toList())
+                .build();
+    }
+
+    private OrderItemResponse.Component toBundleBomLineResponse(OrderItemBundleBomLine line) {
+        return OrderItemResponse.Component.builder()
+                .ingredientId(line.getIngredientId())
+                .ingredientCode(line.getIngredientCodeSnapshot())
+                .ingredientName(line.getIngredientNameSnapshot())
+                .unit(line.getUnitSnapshot())
+                .quantity(line.getQuantity())
+                .unitPrice(line.getUnitPrice())
+                .lineTotal(line.getLineTotal())
                 .build();
     }
 

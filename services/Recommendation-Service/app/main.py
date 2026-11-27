@@ -1,4 +1,5 @@
 from contextlib import asynccontextmanager
+import threading
 
 from fastapi import FastAPI
 
@@ -7,12 +8,14 @@ from app.api.ai_reports import router as ai_reports_router
 from app.api.catalog_sync import router as catalog_sync_router
 from app.api.health import router as health_router
 from app.api.level2_demo_training import router as level2_demo_training_router
-from app.api.recommendations import router as recommendations_router
+from app.api.recommendations import get_recommendation_service, router as recommendations_router
 from app.api.taste_recommendations import router as taste_recommendations_router
 from app.core.config import get_settings
 from app.core.recommendation_auth import validate_security
 from app.recommendation.taste_ranking_artifact import load_approved_rerankers
+from app.service.ingredient_recommendation_service import build_catalog_signals
 from app.service.level2_demo_serving import load_isolated_serving
+from app.service.level2_serving_inputs import get_level2_inputs
 from app.service.taste_catalog_refresh import taste_catalog_lifespan
 
 
@@ -21,8 +24,23 @@ async def recommendation_lifespan(application: FastAPI):
     settings = get_settings()
     application.state.level2_demo = load_isolated_serving(settings)
     application.state.taste_rerankers = load_approved_rerankers(settings.taste_ranking_activation_manifest)
-    async with taste_catalog_lifespan(application):
-        yield
+    inputs = get_level2_inputs()
+    try:
+        async with taste_catalog_lifespan(application):
+            if settings.app_environment != "test":
+                threading.Thread(
+                    target=inputs.warm_up,
+                    args=(
+                        lambda recipes: build_catalog_signals(recipes, settings.ingredient_min_pair_boms),
+                        get_recommendation_service().artifact_store,
+                    ),
+                    name="level2-warmup",
+                    daemon=True,
+                ).start()
+            yield
+    finally:
+        inputs.close()
+        get_level2_inputs.cache_clear()
 
 
 def create_app() -> FastAPI:

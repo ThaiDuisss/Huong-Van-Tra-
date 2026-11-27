@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import lombok.RequiredArgsConstructor;
+import org.hvtra.commonservice.common_core.taste.TasteManifestV2;
 import org.springframework.stereotype.Component;
 
 import java.util.HashSet;
@@ -32,8 +33,20 @@ class TasteManifest {
                 || !version.equals(manifest.path("versionCode").textValue())
                 || !manifest.path("schemaVersion").isIntegralNumber()
                 || !manifest.path("schemaVersion").canConvertToInt()
-                || manifest.path("schemaVersion").intValue() != 1) {
-            throw TasteFailure.invalid("Manifest phải có versionCode khớp URL và schemaVersion 1");
+                || !(manifest.path("schemaVersion").intValue() == 1 || manifest.path("schemaVersion").intValue() == 2)) {
+            throw TasteFailure.invalid("Manifest phải có versionCode khớp URL và schemaVersion được hỗ trợ");
+        }
+        boolean dynamic = manifest.path("schemaVersion").intValue() == 2;
+        TasteManifestV2.Reference reference = null;
+        if (dynamic) {
+            try {
+                reference = TasteManifestV2.validate(manifest, publish);
+                if (SPLIT_VERSION.equals(version) || LEVEL_ONE_VERSION.equals(version)) {
+                    throw new IllegalArgumentException("Mã taxonomy cũ phải dùng schemaVersion 1");
+                }
+            } catch (IllegalArgumentException failure) {
+                throw TasteFailure.invalid(failure.getMessage());
+            }
         }
         JsonNode attributes = manifest.path("attributes");
         if (!attributes.isArray() || attributes.size() > 64) {
@@ -41,8 +54,8 @@ class TasteManifest {
         }
         Map<String, Attribute> definitions = new TreeMap<>();
         Map<String, ObjectNode> entries = new TreeMap<>();
-        boolean levelOne = LEVEL_ONE_VERSION.equals(version);
-        boolean splitSweetness = levelOne || SPLIT_VERSION.equals(version);
+        boolean levelOne = !dynamic && LEVEL_ONE_VERSION.equals(version);
+        boolean splitSweetness = !dynamic && (levelOne || SPLIT_VERSION.equals(version));
         for (JsonNode item : attributes) {
             if (!(item instanceof ObjectNode attribute)) {
                 throw TasteFailure.invalid("Thuộc tính taxonomy phải là JSON object");
@@ -62,7 +75,8 @@ class TasteManifest {
             }) {
                 throw TasteFailure.invalid("Selection kind hoặc maxSelections không hợp lệ");
             }
-            boolean allowsNotApplicable = splitSweetness && ADDED_SWEETNESS.equals(code);
+            boolean allowsNotApplicable = dynamic ? attribute.path("allowsNotApplicable").booleanValue()
+                    : splitSweetness && ADDED_SWEETNESS.equals(code);
             if (splitSweetness) {
                 validateSplitAttribute(code, attribute, kind, maximum, values.keySet(), allowsNotApplicable, levelOne);
             }
@@ -76,7 +90,7 @@ class TasteManifest {
             entries.put(code, normalized);
         }
         int requiredSplitAttributes = ORDINAL_ATTRIBUTES.size() + (levelOne ? 3 : 2);
-        if (publish && (splitSweetness
+        if (publish && !dynamic && (splitSweetness
                 ? definitions.size() != requiredSplitAttributes
                 : !definitions.keySet().containsAll(REQUIRED))) {
             throw TasteFailure.invalid("Manifest chưa đủ các thuộc tính khẩu vị bắt buộc của phiên bản");
@@ -88,7 +102,7 @@ class TasteManifest {
         if (documents.size(canonical) > MAX_BYTES) {
             throw TasteFailure.invalid("Manifest vượt quá 256 KiB sau chuẩn hóa");
         }
-        return new Release(canonical, documents.hash(canonical), Map.copyOf(definitions));
+        return new Release(canonical, documents.hash(canonical), Map.copyOf(definitions), reference);
     }
 
     JsonNode sensory(JsonNode value, Release release) {
@@ -111,8 +125,9 @@ class TasteManifest {
                     throw TasteFailure.invalid("Mã cảm quan lạ, trùng hoặc UNKNOWN");
                 }
             }
-            if (codes.size() > 1 && codes.contains("NONE")) {
-                throw TasteFailure.invalid("NONE không thể đi cùng giá trị cảm quan khác");
+            if (codes.size() > 1 && (codes.contains("NONE") || codes.contains(NOT_APPLICABLE)
+                    && release.manifest().path("schemaVersion").intValue() == 2)) {
+                throw TasteFailure.invalid("NONE và NOT_APPLICABLE phải đứng riêng");
             }
             ArrayNode array = normalized.putArray(entry.getKey());
             codes.stream().sorted().forEach(array::add);
@@ -178,6 +193,7 @@ class TasteManifest {
     record Attribute(int maximum, Set<String> values, boolean allowsNotApplicable) {
     }
 
-    record Release(JsonNode manifest, String digest, Map<String, Attribute> attributes) {
+    record Release(JsonNode manifest, String digest, Map<String, Attribute> attributes,
+                   TasteManifestV2.Reference compatibility) {
     }
 }

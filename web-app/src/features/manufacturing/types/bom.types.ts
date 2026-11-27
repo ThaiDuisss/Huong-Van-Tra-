@@ -8,7 +8,15 @@ export interface BomItemResponse {
     id: string;
     ingredient: {
         id: string;
+        ingredientCode?: string;
         name: string;
+        imageUrl?: string | null;
+        unitId?: string;
+        unitName?: string;
+        unitSymbol?: string;
+        type?: number;
+        status?: string;
+        retailPricePerUnit?: number | null;
     };
     quantity: number;
     unit: {

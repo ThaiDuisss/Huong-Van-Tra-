@@ -203,18 +203,30 @@ export function CustomBundleHandoverPage() {
                                     )}
                                 </div>
                             </div>
-                            <ul className="grid gap-1 text-sm">
+                            <ul className="grid gap-1.5 text-sm">
                                 {bundleItems(order).map((item) => (
-                                    <li className="flex flex-wrap items-center justify-between gap-2" key={item.id}>
-                                        <span className="font-bold text-[#172317]">
-                                            {item.variantNameSnapshot ?? "Trà đóng theo yêu cầu"}
-                                            {item.packingCode ? (
-                                                <span className="ml-2 text-xs font-semibold text-[#697684]">{item.packingCode}</span>
-                                            ) : null}
-                                        </span>
-                                        <StatusBadge>
-                                            {item.packingStatus ? bundlePackingStatusLabels[item.packingStatus] : "Chưa gửi kho"}
-                                        </StatusBadge>
+                                    <li className="grid gap-1 rounded-lg border border-slate-100 bg-slate-50/60 p-2.5" key={item.id}>
+                                        <div className="flex flex-wrap items-center justify-between gap-2">
+                                            <span className="font-bold text-[#172317]">
+                                                {item.variantNameSnapshot ?? "Trà đóng theo yêu cầu"}
+                                                {item.packingCode ? (
+                                                    <span className="ml-2 text-xs font-semibold text-[#697684]">{item.packingCode}</span>
+                                                ) : null}
+                                            </span>
+                                            <StatusBadge>
+                                                {item.packingStatus ? bundlePackingStatusLabels[item.packingStatus] : "Chưa gửi kho"}
+                                            </StatusBadge>
+                                        </div>
+                                        {item.bundleBoms && item.bundleBoms.length > 0 ? (
+                                            <div className="grid gap-1 text-xs">
+                                                {item.bundleBoms.map((bom, bomIdx) => (
+                                                    <div key={bom.id ?? `${bom.bomName}-${bomIdx}`} className="text-slate-600">
+                                                        <span className="font-semibold text-slate-800">• {bom.bomName}</span>
+                                                        {bom.note ? <span className="ml-1.5 font-semibold text-[#159734]">— Ghi chú: {bom.note}</span> : null}
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        ) : null}
                                     </li>
                                 ))}
                             </ul>
