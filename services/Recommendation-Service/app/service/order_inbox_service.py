@@ -35,23 +35,38 @@ def _receipt_line(item):
     for field in ("productId", "bomVersionId"):
         if item.get(field) is not None:
             require_uuid(item[field], "INVALID_PURCHASE_LINE_IDENTITY")
-    if item.get("purchaseType") not in ("PRODUCT", "CUSTOM_BUNDLE") or item.get(
-        "itemType", item["purchaseType"]
-    ) != item["purchaseType"]:
+    purchase_type = item.get("purchaseType", item.get("itemType", "PRODUCT"))
+    if purchase_type not in ("PRODUCT", "CUSTOM_BUNDLE") or item.get("itemType", purchase_type) != purchase_type:
         raise OrderIngressError("UNSUPPORTED_PURCHASE_LINE_TYPE")
     quantity = ReturnEventAdapter._quantity(item.get("quantity"), 0)
     bom_version_id = item.get("bomVersionId")
-    return {
+    line = {
         "order_item_id": require_uuid(item.get("orderItemId"), "INVALID_PURCHASE_LINE_IDENTITY"),
         "product_variant_id": require_uuid(item.get("productVariantId"), "INVALID_PURCHASE_LINE_IDENTITY"),
         "product_id": None,
-        "purchase_type": item["purchaseType"],
+        "purchase_type": purchase_type,
         "bom_version_id": bom_version_id,
         "bom_identity_status": "SOURCE_PROVIDED" if bom_version_id else (
-            "UNRESOLVED" if item["purchaseType"] == "CUSTOM_BUNDLE" else "NOT_PROVIDED"
+            "UNRESOLVED" if purchase_type == "CUSTOM_BUNDLE" else "NOT_PROVIDED"
         ),
         "quantity": format(quantity.normalize(), "f"),
     }
+    components = item.get("components")
+    if components:
+        if purchase_type != "CUSTOM_BUNDLE":
+            raise OrderIngressError("UNEXPECTED_PURCHASE_COMPONENTS")
+        line["components"] = [_receipt_component(component) for component in components]
+    return line
+
+
+def _receipt_component(component):
+    ingredient_id = require_uuid(component.get("ingredientId"), "INVALID_COMPONENT_ID")
+    code, unit = component.get("ingredientCode"), component.get("unit")
+    if not code or not unit:
+        raise OrderIngressError("INVALID_COMPONENT_CODE_OR_UNIT")
+    quantity = ReturnEventAdapter._quantity(component.get("quantity"), 0)
+    return dict(ingredient_id=ingredient_id, ingredient_code=code, unit=unit,
+                quantity=format(quantity.normalize(), "f"))
 
 
 class OrderInboxService:
@@ -110,7 +125,7 @@ class OrderInboxService:
             if not lines or len(lines) != len(by_id):
                 raise OrderIngressError("EMPTY_OR_DUPLICATE_PURCHASE_LINES")
             _, _, customer_id, completed_at = self.purchase_adapter.validate_completion(payload)
-            product_items = [item for item in source_lines if item["purchaseType"] == "PRODUCT"]
+            product_items = [item for item, line in zip(source_lines, lines) if line["purchase_type"] == "PRODUCT"]
             interactions = (self.purchase_adapter.to_canonical_interactions(dict(payload, items=product_items))
                             if product_items else [])
         except (KeyError, TypeError, AttributeError, OrderIngressError, PurchaseEventValidationError,

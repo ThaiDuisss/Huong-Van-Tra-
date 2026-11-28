@@ -2,7 +2,7 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 
 import { NotificationProvider } from "../features/notification/context/NotificationContext";
-import { ToastContainer } from "../components/ui/Toast";
+import { ToastContainer } from "../components/ui/ToastContainer";
 import { queryClient } from "./query-client";
 
 interface AppProvidersProps {

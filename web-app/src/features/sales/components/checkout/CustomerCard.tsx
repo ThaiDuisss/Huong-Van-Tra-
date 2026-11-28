@@ -19,6 +19,7 @@ interface CustomerSelectorProps {
   error: string;
   disabled?: boolean;
   invoiceId?: string;
+  localInvoiceId?: string;
   tasteSurveyScope?: string;
   onSearch?(query: string): void;
   onLoadMore?(): void;
@@ -37,6 +38,7 @@ export function CustomerSelector({
   error,
   disabled,
   invoiceId,
+  localInvoiceId,
   tasteSurveyScope,
   onSearch,
   onLoadMore,
@@ -50,7 +52,7 @@ export function CustomerSelector({
   const [open, setOpen] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const [openSurveyContext, setOpenSurveyContext] = useState<string | null>(null);
-  const surveyContext = `${invoiceId ?? ""}:${selectedCustomer?.id ?? "guest"}`;
+  const surveyContext = `${tasteSurveyScope ?? invoiceId ?? ""}:${selectedCustomer?.id ?? "guest"}`;
   const triggerRef = useRef<HTMLButtonElement>(null);
 
   // Check customer taste survey history
@@ -61,7 +63,8 @@ export function CustomerSelector({
   });
 
   const guestSurvey = useGuestTasteSurvey(selectedCustomer ? undefined : tasteSurveyScope);
-  const hasSurvey = selectedCustomer ? (surveyHistory?.totalElements || 0) > 0 : guestSurvey !== null;
+  const hasSurvey = selectedCustomer ? (surveyHistory?.totalElements ?? 0) > 0 :
+    Boolean(guestSurvey?.criteria.hardGroups.length || guestSurvey?.criteria.softGroups.length);
   const isNewOrNoSurvey = !hasSurvey;
 
   function openCreateDialog() {
@@ -120,11 +123,11 @@ export function CustomerSelector({
           disabled={disabled}
           onClick={() => setOpenSurveyContext(surveyContext)}
           size="sm"
-          title={isNewOrNoSurvey ? "Khảo sát khẩu vị khách hàng" : "Cập nhật khẩu vị khách hàng"}
+          title="Tư vấn trà"
           variant={isNewOrNoSurvey ? "primary" : "secondary"}
         >
           <Sparkles size={14} aria-hidden="true" />
-          {isNewOrNoSurvey ? "Khảo sát" : "Cập nhật"}
+          Tư vấn
         </Button>
 
         {selectedCustomer ? (
@@ -179,6 +182,8 @@ export function CustomerSelector({
           open
           customer={selectedCustomer}
           invoiceId={invoiceId}
+          localInvoiceId={localInvoiceId}
+          disabled={disabled}
           guestScope={tasteSurveyScope}
           onClose={() => setOpenSurveyContext(null)}
           onAddToCart={onAddToCart}

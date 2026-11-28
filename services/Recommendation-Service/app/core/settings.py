@@ -1,8 +1,11 @@
-from typing import Literal
+from math import isclose
+from typing import Annotated, Literal
 
-from pydantic import Field, SecretStr
+from pydantic import Field, SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from sqlalchemy.engine import URL
+
+Weight = Annotated[float, Field(ge=0, le=1)]
 
 
 class Settings(BaseSettings):
@@ -26,6 +29,18 @@ class Settings(BaseSettings):
     catalog_service_url: str = "http://localhost:8081"
     level2_inventory_service_url: str | None = None
     level2_stock_timeout_seconds: float = Field(default=3.0, gt=0, le=15)
+    level2_history_cache_seconds: float = Field(default=5, ge=0, le=15)
+    level2_catalog_cache_seconds: float = Field(default=60, ge=0, le=120)
+    level2_stock_cache_seconds: float = Field(default=8.0, ge=0, le=30)
+    level2_serving_cache_capacity: int = Field(default=256, ge=1, le=1024)
+    bom_candidate_manifest_path: str | None = None
+    ingredient_proxy_weight: float = Field(default=1.0, gt=0, allow_inf_nan=False)
+    ingredient_direct_weight: float = Field(default=1.5, gt=0, allow_inf_nan=False)
+    ingredient_retained_quantity_cap: int = Field(default=5, ge=1)
+    ingredient_recency_half_life_days: float = Field(default=60, gt=0, allow_inf_nan=False)
+    ingredient_min_pair_boms: int = Field(default=2, ge=1)
+    ingredient_initial_weights: tuple[Weight, Weight] = (0.85, 0.15)
+    ingredient_selected_weights: tuple[Weight, Weight, Weight] = (0.65, 0.25, 0.10)
     customer_service_url: str | None = None
     customer_taste_read_secret: SecretStr | None = None
     customer_taste_timeout_seconds: float = Field(default=1.0, gt=0, le=5)
@@ -85,6 +100,13 @@ class Settings(BaseSettings):
     kafka_auto_offset_reset: str = "error"
     kafka_enable_auto_commit: bool = False
     order_kafka_verification_keys: SecretStr = SecretStr("")
+
+    @model_validator(mode="after")
+    def validate_ingredient_weights(self):
+        if not all(isclose(sum(weights), 1.0) for weights in
+                   (self.ingredient_initial_weights, self.ingredient_selected_weights)):
+            raise ValueError("Each Ingredient ranking weight set must sum to 1")
+        return self
 
     @property
     def sqlalchemy_database_url(self) -> str:

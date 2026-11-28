@@ -344,11 +344,11 @@ public class CustomerReturnInspectionServiceImpl implements CustomerReturnInspec
         }
 
         // The inspection lock is acquired before the disposal lock, matching legacy approval.
-        DisposalRequest legacyRequest = disposalRequestRepository.findBySourceInspectionId(inspection.getId())
+        DisposalRequest legacyRequest = disposalRequestRepository.findLegacyWriteOffBySourceInspectionId(inspection.getId())
                 .map(request -> disposalRequestRepository.findDetailByIdForUpdate(request.getId())
                         .orElseThrow(() -> new ResourceNotFoundException("Disposal request", request.getId())))
                 .orElse(null);
-        if (legacyRequest != null && (!"CUSTOMER_RETURN_INSPECTION".equals(legacyRequest.getSourceType())
+        if (legacyRequest != null && (!DisposalRequest.SOURCE_RETURN_WRITE_OFF.equals(legacyRequest.getSourceType())
                 || legacyRequest.getStatus() != DisposalRequestStatus.PENDING_APPROVAL)) {
             throw new BadRequestException("Disposal record is inconsistent with unposted return lines; reconciliation is required");
         }

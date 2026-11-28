@@ -6,8 +6,10 @@ import {
     qualityLocations
 } from "../mocks/quality.mock";
 import { apiClient } from "../../../api/api-client";
+import { DAMAGED_RETURN_DISPOSAL_SOURCE } from "../utils/inventory-labels";
 import type {
     BatchQualityDetail,
+    DamagedReturnDisposalCreateInput,
     DisposalActionInput,
     DisposalCompleteInput,
     DisposalCreateInput,
@@ -29,6 +31,8 @@ interface BackendDisposalLine {
     itemName?: string;
     quantity: number;
     transactionId?: string;
+    locationId?: string | null;
+    locationName?: string | null;
 }
 
 interface BackendDisposalRequest {
@@ -58,6 +62,8 @@ interface BackendDisposalPage {
 }
 
 function mapBackendDisposal(request: BackendDisposalRequest): DisposalRequest {
+    const damaged = request.sourceType === DAMAGED_RETURN_DISPOSAL_SOURCE;
+    const damagedLocation = request.lines.find((line) => line.locationName);
     const systemActor = { id: "system", name: "Hệ thống", role: "INVENTORY_STAFF" as const };
     const approvedActor = { id: "approver", name: "Người phê duyệt", role: "SUPER_ADMIN" as const };
     return {
@@ -71,20 +77,22 @@ function mapBackendDisposal(request: BackendDisposalRequest): DisposalRequest {
         inspectionCode: request.inspectionCode,
         lines: request.lines.map((line) => ({
             actualDisposedQuantity: request.status === "APPROVED" ? Number(line.quantity) : 0,
-            batchCode: "Không nhập kho",
+            batchCode: damaged ? line.locationName ?? "Vị trí hàng lỗi" : "Không nhập kho",
             batchId: "",
             estimatedValue: 0,
             evidence: [],
             id: line.id,
             quantity: Number(line.quantity),
-            reason: "Hàng khách trả được chỉ định tiêu hủy",
+            reason: damaged ? "Hàng lỗi khách trả chờ tiêu hủy" : "Hàng khách trả được chỉ định tiêu hủy",
             reservedQuantity: 0,
             skuCode: line.itemCode ?? "–",
             skuName: line.itemName ?? "–",
             unit: "",
             unitCost: 0
         })),
-        location: { code: "", id: "", isCentral: false, name: "Không nhập kho" },
+        location: damaged
+            ? { code: "", id: damagedLocation?.locationId ?? "", isCentral: false, name: damagedLocation?.locationName ?? "Vị trí hàng lỗi" }
+            : { code: "", id: "", isCentral: false, name: "Không nhập kho" },
         method: "DESTROY",
         note: request.note,
         reason: `Tiêu hủy từ phiếu trả ${request.returnCode}`,
@@ -126,6 +134,15 @@ function daysRemaining(expiryDate: string) {
 }
 
 export const qualityApi: QualityApi = {
+    createDamagedReturnDisposal(input: DamagedReturnDisposalCreateInput) {
+        return apiClient
+            .post<BackendDisposalRequest, DamagedReturnDisposalCreateInput>(
+                "/inventory/disposal-requests/customer-return-damaged",
+                input
+            )
+            .then(mapBackendDisposal);
+    },
+
     approveDisposalRequest(input: DisposalActionInput) {
         return apiClient
             .post<BackendDisposalRequest, undefined>(

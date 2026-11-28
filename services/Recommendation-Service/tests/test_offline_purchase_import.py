@@ -486,6 +486,56 @@ class WorkbookAndCliSafetyTests(unittest.TestCase):
         self.assertIn(DIAGNOSTIC_WARNING, errors.getvalue())
         self.assertEqual(json.loads(output.getvalue())["summary"]["eligibility"]["READY"]["orders"], 0)
 
+    def test_apply_mode_refuses_zero_ready_and_applies_verified_idempotently(self):
+        from sqlalchemy import create_engine, func, select
+        from sqlalchemy.orm import Session
+        from app.models.business_report import CompletedPurchaseOrder
+        from app.models.order_event_inbox import OrderEventInbox, OrderEventStream, OrderReturnLine
+        from app.service.offline_purchase_adapter import apply_historical_purchases
+
+        engine = create_engine("sqlite:///:memory:")
+        try:
+            for model in (OrderEventStream, OrderEventInbox, CompletedPurchaseOrder, OrderReturnLine):
+                model.__table__.create(engine)
+            src = fixture()
+            blocked_run = analyze_historical_source(src)
+            with Session(engine) as db:
+                res_blocked = apply_historical_purchases(db, blocked_run, policy=VerificationPolicy())
+                self.assertEqual(res_blocked["status"], "BLOCKED_BEFORE_MUTATION")
+                self.assertEqual(res_blocked["inserted_orders"], 0)
+                self.assertEqual(db.scalar(select(func.count()).select_from(CompletedPurchaseOrder)), 0)
+
+            policy = verified_policy()
+            ready_run = analyze_historical_source(src, policy=policy)
+            with Session(engine) as db:
+                res1 = apply_historical_purchases(db, ready_run, policy=policy)
+                self.assertEqual(res1["status"], "APPLIED")
+                self.assertEqual(res1["inserted_orders"], 1)
+                self.assertEqual(res1["skipped_orders"], 0)
+            with Session(engine) as db:
+                res2 = apply_historical_purchases(db, ready_run, policy=policy)
+                self.assertEqual(res2["status"], "APPLIED")
+                self.assertEqual(res2["inserted_orders"], 0)
+                self.assertEqual(res2["skipped_orders"], 1)
+
+            # Conflict triggers rollback of entire batch.
+            second = with_second_order(copy.deepcopy(src))
+            second.tables["interaction_events"][0]["quantity"] = Decimal("99")
+            # Directly build a conflicting two-order READY batch to test atomic rollback.
+            ready_two = analyze_historical_source(with_second_order(fixture()), policy=policy)
+            # First order already committed; force line collision on second order against an invented conflict.
+            with Session(engine) as db:
+                row = db.get(CompletedPurchaseOrder, uid(1))
+                row.evidence_hash = "f" * 64
+                db.commit()
+            with Session(engine) as db:
+                with self.assertRaisesRegex(ValueError, "apply_rejected_conflict"):
+                    apply_historical_purchases(db, ready_two, policy=policy)
+            with Session(engine) as db:
+                self.assertEqual(db.scalar(select(func.count()).select_from(CompletedPurchaseOrder)), 1)
+        finally:
+            engine.dispose()
+
 
 if __name__ == "__main__":
     unittest.main()

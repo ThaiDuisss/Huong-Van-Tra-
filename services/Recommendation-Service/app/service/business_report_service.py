@@ -14,7 +14,7 @@ from app.schemas.business_report import BusinessExportResponse
 from app.service.business_report_workbook import build_workbook
 from app.service.recommendation_snapshot_service import utc_now
 from app.service.report_data_source import OPERATIONAL, build_offline, select_source
-from app.service.bom_report_source import build_bom, require_bom_coverage, select_bom_source
+from app.service.ingredient_report_workbook import INGREDIENT_SOURCE, build_ingredient_workbook
 
 logger = logging.getLogger(__name__)
 
@@ -37,25 +37,29 @@ class BusinessReportService:
             extra = dict(reportType="CUSTOM_BOM", sourceKind="SYNTHETIC", researchOnly=True,
                          productionApproved=False, createdBy=record.created_by, status="COMPLETE",
                          provenance=record.evidence["report_source"])
+        elif (record.evidence or {}).get("report_type") == "INGREDIENT":
+            extra = dict(reportType="INGREDIENT", sourceKind="OPERATIONAL", createdBy=record.created_by,
+                         status="COMPLETE", dataStatus=record.evidence["data_status"],
+                         provenance=record.evidence["report_source"])
         return BusinessExportResponse(id=record.id, fileId=record.file_id, fileName=record.file_name,
             fromDate=record.from_date, toDate=record.to_date, generatedAt=record.generated_at, sha256=record.sha256, **extra)
 
     def export(self, db, payload, user_id):
         cfg = get_settings()
-        if payload.reportType == "PRODUCT" and (payload.toDate - payload.fromDate).days + 1 > cfg.ai_report_max_period_days:
+        if payload.reportType != "CUSTOM_BOM" and (payload.toDate - payload.fromDate).days + 1 > cfg.ai_report_max_period_days:
             raise HTTPException(422, "Reporting period exceeds maximum")
         today = datetime.now(timezone(timedelta(hours=7))).date()
-        if payload.reportType == "PRODUCT" and payload.toDate > today:
+        if payload.reportType != "CUSTOM_BOM" and payload.toDate > today:
             raise HTTPException(422, "Future reporting dates are not supported")
-        if payload.reportType == "CUSTOM_BOM":
-            require_bom_coverage(payload.fromDate, payload.toDate)
         def intent():
             return db.scalar(select(BusinessReportExport).where(BusinessReportExport.created_by == user_id,
                 BusinessReportExport.request_key == str(payload.requestId)))
         record = intent()
+        if payload.reportType == "CUSTOM_BOM" and record is None:
+            raise HTTPException(410, "Use reportType INGREDIENT for new exports")
         if not record:
-            source = ({"report_type": "CUSTOM_BOM", "report_source": select_bom_source(cfg)}
-                      if payload.reportType == "CUSTOM_BOM" else {"report_source": select_source(cfg)})
+            source = ({"report_type": "INGREDIENT", "report_source": INGREDIENT_SOURCE}
+                      if payload.reportType == "INGREDIENT" else {"report_source": select_source(cfg)})
             record = BusinessReportExport(id=str(uuid4()), created_by=user_id, request_key=str(payload.requestId),
                 from_date=payload.fromDate, to_date=payload.toDate, generated_at=utc_now(), status="PENDING",
                 evidence=source,
@@ -84,13 +88,17 @@ class BusinessReportService:
             db.commit()
             return self.response(record)
         if not record.workbook:
+            if payload.reportType == "CUSTOM_BOM":
+                db.rollback()
+                raise HTTPException(410, "Use reportType INGREDIENT for new exports")
             # Reset observation cutoff after obtaining the preparation lock.
             record.generated_at = utc_now()
             try:
                 # Legacy pending intents predate source selection and belong to OPERATIONAL.
                 pinned = (record.evidence or {}).get("report_source", dict(OPERATIONAL))
-                if payload.reportType == "CUSTOM_BOM":
-                    workbook, evidence = build_bom(cfg, pinned, record.from_date, record.to_date)
+                if payload.reportType == "INGREDIENT":
+                    workbook, evidence = build_ingredient_workbook(
+                        db, cfg, record.from_date, record.to_date, record.generated_at)
                 elif pinned["kind"] == "OPERATIONAL":
                     workbook, evidence = build_workbook(db, record.from_date, record.to_date, record.generated_at,
                                                         cfg.ai_report_max_evidence_rows)

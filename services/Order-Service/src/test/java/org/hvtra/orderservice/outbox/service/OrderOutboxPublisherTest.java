@@ -4,11 +4,13 @@ import org.hvtra.commonservice.common_core.kafka.outbox.dto.OutboxSaveCommand;
 import org.hvtra.commonservice.common_core.kafka.outbox.service.OutboxEventService;
 import org.hvtra.orderservice.domain.entity.Order;
 import org.hvtra.orderservice.domain.entity.OrderItem;
+import org.hvtra.orderservice.domain.entity.OrderItemComponent;
 import org.hvtra.orderservice.domain.entity.OrderStatusHistory;
 import org.hvtra.orderservice.repository.OrderStatusHistoryRepository;
 import org.hvtra.orderservice.domain.entity.OrderOutboxEvent;
 import org.hvtra.orderservice.domain.entity.OrderReturn;
 import org.hvtra.orderservice.domain.entity.OrderReturnItem;
+import org.hvtra.orderservice.domain.enums.OrderItemType;
 import org.hvtra.orderservice.domain.enums.OrderStatus;
 import org.hvtra.orderservice.domain.enums.PaymentStatus;
 import org.hvtra.orderservice.domain.enums.ReturnCondition;
@@ -297,5 +299,99 @@ class OrderOutboxPublisherTest {
         assertEquals("CHANGE_OF_MIND", itemPayload.get("returnReason"));
         assertEquals("SEALED", itemPayload.get("condition"));
         assertEquals("Khách đổi ý muốn lấy loại khác", itemPayload.get("note"));
+    }
+
+    @Test
+    @DisplayName("ORDER_COMPLETED serializes components snapshot for CUSTOM_BUNDLE without adding components to PRODUCT")
+    void publishOrderCompleted_SerializesComponentsForCustomBundleAndPreservesProductLines() {
+        UUID orderId = UUID.randomUUID();
+        UUID customerId = UUID.randomUUID();
+        UUID ingredientId = UUID.randomUUID();
+
+        Order order = Order.builder()
+                .orderCode("ORD-BUNDLE-3001")
+                .customerId(customerId)
+                .status(OrderStatus.COMPLETED)
+                .paymentStatus(PaymentStatus.PAID)
+                .originalAmount(new BigDecimal("180000.00"))
+                .discountAmount(BigDecimal.ZERO)
+                .finalAmount(new BigDecimal("180000.00"))
+                .paidAmount(new BigDecimal("180000.00"))
+                .build();
+        order.setId(orderId);
+
+        OrderItem productLine = OrderItem.builder()
+                .order(order)
+                .itemType(OrderItemType.PRODUCT)
+                .productVariantId(UUID.randomUUID())
+                .skuSnapshot("SKU-PROD-1")
+                .productNameSnapshot("Trà Ô Long")
+                .quantity(new BigDecimal("1.000"))
+                .originalUnitPrice(new BigDecimal("80000.00"))
+                .actualUnitPrice(new BigDecimal("80000.00"))
+                .discountAmount(BigDecimal.ZERO)
+                .lineTotal(new BigDecimal("80000.00"))
+                .build();
+        productLine.setId(UUID.randomUUID());
+
+        OrderItem bundleLine = OrderItem.builder()
+                .order(order)
+                .itemType(OrderItemType.CUSTOM_BUNDLE)
+                .productVariantId(UUID.randomUUID())
+                .skuSnapshot("CUSTOM-BUNDLE")
+                .productNameSnapshot("Trà đóng theo yêu cầu")
+                .quantity(BigDecimal.ONE)
+                .originalUnitPrice(new BigDecimal("100000.00"))
+                .actualUnitPrice(new BigDecimal("100000.00"))
+                .discountAmount(BigDecimal.ZERO)
+                .lineTotal(new BigDecimal("100000.00"))
+                .build();
+        bundleLine.setId(UUID.randomUUID());
+
+        OrderItemComponent activeComponent = new OrderItemComponent();
+        activeComponent.setIngredientId(ingredientId);
+        activeComponent.setIngredientCodeSnapshot("LOLTQX-G-48");
+        activeComponent.setIngredientNameSnapshot("Lá ô long Tứ Quý Xuân");
+        activeComponent.setUnitSnapshot("g");
+        activeComponent.setQuantity(new BigDecimal("50.000"));
+        activeComponent.setUnitPrice(new BigDecimal("1630.00"));
+        activeComponent.setLineTotal(new BigDecimal("81500.00"));
+
+        OrderItemComponent deletedComponent = new OrderItemComponent();
+        deletedComponent.setIngredientId(UUID.randomUUID());
+        deletedComponent.setIngredientCodeSnapshot("DELETED-ING");
+        deletedComponent.setIngredientNameSnapshot("Deleted");
+        deletedComponent.setUnitSnapshot("g");
+        deletedComponent.setQuantity(new BigDecimal("10.000"));
+        deletedComponent.setIsDeleted(true);
+
+        bundleLine.replaceComponents(List.of(activeComponent, deletedComponent));
+        order.setItems(List.of(productLine, bundleLine));
+
+        publisher.publishOrderCompleted(order, "PAY-HANDOVER-1", null);
+
+        verify(orderOutboxEventService).saveEventIfAbsent(commandCaptor.capture());
+        @SuppressWarnings("unchecked")
+        Map<String, Object> payload = (Map<String, Object>) commandCaptor.getValue().payload();
+        assertNotNull(payload.get("kafkaAuth"));
+
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> items = (List<Map<String, Object>>) payload.get("items");
+        assertEquals(2, items.size());
+
+        Map<String, Object> productMap = items.get(0);
+        assertEquals("PRODUCT", productMap.get("purchaseType"));
+        assertFalse(productMap.containsKey("components"));
+
+        Map<String, Object> bundleMap = items.get(1);
+        assertEquals("CUSTOM_BUNDLE", bundleMap.get("purchaseType"));
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> components = (List<Map<String, Object>>) bundleMap.get("components");
+        assertNotNull(components);
+        assertEquals(1, components.size());
+        assertEquals(ingredientId.toString(), components.get(0).get("ingredientId"));
+        assertEquals("LOLTQX-G-48", components.get(0).get("ingredientCode"));
+        assertEquals(new BigDecimal("50.000"), components.get(0).get("quantity"));
+        assertEquals("g", components.get(0).get("unit"));
     }
 }

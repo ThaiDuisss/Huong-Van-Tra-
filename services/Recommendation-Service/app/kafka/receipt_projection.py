@@ -22,7 +22,8 @@ COMMON = {"eventId", "eventType", "eventKey", "orderId", "customerId", "occurred
 PURCHASE = COMMON | {"paymentStatus", "orderStatus", "completedAt"}
 RETURN = COMMON | {"returnId", "oldStatus", "newStatus"}
 PURCHASE_LINE = {"orderItemId", "purchaseType", "itemType", "productVariantId", "productId",
-                 "sku", "quantity", "unitPrice", "bomVersionId"}
+                 "sku", "quantity", "unitPrice", "bomVersionId", "components"}
+COMPONENT = {"ingredientId", "ingredientCode", "quantity", "unit"}
 RETURN_LINE = {"returnItemId", "orderItemId", "productVariantId", "sku", "quantity",
                "returnReason", "condition"}
 DROP_COMMON = {"orderCode", "userId", "kafkaAuth"}
@@ -34,8 +35,9 @@ DROP_RETURN = DROP_COMMON | {"returnCode", "branchId", "actorUserId", "paymentId
 DROP_PURCHASE_LINE = {"productName", "variantName", "originalUnitPrice", "discountAmount", "lineTotal"}
 DROP_RETURN_LINE = {"productName", "note"}
 IDENTITIES = {"eventId", "eventKey", "orderId", "customerId", "returnId", "sagaId",
-              "correlationId", "causationId", "orderItemId", "returnItemId", "productVariantId",
-              "productId", "bomVersionId"}
+              "orderItemId", "returnItemId", "productVariantId",
+              "productId", "bomVersionId", "ingredientId"}
+TRACE_TOKENS = {"correlationId", "causationId"}
 ENUMS = {
     "eventType": {"ORDER_COMPLETED", "RETURN_COMPLETED"},
     "sourceService": {"order-service"},
@@ -74,6 +76,8 @@ def _safe_value(field, value):
         return True  # Preserve explicit null, including invalid required-field null.
     if field in IDENTITIES:
         return _uuid_text(value)
+    if field in TRACE_TOKENS:
+        return isinstance(value, str) and bool(re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._:/-]{0,149}", value))
     if field in ("quantity", "unitPrice"):
         if type(value) in (int, bool) or isinstance(value, Decimal):
             return not isinstance(value, Decimal) or value.is_finite()
@@ -85,8 +89,10 @@ def _safe_value(field, value):
         if not isinstance(value, str):
             return False
         return (value.strip().upper() if field == "returnReason" else value) in ENUMS[field]
-    if field == "sku":
+    if field in ("sku", "ingredientCode"):
         return isinstance(value, str) and bool(re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._:/-]{0,99}", value))
+    if field == "unit":
+        return isinstance(value, str) and bool(re.fullmatch(r"[A-Za-z0-9µμ][A-Za-z0-9µμ._-]{0,23}", value))
     if field in ("occurredAt", "completedAt"):
         return (type(value) in (int, bool) or isinstance(value, Decimal)
                 or isinstance(value, str) and len(value) <= 64
@@ -152,6 +158,12 @@ def project_receipt(raw_value: bytes | str, headers=None, *, keys, key_version: 
                     selected[field] = [select(v, PURCHASE_LINE if is_purchase else RETURN_LINE,
                                               DROP_PURCHASE_LINE if is_purchase else DROP_RETURN_LINE,
                                               location + "/" + str(i)) for i, v in enumerate(value)]
+            elif field == "components" and value is not None:
+                if not isinstance(value, list):
+                    diagnostic("INVALID_COMPONENTS", location, value)
+                else:
+                    selected[field] = [select(v, COMPONENT, set(), location + "/" + str(i))
+                                       for i, v in enumerate(value)]
             elif _safe_value(field, value):
                 selected[field] = value
             else:

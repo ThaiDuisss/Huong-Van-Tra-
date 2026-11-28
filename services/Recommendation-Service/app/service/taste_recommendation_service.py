@@ -1,9 +1,10 @@
 from decimal import Decimal, ROUND_HALF_UP
+import logging
 from typing import Callable
 
 from app.recommendation.taste_explanations import AttributeDefinition, explain_variant
 from app.recommendation.taste_rules import TasteCriteria, VariantMatch, maximum_points, rank_variants
-from app.schemas.taste_catalog import ADDED_SWEETNESS, SPLIT_SWEETNESS_VERSIONS, Taxonomy, canonical_bytes, digest
+from app.schemas.taste_catalog import Taxonomy, canonical_bytes, digest, not_applicable_attributes
 from app.schemas.taste_recommendation import (
     CompatibleVariant,
     TasteCriteriaDocument,
@@ -12,7 +13,10 @@ from app.schemas.taste_recommendation import (
     TasteProduct,
     TasteStatus,
 )
+from app.service.level2_availability import AvailabilityUnavailable
 from app.service.taste_catalog_sync_service import ProjectionView
+
+logger = logging.getLogger(__name__)
 
 
 class InvalidTasteCriteria(ValueError):
@@ -81,12 +85,7 @@ def _definitions(release: Taxonomy) -> dict[str, AttributeDefinition]:
 
 def validate_criteria_taxonomy(criteria: TasteCriteria, release: Taxonomy) -> dict[str, AttributeDefinition]:
     definitions = _definitions(release)
-    allowed_not_applicable = {
-        item["attributeCode"] for item in release.manifest["attributes"]
-        if release.versionCode in SPLIT_SWEETNESS_VERSIONS and item["attributeCode"] == ADDED_SWEETNESS
-        and item.get("allowsNotApplicable") is True
-    }
-    if not set(criteria.not_applicable).issubset(allowed_not_applicable):
+    if not set(criteria.not_applicable).issubset(not_applicable_attributes(release)):
         raise InvalidTasteCriteria("Thuộc tính không hỗ trợ lựa chọn không áp dụng")
     for groups in (criteria.hard, criteria.soft):
         for code, values in groups.items():
@@ -108,9 +107,12 @@ def _compatible(match: VariantMatch, score: str, definitions: dict[str, Attribut
         variantId=candidate.variant.id,
         variantName=candidate.variant.name,
         sku=candidate.variant.sku,
+        preparationCode=candidate.profile.preparationCode,
         profileId=candidate.profile.id,
         profileRevision=candidate.profile.profileRevision,
         profileSha256=candidate.profile.profileSha256,
+        profileTaxonomyVersion=candidate.profile.taxonomyVersion,
+        profileTaxonomySha256=candidate.profile.taxonomySha256,
         compositionSha256=candidate.profile.compositionSha256,
         score=score,
         matchedHard=match.matched_hard,
@@ -122,7 +124,11 @@ def _compatible(match: VariantMatch, score: str, definitions: dict[str, Attribut
     )
 
 
-def preview_taste(request: TastePreviewRequest, read_projection: Callable[[], ProjectionView]) -> TastePreviewResponse:
+def preview_taste(
+    request: TastePreviewRequest,
+    read_projection: Callable[[], ProjectionView],
+    available_variant_ids: Callable[[tuple[str, ...]], set[str]] | None = None,
+) -> TastePreviewResponse:
     criteria = normalize_criteria(request, request.taxonomySha256)
     response = TastePreviewResponse(
         status="NO_CRITERIA",
@@ -135,7 +141,8 @@ def preview_taste(request: TastePreviewRequest, read_projection: Callable[[], Pr
         catalogAsOf=None,
         requestedK=request.limit,
     )
-    if not criteria.hard and not criteria.soft:
+    has_matching_criteria = bool(criteria.hard or criteria.soft)
+    if not has_matching_criteria and not criteria.not_applicable:
         return response
 
     view = read_projection()
@@ -152,12 +159,26 @@ def preview_taste(request: TastePreviewRequest, read_projection: Callable[[], Pr
         return response
 
     definitions = validate_criteria_taxonomy(criteria, release)
-    candidates = view.rankable_variants(request.taxonomyVersion, request.preparationCode)
+    if not has_matching_criteria:
+        return response
+    candidates = view.consultation_variants(request.taxonomyVersion, request.preparationCode)
     if not candidates:
         response.status = "TASTE_PROFILE_NOT_READY"
         return response
 
-    response.eligibleVariantCount = len(candidates)
+    if available_variant_ids is not None:
+        try:
+            in_stock_ids = available_variant_ids(tuple(dict.fromkeys(item.variant.id for item in candidates)))
+        except AvailabilityUnavailable as failure:
+            logger.warning("taste_preview_availability_unavailable reason=%s", failure)
+            response.status = "TASTE_CATALOG_UNAVAILABLE"
+            return response
+        candidates = tuple(item for item in candidates if item.variant.id in in_stock_ids)
+        if not candidates:
+            response.status = "TASTE_PROFILE_NOT_READY"
+            return response
+
+    response.eligibleVariantCount = len({item.variant.id for item in candidates})
     ranked = rank_variants(candidates, criteria)
     if not ranked:
         response.status = "NO_MATCH"
@@ -165,6 +186,7 @@ def preview_taste(request: TastePreviewRequest, read_projection: Callable[[], Pr
 
     denominator = maximum_points(criteria)
     groups: dict[str, TasteProduct | None] = {}
+    selected_variant_ids: set[str] = set()
     products = []
     for match in ranked:
         product = match.candidate.product
@@ -177,8 +199,10 @@ def preview_taste(request: TastePreviewRequest, read_projection: Callable[[], Pr
                 products.append(selected)
             groups[product.id] = selected
         selected = groups[product.id]
-        if selected is not None:
+        variant_id = match.candidate.variant.id
+        if selected is not None and variant_id not in selected_variant_ids:
             selected.compatibleVariants.append(_compatible(match, _display_score(match.points, denominator), definitions))
+            selected_variant_ids.add(variant_id)
 
     status: TasteStatus = "OK" if len(products) == request.limit else "INSUFFICIENT_MATCHES"
     response.status = status

@@ -1,4 +1,5 @@
 import base64
+from contextlib import nullcontext
 import hashlib
 import hmac
 import re
@@ -41,8 +42,9 @@ class SubmittedTasteSurvey(StrictDocument):
 
 
 class CustomerTasteClient:
-    def __init__(self, settings: Settings):
+    def __init__(self, settings: Settings, *, client: httpx.Client | None = None):
         self.settings = settings
+        self.client = client
 
     def latest(self, customer_id: str) -> SubmittedTasteSurvey | None:
         configured = self.settings.customer_taste_read_secret
@@ -103,8 +105,11 @@ class CustomerTasteClient:
         timeout = self.settings.customer_taste_timeout_seconds
         deadline = time.monotonic() + timeout
         try:
-            with httpx.Client(base_url=origin, timeout=timeout, trust_env=False, follow_redirects=False) as client:
-                with client.stream("GET", path, headers=headers) as response:
+            transport = (nullcontext(self.client) if self.client is not None else
+                         httpx.Client(base_url=origin, timeout=timeout, trust_env=False, follow_redirects=False))
+            with transport as client:
+                url = origin.join(path) if self.client is not None else path
+                with client.stream("GET", url, headers=headers, timeout=timeout) as response:
                     status = response.status_code
                     if status in (401, 403):
                         raise CustomerTasteError("SURVEY_ACCESS_BLOCKED")

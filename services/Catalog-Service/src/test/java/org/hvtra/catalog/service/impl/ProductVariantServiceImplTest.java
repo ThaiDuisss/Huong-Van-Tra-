@@ -157,7 +157,8 @@ class ProductVariantServiceImplTest {
                 Status.ACTIVE,
                 Status.ACTIVE,
                 true,
-                variant.getBarcode()
+                variant.getBarcode(),
+                org.hvtra.catalog.enums.ProductType.FINISHED_PRODUCT
         );
 
         variantSummaryResponse = new ProductResponse.VariantSummaryResponse(
@@ -182,7 +183,8 @@ class ProductVariantServiceImplTest {
                 Status.ACTIVE,
                 Status.ACTIVE,
                 true,
-                variant.getBarcode()
+                variant.getBarcode(),
+                org.hvtra.catalog.enums.ProductType.FINISHED_PRODUCT
         );
     }
 

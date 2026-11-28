@@ -12,10 +12,12 @@ from app.schemas.catalog import (
 
 
 class CatalogClient:
-    def __init__(self, base_url: str | None = None, timeout: float = 10.0) -> None:
+    def __init__(self, base_url: str | None = None, timeout: float = 10.0, *,
+                 client: httpx.Client | None = None) -> None:
         self.base_url = base_url or settings.catalog_service_url
         self.timeout = timeout
-        self.client = httpx.Client(
+        self._owns_client = client is None
+        self.client = client or httpx.Client(
             base_url=self.base_url,
             timeout=self.timeout,
         )
@@ -25,7 +27,8 @@ class CatalogClient:
         return self.client
 
     def close(self) -> None:
-        self.client.close()
+        if self._owns_client:
+            self.client.close()
 
     def __enter__(self) -> "CatalogClient":
         return self
@@ -40,12 +43,16 @@ class CatalogClient:
     ) -> dict:
         headers = generate_internal_auth_headers()
         response = self.client.get(
-            path,
+            self._url(path),
             params=params,
             headers=headers,
+            timeout=self.timeout,
         )
         response.raise_for_status()
         return response.json()
+
+    def _url(self, path: str) -> str:
+        return path if self._owns_client else self.base_url.rstrip("/") + path
 
     def fetch_all_pages(
         self,
@@ -116,8 +123,9 @@ class CatalogClient:
     ) -> list[BomItemResponse]:
         headers = generate_internal_auth_headers()
         response = self.client.get(
-            f"/api/catalog/product-variants/{variant_id}/bom-items",
+            self._url(f"/api/catalog/product-variants/{variant_id}/bom-items"),
             headers=headers,
+            timeout=self.timeout,
         )
         response.raise_for_status()
         data = response.json()

@@ -1025,6 +1025,23 @@ public class OrderServiceImpl implements OrderService {
 
     @Override
     @Transactional(readOnly = true)
+    public Page<OrderSummaryResponse> getOrdersByCustomer(UUID customerId, int page, int size) {
+        PageRequest pageRequest = PageRequest.of(
+                Math.max(page, 0),
+                Math.min(Math.max(size, 1), 100),
+                Sort.by(Sort.Direction.DESC, "createdAt").and(Sort.by(Sort.Direction.DESC, "id"))
+        );
+        Specification<Order> byCustomer = (root, query, criteriaBuilder) -> criteriaBuilder.and(
+                criteriaBuilder.isFalse(root.get("isDeleted")),
+                criteriaBuilder.equal(root.get("customerId"), customerId),
+                criteriaBuilder.notEqual(root.get("status"), OrderStatus.DRAFT)
+        );
+
+        return orderRepository.findAll(byCustomer, pageRequest).map(this::toSummaryResponse);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public OrderReturnEligibilityStatsResponse getOrderReturnEligibilityStats(String keyword) {
         return OrderReturnEligibilityStatsResponse.builder()
                 .total(countOrdersByReturnEligibility(keyword, OrderReturnEligibility.ALL))

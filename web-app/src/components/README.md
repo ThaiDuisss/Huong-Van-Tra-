@@ -15,7 +15,7 @@ không sửa riêng trong từng feature.
 | Ô tìm kiếm | `SearchInput` (`controlSize="md"` để cao 40px như ô nhập) | `ui/SearchInput.tsx` |
 | Ô nhập của form | `Field` (`as="div"` cho điều khiển tự dựng), `TextInput`, `TextArea`, `NativeSelect` (`controlSize="sm"`, `invalid`, `fullWidth={false}`) | `ui/Field.tsx` |
 | Danh sách chọn có tìm kiếm | `Select` | `ui/select.tsx` |
-| Thông báo nổi | `Toast` | `ui/Toast.tsx` |
+| Thông báo nổi | `ToastContainer` | `ui/ToastContainer.tsx` |
 | Bảng danh sách (tải, rỗng, lỗi, thẻ mobile) | `DataTable` (`emptyAction`) | `shared/list/DataTable.tsx` |
 | Bảng nhập liệu / bảng trong popup | `Table`, `TableHead`, `TableRow` (`interactive`, `striped`), `TableHeaderCell`, `TableCell` | `ui/Table.tsx` |
 | Phân trang | `TablePagination` | `shared/list/TablePagination.tsx` |

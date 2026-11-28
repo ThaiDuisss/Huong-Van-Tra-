@@ -13,12 +13,14 @@ import org.hvtra.orderservice.domain.enums.OrderStatus;
 import org.hvtra.orderservice.domain.enums.PaymentStatus;
 import org.hvtra.orderservice.dto.request.AddDraftBundleItemRequest;
 import org.hvtra.orderservice.dto.request.AddDraftOrderItemRequest;
+import org.hvtra.orderservice.dto.request.CustomBundleBomRequest;
 import org.hvtra.orderservice.dto.request.FulfillBackorderRequest;
 import org.hvtra.orderservice.dto.request.UpdateDraftBundleItemRequest;
 import org.hvtra.orderservice.dto.response.CustomerResponse;
 import org.hvtra.orderservice.dto.response.OrderResponse;
 import org.hvtra.orderservice.exception.InvalidOrderStatusException;
 import org.hvtra.orderservice.exception.OrderNotFoundException;
+import org.hvtra.orderservice.outbox.service.OrderOutboxPublisher;
 import org.hvtra.orderservice.repository.OrderRepository;
 import org.hvtra.orderservice.service.OrderBackorderService;
 import org.hvtra.orderservice.service.OrderCustomBundleService;
@@ -61,31 +63,47 @@ public class OrderCustomBundleServiceImpl implements OrderCustomBundleService {
     private final OrderResponseAssembler orderResponseAssembler;
     private final OrderCustomBundleSupport bundleSupport;
     private final OrderBackorderService orderBackorderService;
+    private final OrderOutboxPublisher orderOutboxPublisher;
 
     @Override
     @Transactional
     public OrderResponse addDraftBundleItem(AddDraftBundleItemRequest request) {
+        if (request.getRequestId() != null) {
+            Order existingByRequest = orderRepository.findByBundleRequestId(request.getRequestId()).orElse(null);
+            if (existingByRequest != null) {
+                return orderResponseAssembler.toResponse(existingByRequest);
+            }
+        }
         Instant expiresAt = orderDateTimeHelper.nextDraftExpiresAt();
         Order order = request.getOrderId() == null
                 ? createDraftOrder(request, expiresAt)
                 : getEditableDraftOrder(request.getOrderId());
+        if (request.getRequestId() != null && order.getItems().stream()
+                .anyMatch(existing -> request.getRequestId().equals(existing.getBundleRequestId()))) {
+            return orderResponseAssembler.toResponse(order);
+        }
         order.setExpiresAt(expiresAt);
 
         OrderCustomBundleSupport.CatalogVariant variant = bundleSupport.customBundleVariant();
-        OrderCustomBundleSupport.PricedBundle priced = bundleSupport.price(request.getLines());
+        boolean hasMultiBom = request.getBoms() != null && !request.getBoms().isEmpty();
+        OrderCustomBundleSupport.PricedBundle priced = hasMultiBom
+                ? bundleSupport.priceMultiBom(request.getBoms())
+                : bundleSupport.price(request.getLines());
         OrderItem item = OrderItem.builder()
                 .productVariantId(variant.id())
                 .skuSnapshot(variant.sku())
                 .productNameSnapshot(variant.productName())
-                .variantNameSnapshot(bundleName(request.getBundleName(), variant))
+                .variantNameSnapshot(resolveBundleName(request.getBundleName(), request.getBoms(), variant))
                 .quantity(BigDecimal.ONE)
                 .originalUnitPrice(priced.unitPrice())
                 .actualUnitPrice(priced.unitPrice())
                 .discountAmount(BigDecimal.ZERO)
                 .note(normalize(request.getNote()))
                 .itemType(OrderItemType.CUSTOM_BUNDLE)
+                .bundleRequestId(request.getRequestId())
                 .build();
         item.replaceComponents(priced.components());
+        item.replaceBundleBoms(priced.bundleBoms());
         orderAmountCalculator.recalculateLine(item);
         order.addItem(item);
 
@@ -103,12 +121,17 @@ public class OrderCustomBundleServiceImpl implements OrderCustomBundleService {
                 .findFirst()
                 .orElseThrow(() -> new OrderNotFoundException("Không tìm thấy bundle trong đơn: " + itemId));
 
-        OrderCustomBundleSupport.PricedBundle priced = bundleSupport.price(request.getLines());
+        boolean hasMultiBom = request.getBoms() != null && !request.getBoms().isEmpty();
+        OrderCustomBundleSupport.PricedBundle priced = hasMultiBom
+                ? bundleSupport.priceMultiBom(request.getBoms())
+                : bundleSupport.price(request.getLines());
         item.replaceComponents(priced.components());
+        item.replaceBundleBoms(priced.bundleBoms());
         item.setOriginalUnitPrice(priced.unitPrice());
         item.setActualUnitPrice(priced.unitPrice());
         if (request.getBundleName() != null) {
-            item.setVariantNameSnapshot(bundleName(request.getBundleName(), bundleSupport.customBundleVariant()));
+            item.setVariantNameSnapshot(
+                    resolveBundleName(request.getBundleName(), request.getBoms(), bundleSupport.customBundleVariant()));
         }
         if (request.getNote() != null) {
             item.setNote(normalize(request.getNote()));
@@ -191,6 +214,7 @@ public class OrderCustomBundleServiceImpl implements OrderCustomBundleService {
                 OrderStatus.COMPLETED,
                 "Đã giao trà đóng theo yêu cầu cho khách",
                 request == null ? null : request.getChangedBy());
+        orderOutboxPublisher.publishOrderCompleted(savedOrder, savedOrder.getPaymentCode(), null);
         return orderResponseAssembler.toResponse(savedOrder);
     }
 
@@ -255,9 +279,26 @@ public class OrderCustomBundleServiceImpl implements OrderCustomBundleService {
                 .orElseThrow(() -> new OrderNotFoundException("Không tìm thấy đơn hàng: " + orderId));
     }
 
-    private static String bundleName(String requested, OrderCustomBundleSupport.CatalogVariant variant) {
+    private static String resolveBundleName(
+            String requested,
+            List<CustomBundleBomRequest> boms,
+            OrderCustomBundleSupport.CatalogVariant variant) {
         String name = normalize(requested);
-        return name == null ? variant.variantName() : name;
+        if (name != null) {
+            return name;
+        }
+        if (boms == null || boms.isEmpty()) {
+            return variant.variantName();
+        }
+        if (boms.size() == 1) {
+            return boms.getFirst().getBomName().trim();
+        }
+        String joined = boms.stream()
+                .map(bom -> bom.getBomName().trim())
+                .reduce((a, b) -> a + ", " + b)
+                .orElse(variant.variantName());
+        String summary = "Bundle " + boms.size() + " công thức: " + joined;
+        return summary.length() > 255 ? summary.substring(0, 252) + "..." : summary;
     }
 
     private static String normalize(String value) {

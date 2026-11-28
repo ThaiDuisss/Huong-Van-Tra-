@@ -5,6 +5,7 @@ import lombok.Getter;
 import lombok.Setter;
 import org.hvtra.commonservice.common_core.domain.entity.BaseEntity;
 import org.hvtra.catalog.enums.InventoryPolicy;
+import org.hvtra.catalog.enums.ProductType;
 import org.hvtra.catalog.enums.Status;
 
 import java.math.BigDecimal;
@@ -62,6 +63,17 @@ public class ProductVariant extends BaseEntity {
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 50)
     private Status status = Status.ACTIVE;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "product_type", nullable = false, length = 50)
+    private ProductType productType = ProductType.FINISHED_PRODUCT;
+
+    /**
+     * Hash SHA-256 chuẩn hoá công thức nguyên liệu của biến thể CUSTOMER để khử trùng toàn hệ thống.
+     * Null với FINISHED_PRODUCT.
+     */
+    @Column(name = "recipe_sha256", unique = true, columnDefinition = "CHAR(64)")
+    private String recipeSha256;
 
     /**
      * Variant hệ thống "Trà đóng theo yêu cầu": dòng bundle trong đơn bán, giá và nguyên liệu nằm ở

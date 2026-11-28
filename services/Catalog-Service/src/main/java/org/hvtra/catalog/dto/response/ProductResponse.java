@@ -1,6 +1,7 @@
 package org.hvtra.catalog.dto.response;
 
 import org.hvtra.catalog.enums.InventoryPolicy;
+import org.hvtra.catalog.enums.ProductType;
 import org.hvtra.catalog.enums.Status;
 
 import java.math.BigDecimal;
@@ -39,7 +40,8 @@ public record ProductResponse(
             Status status,
             Status productStatus,
             boolean sellable,
-            String barcode
+            String barcode,
+            ProductType productType
     ) {
     }
 
@@ -65,7 +67,8 @@ public record ProductResponse(
             Status status,
             Status productStatus,
             boolean sellable,
-            String barcode
+            String barcode,
+            ProductType productType
     ) {
     }
 }

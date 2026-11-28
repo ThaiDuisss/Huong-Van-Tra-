@@ -23,7 +23,7 @@ import type {
     DisposalRequest,
     DisposalStatusCounts
 } from "../types/quality.types";
-import { isCustomerReturnDisposal } from "../utils/inventory-labels";
+import { disposalSourceLabel, isCustomerReturnDisposal } from "../utils/inventory-labels";
 import styles from "./CustomerReturnListPage.module.css";
 
 const PAGE_SIZE = 10;
@@ -209,7 +209,7 @@ export function DisposalListPage() {
                             key: "source",
                             header: "Nguồn",
                             width: "16%",
-                            render: (request: DisposalRequest) => (isCustomerReturnDisposal(request) ? "Khách trả hàng" : "Hàng hỏng / hết hạn")
+                            render: (request: DisposalRequest) => disposalSourceLabel(request)
                         },
                         {
                             key: "items",

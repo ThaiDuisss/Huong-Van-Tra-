@@ -5,8 +5,11 @@ import org.hvtra.orderservice.client.CustomBundleCatalogClient;
 import org.hvtra.orderservice.client.CustomBundleInventoryClient;
 import org.hvtra.orderservice.domain.entity.Order;
 import org.hvtra.orderservice.domain.entity.OrderItem;
+import org.hvtra.orderservice.domain.entity.OrderItemBundleBom;
+import org.hvtra.orderservice.domain.entity.OrderItemBundleBomLine;
 import org.hvtra.orderservice.domain.entity.OrderItemComponent;
 import org.hvtra.orderservice.domain.enums.BundlePackingStatus;
+import org.hvtra.orderservice.dto.request.CustomBundleBomRequest;
 import org.hvtra.orderservice.dto.request.CustomBundleLineRequest;
 import org.hvtra.orderservice.exception.InvalidOrderStatusException;
 import org.springframework.beans.factory.annotation.Value;
@@ -16,9 +19,12 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -74,6 +80,57 @@ public class OrderCustomBundleSupport {
      * nguyên liệu; khối lượng không giới hạn, chỉ cần lớn hơn 0.
      */
     public PricedBundle price(List<CustomBundleLineRequest> lines) {
+        Map<UUID, BigDecimal> quantityByIngredient = mergeLineQuantities(lines);
+        if (quantityByIngredient.size() > maxIngredients) {
+            throw new InvalidOrderStatusException("Bundle tối đa " + maxIngredients + " nguyên liệu");
+        }
+        Map<UUID, CustomBundleCatalogClient.IngredientResponse> ingredients =
+                fetchRetailIngredients(quantityByIngredient.keySet());
+        return buildMergedPricing(quantityByIngredient, ingredients, List.of());
+    }
+
+    /**
+     * Kiểm tra và chốt giá một Bundle tổng hợp gồm nhiều công thức (BOM). Toàn bộ nguyên liệu được gộp chung
+     * để tính giá và kiểm tra tồn kho theo đúng cơ chế Bundle hiện hành, đồng thời lưu snapshot từng BOM
+     * và ghi chú riêng tương ứng.
+     */
+    public PricedBundle priceMultiBom(List<CustomBundleBomRequest> boms) {
+        if (boms == null || boms.isEmpty()) {
+            throw new InvalidOrderStatusException("Bundle phải có ít nhất một công thức");
+        }
+        Set<UUID> seenVariants = new LinkedHashSet<>();
+        List<CustomBundleLineRequest> combinedLines = new ArrayList<>();
+        List<Map<UUID, BigDecimal>> perBomQuantities = new ArrayList<>();
+        for (CustomBundleBomRequest bom : boms) {
+            if (bom.getVariantId() == null) {
+                throw new InvalidOrderStatusException("Công thức trong Bundle thiếu mã định danh");
+            }
+            if (!seenVariants.add(bom.getVariantId())) {
+                throw new InvalidOrderStatusException("Không được chọn trùng cùng một công thức trong Bundle");
+            }
+            if (bom.getBomName() == null || bom.getBomName().isBlank()) {
+                throw new InvalidOrderStatusException("Công thức trong Bundle phải có tên");
+            }
+            Map<UUID, BigDecimal> bomQuantities = mergeLineQuantities(bom.getLines());
+            perBomQuantities.add(bomQuantities);
+            combinedLines.addAll(bom.getLines());
+        }
+
+        Map<UUID, BigDecimal> mergedTotals = mergeLineQuantities(combinedLines);
+        if (mergedTotals.size() > maxIngredients) {
+            throw new InvalidOrderStatusException("Bundle tối đa " + maxIngredients + " nguyên liệu");
+        }
+        Map<UUID, CustomBundleCatalogClient.IngredientResponse> ingredients =
+                fetchRetailIngredients(mergedTotals.keySet());
+
+        List<OrderItemBundleBom> bundleBoms = new ArrayList<>();
+        for (int index = 0; index < boms.size(); index++) {
+            bundleBoms.add(buildBundleBomSnapshot(index, boms.get(index), perBomQuantities.get(index), ingredients));
+        }
+        return buildMergedPricing(mergedTotals, ingredients, bundleBoms);
+    }
+
+    private Map<UUID, BigDecimal> mergeLineQuantities(List<CustomBundleLineRequest> lines) {
         if (lines == null || lines.isEmpty()) {
             throw new InvalidOrderStatusException("Bundle phải có ít nhất một nguyên liệu");
         }
@@ -85,19 +142,16 @@ public class OrderCustomBundleSupport {
             }
             quantityByIngredient.merge(line.getIngredientId(), line.getQuantity(), BigDecimal::add);
         }
-        if (quantityByIngredient.size() > maxIngredients) {
-            throw new InvalidOrderStatusException("Bundle tối đa " + maxIngredients + " nguyên liệu");
-        }
+        return quantityByIngredient;
+    }
 
+    private Map<UUID, CustomBundleCatalogClient.IngredientResponse> fetchRetailIngredients(Collection<UUID> ids) {
         Map<UUID, CustomBundleCatalogClient.IngredientResponse> ingredients = catalogClient
-                .getIngredientsByIds(new ArrayList<>(quantityByIngredient.keySet())).stream()
+                .getIngredientsByIds(new ArrayList<>(ids)).stream()
                 .collect(Collectors.toMap(CustomBundleCatalogClient.IngredientResponse::id, Function.identity(),
                         (a, b) -> a));
-
-        List<OrderItemComponent> components = new ArrayList<>();
-        BigDecimal ingredientsAmount = BigDecimal.ZERO;
-        for (Map.Entry<UUID, BigDecimal> entry : quantityByIngredient.entrySet()) {
-            var ingredient = ingredients.get(entry.getKey());
+        for (UUID id : ids) {
+            var ingredient = ingredients.get(id);
             if (ingredient == null) {
                 throw new InvalidOrderStatusException("Có nguyên liệu đã chọn không còn trong danh mục");
             }
@@ -105,6 +159,18 @@ public class OrderCustomBundleSupport {
                     || ingredient.type() != RECIPE_INGREDIENT || ingredient.retailPricePerUnit() == null) {
                 throw new InvalidOrderStatusException("Nguyên liệu " + ingredient.name() + " hiện không bán lẻ");
             }
+        }
+        return ingredients;
+    }
+
+    private PricedBundle buildMergedPricing(
+            Map<UUID, BigDecimal> quantityByIngredient,
+            Map<UUID, CustomBundleCatalogClient.IngredientResponse> ingredients,
+            List<OrderItemBundleBom> bundleBoms) {
+        List<OrderItemComponent> components = new ArrayList<>();
+        BigDecimal ingredientsAmount = BigDecimal.ZERO;
+        for (Map.Entry<UUID, BigDecimal> entry : quantityByIngredient.entrySet()) {
+            var ingredient = ingredients.get(entry.getKey());
             OrderItemComponent component = new OrderItemComponent();
             component.setIngredientId(ingredient.id());
             component.setIngredientCodeSnapshot(ingredient.ingredientCode());
@@ -112,14 +178,54 @@ public class OrderCustomBundleSupport {
             component.setUnitSnapshot(ingredient.unitSymbol());
             component.setQuantity(entry.getValue());
             component.setUnitPrice(ingredient.retailPricePerUnit());
-            BigDecimal lineTotal = entry.getValue().multiply(ingredient.retailPricePerUnit())
-                    .setScale(2, RoundingMode.HALF_UP);
+            BigDecimal lineTotal = calculateLineTotal(entry.getValue(), ingredient.retailPricePerUnit());
             component.setLineTotal(lineTotal);
             components.add(component);
             ingredientsAmount = ingredientsAmount.add(lineTotal);
         }
         BigDecimal unitPrice = ingredientsAmount.add(packagingFee).setScale(0, RoundingMode.HALF_UP);
-        return new PricedBundle(components, unitPrice);
+        return new PricedBundle(components, unitPrice, bundleBoms);
+    }
+
+    private OrderItemBundleBom buildBundleBomSnapshot(
+            int displayOrder,
+            CustomBundleBomRequest request,
+            Map<UUID, BigDecimal> quantities,
+            Map<UUID, CustomBundleCatalogClient.IngredientResponse> ingredients) {
+        OrderItemBundleBom bom = new OrderItemBundleBom();
+        bom.setDisplayOrder(displayOrder);
+        bom.setSourceVariantId(request.getVariantId());
+        bom.setBomSkuSnapshot(normalizeText(request.getBomSku()));
+        bom.setBomNameSnapshot(request.getBomName().trim());
+        bom.setNote(normalizeText(request.getNote()));
+
+        List<OrderItemBundleBomLine> snapshotLines = new ArrayList<>();
+        BigDecimal bomAmount = BigDecimal.ZERO;
+        for (Map.Entry<UUID, BigDecimal> entry : quantities.entrySet()) {
+            var ingredient = ingredients.get(entry.getKey());
+            OrderItemBundleBomLine bomLine = new OrderItemBundleBomLine();
+            bomLine.setIngredientId(ingredient.id());
+            bomLine.setIngredientCodeSnapshot(ingredient.ingredientCode());
+            bomLine.setIngredientNameSnapshot(ingredient.name());
+            bomLine.setUnitSnapshot(ingredient.unitSymbol());
+            bomLine.setQuantity(entry.getValue());
+            bomLine.setUnitPrice(ingredient.retailPricePerUnit());
+            BigDecimal lineTotal = calculateLineTotal(entry.getValue(), ingredient.retailPricePerUnit());
+            bomLine.setLineTotal(lineTotal);
+            snapshotLines.add(bomLine);
+            bomAmount = bomAmount.add(lineTotal);
+        }
+        bom.replaceLines(snapshotLines);
+        bom.setEstimatedPrice(bomAmount.setScale(0, RoundingMode.HALF_UP));
+        return bom;
+    }
+
+    private static BigDecimal calculateLineTotal(BigDecimal quantity, BigDecimal unitPrice) {
+        return quantity.multiply(unitPrice).setScale(2, RoundingMode.HALF_UP);
+    }
+
+    private static String normalizeText(String value) {
+        return value == null || value.isBlank() ? null : value.trim();
     }
 
     /** Ước tính đủ/thiếu nguyên liệu cho các dòng bundle chưa gửi yêu cầu đóng gói (trước khi thu tiền). */
@@ -271,7 +377,13 @@ public class OrderCustomBundleSupport {
     public record CatalogVariant(UUID id, String sku, String productName, String variantName) {
     }
 
-    public record PricedBundle(List<OrderItemComponent> components, BigDecimal unitPrice) {
+    public record PricedBundle(
+            List<OrderItemComponent> components,
+            BigDecimal unitPrice,
+            List<OrderItemBundleBom> bundleBoms) {
+        public PricedBundle(List<OrderItemComponent> components, BigDecimal unitPrice) {
+            this(components, unitPrice, List.of());
+        }
     }
 
     public record BundleAvailability(boolean enough, Instant estimatedAvailableAt) {

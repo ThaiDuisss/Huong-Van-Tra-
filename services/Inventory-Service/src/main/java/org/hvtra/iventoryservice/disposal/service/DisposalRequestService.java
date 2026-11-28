@@ -1,5 +1,6 @@
 package org.hvtra.iventoryservice.disposal.service;
 
+import org.hvtra.iventoryservice.disposal.dto.request.CreateDamagedReturnDisposalRequest;
 import org.hvtra.iventoryservice.disposal.dto.response.DisposalRequestResponse;
 import org.hvtra.iventoryservice.domain.enums.DisposalRequestStatus;
 import org.springframework.data.domain.Page;
@@ -41,4 +42,7 @@ public interface DisposalRequestService {
             String keyword, String requestCode, String returnCode, LocalDate fromDate, LocalDate toDate);
 
     DisposalRequestResponse approveRequest(UUID requestId);
+
+    /** Tạo phiếu tiêu hủy (chờ duyệt) cho các dòng QC hoàn hàng DAMAGED đã nhập vị trí hàng lỗi. */
+    DisposalRequestResponse createDamagedReturnRequest(CreateDamagedReturnDisposalRequest request);
 }

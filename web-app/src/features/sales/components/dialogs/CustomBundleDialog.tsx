@@ -5,14 +5,22 @@ import { CustomBundleBuilder, type CustomBundleInput } from "../custom-bundle/Cu
 
 interface CustomBundleDialogProps {
     branchId: string | null;
+    customerId?: string | null;
     submitLoading: boolean;
     submitError: string;
     onClose(): void;
-    onSubmit(input: CustomBundleInput): void;
+    onSubmit(input: CustomBundleInput): void | Promise<unknown>;
 }
 
-/** Popup đóng trà theo yêu cầu trên màn POS: chọn nguyên liệu rồi thêm bundle vào đơn đang bán. */
-export function CustomBundleDialog({ branchId, submitLoading, submitError, onClose, onSubmit }: CustomBundleDialogProps) {
+/** Popup đóng trà theo yêu cầu thông thường (chế độ MANUAL) trên màn POS. */
+export function CustomBundleDialog({
+    branchId,
+    customerId = null,
+    submitLoading,
+    submitError,
+    onClose,
+    onSubmit
+}: CustomBundleDialogProps) {
     return (
         <Dialog
             open
@@ -20,7 +28,7 @@ export function CustomBundleDialog({ branchId, submitLoading, submitError, onClo
                 if (!open && !submitLoading) onClose();
             }}
         >
-            <DialogContent className="w-[min(1120px,calc(100vw-32px))]">
+            <DialogContent className="w-[min(1180px,calc(100vw-32px))]">
                 <DialogHeader>
                     <DialogTitle className="flex items-center gap-2 text-lg">
                         <Leaf aria-hidden="true" className="text-[#159734]" size={20} />
@@ -29,12 +37,14 @@ export function CustomBundleDialog({ branchId, submitLoading, submitError, onClo
                     <DialogDescription>
                         Chọn nguyên liệu và khối lượng khách muốn, bấm "Thêm vào đơn" để đưa bundle vào đơn đang bán;
                         kho đóng gói sau khi thu tiền.
-                        Gợi ý công thức (BOM) chưa sẵn sàng.
                     </DialogDescription>
                 </DialogHeader>
-                <div className="grid h-[min(620px,calc(90vh-110px))] grid-rows-[minmax(0,1fr)] p-4">
+                <div className="grid h-[min(680px,calc(90vh-110px))] grid-rows-[minmax(0,1fr)] p-4">
                     <CustomBundleBuilder
+                        key={customerId ?? "guest"}
                         branchId={branchId}
+                        customerId={customerId}
+                        mode="MANUAL"
                         submitLoading={submitLoading}
                         submitError={submitError}
                         onCancel={onClose}

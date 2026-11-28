@@ -46,6 +46,8 @@ class OrderOutboxPollingConfig {
         properties.put(ProducerConfig.REQUEST_TIMEOUT_MS_CONFIG, Math.min(5000, settings.ackTimeoutMs()));
         properties.put(ProducerConfig.MAX_BLOCK_MS_CONFIG, (long) settings.ackTimeoutMs());
         // Preserve session/security settings without exposing a producer bean to existing Kafka routes.
+        properties.put("partitioner.ignore.keys", false);
+        properties.remove(ProducerConfig.PARTITIONER_CLASS_CONFIG);
         properties.remove(ProducerConfig.TRANSACTIONAL_ID_CONFIG);
         DefaultKafkaProducerFactory<String, String> factory = new DefaultKafkaProducerFactory<>(properties);
         factory.setPhysicalCloseTimeout(5);

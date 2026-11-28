@@ -576,7 +576,7 @@ class CustomerReturnInspectionServiceImplTest {
         legacy.setSourceInspection(inspection);
         legacy.setStatus(DisposalRequestStatus.PENDING_APPROVAL);
         legacy.addLine(inspection.getLines().getFirst());
-        when(disposalRequestRepository.findBySourceInspectionId(inspection.getId())).thenReturn(Optional.of(legacy));
+        when(disposalRequestRepository.findLegacyWriteOffBySourceInspectionId(inspection.getId())).thenReturn(Optional.of(legacy));
         when(disposalRequestRepository.findDetailByIdForUpdate(legacy.getId())).thenReturn(Optional.of(legacy));
 
         CustomerReturnInspectionResponse response = service.postInspection(inspection.getId());
@@ -597,7 +597,7 @@ class CustomerReturnInspectionServiceImplTest {
         when(inspectionRepository.findByIdAndIsDeletedFalseForUpdate(inspection.getId()))
                 .thenReturn(Optional.of(inspection));
         DisposalRequestServiceImpl legacyApproval = new DisposalRequestServiceImpl(
-                disposalRequestRepository, inspectionRepository, transactionRepository, service);
+                disposalRequestRepository, inspectionRepository, transactionRepository, balanceRepository, service);
         legacyApproval.approveRequest(legacy.getId());
         verify(transactionRepository, times(1)).saveAndFlush(any());
     }

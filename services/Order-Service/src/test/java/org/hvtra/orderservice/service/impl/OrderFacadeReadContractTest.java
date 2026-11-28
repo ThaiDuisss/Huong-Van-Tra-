@@ -89,6 +89,7 @@ class OrderFacadeReadContractTest {
                 .applySetting("hibernate.hbm2ddl.auto", "none").build();
         factory = new MetadataSources(registry).addAnnotatedClass(Order.class).addAnnotatedClass(OrderItem.class)
                 .addAnnotatedClass(OrderDiscount.class).addAnnotatedClass(OrderItemComponent.class)
+                .addAnnotatedClass(OrderItemBundleBom.class).addAnnotatedClass(OrderItemBundleBomLine.class)
                 .addAnnotatedClass(OrderReturn.class).addAnnotatedClass(OrderReturnItem.class)
                 .buildMetadata().buildSessionFactory();
     }
@@ -360,7 +361,7 @@ class OrderFacadeReadContractTest {
         OrderCustomBundleServiceImpl bundles = new OrderCustomBundleServiceImpl(orders, mock(OrderMapper.class),
                 new OrderValidator(), new OrderAmountCalculator(), mock(OrderCodeGenerator.class), new OrderDateTimeHelper(),
                 mock(OrderStatusHistoryWriter.class), mock(CustomerSnapshotResolver.class), mock(OrderResponseAssembler.class),
-                mock(OrderCustomBundleSupport.class), mock(OrderBackorderService.class));
+                mock(OrderCustomBundleSupport.class), mock(OrderBackorderService.class), outbox);
         when(orders.findAll(any(Specification.class), any(Pageable.class))).thenReturn(Page.empty());
         assertTrue(bundles.getAwaitingHandover(search ? " Tea " : " ", packed ? BundlePackingStatus.PACKED : null, -1, 999).isEmpty());
         ArgumentCaptor<Specification<Order>> filter = specificationCaptor();

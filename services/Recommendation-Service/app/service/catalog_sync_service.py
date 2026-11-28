@@ -62,12 +62,26 @@ class CatalogSyncService:
         db.commit()
         return len(categories)
 
+    @staticmethod
+    def _is_customer_variant(variant) -> bool:
+        return (getattr(variant, "productType", None) or "").upper() == "CUSTOMER"
+
+    @classmethod
+    def _is_customer_product(cls, product) -> bool:
+        if product.category and (product.category.categoryCode or "").upper() == "CUSTOMER-BUNDLE":
+            return True
+        variants = getattr(product, "variants", None) or []
+        return bool(variants) and all(cls._is_customer_variant(variant) for variant in variants)
+
     def sync_products(
         self,
         db: Session,
     ) -> int:
         products = self.catalog_client.get_products()
+        synced = 0
         for item in products:
+            if self._is_customer_product(item):
+                continue
             product = Product(
                 id=item.id,
                 category_id=item.category.id,
@@ -77,16 +91,20 @@ class CatalogSyncService:
                 is_deleted=False,
             )
             self.product_repository.upsert(db, product)
+            synced += 1
 
         db.commit()
-        return len(products)
+        return synced
 
     def sync_variants(
         self,
         db: Session,
     ) -> int:
-        variants = self.catalog_client.get_product_variants()
+        variants = [v for v in self.catalog_client.get_product_variants() if not self._is_customer_variant(v)]
+        synced = 0
         for item in variants:
+            if self._is_customer_variant(item):
+                continue
             variant = ProductVariant(
                 id=item.id,
                 product_id=item.productId,
@@ -97,9 +115,10 @@ class CatalogSyncService:
                 is_deleted=False,
             )
             self.variant_repository.upsert(db, variant)
+            synced += 1
 
         db.commit()
-        return len(variants)
+        return synced
 
     def sync_ingredients(
         self,
@@ -124,7 +143,7 @@ class CatalogSyncService:
         self,
         db: Session,
     ) -> int:
-        variants = self.catalog_client.get_product_variants()
+        variants = [v for v in self.catalog_client.get_product_variants() if not self._is_customer_variant(v)]
 
         # Fetch BOM items for each variant outside of DB transaction to avoid open locks during HTTP calls
         variant_bom_map = []

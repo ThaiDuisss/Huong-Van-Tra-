@@ -19,6 +19,7 @@ public record CatalogVariantResponse(
         String status,
         String productStatus,
         boolean sellable,
-        BigDecimal sellableQuantity
+        BigDecimal sellableQuantity,
+        String productType
 ) {
 }

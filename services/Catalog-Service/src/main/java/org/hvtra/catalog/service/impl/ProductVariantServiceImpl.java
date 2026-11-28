@@ -26,6 +26,7 @@ import org.hvtra.catalog.entity.ProductVariant;
 import org.hvtra.catalog.entity.SellableAdjustment;
 import org.hvtra.catalog.entity.Unit;
 import org.hvtra.catalog.enums.InventoryItemType;
+import org.hvtra.catalog.enums.ProductType;
 import org.hvtra.catalog.enums.Status;
 import org.hvtra.catalog.exception.BadRequestException;
 import org.hvtra.catalog.exception.ResourceNotFoundException;
@@ -125,6 +126,18 @@ public class ProductVariantServiceImpl implements ProductVariantService {
         this.bomItemRepository = bomItemRepository;
     }
 
+    public PageResponse<ProductResponse.VariantSummaryResponse> findAll(
+            String keyword,
+            String sku,
+            String variantName,
+            String barcode,
+            UUID productId,
+            UUID categoryId,
+            Status status,
+            Pageable pageable) {
+        return findAll(keyword, sku, variantName, barcode, productId, categoryId, status, false, pageable);
+    }
+
     @Override
     public PageResponse<ProductResponse.VariantSummaryResponse> findAll(
             String keyword,
@@ -144,7 +157,8 @@ public class ProductVariantServiceImpl implements ProductVariantService {
     @Override
     public Page<ProductVariant> findAllEntities(String keyword, Status status, Pageable pageable) {
         Specification<ProductVariant> spec =
-                searchSpecification(keyword, null, null, null, null, null, status, false);
+                searchSpecification(keyword, null, null, null, null, null, status, false)
+                        .and((root, query, cb) -> cb.equal(root.get("productType"), ProductType.FINISHED_PRODUCT));
         return repository.findAll(spec, pageable);
     }
 

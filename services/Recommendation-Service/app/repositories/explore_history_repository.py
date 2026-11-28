@@ -11,6 +11,7 @@ from app.models.business_report import CompletedPurchaseOrder
 from app.models.interaction_event import InteractionEvent, InteractionEventType
 from app.models.order_event_inbox import OrderReturnLine
 from app.models.product_variant import ProductVariant
+from app.repositories.customer_order_evidence import CustomerOrderEvidence
 from app.service.evidence_fingerprint import fingerprint
 
 
@@ -48,8 +49,9 @@ def _quantity(value: object) -> Decimal:
 
 
 class ExploreHistoryRepository:
-    def history(self, db: Session, customer_id: str, as_of: datetime) -> ExploreHistory:
-        orders = db.execute(select(
+    def history(self, db: Session, customer_id: str, as_of: datetime, *,
+                evidence: CustomerOrderEvidence | None = None) -> ExploreHistory:
+        orders = (row[:4] for row in evidence.orders) if evidence is not None else db.execute(select(
             CompletedPurchaseOrder.id, CompletedPurchaseOrder.occurred_at,
             CompletedPurchaseOrder.evidence_hash, CompletedPurchaseOrder.lines,
         ).where(
@@ -81,7 +83,8 @@ class ExploreHistoryRepository:
             InteractionEvent.event_time <= as_of,
             InteractionEvent.created_at <= as_of,
         ))
-        signed_returns = db.execute(select(
+        signed_returns = (row[:6] for row in evidence.returns if row.purchase_type == "PRODUCT"
+                          ) if evidence is not None else db.execute(select(
             OrderReturnLine.return_item_id, OrderReturnLine.order_id, OrderReturnLine.order_item_id,
             OrderReturnLine.product_variant_id, OrderReturnLine.quantity, OrderReturnLine.reason,
         ).where(
@@ -100,16 +103,11 @@ class ExploreHistoryRepository:
         )).tuples().all())
 
 
-def receipt_products(customer_id: str, occurred_at: datetime, expected_hash: str,
+def receipt_products(customer_id: str | None, occurred_at: datetime, expected_hash: str,
                      lines: list) -> Iterable[tuple[str, str, str, Decimal]]:
-    if not isinstance(lines, list) or not lines or fingerprint({
-        "customer_id": customer_id, "occurred_at": occurred_at.isoformat(), "lines": lines,
-    }) != expected_hash:
-        raise ExploreHistoryError
+    validate_receipt_lines(customer_id, occurred_at, expected_hash, lines)
     seen_lines = set()
     for line in lines:
-        if not isinstance(line, dict):
-            raise ExploreHistoryError
         line_type = line.get("purchase_type", "PRODUCT")
         if line_type == "CUSTOM_BUNDLE" or (line_type == "PRODUCT" and
                                             "purchase_type" in line and line.get("product_id") is None):
@@ -125,6 +123,16 @@ def receipt_products(customer_id: str, occurred_at: datetime, expected_hash: str
             raise ExploreHistoryError
         seen_lines.add(line_id)
         yield line_id, product_id, variant_id, _quantity(line.get("quantity"))
+
+
+def validate_receipt_lines(customer_id: str | None, occurred_at: datetime, expected_hash: str,
+                           lines: list) -> None:
+    if not isinstance(lines, list) or not lines or fingerprint({
+        "customer_id": customer_id, "occurred_at": occurred_at.isoformat(), "lines": lines,
+    }) != expected_hash:
+        raise ExploreHistoryError
+    if any(not isinstance(line, dict) for line in lines):
+        raise ExploreHistoryError
 
 
 def build_history(customer_id: str, orders: Iterable, purchases: Iterable[str],

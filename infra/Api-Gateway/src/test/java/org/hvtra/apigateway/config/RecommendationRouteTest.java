@@ -42,4 +42,39 @@ class RecommendationRouteTest {
                 exchange -> { forwarded.set(exchange.getRequest().getURI().getRawPath()); return Mono.empty(); }).block();
         assertEquals("/recommendations/customer", forwarded.get());
     }
+
+    @Test void ingredientRouteMatchesGetWithStripPrefix() {
+        YamlPropertiesFactoryBean yaml = new YamlPropertiesFactoryBean();
+        yaml.setResources(new ClassPathResource("application.yml"));
+        Properties properties = yaml.getObject();
+        String prefix = properties.stringPropertyNames().stream()
+                .filter(k -> k.endsWith(".id") && "personalized-ingredient".equals(properties.getProperty(k)))
+                .findFirst().orElseThrow().replace(".id", "");
+        assertEquals("${RECOMMENDATION_SERVICE_URL:http://localhost:8090}", properties.getProperty(prefix + ".uri"));
+        assertEquals("Path", properties.getProperty(prefix + ".predicates[0].name"));
+        assertEquals("/api/recommendation/recommendations/{customerId}/ingredients",
+                properties.getProperty(prefix + ".predicates[0].args.patterns"));
+        assertEquals("false", properties.getProperty(prefix + ".predicates[0].args.matchTrailingSlash"));
+        assertEquals("Method=GET", properties.getProperty(prefix + ".predicates[1]"));
+        assertEquals("StripPrefix=2", properties.getProperty(prefix + ".filters[0]"));
+
+        var config = new PathRoutePredicateFactory.Config();
+        config.setPatterns(List.of(properties.getProperty(prefix + ".predicates[0].args.patterns")));
+        config.setMatchTrailingSlash(false);
+        var predicate = new PathRoutePredicateFactory().apply(config);
+        String customer = "d8c06ea9-86d4-45e8-b25f-3733e7a9ba42";
+        assertTrue(predicate.test(MockServerWebExchange.from(
+                MockServerHttpRequest.get("/api/recommendation/recommendations/" + customer + "/ingredients"))));
+        assertFalse(predicate.test(MockServerWebExchange.from(
+                MockServerHttpRequest.get("/api/recommendation/recommendations/" + customer + "/ingredients/"))));
+
+        var strip = new StripPrefixGatewayFilterFactory.Config();
+        strip.setParts(2);
+        AtomicReference<String> forwarded = new AtomicReference<>();
+        new StripPrefixGatewayFilterFactory().apply(strip).filter(
+                MockServerWebExchange.from(MockServerHttpRequest.get(
+                        "/api/recommendation/recommendations/" + customer + "/ingredients?limit=5")),
+                exchange -> { forwarded.set(exchange.getRequest().getURI().getRawPath()); return Mono.empty(); }).block();
+        assertEquals("/recommendations/" + customer + "/ingredients", forwarded.get());
+    }
 }

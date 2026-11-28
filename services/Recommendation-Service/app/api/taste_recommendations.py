@@ -3,9 +3,12 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.routing import APIRoute
 from starlette.concurrency import run_in_threadpool
 
+from app.core.config import get_settings
 from app.core.recommendation_auth import authorize_pos_actor
+from app.core.settings import Settings
 from app.schemas.taste_catalog import SnapshotError, parse_json
 from app.schemas.taste_recommendation import TastePreviewRequest, TastePreviewResponse
+from app.service.level2_availability import fetch_available_variant_ids
 from app.service.taste_catalog_sync_service import TasteCatalogSyncService, get_taste_catalog_sync
 from app.service.taste_recommendation_service import InvalidTasteCriteria, preview_taste
 
@@ -55,10 +58,15 @@ def taste_preview(
     request: TastePreviewRequest,
     response: Response,
     projection: TasteCatalogSyncService = Depends(get_taste_catalog_sync),
+    settings: Settings = Depends(get_settings),
 ) -> TastePreviewResponse:
     response.headers["Cache-Control"] = "private, no-store"
     try:
-        result = preview_taste(request, projection.read)
+        result = preview_taste(
+            request,
+            projection.read,
+            lambda variant_ids: fetch_available_variant_ids(variant_ids, settings),
+        )
     except InvalidTasteCriteria as failure:
         raise HTTPException(422, str(failure)) from None
     if result.status == "TASTE_CATALOG_UNAVAILABLE":

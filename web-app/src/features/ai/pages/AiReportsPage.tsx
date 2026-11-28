@@ -214,10 +214,12 @@ export function AiReportsPage({ api = getAiReportApi() }: { api?: AiReportApi | 
         />
       ) : null}
       {api && exportOpen ? <AiReportExportDialog key={`export:${keycloakSubject ?? "anonymous"}`} api={api} actor={keycloakSubject}
-        onClose={() => setExportOpen(false)} onExported={(kind) => {
+        onClose={() => setExportOpen(false)} onExported={(kind, exported) => {
           setExportOpen(false);
-          setFeedback(kind === "CUSTOM_BOM"
-            ? "Đã tải báo cáo BOM mô phỏng. Báo cáo xuất chưa tự thêm vào danh sách báo cáo gốc."
+          setFeedback(kind === "INGREDIENT"
+            ? (exported?.dataStatus === "NO_DATA"
+              ? "Đã tải file báo cáo AI theo nguyên liệu (chưa phát sinh dữ liệu trong kỳ đã chọn)."
+              : "Đã xuất và tải báo cáo AI theo nguyên liệu.")
             : "Đã xuất và tải báo cáo AI theo sản phẩm.");
         }} /> : null}
     </section>

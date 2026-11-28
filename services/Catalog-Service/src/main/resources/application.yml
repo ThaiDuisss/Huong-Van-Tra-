@@ -79,7 +79,27 @@ kafka-producer-config:
   request-timeout-ms: 60000
   retry-count: 5
 
+kafka-consumer-config:
+  enabled: ${CATALOG_ORDER_CONSUMER_ENABLED:true}
+  group-id: ${CATALOG_ORDER_CONSUMER_GROUP_ID:catalog-service-order-events}
+  key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+  value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+  auto-offset-reset: earliest
+  batch-listener: false
+  auto-startup: true
+  concurrency-level: 3
+  session-timeout-ms: 10000
+  heartbeat-interval-ms: 3000
+  max-poll-interval-ms: 300000
+  max-poll-records: 500
+  max-partition-fetch-bytes-default: 1048576
+  max-partition-fetch-bytes-boost-factor: 1
+  poll-timeout-ms: 150
+
 catalog:
+  order-events:
+    topics:
+      order-completed: ${KAFKA_ORDER_COMPLETED_TOPIC:order.completed}
   outbox:
     item-sync:
       mode: ${CATALOG_ITEM_SYNC_MODE:CDC}
