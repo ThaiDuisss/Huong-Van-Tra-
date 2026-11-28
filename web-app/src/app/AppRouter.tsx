@@ -77,12 +77,12 @@ import { ProductVariantListPage } from "../features/product/pages/ProductVariant
 import { TasteProfileListPage } from "../features/product/pages/TasteProfileListPage";
 import { TasteProfileEditPage } from "../features/product/pages/TasteProfileEditPage";
 import { ProductVariantDetailPage } from "../features/product/pages/ProductVariantDetailPage";
-import { SellableConfigPage } from "../features/product/pages/SellableConfigPage";
 import { routePaths } from "../routes/path";
 import { PosSalePage } from "../features/sales/pages/PosSalePage";
 import { PosShell } from "../components/layout/Pos/PosShell";
 import { ShelfManagementPage } from "../features/inventory/pages/ShelfManagementPage";
 import { WarehouseInventoryPage } from "../features/inventory/pages/WarehouseInventoryPage";
+import { ReplenishmentPolicyPage } from "../features/inventory/pages/ReplenishmentPolicyPage";
 import { useAuth } from "../auth/auth-context";
 import { ProtectedRoute } from "../auth/ProtectedRoute";
 import { PERMISSIONS } from "../auth/permissions";
@@ -103,7 +103,6 @@ import {
   PRODUCT_ROLES,
   TASTE_PROFILE_ROLES,
   REPORT_ROLES,
-  SELLABLE_CONFIG_ROLES,
   SETTINGS_ROLES,
   STATISTIC_REPORT_ROLES,
   VOUCHER_ROLES,
@@ -306,9 +305,10 @@ export function AppRouter() {
             </ProtectedRoute>
           }
         />
-        <Route element={<RoleGate roles={SELLABLE_CONFIG_ROLES} />}>
-          <Route path="sellable-config" element={<SellableConfigPage />} />
-        </Route>
+        <Route
+          path="sellable-config"
+          element={<Navigate to={routePaths.inventoryReplenishmentPolicies} replace />}
+        />
         <Route element={<RoleGate roles={ORDER_ROLES} />}>
           <Route path="orders" element={<OrderListPage />} />
           <Route path="orders/invoices" element={<InvoiceListPage />} />
@@ -361,6 +361,7 @@ export function AppRouter() {
           />
           <Route path="inventory/transactions" element={<InventoryTransactionPage />} />
           <Route path="inventory/shelves" element={<ShelfManagementPage />} />
+          <Route path="inventory/replenishment-policies" element={<ReplenishmentPolicyPage />} />
           <Route path="inventory/balances" element={<Navigate to={routePaths.warehouseInventory} replace />} />
           <Route path="inventory/warehouse" element={<WarehouseInventoryPage />} />
           <Route

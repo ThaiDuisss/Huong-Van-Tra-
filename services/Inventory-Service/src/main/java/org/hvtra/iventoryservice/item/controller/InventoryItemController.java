@@ -8,6 +8,7 @@ import org.hvtra.iventoryservice.item.dto.request.InventoryItemRequest;
 import org.hvtra.iventoryservice.item.dto.response.InventoryItemLookupResponse;
 import org.hvtra.iventoryservice.item.dto.response.InventoryItemResponse;
 import org.hvtra.iventoryservice.item.service.InventoryItemService;
+import org.hvtra.iventoryservice.location.dto.response.LookupResponse;
 import org.hvtra.iventoryservice.shared.pagination.PageResponse;
 import org.hvtra.iventoryservice.shared.web.InventoryStatusRequest;
 import org.hvtra.iventoryservice.stock.dto.response.InventoryBalanceResponse;
@@ -48,6 +49,15 @@ public class InventoryItemController {
     public List<InventoryItemLookupResponse> lookupIngredientsBySupplier(
             @RequestParam(name = "supplierId") UUID supplierId) {
         return service.lookupIngredientsBySupplier(supplierId);
+    }
+
+    /** Tìm kiếm mặt hàng tồn kho dạng id + name (phân trang) cho SearchableDropdown. */
+    @GetMapping("/search-lookup")
+    public PageResponse<LookupResponse> searchLookup(
+            @RequestParam(name = "search", required = false) String search,
+            @RequestParam(name = "itemType", required = false) InventoryItemType itemType,
+            @PageableDefault(size = 20) Pageable pageable) {
+        return service.searchLookup(search, itemType, pageable);
     }
 
     @GetMapping("/{id}")

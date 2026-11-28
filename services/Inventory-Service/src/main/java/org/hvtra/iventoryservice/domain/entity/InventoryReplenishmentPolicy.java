@@ -4,6 +4,7 @@ import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
 import org.hvtra.commonservice.common_core.domain.entity.BaseEntity;
+import org.hvtra.iventoryservice.domain.enums.InventoryLocationType;
 
 import java.math.BigDecimal;
 
@@ -11,8 +12,8 @@ import java.math.BigDecimal;
 @Table(
         name = "inventory_replenishment_policies",
         uniqueConstraints = @UniqueConstraint(
-                name = "uq_replenishment_policy_item_loc",
-                columnNames = {"inventory_item_id", "location_id"}
+                name = "uq_replenishment_policy_item_type",
+                columnNames = {"inventory_item_id", "location_type"}
         ),
         indexes = @Index(name = "idx_replenishment_policy_enabled", columnList = "enabled")
 )
@@ -24,27 +25,12 @@ public class InventoryReplenishmentPolicy extends BaseEntity {
     @JoinColumn(name = "inventory_item_id", nullable = false)
     private InventoryItem inventoryItem;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "location_id", nullable = false)
-    private InventoryLocation location;
+    @Enumerated(EnumType.STRING)
+    @Column(name = "location_type", nullable = false, length = 50)
+    private InventoryLocationType locationType;
 
     @Column(name = "minimum_stock", nullable = false, precision = 18, scale = 2)
     private BigDecimal minimumStock = BigDecimal.ZERO;
-
-    @Column(name = "safety_stock", nullable = false, precision = 18, scale = 2)
-    private BigDecimal safetyStock = BigDecimal.ZERO;
-
-    @Column(name = "reorder_point", nullable = false, precision = 18, scale = 2)
-    private BigDecimal reorderPoint = BigDecimal.ZERO;
-
-    @Column(name = "standard_reorder_quantity", nullable = false, precision = 18, scale = 2)
-    private BigDecimal standardReorderQuantity = BigDecimal.ZERO;
-
-    @Column(name = "supplier_lead_time_days", nullable = false)
-    private Integer supplierLeadTimeDays = 0;
-
-    @Column(name = "average_daily_consumption", nullable = false, precision = 18, scale = 2)
-    private BigDecimal averageDailyConsumption = BigDecimal.ZERO;
 
     @Column(name = "maximum_stock", precision = 18, scale = 2)
     private BigDecimal maximumStock;

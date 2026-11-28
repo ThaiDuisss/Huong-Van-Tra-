@@ -3,6 +3,7 @@ package org.hvtra.iventoryservice.item.service;
 import org.hvtra.iventoryservice.item.dto.request.InventoryItemRequest;
 import org.hvtra.iventoryservice.item.dto.response.InventoryItemLookupResponse;
 import org.hvtra.iventoryservice.item.dto.response.InventoryItemResponse;
+import org.hvtra.iventoryservice.location.dto.response.LookupResponse;
 import org.hvtra.iventoryservice.shared.pagination.PageResponse;
 import org.hvtra.iventoryservice.domain.enums.InventoryItemType;
 import org.hvtra.iventoryservice.domain.enums.InventoryStatus;
@@ -27,4 +28,6 @@ public interface InventoryItemService {
     InventoryItemResponse updateStatus(UUID id, InventoryStatus status);
 
     List<InventoryItemLookupResponse> lookupIngredientsBySupplier(UUID supplierId);
+
+    PageResponse<LookupResponse> searchLookup(String search, InventoryItemType itemType, Pageable pageable);
 }
