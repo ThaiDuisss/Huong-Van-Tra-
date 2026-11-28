@@ -9,6 +9,7 @@ import org.hvtra.iventoryservice.item.dto.request.InventoryItemRequest;
 import org.hvtra.iventoryservice.integration.catalog.client.CatalogClient;
 import org.hvtra.iventoryservice.item.dto.response.InventoryItemLookupResponse;
 import org.hvtra.iventoryservice.item.dto.response.InventoryItemResponse;
+import org.hvtra.iventoryservice.location.dto.response.LookupResponse;
 import org.hvtra.iventoryservice.item.mapper.InventoryItemMapper;
 import org.hvtra.iventoryservice.item.repository.InventoryItemRepository;
 import org.hvtra.iventoryservice.shared.exception.BadRequestException;
@@ -157,6 +158,23 @@ public class InventoryItemServiceImpl implements InventoryItemService {
                         item.getUnitId() != null ? unitNames.get(item.getUnitId()) : null
                 ))
                 .toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public PageResponse<LookupResponse> searchLookup(
+            String search, InventoryItemType itemType, Pageable pageable) {
+        String keyword = search != null ? search.trim() : null;
+        return PageResponse.from(repository.lookupActiveItems(keyword, itemType, pageable)
+                .map(item -> {
+                    String name = item.getName() != null && !item.getName().isBlank()
+                            ? item.getName()
+                            : "Mặt hàng";
+                    String label = item.getReferenceCode() != null && !item.getReferenceCode().isBlank()
+                            ? name + " (" + item.getReferenceCode() + ")"
+                            : name;
+                    return new LookupResponse(item.getId().toString(), label);
+                }));
     }
 
     // Tên ĐVT chỉ phục vụ hiển thị — Catalog lỗi thì bỏ qua, không làm hỏng cả danh sách

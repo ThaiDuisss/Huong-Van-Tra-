@@ -4,6 +4,8 @@ import jakarta.persistence.LockModeType;
 import org.hvtra.iventoryservice.domain.entity.InventoryItem;
 import org.hvtra.iventoryservice.domain.enums.InventoryItemType;
 import org.hvtra.iventoryservice.domain.enums.InventoryStatus;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Lock;
@@ -50,4 +52,19 @@ public interface InventoryItemRepository
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select i from InventoryItem i where i.id = :id")
     Optional<InventoryItem> findByIdForUpdate(@Param("id") UUID id);
+
+    @Query("""
+            select i from InventoryItem i
+            where i.isDeleted = false
+              and i.status = org.hvtra.iventoryservice.domain.enums.InventoryStatus.ACTIVE
+              and (:itemType is null or i.itemType = :itemType)
+              and (:search is null or :search = ''
+                   or lower(i.name) like lower(concat('%', :search, '%'))
+                   or lower(i.referenceCode) like lower(concat('%', :search, '%')))
+            order by i.name asc
+            """)
+    Page<InventoryItem> lookupActiveItems(
+            @Param("search") String search,
+            @Param("itemType") InventoryItemType itemType,
+            Pageable pageable);
 }

@@ -66,5 +66,15 @@ public class InventorySecurityConfig extends BaseSecurityConfig {
         // Quản lý vị trí lưu kho: chỉ SUPER_ADMIN
         auth.requestMatchers("/api/inventory/inventory-locations/all")
                 .hasAnyRole(SUPER_ADMIN_ROLES);
+
+        // Chính sách ngưỡng tồn kho theo vị trí: chỉ ADMIN và MANAGER được thay đổi
+        auth.requestMatchers(HttpMethod.POST, "/api/inventory/replenishment-policies")
+                .hasAnyRole(APPROVER_ROLES);
+        auth.requestMatchers(HttpMethod.PUT, "/api/inventory/replenishment-policies/*")
+                .hasAnyRole(APPROVER_ROLES);
+        auth.requestMatchers(HttpMethod.PATCH, "/api/inventory/replenishment-policies/*/enabled")
+                .hasAnyRole(APPROVER_ROLES);
+        auth.requestMatchers(HttpMethod.DELETE, "/api/inventory/replenishment-policies/*")
+                .hasAnyRole(APPROVER_ROLES);
     }
 }
